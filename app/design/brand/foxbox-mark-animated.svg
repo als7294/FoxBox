@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FoxBox" style="color:#ff4b2b">
+  <title>FoxBox</title>
+  <!--
+    Animated FoxBox mark for loading screens (boot, Setup, updater).
+    Intro (~1.3 s): a scan line locks the head in, the jaw rises into place, the eyes open.
+    Loop: the jaw "speaks" in short bursts, the eyes blink now and then, the glow breathes.
+    Colour follows `color` (currentColor); defaults to ember. prefers-reduced-motion shows the static mark.
+  -->
+  <style>
+    .fb-top    { transform-box: view-box; transform-origin: 256px 300px; animation: fb-in .55s cubic-bezier(.2,.8,.2,1) both; }
+    .fb-jaw    { transform-box: view-box; animation: fb-jaw-in .6s .25s cubic-bezier(.2,1.4,.4,1) both, fb-talk 3.2s 1.4s ease-in-out infinite; }
+    .fb-eye    { transform-box: fill-box; transform-origin: 50% 50%; animation: fb-eye-open .35s .85s cubic-bezier(.2,.8,.2,1) both, fb-blink 5.3s 2.6s infinite; }
+    .fb-glow   { animation: fb-glow 3.2s 1.4s ease-in-out infinite; }
+    .fb-scan   { animation: fb-scan 1.05s .05s cubic-bezier(.45,0,.2,1) both; }
+    @keyframes fb-in      { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+    @keyframes fb-jaw-in  { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: none; } }
+    @keyframes fb-talk    { 0%, 34%, 100% { transform: none; }
+                            5%  { transform: translateY(9px); }   10% { transform: translateY(3px); }
+                            15% { transform: translateY(11px); }  21% { transform: translateY(2px); }
+                            27% { transform: translateY(7px); } }
+    @keyframes fb-eye-open { from { transform: scaleY(.08); } to { transform: none; } }
+    @keyframes fb-blink   { 0%, 94%, 100% { transform: none; } 96.5% { transform: scaleY(.08); } }
+    @keyframes fb-glow    { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255,75,43,.28)); }
+                            18% { filter: drop-shadow(0 0 22px rgba(255,75,43,.55)); } }
+    @keyframes fb-scan    { from { transform: translateY(-40px); opacity: 1; } 85% { opacity: 1; } to { transform: translateY(520px); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .fb-top, .fb-jaw, .fb-eye, .fb-glow, .fb-scan { animation: none; }
+      .fb-scan { display: none; }
+    }
+  </style>
+  <defs>
+    <mask id="fb-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <path d="M112 104 L196 190 L130 222 Z" fill="#000"/>
+      <path d="M400 104 L316 190 L382 222 Z" fill="#000"/>
+      <path class="fb-eye" d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000"/>
+      <path class="fb-eye" d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/>
+      <path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" stroke-width="28" stroke-linejoin="miter"/>
+    </mask>
+    <clipPath id="fb-above"><path d="M0 0 H512 V298 H456 L256 410 L56 298 H0 Z"/></clipPath>
+    <clipPath id="fb-below"><path d="M0 298 H56 L256 410 L456 298 H512 V512 H0 Z"/></clipPath>
+    <clipPath id="fb-head"><path d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/></clipPath>
+    <linearGradient id="fb-scan-g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb23e" stop-opacity="0"/>
+      <stop offset=".8" stop-color="#ffd9a0" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <g class="fb-glow">
+    <g class="fb-top">
+      <path fill="currentColor" mask="url(#fb-cut)" clip-path="url(#fb-above)" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+    </g>
+    <g class="fb-jaw">
+      <path fill="currentColor" mask="url(#fb-cut)" clip-path="url(#fb-below)" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+    </g>
+  </g>
+  <g clip-path="url(#fb-head)" style="mix-blend-mode:screen">
+    <rect class="fb-scan" x="0" y="0" width="512" height="36" fill="url(#fb-scan-g)"/>
+  </g>
+</svg>

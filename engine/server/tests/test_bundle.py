@@ -113,6 +113,16 @@ def test_tts_espeak_fallback_from_a_deep_install_path(app_engine, tmp_path):
         assert src["duration_s"] > 1.0 and len(src["segments"]) == 2
 
 
+def _tree(root: Path) -> dict[str, tuple[int, int]]:
+    """Every file under the bundle with its size and mtime: the app is signed, so running it must change none."""
+    return {str(p.relative_to(root)): (p.stat().st_size, p.stat().st_mtime_ns)
+            for p in root.rglob("*") if p.is_file() and not p.is_symlink()}
+
+
+def _unchanged(before: dict, after: dict) -> list[str]:
+    return sorted({k for k in before.keys() | after.keys() if before.get(k) != after.get(k)})[:10]
+
+
 @contextmanager
 def _packaged(engine: Path, tmp_path: Path, **env):
     """As the packaged app spawns the bundled engine: token in the environment (never argv), models under the data
@@ -154,6 +164,7 @@ def test_packaged_layout_as_the_app_spawns_it(app_engine, tmp_path):
         pytest.skip("no local model cache to point HF_HOME at")
     (tmp_path / "data" / "models").mkdir(parents=True)
     (tmp_path / "data" / "models" / "hub").symlink_to(hub)
+    before = _tree(app_engine)
     with _packaged(app_engine, tmp_path) as (port, proc):
         health = _settled(port)
         assert health["state"] == "ready" and health["required_missing"] == [], health
@@ -165,11 +176,13 @@ def test_packaged_layout_as_the_app_spawns_it(app_engine, tmp_path):
         proc.send_signal(signal.SIGTERM)
         assert proc.wait(timeout=30) in (0, -signal.SIGTERM)
         assert not (tmp_path / "data" / "library.sqlite3-wal").exists()  # closed, not abandoned
+    assert _unchanged(before, _tree(app_engine)) == []  # nothing written into the signed bundle
 
 
 def test_packaged_first_launch_on_a_fresh_mac_offline(app_engine, tmp_path):
     """A fresh Mac: no models under HF_HOME, and no network. The engine tries the required downloads, says why they
     failed, lists what's missing, and keeps running (never a crash)."""
+    before = _tree(app_engine)
     with _packaged(app_engine, tmp_path, HF_HUB_OFFLINE="1") as (port, proc):
         health = _settled(port)
         assert health["state"] == "error" and health["required_missing"] == ["kokoro-82m", "deepfilternet3"], health
@@ -179,3 +192,15 @@ def test_packaged_first_launch_on_a_fresh_mac_offline(app_engine, tmp_path):
         assert status == 200 and not any(m["installed"] for m in models if m["required"])
         proc.stdin.close()
         assert proc.wait(timeout=10) == 0
+    # The model downloader it started is a separate interpreter without -B: it must not write .pyc files into the
+    # bundle either (it did, and broke the app's code signature).
+    assert _unchanged(before, _tree(app_engine)) == []
+
+
+def test_bytecode_is_never_revalidated(app_engine):
+    """Unchecked-hash .pyc files: a packaging copy that changes source mtimes can't make any interpreter rewrite
+    them (flags word 0b01 = hash-based, source not checked)."""
+    pycs = [p for p in (app_engine / "venv").rglob("*.pyc")] + [p for p in (app_engine / "python").rglob("*.pyc")]
+    assert len(pycs) > 1000
+    flags = {int.from_bytes(p.read_bytes()[4:8], "little") for p in pycs[::50]}
+    assert flags == {1}, flags

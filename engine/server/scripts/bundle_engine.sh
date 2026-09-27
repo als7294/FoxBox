@@ -50,16 +50,27 @@ done
 echo "==> dependencies from uv.lock"
 (cd "$ENGINE" && uv export --quiet --frozen --no-dev --no-hashes --no-emit-workspace --package fvwks-server \
   -o "$OUT/requirements.txt")
-install() { VIRTUAL_ENV="$OUT/venv" uv pip install --quiet --python "$OUT/venv/bin/python" --link-mode copy \
-  --compile-bytecode "$@"; }
+install() { VIRTUAL_ENV="$OUT/venv" uv pip install --quiet --python "$OUT/venv/bin/python" --link-mode copy "$@"; }
 install -r "$OUT/requirements.txt"
 install --no-deps "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server"
 
+echo "==> bytecode (unchecked-hash)"
+# Timestamp-checked .pyc files go stale when packaging copies the sources (new mtimes). An interpreter started
+# without -B (the voice package's model downloader, say) would then rewrite them inside the signed app and break
+# its seal. Unchecked-hash .pyc files are used as they are, never re-validated or rewritten. A few files that don't
+# compile (Python 2 syntax in rarely used corners) keep no .pyc, which is fine: they're never imported.
+COMPILE_LOG="$(mktemp)"
+"$OUT/python/bin/python$PYVER" -I -m compileall -q -f -j 0 --invalidation-mode unchecked-hash \
+  "$OUT/python/lib/python$PYVER" "$OUT/venv/lib/python$PYVER/site-packages" > "$COMPILE_LOG" 2>&1 || true
+rm -f "$COMPILE_LOG"
+
 cat > "$OUT/bin/fvwks-engine" <<'SH'
 #!/bin/sh
-# FoxBox engine (portable bundle). -I ignores PYTHON* env vars and user site-packages; -B keeps a
-# signed, read-only app bundle free of new .pyc files.
+# FoxBox engine (portable bundle). -I ignores PYTHON* env vars and user site-packages; -B keeps a signed,
+# read-only app bundle free of new .pyc files. -I also makes this interpreter ignore PYTHONDONTWRITEBYTECODE, but
+# the interpreters it starts without -I (the model downloader) inherit it, so none of them writes .pyc either.
 HERE="$(cd "$(dirname "$0")/.." && pwd -P)"
+export PYTHONDONTWRITEBYTECODE=1
 exec "$HERE/venv/bin/python" -I -B -m fvwks_server.main "$@"
 SH
 chmod +x "$OUT/bin/fvwks-engine"
