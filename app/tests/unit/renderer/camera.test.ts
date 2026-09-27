@@ -1,20 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { blurRadius, coverCrop, layout, mapBox, mosaicBlocks } from '../../../src/renderer/src/components/camera/compose'
+import {
+  blurRadius,
+  coverCrop,
+  drawFrame,
+  layout,
+  mapBox,
+  MARK_PERIOD_S,
+  markPose,
+  mosaicBlocks,
+} from '../../../src/renderer/src/components/camera/compose'
 import {
   AFTER_S,
   clampLand,
   decodeAiff,
   findBeatDrop,
-  gainOf,
   LEAD_S,
   planClip,
   songShape,
   TAIL_S,
   voiceEndOf,
-} from '../../../src/renderer/src/components/camera/mix'
+} from '../../../src/renderer/src/state/song'
 import { HOLD_MS, iou, pad, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
 import { clipName, extensionOf, pickMimeType } from '../../../src/renderer/src/components/camera/recording'
 import { box, concat, defragment, fullBox, u32 } from '../../../src/renderer/src/components/camera/remux'
+import { filmTime, onsetOf } from '../../../src/renderer/src/components/camera/filmSync'
 
 const face: Box = { x: 400, y: 200, w: 200, h: 240 }
 const covers = (outer: Box, inner: Box) =>
@@ -116,10 +125,6 @@ describe('face masks', () => {
 })
 
 describe('clip sound', () => {
-  it('turns a volume slider into a gain', () => {
-    expect([gainOf(0), gainOf(50), gainOf(100), gainOf(150)]).toEqual([0, 0.25, 1, 1])
-  })
-
   it("plans the clip: a lead-in, the drop's last word landing on the beat drop, then the beat drop playing out", () => {
     // A 14 s drop (8 bars) whose voice ends 9.5 s in.
     const drop = { duration: 14, voiceEnd: 9.5 }
@@ -285,5 +290,55 @@ describe('clip file', () => {
     ])
     // Not a fragmented MP4: left alone.
     expect(defragment(concat([box('ftyp', u32(0)), moov]).slice().buffer)).toBeNull()
+  })
+})
+
+describe('filmed take playback', () => {
+  it("keeps the take's film in step with its (stretched) render", () => {
+    // The take's first word at 0.5 s; the render's at 0.1 s, the speech stretched 1.25×.
+    const take = [0, 0, 0, 0, 0, 1, 0.8, 0.9, 0.2, 0]
+    expect(onsetOf(take, 1)).toBeCloseTo(0.5)
+    expect(onsetOf([0, 0, 0], 1)).toBe(0)
+    const sync = { takeOnset: 0.5, renderOnset: 0.1, ratio: 1.25 }
+    expect(filmTime(sync, 0.1)).toBeCloseTo(0.5) // the first word, both sides
+    expect(filmTime(sync, 1.35)).toBeCloseTo(1.5) // 1.25 s of render is 1 s of take
+  })
+})
+
+describe('clip watermark', () => {
+  it('draws the fox in the corner when it is on, and not when it is off', () => {
+    ;(globalThis as { Path2D?: unknown }).Path2D ??= class {
+      constructor(readonly d?: string) {}
+    }
+    // A 2D context that just records what's drawn.
+    const fake = (log: unknown[][]) =>
+      new Proxy({} as Record<string | symbol, unknown>, {
+        get: (t, k) => (k in t ? t[k] : (...args: unknown[]) => (log.push([k, ...args]), { width: 10 })),
+        set: (t, k, v) => ((t[k] = v), true),
+      }) as unknown as CanvasRenderingContext2D
+    const stamp = { width: 0, height: 0, getContext: () => fake([]) } as unknown as HTMLCanvasElement
+    const frame = (watermark: boolean) => {
+      const log: unknown[][] = []
+      const wave = { song: null, drop: null, dropFrom: 0, dropTo: 1, dropShown: 1 }
+      const input = { video: null, faces: [], wholeFrame: false, mask: { style: 'mosaic' as const, strength: 5 }, wave, progress: 0 }
+      drawFrame(fake(log), layout('vertical'), { ...input, label: '', watermark, clock: 3 }, stamp, stamp)
+      return log.filter(([k, img]) => k === 'drawImage' && img === stamp)
+    }
+    const [drawn] = frame(true)
+    expect(drawn).toBeDefined()
+    // Bottom-right of the picture (1080×1440), above the waveform strip.
+    const [, , x, y] = drawn as [string, unknown, number, number]
+    expect(x).toBeGreaterThan(900)
+    expect(y).toBeGreaterThan(1300)
+    expect(y).toBeLessThan(1440)
+    expect(frame(false)).toHaveLength(0)
+    // From 2 s in, every few seconds: a glance left, then right; still in between.
+    const at = (cycle: number, loop = 0) => 2 + (cycle - 0.6) * 17 + loop * MARK_PERIOD_S
+    expect(markPose(null).eyeX).toBe(0)
+    expect(markPose(1).eyeX).toBe(0)
+    expect(markPose(at(0.65)).eyeX).toBeCloseTo(-11)
+    expect(markPose(at(0.75)).eyeX).toBeCloseTo(10)
+    expect(markPose(at(0.65, 2)).eyeX).toBeCloseTo(-11) // again, two loops later
+    expect(markPose(at(0.95)).eyeX).toBe(0)
   })
 })

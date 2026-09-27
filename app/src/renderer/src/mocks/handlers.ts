@@ -1,5 +1,5 @@
 import { http, HttpResponse, type HttpResponseResolver } from 'msw'
-import type { BatchRequest, ExportRequest, Lexicon, Preset, RenderRequest, Settings, TakePatch, TTSRequest } from '@/api/types'
+import type { BatchRequest, ExportRequest, Lexicon, MixRequest, Preset, RenderRequest, Settings, SongUpdate, TakePatch, TTSRequest } from '@/api/types'
 import { MockError, mockEngine as engine } from './mockEngine'
 
 const API = '*/api'
@@ -133,6 +133,29 @@ export const handlers = [
     engine.takes.delete(String(params.takeId))
     return new HttpResponse(null, { status: 204 })
   }),
+
+  // v0.7 songs: analysis finishes after mockEngine.songAnalysisMs; the mix is the drop alone.
+  http.get(`${API}/songs`, () => HttpResponse.json([...engine.songs.keys()].map((sid) => engine.song(sid)))),
+  http.post(
+    `${API}/songs`,
+    safe(async ({ request }) => {
+      const form = await request.formData()
+      const file = form.get('file')
+      if (!(file instanceof Blob)) throw new Error('file is required')
+      const name = (form.get('name') as string | null) ?? null
+      return HttpResponse.json(engine.uploadSong(await file.arrayBuffer(), name, file instanceof File ? file.name : 'song.wav'))
+    }),
+  ),
+  http.get(`${API}/songs/:songId`, safe(({ params }) => HttpResponse.json(engine.song(String(params.songId))))),
+  http.patch(
+    `${API}/songs/:songId`,
+    safe(async ({ params, request }) => HttpResponse.json(engine.updateSong(String(params.songId), (await request.json()) as SongUpdate))),
+  ),
+  http.delete(`${API}/songs/:songId`, ({ params }) => {
+    engine.songs.delete(String(params.songId))
+    return new HttpResponse(null, { status: 204 })
+  }),
+  http.post(`${API}/mix`, safe(async ({ request }) => HttpResponse.json(engine.mix((await request.json()) as MixRequest)))),
 
   http.post(`${API}/batch`, safe(async ({ request }) => HttpResponse.json(engine.batch((await request.json()) as BatchRequest)))),
 

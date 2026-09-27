@@ -12,12 +12,12 @@ export interface Launched {
 }
 
 /** Launches the built app (out/) with isolated data, export and profile folders. */
-export async function launchApp(env: Record<string, string> = {}): Promise<Launched> {
+export async function launchApp(env: Record<string, string> = {}, extraArgs: string[] = []): Promise<Launched> {
   const root = mkdtempSync(join(tmpdir(), 'fvwks-e2e-'))
   const dirs = { root, data: join(root, 'data'), exports: join(root, 'exports'), userData: join(root, 'electron') }
   mkdirSync(dirs.exports, { recursive: true })
   const app = await electron.launch({
-    args: [APP_DIR],
+    args: [APP_DIR, ...extraArgs],
     cwd: APP_DIR,
     env: {
       ...process.env,

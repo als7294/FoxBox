@@ -6,11 +6,17 @@ import { ExportSheet } from '@/components/output/ExportSheet'
 import { RackDrawer, RackPanel } from '@/components/rack/RackPanel'
 import { SavePresetModal } from '@/components/rack/SavePresetModal'
 import { SignalView } from '@/components/signal/SignalView'
+import { SongDrawer } from '@/components/song/SongDrawer'
+import { SongStrip } from '@/components/song/SongStrip'
+import { useSong } from '@/state/song'
 import { isStale, useStudio } from '@/state/studio'
 import { useUi } from '@/state/ui'
 import styles from './studio.module.css'
 
-/** STUDIO: SOURCE (type/record/import) | SIGNAL, with RACK and OUTPUT below; OPEN RACK slides the full rack over. */
+/**
+ * STUDIO: SOURCE (type/record/import) over the SONG strip | SIGNAL, with RACK and OUTPUT below; OPEN RACK slides the full
+ * rack over, the SONG strip's ↑ the song drawer (one at a time).
+ */
 export function StudioScreen() {
   const voices = useVoices().data ?? []
   const presets = usePresets().data ?? []
@@ -19,12 +25,16 @@ export function StudioScreen() {
   const exports = useStudio((s) => s.exports)
   const stale = useStudio(isStale)
   const rackOpen = useStudio((s) => s.rackOpen)
+  const songOpen = useSong((s) => s.open)
   const exportOpen = useUi((s) => s.exportSheetOpen)
   const saveOpen = useUi((s) => s.savePresetOpen)
   const wet = exports.find((f) => f.variant === 'wet') ?? exports[0] ?? null
   return (
     <div className={styles.studio} data-rack-open={rackOpen || undefined}>
-      <SourceTabs voices={voices} />
+      <div className={styles.left}>
+        <SourceTabs voices={voices} />
+        <SongStrip />
+      </div>
       <SignalView />
       <div className={styles.bottom}>
         {rack ? (
@@ -37,6 +47,7 @@ export function StudioScreen() {
         <Cartridge render={render} file={wet} stale={stale} />
       </div>
       {rackOpen && rack && <RackDrawer rack={rack} voices={voices} />}
+      {songOpen && !rackOpen && <SongDrawer />}
       <ExportSheet open={exportOpen} onClose={() => useUi.getState().setExportSheetOpen(false)} presets={presets} />
       <SavePresetModal open={saveOpen} onClose={() => useUi.getState().setSavePresetOpen(false)} presets={presets} />
     </div>

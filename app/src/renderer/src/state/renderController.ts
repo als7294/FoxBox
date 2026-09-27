@@ -266,6 +266,8 @@ export interface ExportOptions {
   variants: string[]
   stems: boolean
   title?: string | null
+  /** v0.7: also write the song with this drop baked in (variant 'baked'). */
+  bake?: ExportRequest['bake']
 }
 
 /** Export the current render (rendering a final first when needed). */
@@ -284,6 +286,7 @@ export async function exportCurrent(options: ExportOptions): Promise<{ files: Ex
           variants: options.variants,
           stems: options.stems,
           title: options.title ?? null,
+          ...(options.bake ? { bake: options.bake } : {}),
         },
       }),
     )

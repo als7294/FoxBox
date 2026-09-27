@@ -8,6 +8,20 @@
   gap: 12px;
   min-height: 0;
 }
+/* The left column: SOURCE over the SONG strip. */
+.left {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+.left > :first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .bottom {
   grid-column: 2;
   grid-row: 2;

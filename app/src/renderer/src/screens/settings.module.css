@@ -1,6 +1,6 @@
 /*
- * SETTINGS (05 / CONFIG). The design's three columns: EXPORT | LOUDNESS | AUDIO OUTPUT, then NAMING (2 wide) |
- * REKORDBOX; STUDIO DEFAULTS (2 wide) | ENGINE close the grid. All of it fits 1280×800 without scrolling;
+ * SETTINGS (05 / CONFIG). The design's three columns: EXPORT | LOUDNESS | AUDIO OUTPUT over CAMERA CLIPS, then
+ * NAMING (2 wide) | REKORDBOX; STUDIO DEFAULTS (2 wide) | ENGINE close the grid. All of it fits 1280×800 without scrolling;
  * the grid scrolls inside itself if it ever has to.
  */
 
@@ -13,6 +13,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
     'export loud audio'
+    'export loud camera'
     'naming naming rb'
     'defaults defaults engine';
   gap: 12px;
@@ -26,6 +27,9 @@
 }
 .card[data-area='audio'] {
   grid-area: audio;
+}
+.card[data-area='camera'] {
+  grid-area: camera;
 }
 .card[data-area='naming'] {
   grid-area: naming;

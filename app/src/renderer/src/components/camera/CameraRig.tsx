@@ -1,16 +1,32 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { audioUrl } from '@/api/client'
+import { player } from '@/audio/playerInstance'
 import { Button } from '@/components/common/Button'
 import common from '@/components/common/common.module.css'
 import { Segmented } from '@/components/rack/Segmented'
 import { bridge } from '@/env'
+import {
+  barTime,
+  clampLand,
+  lastBar,
+  planClip,
+  songGrid,
+  songs,
+  songShape,
+  useSong,
+  voiceEndOf,
+  type ClipPlan,
+  type Placement,
+} from '@/state/song'
 import { useStudio } from '@/state/studio'
+import { useViewPrefs } from '@/state/viewPrefs'
 import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 import { camera, takeFilm, useCamera, type CameraSettings } from './cameraStore'
 import { drawFrame, layout, type MaskStyle, type Wave } from './compose'
 import { detectFaces, loadFaceDetector } from './faceDetector'
+import { filmTime, onsetOf, syncFilm, type FilmSync } from './filmSync'
 import { step, type Track } from './faceTrack'
-import { clampLand, decodeSong, findBeatDrop, gainOf, planClip, songShape, startMix, voiceEndOf, type ClipPlan, type Mix } from './mix'
+import { startMix, type Mix, type MixLevels } from './mix'
 import { clipName, pickFilmType, pickMimeType } from './recording'
 import { defragment } from './remux'
 import styles from './camera.module.css'
@@ -27,6 +43,10 @@ interface Clip {
 
 const wait = (ms: number) => new Promise((done) => setTimeout(done, ms))
 const CAMERA_TIMEOUT_MS = 15_000
+/** After the picture switches or jumps, the whole of it stays hidden this long, while faces are found again. */
+const SETTLE_MS = 400
+const dbGain = (db: number) => 10 ** (db / 20)
+const dbText = (db: number) => `${db > 0 ? '+' : ''}${db.toFixed(1)} dB`
 /** 40.59 → "0:40.6" */
 const mmss = (s: number) => {
   const t = Math.round(s * 10) / 10
@@ -91,18 +111,20 @@ function Slider(p: {
  * always the rendered drop, never the microphone.
  *
  * RECORD lays it out: `preview` takes the orb's place (with the take's REC button on it), `settings` go under the
- * meters.
+ * meters. While a filmed take's drop plays, `overlay` covers the tab with that film, faces hidden, in step with it.
  */
 export function CameraRig({
   recButton,
   children,
 }: {
   recButton: ReactNode
-  children(parts: { preview: ReactNode; settings: ReactNode }): ReactNode
+  children(parts: { preview: ReactNode; settings: ReactNode; overlay: ReactNode }): ReactNode
 }) {
   const render = useStudio((s) => s.render)
   const takes = useStudio((s) => s.takes)
-  const { settings, song, takeVideos } = useCamera()
+  const { settings, takeVideos } = useCamera()
+  // The song is the Studio's (state/song.ts): one song and one placement, whichever panel sets them.
+  const { song, buffer: songBuffer, beatDrop, placement, busy: songBusy, error: songError } = useSong()
   const [cam, setCam] = useState<CameraPhase>('asking')
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<ClipPhase>('idle')
@@ -115,13 +137,22 @@ export function CameraRig({
   // The drop's length and where its voice ends, once its audio is decoded.
   const [dropTiming, setDropTiming] = useState<{ duration: number; voiceEnd: number } | null>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  // The playback overlay's canvas: while it's up, frames are drawn there.
+  const big = useRef<HTMLCanvasElement>(null)
+  const [overlay, setOverlay] = useState<'in' | 'out' | null>(null)
   const songInput = useRef<HTMLInputElement>(null)
   // Per-frame state lives outside React: the frame loop reads it 60 times a second.
   const st = useRef({
     stream: null as MediaStream | null,
     video: null as HTMLVideoElement | null,
-    /** While MAKE CLIP plays a take's video, the frame is drawn from it instead of the live camera. */
+    /** While a take's video plays (MAKE CLIP, or its drop playing back), the frame is drawn from it. */
     film: null as HTMLVideoElement | null,
+    sync: null as FilmSync | null,
+    /** The film follows the player (the drop playing back), not a clip being made. */
+    playback: false,
+    frozen: false,
+    /** Until then the whole picture is hidden (see SETTLE_MS). */
+    settleUntil: 0,
     detector: null as FaceDetector | null,
     tracks: [] as Track[],
     settings,
@@ -131,27 +162,46 @@ export function CameraRig({
     plan: null as ClipPlan | null,
     wave: null as Wave | null,
     label: '',
+    watermark: true,
     stopRecording: null as (() => void) | null,
     alive: true,
   })
   st.current.settings = settings
+  st.current.watermark = useViewPrefs((v) => v.clipWatermark)
   const presetName = useStudio((s) => s.presetName)
   st.current.label = render
     ? `${presetName ?? 'CUSTOM'} · ${Math.round(render.bpm)} BPM${render.bars ? ` · ${render.bars} BARS` : ''}`
     : 'RENDER THE DROP FOR ITS WAVEFORM'
-  const levels = (s: CameraSettings) => ({ drop: gainOf(s.dropVolume), song: s.sound === 'song' ? gainOf(s.songVolume) : 0 })
+  const levels = (s: CameraSettings, p: Placement): MixLevels =>
+    s.sound === 'song' ? { drop: dbGain(p.dropGainDb), song: dbGain(p.songGainDb), duck: dbGain(p.duckDb) } : { drop: 1, song: 0, duck: 1 }
   // Volume changes are heard at once while the sound plays.
-  useEffect(() => st.current.mix?.setLevels(levels(settings)), [settings.dropVolume, settings.songVolume, settings.sound])
+  useEffect(() => st.current.mix?.setLevels(levels(settings, placement)), [placement, settings.sound])
 
   // The take behind the current drop, and the video it filmed.
   const take = render ? takes.find((t) => t.source?.id === render.source_id) : undefined
   const takeVideo = take ? takeVideos[take.id] : undefined
-  const withSong = settings.sound === 'song' && song ? song : null
+  const withSong = settings.sound === 'song' && song && songBuffer ? { buffer: songBuffer } : null
+  const grid = songGrid(song)
+  // How the take's film lines up with its render.
+  st.current.sync = useMemo<FilmSync | null>(
+    () =>
+      take && render
+        ? {
+            takeOnset: onsetOf(take.shape ?? [], take.durationS),
+            renderOnset: onsetOf(render.peaks.max, render.duration_s),
+            ratio: render.fit?.stretch_ratio || 1,
+          }
+        : null,
+    [take, render],
+  )
 
   const drop = dropTiming ?? { duration: render?.duration_s ?? 0, voiceEnd: render?.duration_s ?? 0 }
-  // Where the drop's last word lands in the song: the user's choice, or the song's first big beat drop.
-  const found = withSong?.beatDrop != null ? clampLand(withSong.beatDrop, withSong.buffer.duration, drop.voiceEnd) : null
-  const land = withSong ? clampLand(settings.landAt ?? found ?? 0, withSong.buffer.duration, drop.voiceEnd) : 0
+  // Where the drop's last word lands in the song: where the Studio placed the drop (a bar); until the song's bars are
+  // known, on its first big beat drop.
+  const found = withSong && beatDrop != null ? clampLand(beatDrop, withSong.buffer.duration, drop.voiceEnd) : null
+  const land = withSong
+    ? clampLand(grid ? barTime(grid, placement.atBar) + drop.voiceEnd : (found ?? 0), withSong.buffer.duration, drop.voiceEnd)
+    : 0
   const plan = useMemo(() => planClip(drop, withSong?.buffer.duration ?? null, land), [drop.duration, drop.voiceEnd, withSong, land])
   const wave = useMemo<Wave>(
     () => ({
@@ -296,7 +346,13 @@ export function CameraRig({
         rec = null
         setFilming(false)
         if (!r || r.state === 'inactive') return done(null)
-        r.onstop = () => done(chunks.length ? new Blob(chunks, { type: r.mimeType }) : null)
+        r.onstop = async () => {
+          if (!chunks.length) return done(null)
+          const film = new Blob(chunks, { type: r.mimeType })
+          // Rewritten as a plain MP4, so playback can seek it to stay in step with the drop.
+          const plain = r.mimeType.startsWith('video/mp4') ? defragment(await film.arrayBuffer()) : null
+          done(plain ? new Blob([plain], { type: r.mimeType }) : film)
+        }
         r.stop()
       })
     return () => {
@@ -310,10 +366,12 @@ export function CameraRig({
   useEffect(() => {
     let raf = 0
     const scratch = document.createElement('canvas')
+    const stamp = document.createElement('canvas')
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const s = st.current
-      const c = canvas.current
+      if (s.frozen) return
+      const c = big.current ?? canvas.current
       const ctx = c?.getContext('2d')
       if (!c || !ctx) return
       const L = layout(s.settings.format)
@@ -322,6 +380,11 @@ export function CameraRig({
         c.height = L.h
       }
       const now = performance.now()
+      // A take's film follows the drop: the player while it plays back, the mix while a clip is made.
+      if (s.film && s.sync) {
+        const t = s.playback ? player.currentTime : s.mix && s.plan && s.ac ? s.ac.currentTime - s.mix.at - s.plan.dropAt : null
+        if (t != null && syncFilm(s.film, filmTime(s.sync, t), s.sync.ratio)) s.settleUntil = now + SETTLE_MS
+      }
       const v = s.film ?? s.video
       if (s.detector && !s.settings.wholeFrame && v && v.readyState >= 2) {
         try {
@@ -331,7 +394,11 @@ export function CameraRig({
           setDetector('failed')
         }
       }
-      const progress = s.mix && s.ac ? (s.ac.currentTime - s.mix.at) / s.mix.length : 0
+      const progress = s.playback
+        ? player.currentTime / (player.duration || 1)
+        : s.mix && s.ac
+          ? (s.ac.currentTime - s.mix.at) / s.mix.length
+          : 0
       drawFrame(
         ctx,
         L,
@@ -339,13 +406,20 @@ export function CameraRig({
           video: v,
           faces: s.tracks.map((t) => t.box),
           // Until faces can be found (or if the detector fails), the whole picture is hidden.
-          wholeFrame: s.settings.wholeFrame || !s.detector,
+          wholeFrame: s.settings.wholeFrame || !s.detector || now < s.settleUntil,
           mask: s.settings.mask,
-          wave: s.wave ?? { song: null, drop: null, dropFrom: 0, dropTo: 1, dropShown: 1 },
+          // Playing back: the drop alone, as the SIGNAL waveform shows it.
+          wave: s.playback
+            ? { song: null, drop: s.wave?.drop ?? null, dropFrom: 0, dropTo: 1, dropShown: 1 }
+            : (s.wave ?? { song: null, drop: null, dropFrom: 0, dropTo: 1, dropShown: 1 }),
           progress,
           label: s.label,
+          watermark: s.watermark,
+          // The clip's own clock animates the watermark (the live picture: the wall clock).
+          clock: s.playback ? player.currentTime : s.mix && s.ac ? s.ac.currentTime - s.mix.at : now / 1000,
         },
         scratch,
+        stamp,
       )
     }
     raf = requestAnimationFrame(tick)
@@ -354,17 +428,55 @@ export function CameraRig({
 
   useEffect(() => () => void (clip && URL.revokeObjectURL(clip.url)), [clip])
 
-  const addSong = async (file: File) => {
-    const ac = st.current.ac
-    if (!ac) return
-    try {
-      const buffer = await decodeSong(ac, await file.arrayBuffer())
-      const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c))
-      camera.setSong({ name: file.name.replace(/\.[^.]+$/, ''), buffer, beatDrop: findBeatDrop(channels, buffer.sampleRate) })
-      setError(null)
-    } catch {
-      setError(`Couldn't read ${file.name}. Try an MP3, M4A, WAV, AIFF or FLAC file.`)
+  // Playing back a filmed take's drop: the tab turns into its film, faces hidden, in step with the waveform.
+  const playing = useStudio((s) => s.playing)
+  const playback = playing && Boolean(takeVideo) && phase === 'idle' && !filming
+  useEffect(() => {
+    if (!playback || !takeVideo) return
+    const s = st.current
+    const film = document.createElement('video')
+    film.muted = true
+    film.playsInline = true
+    film.preload = 'auto'
+    film.src = URL.createObjectURL(takeVideo)
+    s.film = film
+    s.tracks = []
+    s.settleUntil = performance.now() + SETTLE_MS
+    s.playback = true
+    s.frozen = false
+    setOverlay('in')
+    return () => {
+      // Out: the last frame stays while the overlay fades, then the live camera is back.
+      s.frozen = true
+      s.playback = false
+      setOverlay('out')
+      window.setTimeout(() => {
+        film.pause()
+        URL.revokeObjectURL(film.src)
+        if (s.film === film) s.film = null
+        s.tracks = []
+        s.settleUntil = performance.now() + SETTLE_MS
+        s.frozen = false
+        setOverlay((o) => (o === 'out' ? null : o))
+      }, 240)
     }
+  }, [playback, takeVideo])
+
+  const overlayNode = overlay && (
+    <div className={styles.playback} data-state={overlay} data-format={settings.format} data-testid="camera-playback">
+      <span className={styles.playbackLabel}>▶ {take?.name ?? 'TAKE'} · FACES HIDDEN</span>
+      <canvas
+        ref={big}
+        className={styles.playbackCanvas}
+        aria-label={`${take?.name ?? 'The take'}'s video, faces hidden, playing with the drop`}
+      />
+    </div>
+  )
+
+  // The Studio's import: decoded here, analysed by the engine (BPM, key, bar 1); the SONG drawer stays shut.
+  const addSong = async (file: File) => {
+    camera.set({ sound: 'song' })
+    await songs.importFile(file, { open: false })
   }
 
   const stopPreview = () => {
@@ -378,7 +490,11 @@ export function CameraRig({
     if (!s.ac || !s.drop || !s.plan) return
     if (previewing) return stopPreview()
     await s.ac.resume()
-    const mix = startMix(s.ac, s.drop, withSong?.buffer ?? null, { levels: levels(settings), plan: s.plan, outputs: [s.ac.destination] })
+    const mix = startMix(s.ac, s.drop, withSong?.buffer ?? null, {
+      levels: levels(settings, placement),
+      plan: s.plan,
+      outputs: [s.ac.destination],
+    })
     s.mix = mix
     setPreviewing(true)
     void mix.ended.then(() => {
@@ -413,6 +529,7 @@ export function CameraRig({
         return setError("The take's video didn't load.")
       }
       s.tracks = []
+      s.settleUntil = performance.now() + SETTLE_MS
       s.film = film
     } else {
       setPhase('counting')
@@ -432,15 +549,10 @@ export function CameraRig({
       if (e.data.size) chunks.push(e.data)
     }
     const mix = startMix(ac, s.drop, withSong?.buffer ?? null, {
-      levels: levels(st.current.settings),
+      levels: levels(st.current.settings, useSong.getState().placement),
       plan,
       outputs: [dest, ac.destination],
     })
-    // The take's video starts with the drop's voice.
-    if (film) {
-      const f = film
-      window.setTimeout(() => void f.play().catch(() => {}), Math.max(0, (mix.at + plan.dropAt - ac.currentTime) * 1000))
-    }
     rec.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop())
       mix.stop()
@@ -451,6 +563,7 @@ export function CameraRig({
         URL.revokeObjectURL(film.src)
         if (s.film === film) s.film = null
         s.tracks = []
+        s.settleUntil = performance.now() + SETTLE_MS
       }
       if (!s.alive) return
       let blob = new Blob(chunks, { type: mime })
@@ -492,6 +605,7 @@ export function CameraRig({
         </div>
       ),
       settings: null,
+      overlay: overlayNode,
     })
   }
 
@@ -616,63 +730,77 @@ export function CameraRig({
         />
       </Row>
       {settings.sound === 'song' &&
-        (song ? (
+        (song && songBuffer ? (
           <>
             <Row title="SONG">
               <div className={styles.song}>
                 <span title={song.name}>♪ {song.name}</span>
-                <button type="button" aria-label="Remove the song" onClick={() => camera.setSong(null)} disabled={busy}>
+                <button type="button" aria-label="Remove the song" onClick={() => songs.clear()} disabled={busy}>
                   ×
                 </button>
               </div>
             </Row>
             <Slider
               title="DROP LVL"
-              value={settings.dropVolume}
-              min={0}
-              max={100}
-              show={(v) => `${v}%`}
-              onChange={(dropVolume) => camera.set({ dropVolume })}
+              value={placement.dropGainDb}
+              min={-24}
+              max={6}
+              step={0.5}
+              show={dbText}
+              onChange={(dropGainDb) => songs.setPlacement({ dropGainDb })}
             />
             <Slider
               title="SONG LVL"
-              value={settings.songVolume}
-              min={0}
-              max={100}
-              show={(v) => `${v}%`}
-              onChange={(songVolume) => camera.set({ songVolume })}
+              value={placement.songGainDb}
+              min={-24}
+              max={6}
+              step={0.5}
+              show={dbText}
+              onChange={(songGainDb) => songs.setPlacement({ songGainDb })}
             />
-            {song.buffer.duration > drop.voiceEnd && (
+            {grid && (
               <Slider
-                title="LANDS AT"
-                value={land}
-                min={Math.ceil(drop.voiceEnd * 10) / 10}
-                max={Math.floor(song.buffer.duration * 10) / 10}
-                step={0.1}
-                show={mmss}
+                title="DROP AT"
+                value={placement.atBar}
+                min={1}
+                max={lastBar(grid, song.duration_s)}
+                show={(v) => `BAR ${v}`}
                 disabled={busy || previewing}
-                onChange={(landAt) => camera.set({ landAt })}
+                onChange={(atBar) => songs.setPlacement({ atBar })}
               />
             )}
             <p className={styles.hint} data-testid="camera-beat-drop">
-              {found == null ? (
-                'No big beat drop found in this song. Slide to where your drop should end.'
-              ) : Math.abs(land - found) < 0.05 ? (
-                `Your drop's last word lands on the song's first big beat drop (${mmss(found)}).`
+              {!grid ? (
+                song.analysis_state === 'error' ? (
+                  found != null ? (
+                    `Your drop's last word lands on the song's first big beat drop (${mmss(found)}).`
+                  ) : (
+                    'No big beat drop found: the drop starts with the song.'
+                  )
+                ) : (
+                  "Reading the song's bars…"
+                )
+              ) : placement.auto ? (
+                `Auto: your drop's last word lands on the song's first big beat drop. Same placement as the Studio's SONG strip.`
               ) : (
-                <button type="button" onClick={() => camera.set({ landAt: null })} disabled={busy || previewing}>
-                  ↺ Back to the beat drop at {mmss(found)}
+                <button type="button" onClick={() => songs.autoPlace()} disabled={busy || previewing}>
+                  ↺ Back to auto (the first big beat drop)
                 </button>
               )}
             </p>
           </>
         ) : (
           <Row title="SONG">
-            <Button size="sm" onClick={() => songInput.current?.click()} disabled={busy} data-testid="camera-add-song">
-              + ADD A SONG
-            </Button>
+            {songBusy ? (
+              <span className={styles.value}>{songBusy}</span>
+            ) : (
+              <Button size="sm" onClick={() => songInput.current?.click()} disabled={busy} data-testid="camera-add-song">
+                + ADD A SONG
+              </Button>
+            )}
           </Row>
         ))}
+      {settings.sound === 'song' && songError && <p className={styles.error}>{songError}</p>}
       <input
         ref={songInput}
         type="file"
@@ -731,5 +859,5 @@ export function CameraRig({
     </div>
   )
 
-  return children({ preview, settings: settingsRows })
+  return children({ preview, settings: settingsRows, overlay: overlayNode })
 }

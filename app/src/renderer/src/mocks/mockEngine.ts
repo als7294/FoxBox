@@ -18,6 +18,8 @@ import type {
   Lexicon,
   MacroMap,
   Macros,
+  MixInfo,
+  MixRequest,
   ModelInfo,
   Peaks,
   Preset,
@@ -27,6 +29,8 @@ import type {
   RenderRequest,
   Segment,
   Settings,
+  Song,
+  SongUpdate,
   SourceInfo,
   Take,
   TTSRequest,
@@ -703,6 +707,10 @@ export class MockEngine {
       const r = this.renders.get(rid)
       if (!r) throw new MockError(404, 'not_found', `render '${rid}' not found`)
       for (const v of req.variants ?? ['wet']) out.push(this.exportOne(r, v, req.format ?? 'aiff', req.bit_depth ?? 24, req.title ?? null))
+      if (req.bake) {
+        this.song(req.bake.song_id) // 404 for an unknown song
+        out.push(this.exportOne(r, 'baked', req.format ?? 'aiff', req.bit_depth ?? 24, req.title ?? null))
+      }
     }
     return out
   }
@@ -807,6 +815,89 @@ export class MockEngine {
     const s = this.sources.get(sourceId)
     if (!s) throw new MockError(404, 'not_found', `source '${sourceId}' not found`)
     return structuredClone(s.info)
+  }
+
+  // ------------------------------------------------------------------------------ songs (v0.7)
+
+  readonly songs = new Map<string, Song & { readyAt: number }>()
+  /** How long a song's analysis takes; 0 = done by the first GET. */
+  songAnalysisMs = 800
+
+  uploadSong(bytes: ArrayBuffer, name: string | null, filename: string): Song {
+    let pcm: PcmAudio
+    try {
+      pcm = decodeWav(bytes)
+    } catch (err) {
+      throw new MockError(400, 'unsupported_format', `Could not read audio: ${(err as Error).message}`, 'The mock engine reads WAV only.')
+    }
+    const song: Song = {
+      id: id('sng'),
+      name: name?.trim() || filename.replace(/\.[^.]+$/, '') || 'Song',
+      duration_s: pcm.channels[0]!.length / pcm.sampleRate,
+      sample_rate: pcm.sampleRate,
+      channels: pcm.channels.length,
+      peaks: peaksOf(pcm.channels[0]!, pcm.sampleRate),
+      audio_id: this.putAudio('sng', pcm),
+      analysis_state: 'queued',
+      analysis: null,
+      bpm_override: null,
+      downbeat_override_s: null,
+      key_override: null,
+      created_at: now(),
+    }
+    this.songs.set(song.id, { ...song, readyAt: Date.now() + this.songAnalysisMs })
+    return structuredClone(song)
+  }
+
+  song(songId: string): Song {
+    const s = this.songs.get(songId)
+    if (!s) throw new MockError(404, 'not_found', `song '${songId}' not found`)
+    if (s.analysis_state !== 'done' && Date.now() >= s.readyAt) {
+      // Plausible and fixed (the mock doesn't listen), in the engine's spelling.
+      s.analysis_state = 'done'
+      s.analysis = { bpm: 128, bpm_confidence: 0.9, key: 'Ebm', camelot: '2A', key_confidence: 0.6, downbeat_s: 0.12, beats_per_bar: 4 }
+    } else if (s.analysis_state === 'queued') {
+      s.analysis_state = 'running'
+    }
+    const { readyAt: _r, ...rest } = s
+    return structuredClone(rest)
+  }
+
+  updateSong(songId: string, body: SongUpdate): Song {
+    const s = this.songs.get(songId)
+    if (!s) throw new MockError(404, 'not_found', `song '${songId}' not found`)
+    if (body.name?.trim()) s.name = body.name.trim()
+    if ('bpm_override' in body) s.bpm_override = body.bpm_override ?? null
+    if ('downbeat_override_s' in body) s.downbeat_override_s = body.downbeat_override_s ?? null
+    if ('key_override' in body) {
+      const m = body.key_override ? /^([A-G][#b]?)(m?)$/.exec(body.key_override.trim()) : null
+      if (body.key_override && !m) throw new MockError(422, 'invalid_request', `key_override: unknown key '${body.key_override}'.`, 'Use a key like Am, F#m or C.')
+      const flat: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', Gb: 'F#' }
+      s.key_override = m ? `${flat[m[1]!] ?? m[1]!}${m[2]}` : null
+    }
+    return this.song(songId)
+  }
+
+  /** The drop over the song: the mock just plays the drop. */
+  mix(req: MixRequest): MixInfo {
+    const r = this.renders.get(req.render_id)
+    if (!r) throw new MockError(404, 'not_found', `render '${req.render_id}' not found`)
+    const song = this.song(req.placement.song_id)
+    if (!(song.bpm_override ?? song.analysis?.bpm)) throw new MockError(409, 'song_not_analyzed', 'This song is still being analysed.')
+    const { info } = r
+    return {
+      id: id('mix'),
+      render_id: info.id,
+      song_id: song.id,
+      audio_id: info.audio_id,
+      sample_rate: info.sample_rate,
+      duration_s: info.duration_s,
+      start_s: 0,
+      drop_start_s: 0,
+      peaks: info.peaks,
+      loudness: info.loudness,
+      warnings: ['The mock engine plays the drop without the song.'],
+    }
   }
 
   failedJob(kind: Job['kind'], code: string, message: string): Job {

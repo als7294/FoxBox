@@ -1,6 +1,6 @@
 # S4 APP — status (FoxBox)
 
-Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.0.0 release candidate)
+Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.1.1)
 
 ## Where things stand
 | Area | State |
@@ -170,6 +170,27 @@ old-brand after/ set) were removed with the rename; the after/ set is retaken wi
   - There were no Gatekeeper dialogs, the signature was intact after the first run, and it quit cleanly.
 - **Known:** it's ad-hoc signed and not notarized, so a downloaded copy needs Open Anyway once. The DMG art and "Open FoxBox.txt" explain this. A Developer ID would remove it.
 - **Pending for 1.0.1 / 1.1:** S1's camera prototype, the ModelCard re-attaching to `install_job_id`, and the full update modal and WhatsNew.
+
+### Release 1.1.0 (2026-09-27)
+- **Candidate:** 1ea6c68, built from a clean export.
+  - DMG sha256 4e718726…6b83.
+  - zip sha256 0f1f7b83…81ed7.
+  - Published by the coordinator as the latest release on als7294/FoxBox.
+- **Update proof: PASS.**
+  - 1.0.0 was installed from its DMG into a temp folder (not /Applications).
+  - It found 1.1.0 on the default GitHub feed, then downloaded and verified it in about 60 s.
+  - After "Restart to update" it swapped in and relaunched as 1.1.0 with What's New. The signature was intact and the rollback was cleaned up.
+  - Caveat: a packaged FoxBox always uses `~/Library/Application Support/FoxBox` and runs as a single instance, so a test copy shares the user's data folder. Run such tests only while the user's FoxBox is closed, and move the data folder aside afterwards.
+
+### Release 1.1.1 (in progress)
+- The Studio SONG strip and drawer (`state/song.ts`, `components/song/`):
+  - import a song; the engine reads its BPM, key and bar 1;
+  - the drop auto-lands its last word on the song's first beat drop and can be dragged to any bar;
+  - preview it locally or in HQ through `/api/mix`;
+  - USE SONG TEMPO & KEY;
+  - ALSO BAKE INTO SONG on export.
+- S1's filmed-take playback (e77fc41) is merged.
+- The camera is moving onto the shared song store (S1).
 
 
 ### Verification (2026-09-26)

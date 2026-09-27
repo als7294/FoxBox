@@ -17,6 +17,14 @@ function relativeMinor(majorRoot: string): string {
   return ROOTS[(i + 9) % 12]!
 }
 
+const SHARP_OF: Record<string, string> = { Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#' }
+
+/** A key in the app's spelling (sharps, as KEY_OPTIONS lists them): the engine names songs' keys 'Ebm', 'Bb'… */
+export function normalizeKey(key: string): string {
+  const m = /^([A-G][#b]?)(m?)$/.exec(key.trim())
+  return m ? `${SHARP_OF[m[1]!] ?? m[1]!}${m[2]}` : key
+}
+
 export function camelot(key: string): string {
   const minor = key.endsWith('m')
   const root = minor ? key.slice(0, -1) : key

@@ -587,6 +587,14 @@
   gap: 10px;
   flex: none;
 }
+/* With the camera on: a frame for the playback overlay, and RECORD scrolls inside it. */
+.recordWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* With the camera on, RECORD is taller than the panel: it scrolls, everything at its own height. */
 .record[data-camera='on'] {
   overflow-y: auto;

@@ -1,0 +1,492 @@
+/* SONG: the strip under SOURCE, and its drawer over the right column (like the rack drawer). */
+
+/* ---------------------------------------------------------------- strip */
+.strip {
+  flex: none;
+  position: relative;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 16px;
+  background: var(--vb-panel);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r3);
+  min-width: 0;
+}
+.strip[data-over] {
+  border-color: var(--vb-amber-line);
+  background: rgba(var(--vb-amber-rgb), 0.05);
+}
+.stripTitle {
+  flex: none;
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.stripHint,
+.stripName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  color: var(--vb-dim);
+}
+.stripHint[data-error] {
+  color: var(--vb-accent);
+}
+.stripName {
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.status {
+  flex: none;
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+}
+.status[data-error] {
+  color: var(--vb-accent);
+}
+.importBtn,
+.headBtn,
+.useBtn {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.importBtn {
+  border-color: var(--vb-amber-line);
+  color: var(--vb-amber);
+}
+.importBtn:hover:not(:disabled),
+.headBtn:hover:not(:disabled),
+.useBtn:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.openBtn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-amber);
+  font: 700 12px var(--vb-font-mono);
+}
+.openBtn[aria-expanded='true'] {
+  border-color: var(--vb-amber-line);
+}
+
+/* ---------------------------------------------------------------- chips and the key picker */
+.chip {
+  flex: none;
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r1);
+  background: var(--vb-fill-1);
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+button.chip:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+}
+.chip[data-unset] {
+  border-color: var(--vb-amber-line);
+  color: var(--vb-amber);
+}
+.keyWrap {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.detected {
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  color: var(--vb-dim);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.keyPop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 300px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--vb-raise);
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r2);
+  box-shadow: var(--vb-pop);
+}
+.keyPop[data-up] {
+  top: auto;
+  bottom: calc(100% + 10px);
+  left: auto;
+  right: -38px;
+}
+.keyGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+.keyCell {
+  height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background: var(--vb-card);
+  color: var(--vb-dim);
+  font: 500 9px var(--vb-font-mono);
+}
+.keyCell b {
+  color: var(--vb-ink);
+  font: 700 11px var(--vb-font-mono);
+}
+.keyCell:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+}
+.keyCell[aria-pressed='true'] {
+  border-color: var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.14);
+}
+.linkBtn {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--vb-amber);
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+}
+.linkBtn:disabled {
+  color: var(--vb-dim);
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------- drawer */
+.drawer {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  position: relative;
+  z-index: 20;
+  background: #0f0f11;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.25);
+  border-radius: var(--vb-r3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.6);
+  min-height: 0;
+  min-width: 0;
+}
+.drawer[data-over] {
+  border-color: var(--vb-amber);
+}
+.drawerHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  flex: none;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--vb-line);
+}
+.drawerTitle {
+  font: var(--vb-display-weight) 18px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
+}
+.drawerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--vb-display-weight) 18px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vb-amber);
+}
+.drawerMeta {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.flex {
+  flex: 1;
+}
+.drawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.note {
+  margin: 0;
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  color: var(--vb-amber);
+}
+.note[data-error] {
+  color: var(--vb-accent);
+}
+
+/* grid row: BPM · BAR 1 · KEY · USE SONG TEMPO & KEY */
+.gridRow {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fieldLabel {
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}
+.bpmInput {
+  width: 96px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 18px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.nudge {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+}
+.nudge button {
+  width: 28px;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: var(--vb-ink);
+  font-size: 9px;
+}
+.nudge button:disabled {
+  color: var(--vb-dim);
+}
+.nudgeValue {
+  min-width: 70px;
+  text-align: center;
+  font: 700 11px var(--vb-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.useBtn {
+  border-color: var(--vb-amber-line);
+  color: var(--vb-amber);
+}
+.useBtn:disabled,
+.headBtn:disabled {
+  opacity: 0.45;
+}
+
+/* the lane: ruler, waveform, bar lines, the drop block */
+.laneWrap {
+  flex: 1 1 auto;
+  min-height: 150px;
+  max-height: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ruler {
+  position: relative;
+  height: 12px;
+  font: 500 9px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.ruler span {
+  position: absolute;
+  top: 0;
+  transform: translateX(2px);
+  white-space: nowrap;
+}
+.lane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--vb-well);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r2);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.wavePath {
+  stroke: rgba(var(--vb-ink-rgb), 0.5);
+  stroke-width: 1;
+}
+.barLine {
+  stroke: rgba(var(--vb-ink-rgb), 0.05);
+  stroke-width: 1;
+}
+.barMajor {
+  stroke: rgba(var(--vb-ink-rgb), 0.16);
+  stroke-width: 1;
+}
+.span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(var(--vb-ink-rgb), 0.04);
+  pointer-events: none;
+}
+.hit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--vb-amber);
+  pointer-events: none;
+}
+.hit::before {
+  content: '▼';
+  position: absolute;
+  top: -2px;
+  left: -5px;
+  font-size: 9px;
+  color: var(--vb-amber);
+}
+.block {
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  background: rgba(var(--vb-accent-rgb), 0.28);
+  border: 1px solid var(--vb-accent);
+  border-radius: var(--vb-r1);
+  box-shadow: 0 0 calc(14px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35);
+  cursor: grab;
+  outline-offset: 2px;
+}
+.block[data-empty] {
+  background: rgba(var(--vb-accent-rgb), 0.1);
+  border-style: dashed;
+}
+.block span {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--vb-ink);
+  pointer-events: none;
+}
+
+/* placement row: DROP AT BAR n · levels · preview */
+.placeRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+}
+.placeBig {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+.bigBar {
+  font: var(--vb-display-weight) 26px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.knobs {
+  display: flex;
+  gap: 18px;
+}
+.knobs > * {
+  width: 86px;
+}
+.legend {
+  flex: none;
+  margin: 2px 0 0;
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+}
+.legend b {
+  color: var(--vb-amber);
+  font-weight: 500;
+}
+.previewBox {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.previewBtn {
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--vb-accent);
+  border-radius: var(--vb-r2);
+  background: none;
+  color: var(--vb-accent);
+  font: var(--vb-display-weight) 16px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.previewBtn[data-on] {
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+}
+.previewBtn:disabled {
+  opacity: 0.45;
+}

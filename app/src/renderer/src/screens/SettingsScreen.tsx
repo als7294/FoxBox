@@ -33,7 +33,12 @@ type EditKey = TopKey | `master.${keyof Master}` | `rekordbox.${keyof Rekordbox}
 type Edits = Partial<Record<EditKey, unknown>>
 
 const MASTER_DEFAULTS: Master = { mode: 'club', target_lufs: -7, true_peak_db: -1, bake_peak_db: -6, sample_rate: 44100, channels: 2 }
-const RB_DEFAULTS: Rekordbox = { hot_cue_first_word: true, memory_cue_tail: true, target_path_root: null, playlist_default: 'GUY FVWKS — Drops' }
+const RB_DEFAULTS: Rekordbox = {
+  hot_cue_first_word: true,
+  memory_cue_tail: true,
+  target_path_root: null,
+  playlist_default: 'GUY FVWKS — Drops',
+}
 
 /** Debounce before a PUT: typing waits for a pause; switches, selects and segments save almost at once. */
 const TYPING_MS = 700
@@ -105,7 +110,8 @@ function patternProblem(pattern: string): string | null {
   for (const t of tokens) {
     if (t.field == null) continue
     if (!(PATTERN_FIELDS as readonly string[]).includes(t.field)) return `Unknown field {${t.field}}.`
-    if (t.spec != null && !(t.field === 'version' ? INT_SPEC : STR_SPEC).test(t.spec)) return `{${t.field}:${t.spec}} is not a valid format.`
+    if (t.spec != null && !(t.field === 'version' ? INT_SPEC : STR_SPEC).test(t.spec))
+      return `{${t.field}:${t.spec}} is not a valid format.`
     seen.add(t.field)
   }
   if (!seen.has('variant') || !seen.has('version')) return 'Keep {variant} and {version} so files never overwrite each other.'
@@ -135,10 +141,19 @@ const asciiFold = (t: string) =>
     .replace(/[‘’“”–—…·\u00a0]/g, (c) => PUNCT[c] ?? c)
     .normalize('NFKD')
     .replace(/[^\u0000-\u007f]/g, '')
-const stripMarkup = (t: string) => t.replace(/\[[^\]]*\]|[|*]/g, ' ').split(/\s+/).filter(Boolean).join(' ')
+const stripMarkup = (t: string) =>
+  t
+    .replace(/\[[^\]]*\]|[|*]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ')
 
 function slugify(text: string, maxWords = 4, maxLen = 32): string {
-  const words = asciiFold(stripMarkup(text)).toLowerCase().replace(/'/g, '').match(/[a-z0-9]+/g) ?? []
+  const words =
+    asciiFold(stripMarkup(text))
+      .toLowerCase()
+      .replace(/'/g, '')
+      .match(/[a-z0-9]+/g) ?? []
   const out: string[] = []
   for (const w of words.slice(0, maxWords)) {
     if (out.length && [...out, w].join('-').length > maxLen) break
@@ -148,11 +163,25 @@ function slugify(text: string, maxWords = 4, maxLen = 32): string {
 }
 
 /** What the next export of the Studio's current take would be called (version 01, the wet variant). */
-function previewName(s: Full, studioState: { script: string; defaultLine: string; presetName: string | null; bpm: number; bars: number | 'auto' | null; key: string; resolvedBars?: number | null }): string {
+function previewName(
+  s: Full,
+  studioState: {
+    script: string
+    defaultLine: string
+    presetName: string | null
+    bpm: number
+    bars: number | 'auto' | null
+    key: string
+    resolvedBars?: number | null
+  },
+): string {
   const tokens = tokenize(s.filename_pattern)
   if (typeof tokens === 'string') return ''
   const values: Record<string, string | number> = {
-    artist: asciiFold(s.artist).replace(/[^A-Za-z0-9]+/g, '').toUpperCase() || 'FOXBOX',
+    artist:
+      asciiFold(s.artist)
+        .replace(/[^A-Za-z0-9]+/g, '')
+        .toUpperCase() || 'FOXBOX',
     preset:
       asciiFold(studioState.presetName ?? 'CUSTOM')
         .replace(/[^A-Za-z0-9#-]+/g, '-')
@@ -200,7 +229,8 @@ function problemsOf(s: Full): Problems {
   const pattern = patternProblem(s.filename_pattern)
   if (pattern) p.filename_pattern = pattern
   const root = (s.rekordbox.target_path_root ?? '').trim()
-  if (root && !/^(\/|[A-Za-z]:[\\/])/.test(root)) p.target_path_root = 'Write the full path on the DJ laptop, e.g. /Users/dj/Music/FoxBox or C:\\Music\\FoxBox (no ~).'
+  if (root && !/^(\/|[A-Za-z]:[\\/])/.test(root))
+    p.target_path_root = 'Write the full path on the DJ laptop, e.g. /Users/dj/Music/FoxBox or C:\\Music\\FoxBox (no ~).'
   if (!s.rekordbox.playlist_default.trim()) p.playlist_default = 'Name the default playlist.'
   return p
 }
@@ -277,14 +307,17 @@ function useAutoSave(server: Settings | undefined) {
     }
   }, [])
 
-  const change = useCallback((key: EditKey, value: unknown, delay: number) => {
-    latest.current.edits = { ...latest.current.edits, [key]: value }
-    setEdits((cur) => ({ ...cur, [key]: value }))
-    setFailure((f) => (f && f.field && key.endsWith(f.field) ? null : f))
-    setKind('saving')
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => void save(), delay)
-  }, [save])
+  const change = useCallback(
+    (key: EditKey, value: unknown, delay: number) => {
+      latest.current.edits = { ...latest.current.edits, [key]: value }
+      setEdits((cur) => ({ ...cur, [key]: value }))
+      setFailure((f) => (f && f.field && key.endsWith(f.field) ? null : f))
+      setKind('saving')
+      window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => void save(), delay)
+    },
+    [save],
+  )
 
   // Leaving the screen saves what is waiting; a change that can't be saved is reported, not silently lost.
   useEffect(
@@ -332,7 +365,17 @@ function FieldError({ children }: { children: ReactNode }) {
 }
 
 /** Path on the DJ laptop: typed (it may not exist on this Mac), or picked from a mounted drive. */
-function TargetRootField({ value, error, onChange, onCommit }: { value: string; error: string | null; onChange(v: string): void; onCommit(): void }) {
+function TargetRootField({
+  value,
+  error,
+  onChange,
+  onCommit,
+}: {
+  value: string
+  error: string | null
+  onChange(v: string): void
+  onCommit(): void
+}) {
   const id = useId()
   const b = bridge()
   return (
@@ -569,7 +612,19 @@ function AudioOutputCard() {
   )
 }
 
-function NamingCard({ s, change, flush, problems, failure }: { s: Full; change: Change; flush(): void; problems: Problems; failure: Failure | null }) {
+function NamingCard({
+  s,
+  change,
+  flush,
+  problems,
+  failure,
+}: {
+  s: Full
+  change: Change
+  flush(): void
+  problems: Problems
+  failure: Failure | null
+}) {
   const script = useStudio((st) => st.script)
   const presetName = useStudio((st) => st.presetName)
   const bpm = useStudio((st) => st.bpm)
@@ -610,12 +665,34 @@ function NamingCard({ s, change, flush, problems, failure }: { s: Full; change: 
   )
 }
 
-function RekordboxCard({ s, change, flush, problems, failure }: { s: Full; change: Change; flush(): void; problems: Problems; failure: Failure | null }) {
+function RekordboxCard({
+  s,
+  change,
+  flush,
+  problems,
+  failure,
+}: {
+  s: Full
+  change: Change
+  flush(): void
+  problems: Problems
+  failure: Failure | null
+}) {
   const rootError = problems.target_path_root ?? (failure?.field === 'target_path_root' ? failure.message : null)
   return (
     <Card title="Rekordbox" area="rb">
-      <Switch row label="Hot cue A at first word" checked={s.rekordbox.hot_cue_first_word} onChange={(v) => change('rekordbox.hot_cue_first_word', v, DISCRETE_MS)} />
-      <Switch row label="Memory cue at tail" checked={s.rekordbox.memory_cue_tail} onChange={(v) => change('rekordbox.memory_cue_tail', v, DISCRETE_MS)} />
+      <Switch
+        row
+        label="Hot cue A at first word"
+        checked={s.rekordbox.hot_cue_first_word}
+        onChange={(v) => change('rekordbox.hot_cue_first_word', v, DISCRETE_MS)}
+      />
+      <Switch
+        row
+        label="Memory cue at tail"
+        checked={s.rekordbox.memory_cue_tail}
+        onChange={(v) => change('rekordbox.memory_cue_tail', v, DISCRETE_MS)}
+      />
       <TargetRootField
         value={s.rekordbox.target_path_root ?? ''}
         error={rootError}
@@ -630,17 +707,42 @@ function DefaultsCard({ s, change }: { s: Full; change: Change }) {
   const autoBars = useEngine((st) => st.autoBars)
   const voices = (useVoices().data ?? []).filter((v) => v.installed)
   const presets = orderPresets(usePresets().data ?? [])
-  const voiceOptions = [...voices.filter((v) => v.recommended), ...voices.filter((v) => !v.recommended)].map((v) => ({ value: v.id, label: v.name }))
-  if (!voiceOptions.some((o) => o.value === s.default_voice_id)) voiceOptions.unshift({ value: s.default_voice_id, label: s.default_voice_id })
+  const voiceOptions = [...voices.filter((v) => v.recommended), ...voices.filter((v) => !v.recommended)].map((v) => ({
+    value: v.id,
+    label: v.name,
+  }))
+  if (!voiceOptions.some((o) => o.value === s.default_voice_id))
+    voiceOptions.unshift({ value: s.default_voice_id, label: s.default_voice_id })
   const presetOptions = presets.map((p) => ({ value: p.id, label: p.name }))
-  if (!presetOptions.some((o) => o.value === s.default_preset_id)) presetOptions.unshift({ value: s.default_preset_id, label: s.default_preset_id.toUpperCase() })
-  const keyOptions = KEY_OPTIONS.some((k) => k.value === s.default_key) ? KEY_OPTIONS : [{ value: s.default_key, label: s.default_key }, ...KEY_OPTIONS]
+  if (!presetOptions.some((o) => o.value === s.default_preset_id))
+    presetOptions.unshift({ value: s.default_preset_id, label: s.default_preset_id.toUpperCase() })
+  const keyOptions = KEY_OPTIONS.some((k) => k.value === s.default_key)
+    ? KEY_OPTIONS
+    : [{ value: s.default_key, label: s.default_key }, ...KEY_OPTIONS]
   return (
     <Card title="Studio defaults" area="defaults" caption={<span className={styles.caption}>New sessions start here</span>}>
       <div className={styles.defaultsGrid}>
-        <SelectField label="Voice" value={s.default_voice_id} options={voiceOptions} onChange={(v) => change('default_voice_id', v, DISCRETE_MS)} />
-        <SelectField label="Preset" value={s.default_preset_id} options={presetOptions} onChange={(v) => change('default_preset_id', v, DISCRETE_MS)} />
-        <NumberField display label="BPM" value={s.default_bpm} min={60} max={200} step={0.1} onChange={(v) => change('default_bpm', v, DISCRETE_MS)} />
+        <SelectField
+          label="Voice"
+          value={s.default_voice_id}
+          options={voiceOptions}
+          onChange={(v) => change('default_voice_id', v, DISCRETE_MS)}
+        />
+        <SelectField
+          label="Preset"
+          value={s.default_preset_id}
+          options={presetOptions}
+          onChange={(v) => change('default_preset_id', v, DISCRETE_MS)}
+        />
+        <NumberField
+          display
+          label="BPM"
+          value={s.default_bpm}
+          min={60}
+          max={200}
+          step={0.1}
+          onChange={(v) => change('default_bpm', v, DISCRETE_MS)}
+        />
         <div className={styles.seg}>
           <Segmented
             label="BARS"
@@ -655,6 +757,16 @@ function DefaultsCard({ s, change }: { s: Full; change: Change }) {
         <SelectField label="Key" value={s.default_key} options={keyOptions} onChange={(v) => change('default_key', v, DISCRETE_MS)} />
         <ShowVoiceCore />
       </div>
+    </Card>
+  )
+}
+
+/** Camera clips (this machine only): the fox watermark in the corner of every clip. */
+function CameraClipsCard() {
+  const on = useViewPrefs((v) => v.clipWatermark)
+  return (
+    <Card title="Camera clips" area="camera">
+      <Switch row label="FoxBox watermark" checked={on} onChange={(v) => useViewPrefs.getState().setClipWatermark(v)} />
     </Card>
   )
 }
@@ -734,7 +846,9 @@ function EngineCard() {
           {view === 'loading' && health.progress != null ? ` · ${Math.round(health.progress * 100)}%` : ''}
         </p>
       )}
-      {status.lastError && view !== 'ready' && view !== 'mock' && view !== 'error' && <p className={styles.engineError}>⚠ {status.lastError}</p>}
+      {status.lastError && view !== 'ready' && view !== 'mock' && view !== 'error' && (
+        <p className={styles.engineError}>⚠ {status.lastError}</p>
+      )}
       {b ? (
         <div className={styles.engineActions}>
           <Button
@@ -752,7 +866,11 @@ function EngineCard() {
           >
             {restarting ? 'Restarting…' : 'Restart engine'}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => void b.openLogs().catch((err: Error) => toast.error('LOGS NOT OPENED', { detail: err.message }))}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void b.openLogs().catch((err: Error) => toast.error('LOGS NOT OPENED', { detail: err.message }))}
+          >
             Open logs
           </Button>
         </div>
@@ -877,7 +995,9 @@ export function UpdatesCard() {
             label="Check automatically"
             checked={s.checkAutomatically}
             onChange={(on) =>
-              void updates.setCheckAutomatically(on).then(apply, (err: unknown) => toast.error('SETTING NOT SAVED', { detail: errorText(err) }))
+              void updates
+                .setCheckAutomatically(on)
+                .then(apply, (err: unknown) => toast.error('SETTING NOT SAVED', { detail: errorText(err) }))
             }
           />
           <div className={common.field}>
@@ -891,7 +1011,9 @@ export function UpdatesCard() {
                   size="sm"
                   variant="ghost"
                   onClick={() =>
-                    void updates.setFeedUrl(null).then(apply, (err: unknown) => toast.error('SOURCE NOT CHANGED', { detail: errorText(err) }))
+                    void updates
+                      .setFeedUrl(null)
+                      .then(apply, (err: unknown) => toast.error('SOURCE NOT CHANGED', { detail: errorText(err) }))
                   }
                 >
                   Use default
@@ -976,11 +1098,22 @@ function Waiting({ title, area, message, onRetry }: { title: string; area: strin
 function SaveState({ kind, problems, failure, onRetry }: { kind: SaveKind; problems: Problems; failure: Failure | null; onRetry(): void }) {
   const first = Object.keys(problems)[0] as keyof Problems | undefined
   const text =
-    kind === 'saving' ? 'Saving…' : kind === 'invalid' || first ? `Not saved · check the ${FIELD_NAMES[first ?? 'filename_pattern']}` : kind === 'error' ? 'Not saved' : 'All changes saved'
+    kind === 'saving'
+      ? 'Saving…'
+      : kind === 'invalid' || first
+        ? `Not saved · check the ${FIELD_NAMES[first ?? 'filename_pattern']}`
+        : kind === 'error'
+          ? 'Not saved'
+          : 'All changes saved'
   const tone = kind === 'saving' ? 'busy' : kind === 'invalid' || kind === 'error' || first ? 'bad' : 'ok'
   return (
     <div className={styles.saveWrap}>
-      <span className={styles.saveState} data-tone={tone} role="status" title={failure ? [failure.message, failure.hint].filter(Boolean).join(' ') : undefined}>
+      <span
+        className={styles.saveState}
+        data-tone={tone}
+        role="status"
+        title={failure ? [failure.message, failure.hint].filter(Boolean).join(' ') : undefined}
+      >
         <span className={styles.saveDot} aria-hidden="true" />
         {text}
       </span>
@@ -1030,6 +1163,7 @@ export function SettingsScreen() {
           </>
         )}
         <AudioOutputCard />
+        <CameraClipsCard />
         <EngineCard />
         <UpdatesCard />
       </div>

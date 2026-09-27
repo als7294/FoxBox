@@ -306,6 +306,33 @@ async function setupCheck(): Promise<{ missing: string[]; healthState: string | 
   }
 }
 
+/** How long a first run waits for the engine to answer before it opens Setup anyway (Setup watches it from there). */
+const FIRST_RUN_WAIT_MS = 20_000
+
+/**
+ * First run: the engine starts before any window, because the models may already be on this Mac. When it answers
+ * with no required model missing, Setup is skipped and the Studio opens on its boot screen; otherwise (models to
+ * download, or an engine that is slow, blocked or failing) Setup opens as before.
+ */
+async function openFirstRunWindow(): Promise<void> {
+  await startEngine()
+  if (!MOCK && supervisor && (await supervisor.waitUntilReady(FIRST_RUN_WAIT_MS))) {
+    const check = await setupCheck()
+    if (!check.error && check.missing.length === 0) {
+      try {
+        writeSetupMarker(USER_DATA, { version: app.getVersion(), bundled: Boolean(BUNDLED_ENGINE) })
+        log('first run: the required models are already on this Mac; skipping Setup')
+        createWindow()
+        return
+      } catch (err) {
+        log(`setup marker not written: ${(err as Error).message}`)
+      }
+    }
+  }
+  log(`first run: opening Setup (bundled engine: ${BUNDLED_ENGINE ?? 'no'})`)
+  createSetupWindow()
+}
+
 /** A native yes/no the renderer can't answer for the user (update source changes, installing an update). */
 async function confirmDialog(o: { message: string; detail: string; ok: string }): Promise<boolean> {
   const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow
@@ -780,15 +807,14 @@ if (!app.requestSingleInstanceLock()) {
       markerExists: hasSetupMarker(USER_DATA),
     })
     if (firstRun) {
-      log(`first run: opening Setup (bundled engine: ${BUNDLED_ENGINE ?? 'no'})`)
-      createSetupWindow()
+      await openFirstRunWindow()
     } else {
       createWindow()
     }
     // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
     ;(mainWindow ?? setupWindow)?.webContents.once('did-finish-load', () => updater?.confirmLaunch())
     updater.startAutoCheck()
-    await startEngine()
+    if (!firstRun) await startEngine()
   })
 
   app.on('window-all-closed', () => app.quit())

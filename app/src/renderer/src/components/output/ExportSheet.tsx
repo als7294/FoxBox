@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRekordboxExport, useSettings } from '@/api/queries'
 import type { ExportedFile, Preset } from '@/api/types'
 import { Button } from '@/components/common/Button'
@@ -8,6 +8,7 @@ import { rekordboxSteps } from '@/components/feedback/StepsModal'
 import { Segmented } from '@/components/rack/Segmented'
 import { Switch } from '@/components/rack/Switch'
 import { exportCurrent } from '@/state/renderController'
+import { songPlacement, useSong } from '@/state/song'
 import { toast } from '@/state/toasts'
 import { useStudio } from '@/state/studio'
 import { useUi } from '@/state/ui'
@@ -33,6 +34,11 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
   const [stems, setStems] = useState(false)
   const [title, setTitle] = useState('')
   const [files, setFiles] = useState<ExportedFile[]>([])
+  const [bake, setBake] = useState(false)
+  const song = useSong((s) => s.song)
+  const placement = useSong((s) => s.placement)
+  // v0.7: offered once a song is placed (it has a grid); sent as ExportRequest.bake.
+  const bakeAt = useMemo(() => songPlacement({ song, placement }), [song, placement])
   const rekordbox = useRekordboxExport()
 
   useEffect(() => {
@@ -48,7 +54,7 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
   const busy = phase !== 'idle'
 
   const run = async () => {
-    const { files: out, warnings } = await exportCurrent({ format, bit_depth: bitDepth, variants, stems, title: title || null })
+    const { files: out, warnings } = await exportCurrent({ format, bit_depth: bitDepth, variants, stems, title: title || null, bake: bake ? bakeAt : null })
     for (const w of warnings) toast.warn('EXPORT WARNING', { detail: w })
     if (out.length) {
       setFiles(out)
@@ -119,6 +125,7 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
           <Switch label="WET" checked={wet} onChange={setWet} />
           <Switch label="DRY" checked={dry} onChange={setDry} />
           <Switch label="STEMS" checked={stems} onChange={setStems} />
+          {bakeAt && <Switch label={`ALSO BAKE INTO SONG · BAR ${bakeAt.at_bar}`} checked={bake} onChange={setBake} />}
         </div>
       </div>
       {files.length > 0 && (

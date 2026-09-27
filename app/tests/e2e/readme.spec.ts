@@ -5,16 +5,19 @@ import { launchApp, waitReady, waitWipe, type Launched } from './app'
 
 // README screenshots of FoxBox against the real engine at 1512×982. Opt-in:
 //   FVWKS_README_SHOTS=docs/screens/readme npx playwright test readme
-// Writes the 01…09 PNGs plus `_core-*.png` (crops for the 03-presets contact sheet) and `_gif/*.png` (voice core
+// Writes the 01…10 PNGs plus `_core-*.png` (crops for the 03-presets contact sheet) and `_gif/*.png` (voice core
 // frames for studio.gif); those two are composed afterwards and the underscore files are not committed.
+// 10-camera needs FVWKS_README_CAMERA=<a .y4m clip of a public-domain portrait>: Chromium's fake camera plays it,
+// so the real camera is never opened.
 const OUT = process.env.FVWKS_README_SHOTS ? resolve(process.env.FVWKS_README_SHOTS) : null
-const HERO = 'REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES | WE DO NOT FORGIVE | *EXPECT US*'
+const CAMERA_CLIP = process.env.FVWKS_README_CAMERA ? resolve(process.env.FVWKS_README_CAMERA) : null
+const HERO = "IF YOU CAN HEAR THIS [0.5] IT'S ALREADY *TOO LATE*"
 const LINES = [
   'WE ARE GUY FVWKS | EXPECT *US*',
   'REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES',
   'NO NAMES. NO FACES. [0.5] ONLY *BASS*',
-  'WE DO NOT FORGIVE [2b] WE DO NOT FORGET',
-  'LIGHTS OFF | PHONES DOWN',
+  'THIS IS YOUR FINAL [2b] *WARNING*',
+  'LIGHTS OFF | PHONES DOWN | *HEADS UP*',
 ]
 
 let run: Launched
@@ -38,9 +41,19 @@ async function nav(page: Page, screen: string) {
 }
 
 test('README screenshots', async () => {
-  run = await launchApp()
+  const fakeCamera = CAMERA_CLIP
+    ? ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-video-capture=${CAMERA_CLIP}`, '--mute-audio']
+    : []
+  run = await launchApp({ FVWKS_FAKE_MIC: '1' }, fakeCamera)
   const { app, page } = run
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setContentSize(1512, 982))
+  await app.evaluate(({ BrowserWindow, ipcMain, session }, camera) => {
+    BrowserWindow.getAllWindows()[0]?.setContentSize(1512, 982)
+    if (!camera) return
+    // This run only: macOS can't be asked about a fake device.
+    session.defaultSession.setPermissionRequestHandler((_wc, _p, cb) => cb(true))
+    ipcMain.removeHandler('fvwks:ask-camera')
+    ipcMain.handle('fvwks:ask-camera', () => true)
+  }, Boolean(CAMERA_CLIP))
   mkdirSync(join(OUT!, '_gif'), { recursive: true })
   const shot = (name: string) => page.screenshot({ path: join(OUT!, name) })
 
@@ -88,14 +101,16 @@ test('README screenshots', async () => {
   await shot('01-studio.png')
 
   // Voice core frames for studio.gif (PACT, about 6 s at ~12 fps), then the preset crops for 03.
-  // The whole panel: the canvas plus its DOM captions (word, BAR, HIGH/MID/LOW, PITCH/RMS).
-  const core = page.locator('div:has(> canvas[aria-label="Voice core visualiser"])').first()
+  // The whole panel: the canvas plus its DOM captions.
+  // A fixed clip of its box: the panel breathes while it waits, so an element screenshot never sees it "stable".
+  const coreBox = await page.locator('div:has(> canvas[aria-label="Voice core visualiser"])').first().boundingBox()
+  const coreShot = (path: string) => page.screenshot({ path, clip: coreBox! })
   await page.keyboard.press(' ') // stop, then play from the top for the GIF
   await page.waitForTimeout(300)
   await page.keyboard.press(' ')
   const t0 = Date.now()
   for (let i = 0; Date.now() - t0 < 6_000; i++) {
-    await core.screenshot({ path: join(OUT!, '_gif', `${String(i).padStart(3, '0')}.png`) })
+    await coreShot(join(OUT!, '_gif', `${String(i).padStart(3, '0')}.png`))
     await page.waitForTimeout(40)
   }
   await page.keyboard.press(' ')
@@ -112,7 +127,7 @@ test('README screenshots', async () => {
     await page.waitForTimeout(900)
     await page.keyboard.press(' ')
     await page.waitForTimeout(1_600)
-    await core.screenshot({ path: join(OUT!, `_core-${name}.png`) })
+    await coreShot(join(OUT!, `_core-${name}.png`))
     await page.keyboard.press(' ')
   }
 
@@ -126,11 +141,20 @@ test('README screenshots', async () => {
   await page.getByRole('button', { name: 'Close rack' }).click()
   await page.waitForTimeout(600)
 
-  // 04: RECORD.
+  // 04: RECORD, then 10: VOICE + CAMERA over the fake camera (faces hidden).
   await page.getByRole('tab', { name: 'RECORD' }).click()
   await page.waitForTimeout(800)
   await page.mouse.move(2, 2)
   await shot('04-record.png')
+  if (CAMERA_CLIP) {
+    await page.getByRole('radio', { name: 'VOICE + CAMERA' }).click()
+    await expect(page.getByTestId('camera-status')).toHaveText(/LIVE · FACES HIDDEN/, { timeout: 60_000 })
+    await page.waitForTimeout(3_000)
+    await page.mouse.move(2, 2)
+    await noToasts(page)
+    await shot('10-camera.png')
+    await page.getByRole('radio', { name: 'VOICE ONLY' }).click()
+  }
   await page.getByRole('tab', { name: 'TYPE' }).click()
 
   // 07: VOICES with the MODELS strip.

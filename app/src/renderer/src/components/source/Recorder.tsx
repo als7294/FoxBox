@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { uploadSource } from '@/api/upload'
 import { beatSeconds } from '@/audio/grid'
 import { audioContext } from '@/audio/player'
@@ -303,7 +303,8 @@ export function Recorder() {
       </div>
     </>
   )
-  return (
+  // Everything around the orb (or the camera): the same in both layouts.
+  const body = (middle: ReactNode) => (
     <div className={styles.record} data-camera={cameraOn ? 'on' : undefined}>
       <div className={styles.inputRow}>
         <span className={styles.kicker}>INPUT</span>
@@ -355,50 +356,7 @@ export function Recorder() {
           BETA
         </span>
       </div>
-      {cameraOn ? (
-        <CameraRig
-          recButton={
-            <button
-              type="button"
-              className={styles.camRec}
-              data-state={state}
-              aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording (films too)'}
-              aria-keyshortcuts="R"
-              disabled={busy}
-              onClick={toggle}
-            >
-              {state === 'count' ? '•••' : state === 'rec' ? 'STOP' : 'REC'}
-            </button>
-          }
-        >
-          {({ preview, settings }) => (
-            <>
-              {preview}
-              {info}
-              {settings}
-            </>
-          )}
-        </CameraRig>
-      ) : (
-        <>
-          <div className={styles.orbBox}>
-            <canvas ref={orb} className={styles.canvas} aria-hidden="true" />
-            <button
-              type="button"
-              className={styles.orbBtn}
-              data-state={state}
-              aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording'}
-              aria-keyshortcuts="R"
-              disabled={busy}
-              onClick={toggle}
-            >
-              <span className={styles.orbBig}>{state === 'count' ? '' : state === 'rec' ? 'STOP' : 'REC'}</span>
-              <span className={styles.orbHint}>{state === 'idle' ? 'CLICK · R' : ''}</span>
-            </button>
-          </div>
-          {info}
-        </>
-      )}
+      {middle}
       <TranscriptEditor />
       <div className={styles.takesHead}>
         <span className={styles.kicker}>TAKES · {takes.length}</span>
@@ -429,5 +387,58 @@ export function Recorder() {
         }}
       />
     </div>
+  )
+  if (!cameraOn) {
+    return body(
+      <>
+        <div className={styles.orbBox}>
+          <canvas ref={orb} className={styles.canvas} aria-hidden="true" />
+          <button
+            type="button"
+            className={styles.orbBtn}
+            data-state={state}
+            aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording'}
+            aria-keyshortcuts="R"
+            disabled={busy}
+            onClick={toggle}
+          >
+            <span className={styles.orbBig}>{state === 'count' ? '' : state === 'rec' ? 'STOP' : 'REC'}</span>
+            <span className={styles.orbHint}>{state === 'idle' ? 'CLICK · R' : ''}</span>
+          </button>
+        </div>
+        {info}
+      </>,
+    )
+  }
+  return (
+    <CameraRig
+      recButton={
+        <button
+          type="button"
+          className={styles.camRec}
+          data-state={state}
+          aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording (films too)'}
+          aria-keyshortcuts="R"
+          disabled={busy}
+          onClick={toggle}
+        >
+          {state === 'count' ? '•••' : state === 'rec' ? 'STOP' : 'REC'}
+        </button>
+      }
+    >
+      {({ preview, settings, overlay }) => (
+        // The overlay (a filmed take playing back) covers the whole tab, over the scrolling body.
+        <div className={styles.recordWrap}>
+          {body(
+            <>
+              {preview}
+              {info}
+              {settings}
+            </>,
+          )}
+          {overlay}
+        </div>
+      )}
+    </CameraRig>
   )
 }

@@ -64,7 +64,7 @@ export function ComponentRow({ row, job, onToggle }: { row: ComponentRowData; jo
   const downloading = isActiveJob(job)
   const partial = !installed && remaining > 0 && remaining < model.size_bytes
   let chip: { text: string; tone?: 'ok' | 'busy' } | null = null
-  if (installed) chip = { text: 'Installed', tone: 'ok' }
+  if (installed) chip = { text: 'Found on this Mac', tone: 'ok' }
   else if (downloading) chip = job?.state === 'queued' ? { text: 'Queued', tone: 'busy' } : { text: `Downloading ${Math.round((job?.progress ?? 0) * 100)}%`, tone: 'busy' }
   else if (model.update_available) chip = { text: `Update ${model.version ?? ''}`.trim(), tone: 'busy' }
   else if (locked) chip = { text: 'Locked' }
