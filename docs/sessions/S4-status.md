@@ -1,6 +1,66 @@
 # S4 APP — status (FoxBox)
 
-Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.1.1)
+Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.2.1)
+
+## Handover: cutting a release (1.2.1)
+
+**Steps**
+1. Bump and write the notes, then commit: `npm version <x.y.z> --no-git-tag-version` in `app/`, and write `app/release-notes/<x.y.z>.md` (one `-` line per note).
+2. Build from a clean export, so nothing uncommitted ships:
+   ```
+   git archive <sha> | tar -x -C <tmp>
+   ln -s <worktree>/app/node_modules <tmp>/app/node_modules
+   cp engine/uv.lock <tmp>/engine/
+   cp app/credit.local.json <tmp>/app/        # gitignored; injects the credit email
+   cd <tmp>/app && node scripts/release.mjs --no-bump
+   ```
+   - This takes about 10 min: electron-vite, S3's `bundle_engine.sh`, electron-builder, the DMG and zips.
+   - `--prev-feed <url|file>` is the feed to reuse parts from. The default is the latest GitHub release's `latest-mac.json`.
+   - `--asset-base <url>` sets where the new parts will be downloaded from. The default is `https://github.com/als7294/FoxBox/releases/download/v<version>/`.
+3. The output goes to `app/release/<version>/`:
+   - `FoxBox-<v>-arm64.dmg`, for first installs;
+   - `FoxBox-<v>-arm64.zip`, the full app, which clients before 1.2 use;
+   - `FoxBox-<part>-<hash16>.zip` for each new part;
+   - `latest-mac.json`.
+4. Publish (the coordinator does this): `gh release create v<version> --repo als7294/FoxBox` with every file release.mjs lists. The tag name must match the part URLs in the feed.
+
+**Parts** (`app/src/main/components.ts`)
+| Part | What's in it | Size |
+|---|---|---|
+| `app` | app.asar, Info.plist, the executable and helpers | ~5 MB, every release |
+| `electron` | `Contents/Frameworks/*.framework` | 128 MB zipped, changes only with Electron or its fuses |
+| `engine-runtime` | `engine/runtime/` | 293 MB zipped, changes only with uv.lock |
+| `engine-code` | `engine/code/`, bin/, MANIFEST.txt | ~1 MB |
+
+- An electron-builder `afterPack` hook hashes each part (paths, exec bits and contents; `.pyc` and `__pycache__` left out) into `Contents/Resources/components.json` before signing.
+- release.mjs reuses the previous feed's entry, including its URL, for any part with an unchanged hash, so a part is never uploaded twice.
+- Two clean builds gave identical electron and engine-runtime hashes.
+
+**Feed v2** (`latest-mac.json`)
+```
+{ "version": "1.2.1", "released": "YYYY-MM-DD", "notes": ["…"],
+  "files": [{ "name": "FoxBox-1.2.1-arm64.zip", "kind": "zip", "size": n, "sha256": "…" },
+            { "name": "FoxBox-1.2.1-arm64.dmg", "kind": "dmg", "size": n, "sha256": "…" }],
+  "components": [{ "name": "app" | "electron" | "engine-runtime" | "engine-code", "hash": "<64 hex>",
+                   "url": "https://…/FoxBox-<part>-<hash16>.zip", "size": n, "sha256": "…" } ×4] }
+```
+- Clients before 1.2 read only `files`, which is the full zip.
+
+**How a 1.2+ updater uses it** (`app/src/main/updater.ts`)
+1. It downloads only the parts whose hash differs from its own `components.json`, checking size and sha256.
+2. It clones the running app (`cp -c`) into `userData/updates`, removes the changed parts' files, and unpacks the new zips with ditto (which keeps the per-file xattr signatures).
+3. It strips quarantine, re-signs ad hoc with `--preserve-metadata=entitlements`, and verifies with `codesign --verify --deep --strict`, the bundle id and the version.
+4. It swaps the new app in and relaunches, with the same backup and rollback as before.
+5. On any failure short of a cancel, it falls back to the full zip.
+- The update bar shows the real download size.
+- A private-repo (token) feed always uses the full zip.
+
+**Not yet proven end to end:** a real small update from one published 1.2.x to the next hasn't been run.
+- Unit tests cover the parsing, planning, hashing and pruning.
+- `scratchpad/small-update/harness.ts` (outside the repo) drives the real Updater against local release folders, if someone wants to run it.
+- The first small update to go live, 1.2.1 → 1.2.2, is the real test. If it fails, the fallback is the full zip.
+
+**Test launches:** use a copy with bundle id `com.smittytech.foxbox.test` and a temp `HOME`/`CFFIXED_USER_HOME`, and never touch the user's data folder.
 
 ## Where things stand
 | Area | State |
