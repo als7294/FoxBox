@@ -697,6 +697,25 @@ export interface components {
              * @default 30
              */
             fade_out_ms: number;
+            /**
+             * Chop
+             * @description v0.8 ARRANGE: 'off' = today's fit. Otherwise the line is chopped at word boundaries and each piece starts on the grid: every beat, every 2 beats, every bar, or at chop_slots ('custom'). A piece only stretches (R3, within max_stretch) or squeezes when it would overlap the next; speech is never cut.
+             * @default off
+             * @enum {string}
+             */
+            chop: "off" | "beat" | "2beats" | "bar" | "custom";
+            /**
+             * Chop Unit
+             * @description v0.8: chop per word, or per '|' chunk.
+             * @default word
+             * @enum {string}
+             */
+            chop_unit: "word" | "chunk";
+            /**
+             * Chop Slots
+             * @description v0.8: custom placements (chop='custom').
+             */
+            chop_slots?: components["schemas"]["ChopSlot"][] | null;
         };
         /** BatchExportOptions */
         BatchExportOptions: {
@@ -790,6 +809,17 @@ export interface components {
              * @description Modules not listed are disabled. Order is fixed by the rack.
              */
             modules?: components["schemas"]["ModuleState"][];
+        };
+        /**
+         * ChopSlot
+         * @description v0.8: one chopped piece and where it starts. `index` counts words (or '|' chunks) across the whole line, in
+         *     order, from 0; `beat` is the start in beats from the file's first downbeat.
+         */
+        ChopSlot: {
+            /** Index */
+            index: number;
+            /** Beat */
+            beat: number;
         };
         /**
          * ErrorEnvelope
@@ -1671,6 +1701,11 @@ export interface components {
             warnings?: string[];
             /** @description Voice-core motion data (v0.5); None when fx doesn't provide it. */
             motion?: components["schemas"]["Motion"] | null;
+            /**
+             * Chop
+             * @description v0.8: where each chopped piece landed (None when chop is off).
+             */
+            chop?: components["schemas"]["ChopSlot"][] | null;
         };
         /** RenderRequest */
         RenderRequest: {
@@ -1801,7 +1836,7 @@ export interface components {
             master?: components["schemas"]["Master"];
             /**
              * Filename Pattern
-             * @default GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}
+             * @default {slug}_{preset}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}
              */
             filename_pattern: string;
             /**

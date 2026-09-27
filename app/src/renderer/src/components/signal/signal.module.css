@@ -880,3 +880,163 @@
 .ab button[aria-pressed='true'] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
+
+/* ---------------------------------------------------------------- 1.2.4 strip: ARRANGE | SONG */
+.strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(430px, 40cqw, 600px);
+  min-height: 0;
+  border-top: 1px solid var(--vb-line);
+}
+.arrange {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 14px 9px;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--vb-line);
+}
+.arrangeHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.arrangeModes {
+  flex: none;
+}
+.arrangeModes button {
+  flex: none;
+  min-width: max-content;
+  padding: 0 9px;
+}
+.arrangeHead > .fitChip {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arrangeCustom,
+.fitChip,
+.readChip {
+  flex: none;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--vb-glass-edge, var(--vb-line));
+  border-radius: var(--vb-glass-radius, var(--vb-r1));
+  corner-shape: var(--vb-glass-corner);
+  background: var(--vb-glass-fill, transparent);
+  font: 600 9px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.arrangeCustom {
+  color: var(--vb-amber);
+  border-color: var(--vb-amber-line);
+}
+.fitChip[data-status='fits'] {
+  color: var(--vb-ink);
+}
+.fitChip[data-status='stretched'],
+.fitChip[data-status='extended'] {
+  color: var(--vb-amber);
+}
+.fitChip[data-status='overflow'] {
+  color: var(--vb-accent);
+}
+/* The line on the grid: beats as hairlines, bars numbered, the words as blocks where they land. */
+.lane {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  overflow: hidden;
+  transition: opacity var(--vb-med);
+}
+.lane[data-stale] {
+  opacity: 0.5;
+}
+.laneBeat {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.06);
+  font: 500 8.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  padding-left: 3px;
+  line-height: 12px;
+}
+.laneBeat[data-bar] {
+  background: rgba(var(--vb-ink-rgb), 0.16);
+}
+.laneEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.block {
+  position: absolute;
+  top: 14px;
+  bottom: 5px;
+  padding: 0 5px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(var(--vb-amber-rgb), 0.28), rgba(var(--vb-amber-rgb), 0.12));
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 11px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  text-align: left;
+  white-space: nowrap;
+  cursor: grab;
+  touch-action: none;
+  transition:
+    left var(--vb-fast),
+    background var(--vb-fast);
+}
+.block[data-throw] {
+  border-color: rgba(var(--vb-accent-rgb), 0.7);
+  background: linear-gradient(180deg, rgba(var(--vb-accent-rgb), 0.3), rgba(var(--vb-accent-rgb), 0.12));
+}
+.block:hover,
+.block:focus-visible {
+  background: rgba(var(--vb-amber-rgb), 0.4);
+}
+.block[data-drag] {
+  cursor: grabbing;
+  transition: none;
+  z-index: 1;
+  box-shadow: 0 0 0 1px var(--vb-amber), 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+/* Loudness and mask strength as compact readouts in the SIGNAL header (LUFS is the cartridge's). */
+.readChip[data-level='strong'],
+.readChip[data-level='medium'] {
+  color: var(--vb-ink);
+}
+.readChip[data-over] {
+  color: var(--vb-accent);
+}
+/* Narrow windows (1280): the modes lose their padding and ARRANGE its kicker, and the SONG half gives a little. */
+@media (max-width: 1400px) {
+  .strip {
+    grid-template-columns: minmax(0, 1fr) clamp(400px, 38cqw, 600px);
+  }
+  .arrangeHead > .kicker {
+    display: none;
+  }
+  .arrangeModes button {
+    padding: 0 6px;
+  }
+}
+.arrange {
+  overflow: hidden;
+}

@@ -7,15 +7,14 @@ import { RackDrawer, RackPanel } from '@/components/rack/RackPanel'
 import { SavePresetModal } from '@/components/rack/SavePresetModal'
 import { SignalView } from '@/components/signal/SignalView'
 import { SongDrawer } from '@/components/song/SongDrawer'
-import { SongStrip } from '@/components/song/SongStrip'
 import { useSong } from '@/state/song'
 import { isStale, useStudio } from '@/state/studio'
 import { useUi } from '@/state/ui'
 import styles from './studio.module.css'
 
 /**
- * STUDIO: SOURCE (type/record/import) over the SONG strip | SIGNAL, with RACK and OUTPUT below; OPEN RACK slides the full
- * rack over, the SONG strip's ↑ the song drawer (one at a time).
+ * STUDIO: SOURCE (type/record/import) | SIGNAL (its strip holds the SONG panel), with RACK and OUTPUT below; OPEN RACK
+ * slides the full rack over. The SONG drawer stays mounted but nothing opens it now (the panel imports with open: false).
  */
 export function StudioScreen() {
   const voices = useVoices().data ?? []
@@ -33,7 +32,6 @@ export function StudioScreen() {
     <div className={styles.studio} data-rack-open={rackOpen || undefined}>
       <div className={styles.left}>
         <SourceTabs voices={voices} />
-        <SongStrip />
       </div>
       <SignalView />
       <div className={styles.bottom}>

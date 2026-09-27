@@ -3,6 +3,8 @@ import { launchLine, pickLine } from './defaultLines'
 import type {
   BarsSetting,
   Chain,
+  ChopMode,
+  ChopSlot,
   ExportedFile,
   MacroId,
   MacroMap,
@@ -75,6 +77,10 @@ export interface StudioState {
   /** v0.4.1 END: the last word lands on a beat, a bar line, or wherever (OFF). null = not sent: the preset's hint, else
    *  the engine default (BEAT), so older engines never see the field unless the user picks one. */
   snapEnd: SnapEnd | null
+  /** v0.8 ARRANGE: 'off' is the natural phrasing; otherwise each word starts on the grid (or at `chopSlots`). */
+  chop: ChopMode
+  /** Custom placements (chop 'custom'): word index → beat from bar 1. Words without one follow at natural spacing. */
+  chopSlots: ChopSlot[]
   masterMode: Master['mode']
   customLufs: number
 
@@ -129,6 +135,8 @@ export const useStudio = create<StudioState>(() => ({
   key: 'Am',
   bars: 'auto',
   snapEnd: null,
+  chop: 'off',
+  chopSlots: [],
   masterMode: 'club',
   customLufs: -9,
   presetId: null,
@@ -197,7 +205,7 @@ export function renderInputs(s: StudioState) {
     macroMap: s.macroMap,
     stack: s.stack,
     preset: s.presetId,
-    arrange: { bpm: s.bpm, key: s.key, bars: s.bars, snapEnd: s.snapEnd, hint: s.arrangeHint },
+    arrange: { bpm: s.bpm, key: s.key, bars: s.bars, snapEnd: s.snapEnd, chop: s.chop, chopSlots: s.chopSlots, hint: s.arrangeHint },
     master: { mode: s.masterMode, lufs: s.customLufs, hint: s.masterHint },
   }
 }
@@ -243,6 +251,10 @@ export const studio = {
   setKey: (key: string) => set({ key }),
   setBars: (bars: BarsSetting | null) => set({ bars }),
   setSnapEnd: (snapEnd: SnapEnd | null) => set({ snapEnd }),
+  /** A grid mode (custom placements are kept only for 'custom'). */
+  setChop: (chop: ChopMode) => set((s) => ({ chop, chopSlots: chop === 'custom' ? s.chopSlots : [] })),
+  /** Custom placements (dragging a word): switches ARRANGE to custom. */
+  setChopSlots: (chopSlots: ChopSlot[]) => set({ chop: 'custom', chopSlots }),
   setMasterMode: (masterMode: Master['mode']) => set({ masterMode }),
   setCustomLufs: (customLufs: number) => set({ customLufs }),
   setTyping: (typing: boolean) => set({ typing }),

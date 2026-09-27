@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { useLiveSource, useSettings } from '@/api/queries'
-import type { BarsChoice } from '@/api/types'
 import { player } from '@/audio/playerInstance'
 import { EmptyState } from '@/components/feedback/EmptyState'
-import { adoptSource, renderNow, scheduleRender } from '@/state/renderController'
-import { isStale, studio, useStudio, type RenderPhase } from '@/state/studio'
+import { adoptSource, renderNow } from '@/state/renderController'
+import { isStale, useStudio, type RenderPhase } from '@/state/studio'
 import { signalGeom } from '@/visuals/signal'
+import { SongPanel } from '@/components/song/SongPanel'
+import { ArrangeView } from './ArrangeView'
 import { BarGrid } from './BarGrid'
-import { FitIndicator } from './FitIndicator'
-import { LoudnessMeter } from './LoudnessMeter'
-import { MaskBadge } from './MaskBadge'
-import { SnapEndPicker } from './SnapEndPicker'
 import { Transport } from './Transport'
 import { VoiceCore } from './VoiceCore'
 import { Waveform } from './Waveform'
@@ -41,10 +38,6 @@ export function SignalView() {
   const render = useStudio((s) => s.render)
   const phase = useStudio((s) => s.phase)
   const stale = useStudio(isStale)
-  const masterMode = useStudio((s) => s.masterMode)
-  const customLufs = useStudio((s) => s.customLufs)
-  const bpm = useStudio((s) => s.bpm)
-  const bars = useStudio((s) => s.bars)
   // In RECORD the voice core lives in the clip preview, so here it folds away and the waveform takes the room.
   const coreOn = useViewPrefs((s) => s.showVoiceCore)
   const recording = useStudio((s) => s.tab) === 'record'
@@ -96,7 +89,9 @@ export function SignalView() {
     player.seek(((e.clientX - rect.left) / rect.width) * signalGeom().viewLen)
   }
 
-  const target = masterMode === 'custom' ? customLufs : masterMode === 'club' ? (master?.target_lufs ?? -7) : null
+  const tp = render?.loudness?.true_peak_db ?? null
+  const ceiling = master?.true_peak_db ?? -1
+  const mask = render?.mask ?? null
   return (
     <section
       className={styles.signal}
@@ -129,6 +124,20 @@ export function SignalView() {
           </span>
         )}
         <div className={styles.flex} />
+        {/* Compact readouts (the cartridge shows LUFS): true peak, and the mask estimate with its reasons on hover. */}
+        {tp != null && (
+          <span className={styles.readChip} data-over={tp > ceiling + 0.05 || undefined} title={`True peak ${tp.toFixed(1)} dBTP (ceiling ${ceiling.toFixed(1)})`}>
+            TP {tp.toFixed(1).replace('-', '−')}
+          </span>
+        )}
+        <span
+          className={styles.readChip}
+          data-level={mask?.level}
+          data-testid="mask-chip"
+          title={mask ? `${mask.reasons.join(' · ')} (an estimate, not a forensic guarantee)` : 'Render to measure the mask'}
+        >
+          MASK {analysing ? '…' : mask ? mask.level.toUpperCase() : '—'}
+        </span>
         <div className={styles.legend} aria-hidden="true">
           <span>
             <i data-band="lo" />
@@ -154,20 +163,9 @@ export function SignalView() {
           {empty && <EmptyState overlay title="NO SIGNAL" body={empty} />}
         </div>
       </div>
-      <div className={styles.readouts}>
-        <FitIndicator
-          fit={render?.fit ?? null}
-          bpm={render?.bpm ?? bpm}
-          bars={render ? (render.bars ?? null) : bars}
-          requested={bars}
-          end={<SnapEndPicker />}
-          onBars={(b: BarsChoice | null) => {
-            studio.setBars(b)
-            scheduleRender(0)
-          }}
-        />
-        <LoudnessMeter loudness={render?.loudness ?? null} mode={masterMode} targetLufs={target} ceilingDb={master?.true_peak_db ?? -1} />
-        <MaskBadge mask={render?.mask ?? null} analysing={analysing} />
+      <div className={styles.strip}>
+        <ArrangeView />
+        <SongPanel />
       </div>
     </section>
   )

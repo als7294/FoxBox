@@ -772,6 +772,8 @@ export class MockEngine {
               auto_tail: true,
               fade_in_ms: 2,
               fade_out_ms: 30,
+              chop: 'off',
+              chop_unit: 'word',
               bpm: 140,
               bars: 4,
               key: 'Am',

@@ -16,7 +16,7 @@ export interface FitIndicatorProps {
   end?: ReactNode
 }
 
-interface View {
+export interface View {
   status: FitReport['status'] | 'none'
   icon: string
   state: string
@@ -25,7 +25,7 @@ interface View {
   chips: { label: string; bars: BarsChoice | null }[]
 }
 
-function view(fit: FitReport | null, bars: number | null, requested: BarsSetting | null): View {
+export function fitView(fit: FitReport | null, bars: number | null, requested: BarsSetting | null): View {
   // (bars is the render's resolved count here: AUTO only exists before a render)
   if (!fit) return { status: 'none', icon: '◇', state: 'WAITING', delta: '', verdict: 'Render to measure the speech against the bars.', chips: [] }
   const diff = fit.speech_s - fit.available_s
@@ -78,7 +78,7 @@ function view(fit: FitReport | null, bars: number | null, requested: BarsSetting
 export function FitIndicator({ fit, bpm, bars: setting, requested = null, onBars, end }: FitIndicatorProps) {
   const auto = setting === 'auto'
   const bars = auto ? null : setting
-  const v = view(fit, bars, requested)
+  const v = fitView(fit, bars, requested)
   const target = bars ? (bars * 240) / bpm : (fit?.available_s ?? 0)
   const speech = fit?.speech_s ?? 0
   // v0.4: the room kept after the last word for its release and the FX tail (reverb, delay, echoes).

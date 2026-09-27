@@ -57,6 +57,9 @@ export type BarsSetting = BarsChoice | 'auto'
 export type MaskLevel = MaskStrength['level']
 /** v0.4.1: where the phrase's last word lands (the phrase is warped within max_stretch; nothing is cut). */
 export type SnapEnd = Arrange['snap_end']
+/** v0.8 ARRANGE chop: the mode, and one piece's placement (beats from bar 1's downbeat). */
+export type ChopMode = Arrange['chop']
+export type ChopSlot = S['ChopSlot']
 
 export const MACRO_IDS: readonly MacroId[] = ['depth', 'grit', 'machine', 'space']
 export const BARS_CHOICES: readonly BarsChoice[] = [1, 2, 4, 8, 16]

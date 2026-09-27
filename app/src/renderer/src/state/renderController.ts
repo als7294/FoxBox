@@ -1,6 +1,6 @@
 import { api, EngineError, isAbort, unwrap } from '@/api/client'
 import { uploadSource } from '@/api/upload'
-import type { Arrange, ExportedFile, ExportRequest, Master, RenderInfo, RenderRequest, SnapEnd, SourceInfo } from '@/api/types'
+import type { Arrange, ChopMode, ChopSlot, ExportedFile, ExportRequest, Master, RenderInfo, RenderRequest, SnapEnd, SourceInfo } from '@/api/types'
 import { loadAudioBuffer } from '@/audio/cache'
 import { analyseBuffer } from '@/visuals/analysis'
 import { clearRenderVisuals, setRenderVisuals, vis } from '@/visuals/state'
@@ -36,10 +36,13 @@ function toStudioError(err: unknown) {
  * rest from the preset's arrange_hint/master_hint (e.g. GHOST's first_word_beat: 4), then its defaults.
  * The generated types mark every field required, hence the casts.
  */
-export function partialArrange(s: Pick<StudioState, 'bpm' | 'bars' | 'key'> & { snapEnd?: SnapEnd | null }): Arrange {
+export function partialArrange(
+  s: Pick<StudioState, 'bpm' | 'bars' | 'key'> & { snapEnd?: SnapEnd | null; chop?: ChopMode; chopSlots?: ChopSlot[] },
+): Arrange {
   // snap_end only when chosen: the preset's hint or the engine default (BEAT) applies otherwise, and engines
-  // before v0.4.1 (extra fields forbidden) never see it.
-  return { bpm: s.bpm, bars: s.bars, key: s.key, ...(s.snapEnd ? { snap_end: s.snapEnd } : {}) } as Arrange
+  // before v0.4.1 (extra fields forbidden) never see it. Likewise chop (v0.8) only when it isn't the natural phrasing.
+  const chop = s.chop && s.chop !== 'off' ? { chop: s.chop, chop_unit: 'word', ...(s.chop === 'custom' ? { chop_slots: s.chopSlots ?? [] } : {}) } : {}
+  return { bpm: s.bpm, bars: s.bars, key: s.key, ...(s.snapEnd ? { snap_end: s.snapEnd } : {}), ...chop } as Arrange
 }
 
 export function buildMaster(s: Pick<StudioState, 'masterMode' | 'customLufs'>): Master {

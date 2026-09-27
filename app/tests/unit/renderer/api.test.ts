@@ -30,7 +30,7 @@ describe('typed API client against the MSW mock engine', () => {
     expect(src.segments[1]!.flags?.throw).toBe(true)
     const info = await unwrap(
       api.POST('/api/render', {
-        body: { source_id: src.id, preset_id: 'pact', arrange: { bpm: 140, bars: 4, key: 'Am', fit: 'auto', max_stretch: 0.08, beat_lock: false, first_word_beat: 0, tail_beats: 0, snap_end: 'beat', auto_tail: true, fade_in_ms: 2, fade_out_ms: 30 }, quality: 'final', stems: false, auto_export: true },
+        body: { source_id: src.id, preset_id: 'pact', arrange: { bpm: 140, bars: 4, key: 'Am', fit: 'auto', max_stretch: 0.08, beat_lock: false, first_word_beat: 0, tail_beats: 0, snap_end: 'beat', auto_tail: true, fade_in_ms: 2, fade_out_ms: 30, chop: 'off', chop_unit: 'word' }, quality: 'final', stems: false, auto_export: true },
       }),
     )
     expect(info.n_samples).toBe(302_400) // 4 bars @ 140 at 44.1 kHz

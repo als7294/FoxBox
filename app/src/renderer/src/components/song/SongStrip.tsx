@@ -71,11 +71,11 @@ export function KeyChip({ up = false }: { up?: boolean }) {
   )
 }
 
-/** Hidden file input + drop handling shared by the strip and the drawer. */
-export function useSongFile() {
+/** Hidden file input + drop handling shared by the strip, the drawer and the panel (`open: false`: no drawer). */
+export function useSongFile(opts: { open?: boolean } = {}) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
-  const take = (f: File | undefined) => f && void songs.importFile(f)
+  const take = (f: File | undefined) => f && void songs.importFile(f, opts)
   return {
     over,
     choose: () => input.current?.click(),
