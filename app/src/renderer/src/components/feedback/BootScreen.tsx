@@ -6,8 +6,8 @@ import { FoxMark } from '@/components/common/FoxMark'
 import { useLexicon, useRack } from '@/api/queries'
 import { audioContext } from '@/audio/player'
 import { bridge, isMockMode } from '@/env'
-import { formatBytes } from '@/lib/format'
-import { engineHealth, isEngineUsable, useEngine } from '@/state/engine'
+import { bootStage, reached, type BootStage } from '@/state/bootStage'
+import { engineHealth, useEngine } from '@/state/engine'
 import { useStudio } from '@/state/studio'
 import { useUi } from '@/state/ui'
 import { clamp, mmss } from '@/visuals/canvas'
@@ -18,17 +18,31 @@ import { revealPanels } from '@/visuals/reveal'
 import { theme } from '@/visuals/theme'
 import styles from './feedback.module.css'
 
-/** Longest the boot waits on the engine before handing over (the top bar keeps showing its progress). */
-const DEADLINE_MS = 6500
+/** No progress for this long is a failed start (downloads keep it alive: any change in stage or % resets it). */
+const STALL_MS = 60_000
+/** The hand-over: the boot fades into the Studio. */
+const FADE_MS = 300
+/** Lines that need the engine's first answers (lexicon, rack) don't hold a ready engine up for longer. */
+const AFTER_READY_MS = 2500
 const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#/%'
-/** The line that carries the model-load percentage (index 3 in both themes, as in the design). */
+/** What the progress line says per stage (the model stage shows the engine's own words: downloads, sizes). */
+const STAGE_TEXT: Record<string, string> = {
+  setup: 'Updating the engine',
+  spawn: 'Starting the engine',
+  engine: 'Engine up · loading the voice model',
+  model: 'Loading the voice model',
+  warming: 'Warming up the voice model',
+  ready: 'Ready',
+  error: '',
+}
+/** The failure is a stall (no progress for STALL_MS), not an engine error. */
+const STALLED = '\u0000stalled'
+/** The line that carries the voice model's load percentage. */
 const MODEL_LINE = 3
 
 interface Facts {
   pid: number | null
-  usable: boolean
-  failed: boolean
-  modelPct: number
+  stage: BootStage
   voiceEngine: string
   fxEngine: string
   detail: string
@@ -40,9 +54,9 @@ interface Facts {
 }
 
 interface LineDef {
-  /** Returns the text once its data is in, else null (waits until the deadline). */
+  /** Returns the text once its stage or data is in, else null (the cursor waits on it). */
   text(f: Facts): string | null
-  /** Placeholder text when the deadline passes first. */
+  /** Text when the engine is ready but this line's data is late (it never holds the hand-over for long). */
   fallback: string
 }
 
@@ -61,10 +75,17 @@ function lines(): LineDef[] {
     { text: () => `FOXBOX  ${v()}  ${arch()}`, fallback: '' },
     { text: () => `AUDIO   coreaudio · ${sampleKhz()} kHz · 2 ch`, fallback: '' },
     {
-      text: (f) => (f.usable ? (isMockMode() ? 'ENGINE  mock engine ............... msw' : `ENGINE  spawn fvwks-engine ........ pid ${f.pid ?? '?'}`) : null),
-      fallback: 'ENGINE  spawn fvwks-engine ........ waiting',
+      text: (f) =>
+        isMockMode()
+          ? 'ENGINE  mock engine ............... msw'
+          : reached(f.stage, 'engine') && f.pid
+            ? `ENGINE  spawn fvwks-engine ........ pid ${f.pid}`
+            : null,
+      fallback: 'ENGINE  spawn fvwks-engine',
     },
-    { text: (f) => (f.usable ? `MODEL   ${f.voiceEngine}` : null), fallback: 'MODEL   pending' },
+    // The voice model: loading (with the engine's progress), then warm.
+    { text: (f) => (reached(f.stage, 'engine') ? `MODEL   ${f.voiceEngine}` : null), fallback: 'MODEL   voice model' },
+    { text: (f) => (reached(f.stage, 'ready') ? 'WARM    voice model warmed up' : null), fallback: 'WARM    voice model' },
     {
       text: (f) =>
         f.lexicon ? `LEXICON ${f.lexicon.n ? `${f.lexicon.word} → "${f.lexicon.say}" · ` : ''}${f.lexicon.n} entries` : null,
@@ -94,14 +115,10 @@ function useFacts(): Facts {
   const bpm = useStudio((s) => s.bpm)
   const health = engineHealth(status)
   const mock = status.state === 'mock'
-  const usable = isEngineUsable(status) && (mock || health?.state === 'ready' || health?.state === 'loading_model')
-  const modelPct = mock || health?.state === 'ready' ? 100 : health?.state === 'loading_model' ? Math.round((health.progress ?? 0) * 100) : 0
   const first = lexicon?.entries.find((e) => /fvwks/i.test(e.word)) ?? lexicon?.entries[0]
   return {
     pid: status.pid,
-    usable,
-    failed: status.state === 'offline' || status.state === 'stopped' || health?.state === 'error',
-    modelPct,
+    stage: bootStage(status),
     voiceEngine: health?.voice_engine ?? (mock ? 'kokoro-82m (mock)' : 'kokoro'),
     fxEngine: health?.fx_engine ?? 'fvwks-rack',
     detail: status.detail ?? '',
@@ -114,9 +131,11 @@ function useFacts(): Facts {
 }
 
 /**
- * The boot sequence from the design, driven by the real start-up: each line types out when its data is in
- * (engine pid, model load, lexicon, rack), the model line counts the real load progress, then the screen
- * collapses and the panels scan in. Any key or click skips it; it never waits past DEADLINE_MS.
+ * The boot sequence from the design, and a real loading screen: each line types out when its stage is reached
+ * (engine up, the voice model loading with the engine's progress, warm), the bar and meter follow the overall
+ * progress, and the Studio only appears once the engine is fully ready: then the screen fades into it (~300 ms).
+ * A failed start, or no progress for a minute, turns into an error with RETRY and SHOW LOG. Skipping (any key or
+ * click) only shortens the hand-over once the engine is ready. On a first run it follows Setup.
  */
 export function BootScreen() {
   const booting = useUi((s) => s.booting)
@@ -140,6 +159,7 @@ function Boot() {
   const [shown, setShown] = useState<Shown[]>([])
   const [cursorLine, setCursorLine] = useState(0)
   const [pct, setPct] = useState(0)
+  const [failure, setFailure] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const cvRef = useRef<HTMLCanvasElement>(null)
   const titleRef = useRef<HTMLSpanElement>(null)
@@ -149,46 +169,76 @@ function Boot() {
   const t0 = useRef(performance.now())
   const progress = useRef(0)
   const leaving = useRef(false)
+  const typed = useRef(false)
+  const failureRef = useRef<string | null>(null)
+  // Stall watch: the last time the stage or its percentage moved.
+  const moved = useRef({ key: '', at: performance.now() })
+  const readyAt = useRef<number | null>(null)
 
   const finish = useRef(() => {})
   finish.current = () => {
-    if (leaving.current) return
+    if (leaving.current || factsRef.current.stage.id !== 'ready') return
     leaving.current = true
-    const root = rootRef.current
     revealPanels(document, 160)
-    const el = root
+    const el = rootRef.current
     const done = () => useUi.getState().setBooting(false)
     if (!el || reducedMotion() || typeof el.animate !== 'function') return done()
-    const a = el.animate(
-      [
-        { clipPath: 'inset(0 0 0 0)', filter: 'brightness(1)' },
-        { clipPath: 'inset(49.6% 0 49.6% 0)', filter: 'brightness(2.4)', offset: 0.72 },
-        { clipPath: 'inset(50% 50% 50% 50%)', filter: 'brightness(3)' },
-      ],
-      { duration: 560, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'forwards' },
-    )
+    const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, easing: 'ease-out', fill: 'forwards' })
     a.onfinish = done
     a.oncancel = done
   }
 
-  // The typing machine (the design's 16 ms tick): 2 characters per tick, a short hold between lines.
+  const fail = (why: string | null) => {
+    failureRef.current = why
+    setFailure(why)
+  }
+  const retry = () => {
+    fail(null)
+    moved.current = { key: '', at: performance.now() }
+    const b = bridge()
+    if (b) void b.restartEngine()
+    else window.location.reload()
+  }
+
+  // Failures: the engine's own (offline, health error) at once; a stall after a minute without progress.
+  useEffect(() => {
+    const st = facts.stage
+    if (st.id === 'error') {
+      if (!failureRef.current) fail(st.detail)
+      return
+    }
+    if (failureRef.current && failureRef.current !== STALLED) fail(null)
+    const key = `${st.id}:${st.pct}:${st.detail}`
+    if (key !== moved.current.key) moved.current = { key, at: performance.now() }
+    if (st.id === 'ready' && readyAt.current == null) readyAt.current = performance.now()
+  }, [facts.stage])
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const st = factsRef.current.stage
+      if (st.id !== 'ready' && st.id !== 'error' && !failureRef.current && performance.now() - moved.current.at > STALL_MS) fail(STALLED)
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // The typing machine (the design's 16 ms tick): 2 characters per tick, a short hold between lines. Each line
+  // waits for its stage; nothing is faked, and the hand-over happens only when the engine is ready.
   useEffect(() => {
     const out: Shown[] = []
     let li = 0
     let ci = 0
     let hold = 6
-    let p = 0
     let lineTs = 0
     let text: string | null = null
-    let failShown = false
+    let late = false
     const id = window.setInterval(() => {
       const now = performance.now()
-      const late = now - t0.current > DEADLINE_MS
       const f = factsRef.current
+      if (failureRef.current) return
       const def = defs[li]
       if (!def) {
         window.clearInterval(id)
-        window.setTimeout(() => finish.current(), 700)
+        typed.current = true
+        window.setTimeout(() => finish.current(), 400)
         return
       }
       if (hold > 0) {
@@ -197,13 +247,15 @@ function Boot() {
       }
       if (text == null) {
         text = def.text(f)
-        // An engine that is down will not come up during the boot: say so and hand over to the banner.
-        if (text == null && (late || f.failed)) {
+        // Lines after the engine is ready (lexicon, rack) never hold the hand-over for long.
+        if (text == null && readyAt.current != null && now - readyAt.current > AFTER_READY_MS) {
           text = def.fallback
-          failShown = true
+          late = true
         }
         if (text == null) {
           setCursorLine(li)
+          progress.current = f.stage.pct / 100
+          setPct(f.stage.pct)
           return
         }
         lineTs = (now - t0.current) / 1000
@@ -212,38 +264,27 @@ function Boot() {
       const full = ci >= text.length
       const last = li === defs.length - 1
       let okT = ''
-      let fail = false
-      if (li === MODEL_LINE && full) {
-        const target = failShown ? p : f.modelPct
-        p = Math.min(100, p + 3, Math.max(p, target))
-        if (p >= 100) okT = '[ OK ]'
-        else if (late || failShown) {
-          okT = f.failed ? '[ FAIL ]' : '[ WAIT ]'
-          fail = true
-        } else okT = `${p}%`
-      } else if (full) {
-        if (failShown && text === def.fallback) {
-          okT = f.failed ? '[ FAIL ]' : '[ WAIT ]'
-          fail = true
-        } else okT = last ? '[ LIVE ]' : '[ OK ]'
-      }
-      out[li] = { ts: `[${lineTs.toFixed(3).padStart(7, ' ')}]`, t: text.slice(0, ci), okT, fail }
-      progress.current = (li + (li === MODEL_LINE ? (ci / Math.max(1, text.length)) * 0.3 + (p / 100) * 0.7 : ci / Math.max(1, text.length))) / defs.length
+      // The model line counts the engine's real progress until the model is loaded.
+      const modelLoading = li === MODEL_LINE && full && (f.stage.id === 'engine' || f.stage.id === 'model')
+      if (modelLoading) okT = `${Math.round(Math.max(0, (f.stage.pct - 22) / 66) * 100)}%`
+      else if (full) okT = late ? '[ -- ]' : last ? '[ LIVE ]' : '[ OK ]'
+      out[li] = { ts: `[${lineTs.toFixed(3).padStart(7, ' ')}]`, t: text.slice(0, ci), okT, fail: false }
+      progress.current = f.stage.pct / 100
       setShown(out.slice())
       setCursorLine(li)
-      setPct(li < MODEL_LINE ? 0 : p)
-      const modelDone = li !== MODEL_LINE || p >= 100 || fail
-      if (full && modelDone) {
+      setPct(f.stage.pct)
+      if (full && !modelLoading) {
         li++
         ci = 0
         text = null
-        hold = late || failShown ? 1 : 5
+        late = false
+        hold = 5
       }
     }, 16)
     return () => window.clearInterval(id)
   }, [defs])
 
-  // Any key or click skips the rest (input is never held hostage by the intro).
+  // Once the engine is ready, any key or click skips the rest of the hand-over (never before: no half-ready Studio).
   useEffect(() => {
     const skip = (e: Event) => {
       if (e instanceof KeyboardEvent && ['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) return
@@ -278,8 +319,10 @@ function Boot() {
     drawBoot(cvRef.current, theme(), now / 1000, progress.current)
   })
 
-  const segsOn = Math.round(pct / 2.5)
   const f = facts
+  const ready = f.stage.id === 'ready'
+  const stageText = STAGE_TEXT[f.stage.id] ?? ''
+  const say = f.stage.id === 'model' && f.stage.detail ? f.stage.detail : stageText
   return (
     <div
       ref={rootRef}
@@ -287,6 +330,7 @@ function Boot() {
       data-testid="boot"
       role="status"
       aria-label="Starting FoxBox"
+      aria-busy={!ready}
       onPointerDown={() => finish.current()}
     >
       {/* The techy fox backdrop (design/brand/foxbox-boot-bg.svg: drifting grid, fox lattice, traced outline), at 20%. */}
@@ -304,64 +348,73 @@ function Boot() {
       <div className={styles.bootEdge} data-edge="bottom" aria-hidden="true">
         <span>PID {f.pid ?? '----'}</span>
         <span className={styles.bootRule} />
+        <span ref={clockRef} className={styles.bootClock}>
+          T+00:00.00
+        </span>
         <span>REMEMBER, REMEMBER</span>
       </div>
-      <div className={styles.bootCenter}>
-        <div className={styles.bootHead}>
-          <AnimatedFoxMark size={64} className={styles.bootHeadMark} />
-          <span ref={titleRef} className={styles.bootTitle}>
-            FOXBOX
-          </span>
-          <span ref={subRef} className={styles.bootSub}>
-            VOICE MASK
-          </span>
-        </div>
-        <div className={styles.bootBarTrack} aria-hidden="true">
-          <div ref={barRef} className={styles.bootBar} />
-        </div>
-        <div className={styles.bootLines} aria-live="off">
-          {shown.map((l, i) => (
-            <div key={i} className={styles.bootLine} data-last={i === defs.length - 1 || undefined} data-fail={l.fail || undefined}>
-              <span className={styles.bootTs}>{l.ts}</span>
-              <span>{l.t}</span>
-              {i === cursorLine && !l.okT && <span className={styles.bootCursor} />}
-              <span className={styles.flex} />
-              {l.okT && <span className={styles.bootOk}>{l.okT}</span>}
+
+      {/* The hero: the fox, then the wordmark and the kicker, then the real progress. */}
+      <div className={styles.bootHero}>
+        <AnimatedFoxMark size={320} className={styles.bootFox} />
+        <span ref={titleRef} className={styles.bootWord}>
+          FOXBOX
+        </span>
+        <span ref={subRef} className={styles.bootKicker}>
+          VOICE MASK
+        </span>
+        {failure ? (
+          <div className={styles.bootError} role="alert" onPointerDown={(e) => e.stopPropagation()}>
+            <p className={styles.bootErrorText}>
+              <span className={styles.bootFail}>[ FAIL ]</span> {failure === STALLED ? 'The engine is taking too long to get ready.' : failure}
+            </p>
+            <div className={styles.bootActions}>
+              <button type="button" className={styles.bootAction} onClick={retry} autoFocus>
+                RETRY
+              </button>
+              {bridge() && (
+                <button type="button" className={styles.bootAction} onClick={() => void bridge()?.openLogs()}>
+                  SHOW LOG
+                </button>
+              )}
             </div>
-          ))}
-          {cursorLine >= shown.length && (
-            <div className={styles.bootLine}>
-              <span className={styles.bootTs}>[{((performance.now() - t0.current) / 1000).toFixed(3).padStart(7, ' ')}]</span>
-              <span className={styles.bootCursor} style={{ marginLeft: 0 }} />
-              {f.detail && <span className={styles.bootTs}>{f.detail}</span>}
+          </div>
+        ) : (
+          <div className={styles.bootProgress}>
+            <div className={styles.bootBarTrack} aria-hidden="true">
+              <div ref={barRef} className={styles.bootBar} />
             </div>
-          )}
-        </div>
-        <div className={styles.bootFoot} aria-hidden="true">
-          <div className={styles.bootSegs}>
-            {Array.from({ length: 40 }, (_, i) => (
-              <span key={i} data-on={i < segsOn || undefined} data-hot={i >= 37 || undefined} />
-            ))}
+            <div className={styles.bootPct} aria-live="polite">
+              <span className={styles.bootPctNum}>{ready ? 'READY' : `${pct}%`}</span>
+              <span className={styles.bootStage}>{ready ? 'WE ARE LISTENING.' : say}</span>
+            </div>
           </div>
-          <div className={styles.bootTicks}>
-            {[0, 25, 50, 75, 100].map((l) => (
-              <span key={l} style={l === 100 ? { right: 0 } : { left: `${l}%` }} />
-            ))}
-          </div>
-          <div className={styles.bootMeta}>
-            <span>
-              MODEL {pct}% · {f.voiceEngine.toUpperCase()}
-              {f.diskFree != null ? ` · ${formatBytes(f.diskFree)} FREE` : ''}
-            </span>
-            <span ref={clockRef} className={styles.bootClock}>
-              T+00:00.00
-            </span>
-          </div>
-        </div>
+        )}
       </div>
-      <button type="button" className={styles.bootSkip} onClick={() => finish.current()}>
-        SKIP ›
-      </button>
+
+      {/* The boot log: small and dim at the bottom, never competing with the fox. */}
+      <div className={styles.bootLog} aria-hidden="true">
+        {shown.slice(-5).map((l, i, arr) => (
+          <div key={shown.length - arr.length + i} className={styles.bootLine} data-fail={l.fail || undefined}>
+            <span className={styles.bootTs}>{l.ts}</span>
+            <span>{l.t}</span>
+            <span className={styles.flex} />
+            {l.okT && <span className={styles.bootOk}>{l.okT}</span>}
+          </div>
+        ))}
+        {!failure && !ready && cursorLine >= shown.length - 1 && (
+          <div className={styles.bootLine}>
+            <span className={styles.bootCursor} style={{ marginLeft: 0 }} />
+            <span className={styles.bootTs}>{f.stage.detail || f.detail}</span>
+          </div>
+        )}
+      </div>
+
+      {ready && (
+        <button type="button" className={styles.bootSkip} onClick={() => finish.current()}>
+          SKIP ›
+        </button>
+      )}
       {/* The credit opens the mail app without skipping the boot (the screen skips on any pointer-down). */}
       <span className={styles.bootCredit} onPointerDown={(e) => e.stopPropagation()}>
         <CreditLink />

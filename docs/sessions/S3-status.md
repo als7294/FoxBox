@@ -209,6 +209,28 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
     - WAV gets none (RIFF INFO has no art field Rekordbox reads).
     - No `embed_cover_art` setting: it would be a contract change. The writer takes `ExportMeta.cover=None`, so a future setting is a one-line wire-up.
 
+- **v0.7 songs** (this commit): the user's own tracks to put drops over.
+  - `POST /api/songs` decodes WAV/AIFF/FLAC/MP3 with soundfile, keeping the file's own rate and channels (mono or stereo).
+    - Limits: 400 MB and 15 min. Errors: `unsupported_format`, `song_too_long`, `file_too_large`.
+    - The same audio imported again returns the same song.
+    - The audio is kept under `<data>/songs/` as FLAC-24 (bit-exact for 16/24-bit files), or float WAV if it goes over full scale. `audio_id` (`sng_…`) streams from there.
+  - **Analysis:** a background `song_analysis` job (lane `songs`, so voice analyses never wait) calls `fx.analyze_song(audio, sr)` and stores `analysis`/`analysis_state`.
+    - A job the last process never finished starts again at launch.
+    - Without `fx.analyze_song` the state is `error`; mixing then needs the overrides.
+  - `GET`/`PATCH`/`DELETE /api/songs/{id}`:
+    - PATCH applies only the fields sent; null clears an override. Keys are normalised (`f# minor` → `F#m`).
+    - DELETE also drops the song's mixes and cancels its analysis.
+  - `POST /api/mix`:
+    - Grid: bpm = override or analysis; bar 1 = override or analysis; a bar = beats_per_bar·60/bpm.
+    - The drop starts at bar 1 + (at_bar−1) bars. The excerpt is start_bar/end_bar on the same grid, clamped to the song.
+    - Errors: 409 `song_not_analyzed` (retryable while the analysis runs), unless the overrides give both BPM and bar 1. 422 when the drop is past the end or outside the excerpt.
+    - `fx.mix_song` gets the render's wet audio and the render's Master. Mixes are cached by (render, song, grid, placement, quality, master); the newest 8 are kept.
+  - **Baked exports:** with `ExportRequest.bake`, each render also writes variant `baked`, the final-quality mix.
+    - Title `<title> (baked vNN)`, with the song's BPM and key, bars free, and the fox cover.
+    - The first-word/tail cues are shifted to where the drop sits.
+  - Library schema v4: `songs` and `mixes` tables.
+  - Tests use stub `analyze_song`/`mix_song` until S2's land.
+
 ## Performance (HTTP, real engines, M3 Pro; `uv run --all-packages python server/scripts/bench_http.py`)
 | what | p50 ms | p95 ms |
 |---|---|---|

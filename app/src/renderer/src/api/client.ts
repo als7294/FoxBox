@@ -10,6 +10,8 @@ export class EngineError extends Error {
   readonly hint: string | null
   readonly retryable: boolean
   readonly status: number
+  /** v0.6: the model a `model_not_installed` error is about (deep links to VOICES → MODELS). */
+  readonly modelId: string | null
 
   constructor(status: number, body: Partial<ApiErrorBody> | null, fallback?: string) {
     super(body?.message ?? fallback ?? `Engine error ${status}`)
@@ -18,6 +20,7 @@ export class EngineError extends Error {
     this.code = body?.code ?? (status === 0 ? 'network' : `http_${status}`)
     this.hint = body?.hint ?? null
     this.retryable = body?.retryable ?? status >= 500
+    this.modelId = typeof body?.model_id === 'string' && body.model_id ? body.model_id : null
   }
 }
 

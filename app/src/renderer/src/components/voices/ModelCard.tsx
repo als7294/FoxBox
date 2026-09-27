@@ -36,7 +36,10 @@ function useModelInstall(model: ModelInfo, diskFree: number | null): Install {
   const qc = useQueryClient()
   const install = useInstallModel()
   const cancel = useCancelJob()
-  const jobId = useUi((s) => s.installJobs[model.id] ?? null)
+  // A download started from this window, else the engine's own running job for the model (first-run installs,
+  // Setup's optional downloads, or after a reload): the card reattaches instead of offering Download again.
+  const localJob = useUi((s) => s.installJobs[model.id] ?? null)
+  const jobId = localJob ?? model.install_job_id ?? null
   const setJob = useUi((s) => s.setInstallJob)
   const jobQuery = useJob(jobId)
   const job = jobQuery.data

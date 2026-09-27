@@ -845,6 +845,340 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: Internal Server Error
+  /api/songs:
+    get:
+      tags:
+      - songs
+      summary: List Songs
+      operationId: listSongs
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Song'
+                type: array
+                title: Response Listsongs
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags:
+      - songs
+      summary: Upload Song
+      description: 'v0.7: import a track (WAV/AIFF/FLAC/MP3; the app decodes other formats to WAV first). Analysis runs in
+
+        the background (analysis_state); poll GET /songs/{id}.'
+      operationId: uploadSong
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_uploadSong'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Song'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/songs/{song_id}:
+    get:
+      tags:
+      - songs
+      summary: Get Song
+      operationId: getSong
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Song'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    patch:
+      tags:
+      - songs
+      summary: Update Song
+      description: Only the fields present in the body change; an explicit null clears an override.
+      operationId: updateSong
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SongUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Song'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - songs
+      summary: Delete Song
+      operationId: deleteSong
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/mix:
+    post:
+      tags:
+      - songs
+      summary: Mix Song
+      description: 'v0.7: a song + drop mix (backing-track preview, camera-clip soundtrack).'
+      operationId: mixSong
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MixRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MixInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/personas/design:
     post:
       tags:
@@ -2327,6 +2661,21 @@ components:
       required:
       - lines
       title: BatchRequest
+    Body_uploadSong:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+      type: object
+      required:
+      - file
+      title: Body_uploadSong
     Body_uploadSource:
       properties:
         file:
@@ -2414,6 +2763,12 @@ components:
           - type: string
           - type: 'null'
           title: Title
+        bake:
+          anyOf:
+          - $ref: '#/components/schemas/SongPlacement'
+          - type: 'null'
+          description: 'v0.7: also write the song with this drop baked in (variant ''baked''), one per render. start_bar/end_bar
+            cut an excerpt; None = the whole song.'
       additionalProperties: false
       type: object
       required:
@@ -2448,7 +2803,8 @@ components:
         variant:
           type: string
           title: Variant
-          description: '''wet'' | ''dry'' | ''alt:<preset_id>'' | ''stem:<name>'''
+          description: '''wet'' | ''dry'' | ''alt:<preset_id>'' | ''stem:<name>'' | ''baked'' (v0.7: the song with the drop
+            in it)'
         title:
           type: string
           title: Title
@@ -2650,6 +3006,7 @@ components:
           - batch
           - analysis
           - persona_design
+          - song_analysis
           title: Kind
         state:
           type: string
@@ -3062,6 +3419,80 @@ components:
       additionalProperties: false
       type: object
       title: Master
+    MixInfo:
+      properties:
+        id:
+          type: string
+          title: Id
+        render_id:
+          type: string
+          title: Render Id
+        song_id:
+          type: string
+          title: Song Id
+        audio_id:
+          type: string
+          title: Audio Id
+          description: Stream with GET /api/audio/{audio_id}.
+        sample_rate:
+          type: integer
+          title: Sample Rate
+        duration_s:
+          type: number
+          title: Duration S
+        start_s:
+          type: number
+          title: Start S
+          description: Where this mix starts on the song's timeline (excerpt start).
+          default: 0.0
+        drop_start_s:
+          type: number
+          title: Drop Start S
+          description: Where the drop starts inside this mix.
+        peaks:
+          $ref: '#/components/schemas/Peaks'
+        loudness:
+          anyOf:
+          - $ref: '#/components/schemas/Loudness'
+          - type: 'null'
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - render_id
+      - song_id
+      - audio_id
+      - sample_rate
+      - duration_s
+      - drop_start_s
+      - peaks
+      title: MixInfo
+      description: 'A song + drop mix (v0.7): the backing-track preview, and the soundtrack of camera clips.'
+    MixRequest:
+      properties:
+        render_id:
+          type: string
+          title: Render Id
+        placement:
+          $ref: '#/components/schemas/SongPlacement'
+        quality:
+          type: string
+          enum:
+          - preview
+          - final
+          title: Quality
+          default: preview
+      additionalProperties: false
+      type: object
+      required:
+      - render_id
+      - placement
+      title: MixRequest
     ModelInfo:
       properties:
         id:
@@ -3978,6 +4409,204 @@ components:
       - signature
       title: SignedModelManifest
       description: 'PUT /api/models/manifest body: the manifest plus a base64 ed25519 signature over its canonical JSON (v0.6).'
+    Song:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        duration_s:
+          type: number
+          title: Duration S
+        sample_rate:
+          type: integer
+          title: Sample Rate
+        channels:
+          type: integer
+          title: Channels
+        peaks:
+          $ref: '#/components/schemas/Peaks'
+        audio_id:
+          type: string
+          title: Audio Id
+          description: Stream with GET /api/audio/{audio_id} (preview / backing track).
+        analysis_state:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - error
+          title: Analysis State
+          default: queued
+        analysis:
+          anyOf:
+          - $ref: '#/components/schemas/SongAnalysis'
+          - type: 'null'
+        bpm_override:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm Override
+          description: User's tempo when the detected one is wrong.
+        downbeat_override_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Downbeat Override S
+          description: User's bar-1 position (grid nudge).
+        key_override:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key Override
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - duration_s
+      - sample_rate
+      - channels
+      - peaks
+      - audio_id
+      - created_at
+      title: Song
+      description: A track the user imported to put drops over (v0.7). Songs are local-only; they never leave the Mac.
+    SongAnalysis:
+      properties:
+        bpm:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bpm
+        bpm_confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Bpm Confidence
+          default: 0.0
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+          description: e.g. 'Am', 'F#'; None when the key is unclear.
+        camelot:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Camelot
+          description: e.g. '8A'.
+        key_confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Key Confidence
+          default: 0.0
+        downbeat_s:
+          type: number
+          minimum: 0.0
+          title: Downbeat S
+          description: 'Time of bar 1, beat 1: the grid anchor.'
+          default: 0.0
+        beats_per_bar:
+          type: integer
+          minimum: 1.0
+          title: Beats Per Bar
+          default: 4
+      additionalProperties: false
+      type: object
+      required:
+      - bpm
+      title: SongAnalysis
+      description: Tempo, key and grid of an imported song (v0.7). Produced by the sound engine (FxAPI.analyze_song).
+    SongPlacement:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        at_bar:
+          type: integer
+          minimum: 1.0
+          title: At Bar
+          description: Song bar (1-based, on the song's grid) where the drop starts.
+          default: 1
+        duck_db:
+          type: number
+          maximum: 0.0
+          minimum: -24.0
+          title: Duck Db
+          description: Song level under the drop (sidechain-style duck).
+          default: -6.0
+        song_gain_db:
+          type: number
+          maximum: 12.0
+          minimum: -24.0
+          title: Song Gain Db
+          default: 0.0
+        drop_gain_db:
+          type: number
+          maximum: 12.0
+          minimum: -24.0
+          title: Drop Gain Db
+          default: 0.0
+        start_bar:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Start Bar
+          description: Excerpt start bar (camera clips, previews); None = song start.
+        end_bar:
+          anyOf:
+          - type: integer
+            minimum: 2.0
+          - type: 'null'
+          title: End Bar
+          description: Excerpt end bar, exclusive; None = song end.
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      title: SongPlacement
+      description: Where a drop sits in a song, and how the two are balanced (v0.7).
+    SongUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        bpm_override:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm Override
+        downbeat_override_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Downbeat Override S
+        key_override:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key Override
+      additionalProperties: false
+      type: object
+      title: SongUpdate
+      description: PATCH body. Only the fields present are applied; an explicit null clears an override.
     SourceInfo:
       properties:
         id:

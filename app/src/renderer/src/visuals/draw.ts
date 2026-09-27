@@ -701,24 +701,25 @@ export function drawLevel(cv: HTMLCanvasElement | null, o: Pick<RecInputs, 'th' 
 
 // ------------------------------------------------------------------------------------------ boot + screen wipe
 
+/**
+ * The boot screen's canvas layer: only a soft radial glow behind the centred fox (the hero sits at ~38% of the
+ * height), breathing gently and warming with progress. No grid or scan band here: the 20% backdrop SVG has those,
+ * and no layer may show a straight edge.
+ */
 export function drawBoot(cv: HTMLCanvasElement | null, th: VbTheme, t: number, p: number): void {
   const P = prep(cv)
   if (!P) return
   const { x, w, h } = P
   x.clearRect(0, 0, w, h)
-  x.fillStyle = rgba(th.ink, 0.045)
-  for (let gx = 20; gx < w; gx += 40) for (let gy = 20; gy < h; gy += 40) x.fillRect(gx, gy, 1, 1)
-  const bg = x.createRadialGradient(w * 0.28, h * 0.5, 0, w * 0.28, h * 0.5, w * 0.55)
-  bg.addColorStop(0, rgba(th.accent, 0.06 + p * 0.04))
-  bg.addColorStop(1, rgba(th.accent, 0))
-  x.fillStyle = bg
+  const cx = w * 0.5
+  const cy = h * 0.38
+  const r = Math.min(w, h) * (0.46 + 0.02 * Math.sin(t * 0.8))
+  const glow = x.createRadialGradient(cx, cy, 0, cx, cy, r)
+  glow.addColorStop(0, rgba(th.accent, 0.1 + p * 0.05))
+  glow.addColorStop(0.45, rgba(th.accent, 0.04 + p * 0.02))
+  glow.addColorStop(1, rgba(th.accent, 0))
+  x.fillStyle = glow
   x.fillRect(0, 0, w, h)
-  const sy = ((t * 0.14) % 1) * (h + 160)
-  const sg = x.createLinearGradient(0, sy - 160, 0, sy)
-  sg.addColorStop(0, rgba(th.ink, 0))
-  sg.addColorStop(1, rgba(th.ink, 0.03))
-  x.fillStyle = sg
-  x.fillRect(0, sy - 160, w, 160)
 }
 
 export interface Wipe {

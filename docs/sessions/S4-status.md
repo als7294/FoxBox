@@ -1,6 +1,6 @@
 # S4 APP — status (FoxBox)
 
-Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (Phase 2.3: FoxBox, endings, metronome, installer)
+Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.0.0 release candidate)
 
 ## Where things stand
 | Area | State |
@@ -142,7 +142,35 @@ old-brand after/ set) were removed with the rename; the after/ set is retaken wi
   - The transcript editor is in RECORD and IMPORT, and its 503 notice deep-links to the whisper-aligner model.
   - A transcript edit re-keys the render.
 - **Packaging:** electron-builder 26 rewrote the source package.json during packaging; package.mjs now restores it.
-- **Installer and updater:** in progress (see the next update).
+- **Installer and updater** (FoxBox 1.0.0):
+  - **Bundled engine.** `package.mjs --bundle-engine` ships S3's bundle at `Resources/engine`, launched with no uv.
+    - `HF_HOME` is `<data>/models`.
+    - Before every spawn the quarantine flag is cleared from our own engine folder. A read-only, still-quarantined copy isn't launched: Setup says "Move FoxBox to Applications".
+    - S3's unchecked-hash .pyc keep the code signature intact after the first run.
+  - **Setup window** (first bundled launch): required and optional components, a disk meter, byte-level progress with speed and ETA, retry and resume, cancel, then Ready.
+  - **Updater:**
+    - It reads GitHub Releases of `als7294/FoxBox` by default. The user approved this source directly; `latest-mac.json` holds the version, notes, and the size and SHA-256 of each file.
+    - A private repo needs the optional token, which is Keychain-encrypted and sent only to api.github.com.
+    - Checks: size and SHA-256 while streaming, then bundle id, version and codesign.
+    - Nothing installs without "Restart to update". The previous app is kept until the new one starts.
+    - UI: the update bar and SETTINGS → UPDATES.
+  - **Distribution.** `release.mjs <version>` builds `FoxBox-<v>-arm64.dmg` (a branded window with first-open steps) and `.zip` (for updates), plus `latest-mac.json`. Publishing stays with the coordinator.
+
+### Release 1.0.0 (2026-09-27)
+- **Candidate:** session/s4-app 6955be2, built from a clean `git archive` of that commit with `release.mjs --no-bump`.
+  - `FoxBox-1.0.0-arm64.dmg`: 393.3 MB, sha256 6f190a1d…d469.
+  - `FoxBox-1.0.0-arm64.zip`: 425.9 MB, sha256 5c50a739…50d9.
+  - The files are in `app/release/1.0.0/`, which is git-ignored.
+- **Checks:**
+  - Typecheck is clean and vitest passes 367/367 on the export.
+  - e2e passes 7/7 against the real engine.
+- **Fresh launch from the DMG** (headless, with the engine folder quarantined):
+  - Setup ran to READY (365 MB) and the engine reached ready.
+  - Preview and final render worked, and the export carries the cover art.
+  - There were no Gatekeeper dialogs, the signature was intact after the first run, and it quit cleanly.
+- **Known:** it's ad-hoc signed and not notarized, so a downloaded copy needs Open Anyway once. The DMG art and "Open FoxBox.txt" explain this. A Developer ID would remove it.
+- **Pending for 1.0.1 / 1.1:** S1's camera prototype, the ModelCard re-attaching to `install_job_id`, and the full update modal and WhatsNew.
+
 
 ### Verification (2026-09-26)
 - **Typecheck:** `npm run typecheck` is clean across all four configs (node, web, test, e2e).

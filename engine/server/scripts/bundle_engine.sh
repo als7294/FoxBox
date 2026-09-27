@@ -48,11 +48,43 @@ for link in "$OUT"/venv/bin/python*; do
 done
 
 echo "==> dependencies from uv.lock"
-(cd "$ENGINE" && uv export --quiet --frozen --no-dev --no-hashes --no-emit-workspace --package fvwks-server \
-  -o "$OUT/requirements.txt")
+(cd "$ENGINE" && uv export --quiet --frozen --no-dev --no-hashes --no-header --no-emit-workspace \
+  --package fvwks-server -o "$OUT/requirements.txt")
 install() { VIRTUAL_ENV="$OUT/venv" uv pip install --quiet --python "$OUT/venv/bin/python" --link-mode copy "$@"; }
 install -r "$OUT/requirements.txt"
 install --no-deps "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server"
+
+echo "==> scrub build paths"
+# The bundle must not name the machine that built it. uv writes its interpreter folder (under the builder's home)
+# into sysconfig and libpython's install name, the build folder into pyvenv.cfg, and the source folders into
+# direct_url.json. They all become /install, python-build-standalone's own placeholder prefix. Nothing reads them at
+# run time: the interpreter finds its stdlib from where it runs, and pyvenv.cfg's home is already a folder that
+# doesn't exist once the bundle is copied into the app.
+"$OUT/python/bin/python$PYVER" -I - "$OUT" "$PREFIX" <<'PY'
+import sys
+from pathlib import Path
+
+out, prefix = Path(sys.argv[1]), sys.argv[2]
+for data in (out / "python" / "lib").glob("python3*/_sysconfigdata_*.py"):
+    text, ns = data.read_text(), {}
+    exec(text, ns)
+    for old in sorted({prefix, ns["build_time_vars"]["prefix"]} - {"/install"}, key=len, reverse=True):
+        text = text.replace(old, "/install")
+    data.write_text(text)
+cfg = out / "venv" / "pyvenv.cfg"
+cfg.write_text("".join("home = /install/bin\n" if line.partition("=")[0].strip() == "home" else line
+                       for line in cfg.read_text().splitlines(keepends=True)))
+for url in (out / "venv" / "lib").glob("python3*/site-packages/*.dist-info/direct_url.json"):
+    record, entry = url.parent / "RECORD", f"{url.parent.name}/direct_url.json,"
+    record.write_text("".join(line for line in record.read_text().splitlines(keepends=True)
+                              if not line.startswith(entry)))
+    url.unlink()
+PY
+LIBPY="$OUT/python/lib/libpython$PYVER.dylib"  # not loaded by the (static) interpreter, but shipped
+if [ -f "$LIBPY" ]; then
+  install_name_tool -id "/install/lib/libpython$PYVER.dylib" "$LIBPY" 2>/dev/null
+  codesign --force --sign - "$LIBPY" 2>/dev/null  # arm64 needs a valid (ad-hoc) signature after the edit
+fi
 
 echo "==> bytecode (unchecked-hash)"
 # Timestamp-checked .pyc files go stale when packaging copies the sources (new mtimes). An interpreter started
@@ -60,7 +92,10 @@ echo "==> bytecode (unchecked-hash)"
 # its seal. Unchecked-hash .pyc files are used as they are, never re-validated or rewritten. A few files that don't
 # compile (Python 2 syntax in rarely used corners) keep no .pyc, which is fine: they're never imported.
 COMPILE_LOG="$(mktemp)"
+# -s/-p: each .pyc records its source path; record /install/engine/... rather than the build folder (Python swaps in
+# the real path when it loads the .pyc).
 "$OUT/python/bin/python$PYVER" -I -m compileall -q -f -j 0 --invalidation-mode unchecked-hash \
+  -s "$OUT" -p /install/engine \
   "$OUT/python/lib/python$PYVER" "$OUT/venv/lib/python$PYVER/site-packages" > "$COMPILE_LOG" 2>&1 || true
 rm -f "$COMPILE_LOG"
 
@@ -79,6 +114,28 @@ echo "==> smoke test"
 "$OUT/bin/fvwks-engine" --version
 "$OUT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, mutagen, soundfile
 from fvwks_server.writer import cover_art; cover_art()  # package data (the AIFF cover art) is in'
+echo "==> no build paths"
+# Fails the build if any file (or symlink) still names the build folder, uv's interpreter folder or the builder's
+# home, also in the dash-escaped form (/Users/x -> -Users-x) that temp folders use.
+"$OUT/python/bin/python$PYVER" -I - "$OUT" "$PREFIX" "$HOME" <<'PY'
+import os, sys
+
+root, prefix, home = sys.argv[1:4]
+needles = [n.encode() for n in {root, prefix} | ({home, home.replace("/", "-")} if len(home) > 1 else set())]
+leaks = []
+for folder, _, files in os.walk(root):
+    for name in files:
+        path = os.path.join(folder, name)
+        if os.path.islink(path):
+            data = os.readlink(path).encode()
+        else:
+            with open(path, "rb") as fh:
+                data = fh.read()
+        if any(n in data for n in needles):
+            leaks.append(os.path.relpath(path, root))
+if leaks:
+    sys.exit(f"bundle: {len(leaks)} file(s) name the build machine, e.g. {', '.join(sorted(leaks)[:5])}")
+PY
 {
   echo "fvwks-engine bundle"
   echo "built:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"

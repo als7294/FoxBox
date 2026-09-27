@@ -154,8 +154,6 @@ def _fresh_mac_cache(root: Path) -> Path | None:
     return root
 
 
-@pytest.mark.xfail(strict=False, reason="S1: KokoroEngine.model_dir() looks up refs/main, which a pinned first-run "
-                                         "download never writes; fixed by resolving models.KOKORO_REPO's revision")
 def test_fresh_mac_first_launch_finds_the_pinned_models(tmp_path):
     """Found by a real first launch of the packaged engine: the required models downloaded, then warm-up said Kokoro
     wasn't installed. Here without network: an HF_HOME holding only the pinned snapshots must reach ready."""

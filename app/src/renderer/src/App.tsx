@@ -21,10 +21,11 @@ import { StudioScreen } from '@/screens/StudioScreen'
 import { VaultScreen } from '@/screens/VaultScreen'
 import { VoicesScreen } from '@/screens/VoicesScreen'
 import { watchCapabilities } from '@/state/capabilities'
-import { connectEngineStatus } from '@/state/engine'
+import { connectEngineStatus, watchEngineRestarts } from '@/state/engine'
 import { selectPreset } from '@/state/rackActions'
 import { exportNow, renderFinal } from '@/state/renderController'
 import { studio, useStudio } from '@/state/studio'
+import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import { startStudioFrame } from '@/visuals/studioFrame'
 
@@ -140,6 +141,7 @@ function Screens() {
   useCommands(presets)
   useStudioDefaults(presets)
   useEffect(() => connectEngineStatus(), [])
+  useEffect(() => watchEngineRestarts(() => useUi.getState().booting, toast), [])
   useEffect(() => startStudioFrame(), [])
   useEffect(() => watchCapabilities(), [])
   return (

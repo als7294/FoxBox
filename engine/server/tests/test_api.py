@@ -2275,3 +2275,205 @@ def test_v06_sign_manifest_script(tmp_path, monkeypatch, capsys):
     signed = json.loads(out.read_text())
     assert signed["key_id"] == "test-1" and len(base64.b64decode(signed["signature"])) == 64
     assert "PRIVATE" not in out.read_text()
+
+
+# ------------------------------------------------------------------------------------------ songs (v0.7)
+
+
+SONG_SR = 44100
+
+
+def song_bytes(seconds=20.0, sr=SONG_SR, bpm=120.0, first_beat_s=0.5, channels=2):
+    """A synthetic song: a click on every beat from ``first_beat_s``, as a 16-bit WAV."""
+    audio = np.zeros((int(seconds * sr), channels), np.float32)
+    for t in np.arange(first_beat_s, seconds, 60.0 / bpm):
+        i = int(t * sr)
+        audio[i:i + 400] = 0.5 * np.hanning(800)[400:, None][: audio[i:i + 400].shape[0]]
+    buf = io.BytesIO()
+    sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
+    return buf.getvalue()
+
+
+def upload_song(client, data=None, filename="song-1.wav", **form):
+    return client.post("/api/songs", files={"file": (filename, data if data is not None else song_bytes(), "audio/wav")},
+                       data=form)
+
+
+class SongFx:
+    """Stand-ins for S2's fx.analyze_song / fx.mix_song (the contract's signatures), recording their calls."""
+
+    def __init__(self):
+        from fvwks_contracts.models import SongAnalysis
+        self.analysis = SongAnalysis(bpm=120.0, bpm_confidence=0.9, key="Am", camelot="8A", key_confidence=0.8,
+                                     downbeat_s=0.5)
+        self.gate = None  # a threading.Event the analysis waits for, when set
+        self.fail = False
+        self.analysed, self.mixed = [], []
+
+    def analyze_song(self, audio, sr):
+        self.analysed.append((audio.shape, audio.dtype, sr))
+        if self.gate is not None:
+            assert self.gate.wait(20)
+        if self.fail:
+            raise RuntimeError("no beat found")
+        return self.analysis
+
+    def mix_song(self, song, song_sr, drop, drop_sr, *, drop_start_s, bpm, placement, excerpt_s, master, quality):
+        from fvwks_contracts.seam import MixOutput
+        self.mixed.append(dict(drop_start_s=drop_start_s, bpm=bpm, at_bar=placement.at_bar, excerpt_s=excerpt_s,
+                               quality=quality, song_sr=song_sr, drop_sr=drop_sr, drop_len=drop.shape[-1]))
+        start, end = excerpt_s or (0.0, song.shape[-1] / song_sr)
+        sr = master.sample_rate
+        out = np.zeros((2, int(round((end - start) * sr))), np.float32)
+        at = int((drop_start_s - start) * sr)
+        piece = drop[:, : max(0, out.shape[-1] - at)]
+        out[:, at:at + piece.shape[-1]] += 0.5 * piece[: 2]
+        return MixOutput(audio=out, sample_rate=sr, start_s=start, drop_start_s=drop_start_s - start,
+                         warnings=["stub mix"])
+
+
+@pytest.fixture
+def song_fx(monkeypatch):
+    stub = SongFx()
+    monkeypatch.setattr(fx_api, "analyze_song", stub.analyze_song, raising=False)
+    monkeypatch.setattr(fx_api, "mix_song", stub.mix_song, raising=False)
+    return stub
+
+
+def wait_song(client, song_id, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        song = ok(client.get(f"/api/songs/{song_id}"))
+        if song["analysis_state"] not in ("queued", "running"):
+            return song
+        time.sleep(0.02)
+    raise AssertionError(f"song {song_id} was not analysed")
+
+
+def test_songs_import_analyse_patch_delete(client, song_fx, tmp_path, monkeypatch):
+    song = ok(upload_song(client))
+    assert (song["name"], song["sample_rate"], song["channels"], song["duration_s"]) == ("song-1", 44100, 2, 20.0)
+    assert song["peaks"]["buckets"] > 0 and song["analysis_state"] in ("queued", "running", "done")
+    song = wait_song(client, song["id"])
+    assert song["analysis_state"] == "done" and song["analysis"]["bpm"] == 120 and song["analysis"]["key"] == "Am"
+    assert song_fx.analysed == [((2, 20 * SONG_SR), np.float32, SONG_SR)]  # (channels, n) at the file's own rate
+    assert [p.name for p in (tmp_path / "data" / "songs").glob("sng_*")] == [f"{song['audio_id']}.flac"]
+    stream = client.get(f"/api/audio/{song['audio_id']}")
+    assert stream.status_code == 200 and sf.info(io.BytesIO(stream.content)).duration == pytest.approx(20.0)
+    assert ok(upload_song(client, filename="again.wav"))["id"] == song["id"]  # the same audio is the same song
+    assert [s["id"] for s in ok(client.get("/api/songs"))] == [song["id"]]
+    assert ok(upload_song(client, name="Opener"))["name"] == "song-1"
+
+    patched = ok(client.patch(f"/api/songs/{song['id']}", json={"bpm_override": 125, "key_override": "f# minor"}))
+    assert (patched["bpm_override"], patched["key_override"], patched["name"]) == (125, "F#m", "song-1")
+    patched = ok(client.patch(f"/api/songs/{song['id']}", json={"name": "Opener"}))  # absent fields stay
+    assert (patched["name"], patched["bpm_override"], patched["key_override"]) == ("Opener", 125, "F#m")
+    patched = ok(client.patch(f"/api/songs/{song['id']}", json={"bpm_override": None, "downbeat_override_s": 0.25}))
+    assert (patched["bpm_override"], patched["downbeat_override_s"], patched["key_override"]) == (None, 0.25, "F#m")
+    assert patched["analysis"]["bpm"] == 120  # overrides never touch the analysis
+    bad = client.patch(f"/api/songs/{song['id']}", json={"key_override": "H#"})
+    assert bad.status_code == 422
+    assert client.patch(f"/api/songs/{song['id']}", json={"downbeat_override_s": 99}).status_code == 422
+
+    for data, code in ((b"", "unsupported_format"), (b"not audio at all", "unsupported_format")):
+        res = upload_song(client, data)
+        assert res.status_code == 400 and res.json()["error"]["code"] == code
+    monkeypatch.setattr("fvwks_server.service.MAX_SONG_S", 10)
+    res = upload_song(client, song_bytes(seconds=11))
+    assert res.status_code == 400 and res.json()["error"]["code"] == "song_too_long"
+
+    ok(client.delete(f"/api/songs/{song['id']}"), 204)
+    assert client.get(f"/api/songs/{song['id']}").status_code == 404
+    assert client.get(f"/api/audio/{song['audio_id']}").status_code == 404
+    assert client.delete(f"/api/songs/{song['id']}").status_code == 404
+
+
+def test_mix_places_the_drop_on_the_song_grid(client, song_fx):
+    song = wait_song(client, ok(upload_song(client))["id"])  # 120 BPM, bar 1 at 0.5 s: a bar is 2 s
+    r = render(client, tts(client)["id"])
+    mix = ok(client.post("/api/mix", json={"render_id": r["id"], "placement": {"song_id": song["id"], "at_bar": 3}}))
+    call = song_fx.mixed[-1]
+    assert call["drop_start_s"] == pytest.approx(4.5) and call["excerpt_s"] is None and call["bpm"] == 120
+    assert call["drop_len"] == r["n_samples"] and call["quality"] == "preview" and call["song_sr"] == SONG_SR
+    assert (mix["song_id"], mix["render_id"], mix["start_s"], mix["drop_start_s"]) == (song["id"], r["id"], 0.0, 4.5)
+    assert mix["duration_s"] == pytest.approx(20.0) and mix["warnings"] == ["stub mix"]
+    assert client.get(f"/api/audio/{mix['audio_id']}").status_code == 200
+    again = ok(client.post("/api/mix", json={"render_id": r["id"], "placement": {"song_id": song["id"], "at_bar": 3}}))
+    assert again["id"] == mix["id"] and len(song_fx.mixed) == 1  # cached
+
+    body = {"render_id": r["id"], "placement": {"song_id": song["id"], "at_bar": 3, "start_bar": 2, "end_bar": 6}}
+    clip = ok(client.post("/api/mix", json=body))
+    assert song_fx.mixed[-1]["excerpt_s"] == (2.5, 10.5) and (clip["start_s"], clip["drop_start_s"]) == (2.5, 2.0)
+    body["placement"]["end_bar"] = 40  # past the end: clamped to the song
+    assert ok(client.post("/api/mix", json=body))["duration_s"] == pytest.approx(17.5)
+    for placement in ({"at_bar": 11}, {"at_bar": 3, "start_bar": 4}, {"at_bar": 3, "start_bar": 3, "end_bar": 3}):
+        res = client.post("/api/mix", json={"render_id": r["id"], "placement": {"song_id": song["id"], **placement}})
+        assert res.status_code == 422, placement
+
+    ok(client.patch(f"/api/songs/{song['id']}", json={"bpm_override": 60}))  # a bar is now 4 s
+    moved = ok(client.post("/api/mix", json={"render_id": r["id"], "placement": {"song_id": song["id"], "at_bar": 3}}))
+    assert moved["id"] != mix["id"] and song_fx.mixed[-1]["drop_start_s"] == pytest.approx(8.5)
+
+    service = client.app.state.service
+    assert service.library.count("mixes", "song_id = ?", (song["id"],)) == 4
+    ok(client.delete(f"/api/songs/{song['id']}"), 204)  # its mixes go with it
+    assert service.library.count("mixes") == 0 and client.get(f"/api/audio/{mix['audio_id']}").status_code == 404
+
+
+def test_mix_waits_for_the_analysis_unless_overridden(client, song_fx):
+    import threading
+    song_fx.gate = threading.Event()
+    song = ok(upload_song(client))
+    r = render(client, tts(client)["id"])
+    body = {"render_id": r["id"], "placement": {"song_id": song["id"], "at_bar": 2}}
+    try:
+        res = client.post("/api/mix", json=body)
+        assert res.status_code == 409 and res.json()["error"]["code"] == "song_not_analyzed"
+        assert res.json()["error"]["retryable"] is True
+        ok(client.patch(f"/api/songs/{song['id']}", json={"bpm_override": 100}))
+        assert client.post("/api/mix", json=body).status_code == 409  # bar 1 still unknown
+        ok(client.patch(f"/api/songs/{song['id']}", json={"downbeat_override_s": 1.0}))
+        ok(client.post("/api/mix", json=body))
+        assert song_fx.mixed[-1]["drop_start_s"] == pytest.approx(3.4) and song_fx.mixed[-1]["bpm"] == 100
+    finally:
+        song_fx.gate.set()
+    assert wait_song(client, song["id"])["analysis_state"] == "done"
+
+    song_fx.fail = True
+    broken = wait_song(client, ok(upload_song(client, song_bytes(seconds=8)))["id"])
+    assert broken["analysis_state"] == "error" and broken["analysis"] is None
+    res = client.post("/api/mix", json={"render_id": r["id"], "placement": {"song_id": broken["id"]}})
+    assert res.status_code == 409 and res.json()["error"]["retryable"] is False
+
+
+def test_unfinished_song_analysis_resumes_after_a_restart(tmp_path, song_fx):
+    first = make_client(tmp_path)
+    song = wait_song(first, ok(upload_song(first))["id"])
+    first.app.state.service.library.update("songs", song["id"], analysis_state="running")  # killed mid-analysis
+    second = make_client(tmp_path)
+    assert wait_song(second, song["id"])["analysis_state"] == "done" and len(song_fx.analysed) == 2
+
+
+def test_baked_export_is_the_song_with_the_drop(client, song_fx):
+    song = wait_song(client, ok(upload_song(client))["id"])
+    r = render(client, tts(client)["id"], quality="final")
+    res = ok(client.post("/api/exports", json={
+        "render_ids": [r["id"]], "variants": ["wet"], "title": "Opener drop",
+        "bake": {"song_id": song["id"], "at_bar": 3, "start_bar": 2, "end_bar": 8}}))
+    wet, baked = res["files"]
+    assert wet["variant"] == "wet" and baked["variant"] == "baked" and "stub mix" in res["warnings"]
+    assert baked["title"] == "Opener drop (baked v01)" and "_baked_v01.aiff" in baked["filename"]
+    assert (baked["bpm"], baked["key"], baked["bars"]) == (120, "Am", None)
+    assert baked["duration_s"] == pytest.approx(12.0) and baked["n_samples"] == 12 * 44100  # bars 2-8: 2.5-14.5 s
+    assert baked["first_word_s"] == pytest.approx(2.0 + r["first_word_s"])
+    assert song_fx.mixed[-1]["quality"] == "final" and song_fx.mixed[-1]["excerpt_s"] == (2.5, 14.5)
+    tags = AIFF(baked["path"]).tags
+    assert tags["TIT2"].text == ["Opener drop (baked v01)"] and tags["TBPM"].text == ["120"]
+    [cover] = tags.getall("APIC")
+    assert cover.type == 3 and cover.mime == "image/jpeg" and cover.desc == "FoxBox"
+    render_tag = json.loads(tags["TXXX:FVWKS_RENDER"].text[0])
+    assert render_tag["variant"] == "baked" and render_tag["render"]["song_id"] == song["id"]
+
+    exported = client.app.state.service.library.count("exports")
+    bad = client.post("/api/exports", json={"render_ids": [r["id"]], "bake": {"song_id": song["id"], "at_bar": 99}})
+    assert bad.status_code == 422 and client.app.state.service.library.count("exports") == exported  # nothing written

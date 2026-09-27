@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { sampleLines } from '@/state/defaultLines'
 import { EngineError } from '@/api/client'
 import { useBatch, useCancelJob, useJob, usePresets, useRekordboxExport, useSettings, useVoices } from '@/api/queries'
 import type { Job } from '@/api/types'
@@ -77,6 +78,8 @@ export function SetlistScreen() {
 
   const [pasteOpen, setPasteOpen] = useState(() => useSetlist.getState().lines.length === 0)
   const [pasteText, setPasteText] = useState('')
+  // One line per transmission, e.g. three from the Studio's starting lines.
+  const pastePlaceholder = useMemo(() => `One line per transmission, e.g.\n${sampleLines(3).join('\n')}`, [])
   const [armClear, setArmClear] = useState(false)
   const pastePanel = useRef<HTMLDivElement>(null)
   const pasteArea = useRef<HTMLTextAreaElement>(null)
@@ -314,7 +317,7 @@ export function SetlistScreen() {
             ref={pasteArea}
             className={s.pasteText}
             value={pasteText}
-            placeholder="One line per transmission…"
+            placeholder={pastePlaceholder}
             aria-label="Paste lines"
             spellCheck={false}
             onChange={(e) => setPasteText(e.target.value)}

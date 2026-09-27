@@ -67,8 +67,7 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
 
   const exporting = phase === 'exporting'
   const busy = phase !== 'idle'
-  const onExport = () =>
-    void exportNow(settings?.format ?? 'aiff', (settings?.bit_depth ?? 24) as 16 | 24)
+  const onExport = () => void exportNow(settings?.format ?? 'aiff', (settings?.bit_depth ?? 24) as 16 | 24)
   const onReveal = async () => {
     if (!b) return
     const target = file?.path ?? engineHealth(status)?.export_dir
@@ -87,7 +86,9 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
       key: render?.key ?? s.key,
     })
     const n = useSetlist.getState().lines.length
-    toast.success('ADDED TO SETLIST', { detail: `Line ${String(n).padStart(2, '0')} · ${s.presetName ?? 'CUSTOM'} · ${render?.bpm ?? s.bpm} BPM` })
+    toast.success('ADDED TO SETLIST', {
+      detail: `Line ${String(n).padStart(2, '0')} · ${s.presetName ?? 'CUSTOM'} · ${render?.bpm ?? s.bpm} BPM`,
+    })
   }
 
   const tag = file ? `FINAL v${version(file)}${stale ? ' · STALE' : ''}` : 'PREVIEW'
@@ -170,10 +171,20 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
         </button>
       </div>
       <div className={styles.pair}>
-        <button type="button" disabled={!b} onClick={() => void onReveal()} title={file ? 'Show the file in Finder' : 'Open the export folder'}>
+        <button
+          type="button"
+          disabled={!b}
+          onClick={() => void onReveal()}
+          title={file ? 'Show the file in Finder' : 'Open the export folder'}
+        >
           REVEAL
         </button>
-        <button type="button" disabled={!render && !hasScript} onClick={onSetlist} title={`Add this line (${presetName ?? 'CUSTOM'}) to the setlist`}>
+        <button
+          type="button"
+          disabled={!render && !hasScript}
+          onClick={onSetlist}
+          title={`Add this line (${presetName ?? 'CUSTOM'}) to the setlist`}
+        >
           + SETLIST
         </button>
       </div>

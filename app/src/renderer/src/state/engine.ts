@@ -81,3 +81,29 @@ export function connectEngineStatus(): () => void {
   void b.getEngineStatus().then((s) => s && useEngine.getState().setStatus(s))
   return b.onEngineStatus((s) => useEngine.getState().setStatus(s))
 }
+
+/**
+ * After the boot screen, an engine that goes away and comes back (a model install restarting it, or a crash that
+ * auto-restarts) is a small toast, never the boot screen again. Crashes and failures also get their banner; the
+ * toasts cover the quiet restarts. Returns an unsubscribe function.
+ */
+export function watchEngineRestarts(isBooting: () => boolean, notify: { info(m: string, o?: { detail?: string }): void; success(m: string, o?: { detail?: string }): void }): () => void {
+  let prev = engineView(useEngine.getState().status)
+  let away = false
+  return useEngine.subscribe((s) => {
+    const view = engineView(s.status)
+    if (view === prev) return
+    const was = prev
+    prev = view
+    if (isBooting() || view === 'mock') return
+    if (was === 'ready' && (view === 'starting' || view === 'loading')) {
+      away = true
+      notify.info('RECONNECTING TO THE ENGINE', { detail: 'It is restarting; your script and rack are safe.' })
+    } else if (was === 'ready' && view !== 'ready') {
+      away = true // restarting / offline / error: the banner says what happened
+    } else if (view === 'ready' && away) {
+      away = false
+      notify.success('ENGINE READY')
+    }
+  })
+}

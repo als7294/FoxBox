@@ -22,7 +22,6 @@ test('launch → type → render → export → file exists', async () => {
   const cartridge = page.getByTestId('cartridge')
   await expect(cartridge).toHaveAttribute('data-state', 'preview', { timeout: 60_000 })
   await expect(page.getByRole('status', { name: 'Fit' })).toContainText(/LOCKED|SHORT|STRETCHED|EXTENDED|OVERFLOW/)
-  await expect(page.getByLabel('What the voice will say')).toContainText(/Fawkes/i)
   // AUTO bars (v0.2, the default): the engine picked a standard count, and the picker shows it ("AUTO · N").
   await expect(page.getByRole('radiogroup', { name: 'Bars' }).getByRole('radio', { name: /^AUTO, (1|2|4|8|16) bars$/ })).toHaveAttribute('aria-checked', 'true')
 

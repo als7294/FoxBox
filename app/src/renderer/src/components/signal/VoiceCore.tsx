@@ -11,6 +11,7 @@ import { decodeMotion, motionAt, type MotionTrack } from '@/visuals/motionTrack'
 import { playhead, renderWords, signalGeom } from '@/visuals/signal'
 import { vis } from '@/visuals/state'
 import { theme } from '@/visuals/theme'
+import { useViewPrefs } from '@/state/viewPrefs'
 import styles from './signal.module.css'
 
 const ZERO = { depth: 0, grit: 0, machine: 0, space: 0 }
@@ -78,10 +79,6 @@ function placeHud(el: HTMLElement | null, lay: CoreLayout, placed: RefObject<Cor
   const px = (v: number) => `${Math.round(v)}px`
   el.style.setProperty('--core-cx', px(lay.cx))
   el.style.setProperty('--core-r', px(lay.r))
-  // HIGH / MID / LOW sit level with the middle of their bands.
-  el.style.setProperty('--core-hi', px(lay.cy - 0.75 * lay.r))
-  el.style.setProperty('--core-mid', px(lay.cy))
-  el.style.setProperty('--core-lo', px(lay.cy + 0.75 * lay.r))
 }
 
 /**
@@ -122,7 +119,7 @@ function showWord(slots: readonly (HTMLElement | null)[], st: WordSlots, word: s
 /**
  * The voice core: a particle sphere driven by the output spectrum, with motion that follows the sound
  * (macros + resolved chain) and the preset's signature, crossfading ~400 ms when either changes. Its text (the
- * caption, HIGH / MID / LOW and the readouts) is a DOM HUD over the canvas, written from the frame loop.
+ * caption and the readouts) is a DOM HUD over the canvas, written from the frame loop.
  */
 export function VoiceCore() {
   const box = useRef<HTMLDivElement>(null)
@@ -142,6 +139,11 @@ export function VoiceCore() {
   const slots = useRef<WordSlots>({ key: '', front: 0, anims: [] })
   const rmsAt = useRef(0)
   useFrame((now) => {
+    // Closed (× / SETTINGS): no drawing at all.
+    if (!useViewPrefs.getState().showVoiceCore) {
+      last.current = 0
+      return
+    }
     const s = useStudio.getState()
     const playing = player.isPlaying
     const reduced = reducedMotion()
@@ -207,19 +209,19 @@ export function VoiceCore() {
   })
   return (
     <div ref={box} className={styles.core}>
+      <button
+        type="button"
+        className={styles.coreClose}
+        aria-label="Hide voice core"
+        title="Hide the voice core (SETTINGS brings it back)"
+        onClick={() => useViewPrefs.getState().setShowVoiceCore(false)}
+      >
+        ×
+      </button>
       <canvas ref={cv} className={styles.canvas} role="img" aria-label="Voice core visualiser" />
       {/* The HUD: DOM text over the particles (crisp at any scale), filled in by the frame loop above. */}
       <div className={styles.coreHud} aria-hidden="true">
         <span className={styles.coreLabel}>VOICE CORE</span>
-        <span className={styles.band} data-band="hi">
-          HIGH
-        </span>
-        <span className={styles.band} data-band="mi">
-          MID
-        </span>
-        <span className={styles.band} data-band="lo">
-          LOW
-        </span>
         <div className={styles.caption}>
           <span className={styles.capWord}>
             <span ref={wordA} />

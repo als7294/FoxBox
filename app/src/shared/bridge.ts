@@ -215,9 +215,13 @@ export interface FvwksBridge {
   chooseFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null>
   /** macOS microphone permission (systemPreferences.askForMediaAccess). */
   askMicAccess(): Promise<boolean>
+  /** macOS camera permission (systemPreferences.askForMediaAccess), asked before the camera clip opens it. */
+  askCameraAccess(): Promise<boolean>
   micAccessStatus(): Promise<MicAccess>
   /** Opens System Settings → Privacy & Security → Microphone. */
   openMicSettings(): Promise<void>
+  /** Opens System Settings → Privacy & Security → Camera. */
+  openCameraSettings(): Promise<void>
   getEngineStatus(): Promise<EngineStatus>
   onEngineStatus(listener: (status: EngineStatus) => void): () => void
   restartEngine(): Promise<void>
@@ -240,8 +244,10 @@ export const IPC = {
   reveal: 'fvwks:reveal',
   chooseFolder: 'fvwks:choose-folder',
   askMic: 'fvwks:ask-mic',
+  askCamera: 'fvwks:ask-camera',
   micStatus: 'fvwks:mic-status',
   openMicSettings: 'fvwks:open-mic-settings',
+  openCameraSettings: 'fvwks:open-camera-settings',
   menuCommand: 'fvwks:menu-command',
   openLogs: 'fvwks:open-logs',
   updatesState: 'fvwks:updates-state',

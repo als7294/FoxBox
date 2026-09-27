@@ -139,6 +139,21 @@
   grid-template-columns: clamp(200px, 19.3cqw, 292px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
+  transition: grid-template-columns var(--vb-slow) var(--vb-ease);
+}
+/* The voice core closed: its column folds away and the waveform widens into the space. */
+.body[data-core='off'] {
+  grid-template-columns: 0px minmax(0, 1fr);
+}
+.body[data-core='off'] > .core {
+  visibility: hidden;
+  border-right: 0;
+  transition: visibility 0s var(--vb-slow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    transition: none;
+  }
 }
 /* Voice core: the particle canvas, a vignette over it, then the HUD (DOM text) on top. */
 .core {
@@ -194,40 +209,6 @@
   font: 500 9.5px var(--vb-font-mono);
   letter-spacing: 0.2em;
   color: var(--vb-dim);
-}
-/* HIGH / MID / LOW: level with their bands, a hairline tick toward the sphere and a small dim backing. */
-.band {
-  position: absolute;
-  left: calc(100% - 56px);
-  top: var(--y);
-  margin-top: -8px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 16px;
-  padding-right: 3px;
-  font: 500 12px/16px var(--vb-font-mono);
-  letter-spacing: 0.04em;
-  color: var(--vb-dim);
-  background: rgba(var(--vb-panel-rgb), 0.6);
-  box-shadow: 0 0 6px 2px rgba(var(--vb-panel-rgb), 0.6);
-  border-radius: var(--vb-r1);
-}
-.band::before {
-  content: '';
-  flex: none;
-  width: 8px;
-  height: 1px;
-  background: rgba(var(--vb-ink-rgb), 0.38);
-}
-.band[data-band='hi'] {
-  --y: var(--core-hi, 30%);
-}
-.band[data-band='mi'] {
-  --y: var(--core-mid, 45%);
-}
-.band[data-band='lo'] {
-  --y: var(--core-lo, 60%);
 }
 /* The caption, centred under the sphere: the word being said in the display face (accent for a throw), the beat
    in dim mono. Two word slots share one cell so the words crossfade (VoiceCore.tsx). */
@@ -722,5 +703,141 @@
 @container vb (max-width: 1419px) {
   .legend {
     display: none;
+  }
+}
+
+/* × on the VOICE CORE panel (top-right): closes it; SETTINGS brings it back. */
+.coreClose {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 500 16px/1 var(--vb-font-mono);
+  opacity: 0.6;
+  transition: opacity var(--vb-fast), color var(--vb-fast), border-color var(--vb-fast);
+}
+.core:hover .coreClose,
+.coreClose:focus-visible {
+  opacity: 1;
+}
+.coreClose:hover,
+.coreClose:focus-visible {
+  color: var(--vb-ink);
+  border-color: var(--vb-line-3);
+}
+
+/* ---------------------------------------------------------------- render progress (never blocking) */
+.signal {
+  position: relative;
+}
+/* A thin ember line along the panel's top edge: a moving sweep while a request is in flight, a quick fill and
+   fade when the new audio lands. */
+.progress {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+  border-radius: var(--vb-r3) var(--vb-r3) 0 0;
+}
+.progress[data-state='busy']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32%;
+  background: linear-gradient(90deg, transparent, var(--vb-accent), transparent);
+  animation: signalSweep 1.1s ease-in-out infinite;
+}
+.progress[data-state='landed'] {
+  background: var(--vb-accent);
+  transform-origin: left;
+  animation: signalLand 640ms ease-out forwards;
+}
+@keyframes signalSweep {
+  from {
+    left: -32%;
+  }
+  to {
+    left: 100%;
+  }
+}
+@keyframes signalLand {
+  0% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  45% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+/* Stale audio (the controls moved): a faint diagonal hatch over the dimmed waveform until the new render lands. */
+.signal[data-stale] .stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(var(--vb-ink-rgb), 0.04) 0 2px, transparent 2px 9px);
+}
+/* While waiting, the voice core breathes quietly (no flashing) and snaps back when the audio arrives. */
+.signal[data-waiting] .core .canvas {
+  animation: coreWait 1.8s ease-in-out infinite;
+}
+@keyframes coreWait {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+.status[data-waiting] {
+  border-style: dashed;
+}
+.status[data-error] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vb-accent);
+  border-color: rgba(var(--vb-accent-rgb), 0.45);
+}
+.statusAction {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress[data-state='busy']::before {
+    left: 0;
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+  .progress[data-state='landed'] {
+    display: none;
+  }
+  .signal[data-waiting] .core .canvas {
+    animation: none;
+    opacity: 0.6;
   }
 }

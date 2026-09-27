@@ -160,8 +160,9 @@ def test_v2_library_migrates_to_transcript_state(tmp_path):
     conn.close()
     lib = Library(path)
     try:
-        assert lib.schema_version == SCHEMA_VERSION == 3
+        assert lib.schema_version == SCHEMA_VERSION == 4
         assert lib.get("sources", "src_1")["transcript_state"] == "none"
+        assert lib.count("songs") == lib.count("mixes") == 0  # v4 (v0.7 songs) arrived too
         for state in ("queued", "running", "done", "error"):
             lib.insert("sources", id=f"src_{state}", kind="recording", created_at="x", audio_id="a", info={},
                        transcript_state=state)

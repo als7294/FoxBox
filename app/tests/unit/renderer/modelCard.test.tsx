@@ -90,6 +90,14 @@ describe('ModelCard (model install job)', () => {
     await expect.poll(() => screen.queryByRole('progressbar'), { timeout: 3000 }).toBeNull()
   })
 
+  it("reattaches to the engine's own install job (install_job_id) instead of offering Download", async () => {
+    server.use(http.get('*/api/jobs/:id', ({ params }) => HttpResponse.json(job({ id: String(params.id), progress: 0.25 }))))
+    renderCard(20_000_000_000, { model: { ...model, install_job_id: 'job_engine' } })
+    const bar = await screen.findByRole('progressbar')
+    expect(bar).toHaveAttribute('aria-valuenow', '25')
+    expect(screen.queryByRole('button', { name: /Download/ })).toBeNull()
+  })
+
   it('refuses to start when the download would leave less than 5 GB free', () => {
     renderCard(7_000_000_000)
     expect(screen.getByText(/must stay free/)).toBeInTheDocument()

@@ -76,9 +76,10 @@ describe('CSP', () => {
   it('never allows the engine directly, eval, or remote scripts in production', () => {
     const csp = contentSecurityPolicy('build')
     expect(csp).toContain("default-src 'none'")
-    expect(csp).toContain("script-src 'self';")
+    expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval';")
     expect(csp).not.toContain('127.0.0.1')
-    expect(csp).not.toContain('unsafe-eval')
+    // WebAssembly may compile (the camera clip's face detector); JS eval stays off.
+    expect(csp).not.toContain("'unsafe-eval'")
     expect(csp).toContain('connect-src \'self\' vbx:')
   })
 })

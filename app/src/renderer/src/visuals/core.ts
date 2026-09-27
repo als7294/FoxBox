@@ -22,7 +22,7 @@ import { wordAt } from './wordLabels'
  * kicker at the top, the caption (word + BAR, up to ~42 px tall from 30 px up) and the PITCH / RMS readouts at the
  * bottom, the HIGH / MID / LOW column on the right (56 px, plus a 4 px gap to the sphere).
  */
-export const CORE_HUD = { top: 30, bottom: 74, left: 20, right: 60 } as const
+export const CORE_HUD = { top: 30, bottom: 74, left: 20, right: 20 } as const
 
 /** The sphere's silhouette at rest in core radii: the perspective bulge plus the idle spectrum's push. */
 export const CORE_REST = 1.12
@@ -56,7 +56,7 @@ export interface CoreCaption {
 export function coreCaption(playT: number | null, words: readonly Word[], g: Geom): CoreCaption {
   if (playT == null) {
     const word = `${f2(g.target)} S`
-    return { key: `stop ${word}`, word, thrown: false, bar: `${g.barCount} BARS @ ${Math.round(240 / g.barDur)}` }
+    return { key: `stop ${word}`, word, thrown: false, bar: '' }
   }
   const i = wordAt(words, playT)
   const wd = i >= 0 ? words[i]! : null
@@ -103,6 +103,8 @@ const hash = (v: number) => {
 }
 
 const N = 520
+/** Overall particle intensity (the core is a calm readout, not a light show). */
+const CALM = 0.6
 const NB = 48
 const TAU = Math.PI * 2
 let pts: Float32Array | null = null // x, y, z, phase per point (a Fibonacci sphere)
@@ -252,7 +254,8 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const cLo = tint(HX(th.accent))
   const cMi = tint(HX(th.amber))
   const cHi = tint(M.ember > 0.5 ? HX(th.amber) : ink)
-  const alphaK = (1 - M.darkness * 0.4) * (1 - M.pale * 0.4) * (1 - o.stMix * 0.5)
+  // A calm instrument readout (user feedback: "too bright"): ~60% of the old intensity, flaring only on strong words.
+  const alphaK = CALM * (1 - M.darkness * 0.4) * (1 - M.pale * 0.4) * (1 - o.stMix * 0.5)
 
   const layer = layerFor(cv, w, h)
   if (!layer) return null
@@ -317,7 +320,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
       T.fillRect(sx - size / 2, sy - size / 2, size, size)
       if (soft > 0.2) {
         // Soft particles: a faint halo (GHOST, PACT embers).
-        T.globalAlpha = Math.min(1, alpha * 0.28 * soft)
+        T.globalAlpha = Math.min(1, alpha * 0.16 * soft)
         const hs = size * 2.4
         T.fillRect(sx - hs / 2, sy - hs / 2, hs, hs)
       }
@@ -376,8 +379,9 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
           Z += (ccz + pz * 0.36 * (1 + d) - Z) * M.clusters
         }
         const [sx, sy, depth] = project(X, Y, Z, R)
-        const size = (0.7 + depth * 1.5) * (1 + e * 1.2) * M.size * (0.85 + s1 * 0.3)
-        const alpha = (0.12 + depth * 0.55 + e * 0.9) * alphaMul * alphaK
+        // Smaller, softer particles; energy squared, so only strong words flare.
+        const size = (0.6 + depth * 1.2) * (1 + e * e * 0.9) * M.size * (0.85 + s1 * 0.3)
+        const alpha = (0.1 + depth * 0.5 + e * e * 0.8) * alphaMul * alphaK
         dot(sx, sy, size, alpha, py < -0.34 ? cLo : py < 0.34 ? cMi : cHi)
       }
     }
@@ -462,8 +466,9 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const ret = tr?.returns ?? 0
   const gl = x.createRadialGradient(cx, cy, 0, cx, cy, R0 * (1.5 + ret * 0.35))
   const warm = blend(HX(th.amber), blend(HX(th.ice), ink, 0.5), M.pale)
-  gl.addColorStop(0, css(warm, (0.05 + lv * 0.28 + ret * 0.16 + (tr?.squelch ? 0.12 : 0)) * glowA))
-  gl.addColorStop(0.6, css(HX(th.accent), (0.02 + lv * 0.1) * glowA))
+  // Less bloom: a faint glow that lifts a little on loud passages.
+  gl.addColorStop(0, css(warm, (0.025 + lv * 0.12 + ret * 0.07 + (tr?.squelch ? 0.06 : 0)) * glowA))
+  gl.addColorStop(0.6, css(HX(th.accent), (0.01 + lv * 0.04) * glowA))
   gl.addColorStop(1, css(HX(th.accent), 0))
   x.fillStyle = gl
   x.fillRect(0, 0, w, h)
@@ -486,7 +491,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const voiced = tr?.f0 != null
   if (voiced) S.f0y += (clamp((tr!.f0! - 57) / 24, -1, 1) * 0.72 - S.f0y) * (calm ? 1 : 0.25)
   S.f0a += ((voiced ? 1 : 0) - S.f0a) * (calm ? 1 : 0.2)
-  if (S.f0a > 0.02) ring(S.f0y, 1, S.f0a * (0.06 + 0.2 * (0.4 + lv)), tint(ink))
+  if (S.f0a > 0.02) ring(S.f0y, 1, CALM * S.f0a * (0.06 + 0.2 * (0.4 + lv)), tint(ink))
   // Throw echoes: a ring that flashes and widens as each echo sounds.
   if (tr && tr.echo > 0.01 && !calm) ring(0, 1.06 + (1 - tr.echo) * 0.45, tr.echo * 0.45, cMi)
 

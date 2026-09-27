@@ -31,9 +31,9 @@ describe('App', () => {
     fireEvent.focus(editor)
     fireEvent.change(editor, { target: { value: 'WE ARE GUY FVWKS | EXPECT *US' } })
     expect(screen.getByText('TYPING · KEYS PAUSED')).toBeInTheDocument()
-    // The engine's script preview arrives (debounced): what TTS will say, plus the unmatched-* warning.
-    expect(await screen.findByLabelText('What the voice will say', {}, { timeout: 3000 })).toHaveTextContent(/guy Fawkes/)
-    expect(await screen.findByText(/Unmatched/)).toBeInTheDocument()
+    // The engine's script preview arrives (debounced): its warnings show (the spoken-text SAYS line is gone in 1.1).
+    expect(await screen.findByText(/Unmatched/, {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(screen.queryByLabelText('What the voice will say')).toBeNull()
   })
 
   it('navigates every screen', async () => {

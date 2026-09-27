@@ -98,8 +98,8 @@ describe('voice core caption', () => {
     { t0: 0.5, t1: 0.8, w: 'remember,', th: false },
     { t0: 1.9, t1: 2.3, w: 'us', th: true },
   ]
-  it('shows the length and bars when stopped', () => {
-    expect(coreCaption(null, words, g)).toMatchObject({ word: '6.86 S', bar: '4 BARS @ 140', thrown: false })
+  it('shows only the length when stopped', () => {
+    expect(coreCaption(null, words, g)).toMatchObject({ word: '6.86 S', bar: '', thrown: false })
   })
   it('shows the word, its throw and the beat while playing', () => {
     expect(coreCaption(0.6, words, g)).toMatchObject({ word: 'REMEMBER,', bar: 'BAR 1.2', thrown: false })
@@ -124,7 +124,7 @@ describe('voice core layout', () => {
     it(`keeps the resting sphere clear of the HUD in a ${w}×${h} panel`, () => {
       const { cx, cy, r } = coreLayout(w, h)
       const reach = r * CORE_REST
-      expect(cx + reach).toBeLessThanOrEqual(w - CORE_HUD.right + 1e-9) // clear of HIGH / MID / LOW
+      expect(cx + reach).toBeLessThanOrEqual(w - CORE_HUD.right + 1e-9) // clear of the panel's right edge
       expect(cx - reach).toBeGreaterThanOrEqual(CORE_HUD.left - 1e-9)
       expect(cy - reach).toBeGreaterThanOrEqual(CORE_HUD.top - 1e-9) // under VOICE CORE
       expect(cy + reach).toBeLessThanOrEqual(h - CORE_HUD.bottom + 1e-9) // above the caption

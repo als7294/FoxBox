@@ -11,7 +11,8 @@ export function contentSecurityPolicy(mode: 'build' | 'serve'): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'none'"],
     // Dev only: the React Fast Refresh preamble is an inline module script.
-    'script-src': ["'self'", ...(dev ? ["'unsafe-inline'"] : [])],
+    // 'wasm-unsafe-eval' lets WebAssembly compile (the camera clip's on-device face detector); it is not JS eval.
+    'script-src': ["'self'", "'wasm-unsafe-eval'", ...(dev ? ["'unsafe-inline'"] : [])],
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', 'blob:'],
     'font-src': ["'self'", 'data:'],

@@ -587,6 +587,53 @@
   gap: 10px;
   flex: none;
 }
+/* With the camera on, RECORD is taller than the panel: it scrolls, everything at its own height. */
+.record[data-camera='on'] {
+  overflow-y: auto;
+}
+.record[data-camera='on'] > * {
+  flex-shrink: 0;
+}
+/* VOICE ONLY / VOICE + CAMERA: the same row as CLEAN-UP. */
+.cameraRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+/* The camera is new in 1.1: a small chip on its row. */
+.beta {
+  flex: none;
+  padding: 1px 4px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: 2px;
+  color: var(--vb-amber);
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+}
+/* The take's REC button on the camera preview: the orb's colours, pocket-sized. */
+.camRec {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px solid var(--vb-accent);
+  background: rgba(var(--vb-shadow-rgb), 0.55);
+  color: var(--vb-accent);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+  box-shadow: var(--vb-accent-glow);
+}
+.camRec[data-state='rec'] {
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+}
+.camRec[data-state='count'] {
+  color: var(--vb-amber);
+  border-color: var(--vb-amber);
+}
+.camRec:focus-visible {
+  outline-offset: 4px;
+}
 .cleanupSeg {
   flex: 1;
   min-width: 0;

@@ -179,6 +179,10 @@ The coordinator allowed more dependencies. None are added for now:
   LEGION's radio bed had its echo cut by a tight 2-bar end at 120 BPM (-35 dBFS in the last 50 ms); the bed
   now closes sooner when the file is tight. Bar counts and tail room are unchanged.
 
+- v0.7 songs (`fvwks_fx/song.py`, exported from `api`): `analyze_song` (tempo on the 85-175 range, bar 1, key
+  + Camelot; numpy/scipy, ~0.5 s for a 2.5-min song) and `mix_song` (drop placed sample-exact, sidechain-style
+  duck with a half-beat release, gains, true-peak limit, excerpt with 5 ms fades). Tests: `test_song.py`.
+
 ## Cross-reviews
 - **S1 → S2** (Beat-Lock, words, throws):
   - Fixed: Beat-Locked and `[Nb]` chunks landed their first sound 22–68 ms after the grid point (only chunk 0 was

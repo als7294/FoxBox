@@ -11,7 +11,6 @@ import { toast } from './toasts'
 import {
   currentDenoise,
   currentRenderKey,
-  PLACEHOLDER_SCRIPT,
   scriptOf,
   studio,
   ttsKey,
@@ -103,7 +102,7 @@ async function ensureSource(signal: AbortSignal, gen: number): Promise<SourceInf
     useStudio.setState({ source: cached, sourceKey: key })
     return cached
   }
-  if (!s.script.trim()) studio.setScript(PLACEHOLDER_SCRIPT)
+  if (!s.script.trim()) studio.setScript(s.defaultLine)
   studio.setPhase('synthesizing')
   const source = await unwrap(
     api.POST('/api/sources/tts', {
@@ -150,6 +149,7 @@ function noteBuildWarnings(warnings: readonly string[] | undefined): void {
 export async function renderNow(quality: 'preview' | 'final' = 'preview', retried = false): Promise<RenderInfo | null> {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = null
+  if (useStudio.getState().queued) useStudio.setState({ queued: null })
   const gen = ++generation
   inflight?.abort()
   const ctrl = new AbortController()
@@ -208,8 +208,9 @@ export async function renderNow(quality: 'preview' | 'final' = 'preview', retrie
   }
 }
 
-function schedule(delay: number): void {
+function schedule(delay: number, why: 'typing' | 'controls' = 'controls'): void {
   if (debounceTimer) clearTimeout(debounceTimer)
+  useStudio.setState({ queued: why })
   debounceTimer = setTimeout(() => {
     debounceTimer = null
     void renderNow('preview')
@@ -234,7 +235,7 @@ export function schedulePreview(delay = TYPING_PREVIEW_MS): void {
   const s = useStudio.getState()
   if (s.tab === 'type' ? !s.script.trim() : !s.source && !s.render) return
   if (!isEngineUsable(useEngine.getState().status)) return
-  schedule(delay)
+  schedule(delay, 'typing')
 }
 
 const signedDb = (v: number | null | undefined) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`)

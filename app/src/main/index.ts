@@ -15,7 +15,7 @@ import {
   type NativeImage,
 } from 'electron'
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -406,6 +406,28 @@ function lockDownNavigation(): void {
 }
 
 /** Media (audio only), output-device selection and clipboard writes from our renderer; nothing else. */
+/**
+ * Downloads: only the camera clip's SAVE (a blob: URL from our own renderer). The save dialog opens in
+ * ~/Movies/FoxBox; anything else is cancelled.
+ */
+function handleDownloads(): void {
+  session.defaultSession.on('will-download', (_event, item, contents) => {
+    const url = item.getURL()
+    if (!url.startsWith('blob:') || !contents || !isTrustedUrl(contents.getURL())) {
+      log(`blocked a download from ${contents?.getURL() ?? 'nowhere'}`)
+      item.cancel()
+      return
+    }
+    const dir = join(app.getPath('videos'), 'FoxBox')
+    try {
+      mkdirSync(dir, { recursive: true })
+    } catch (err) {
+      log(`could not create ${dir}: ${(err as Error).message}`)
+    }
+    item.setSaveDialogOptions({ title: 'Save camera clip', defaultPath: join(dir, item.getFilename()) })
+  })
+}
+
 function lockDownPermissions(): void {
   const ses = session.defaultSession
   const allowed = new Set(['media', 'speaker-selection', 'clipboard-sanitized-write'])
@@ -413,7 +435,8 @@ function lockDownPermissions(): void {
     if (!allowed.has(permission) || !isTrustedUrl(details.requestingUrl)) return callback(false)
     if (permission === 'media') {
       const types = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
-      return callback(types.every((t) => t === 'audio'))
+      // Audio (recording) and video (the camera clip), for our own renderer only.
+      return callback(types.every((t) => t === 'audio' || t === 'video'))
     }
     callback(true)
   })
@@ -561,6 +584,13 @@ function registerIpc(): void {
     return systemPreferences.askForMediaAccess('microphone')
   })
 
+  // The camera clip (1.1): asked explicitly, because a getUserMedia request macOS never answers just hangs.
+  ipcMain.handle(IPC.askCamera, async (event) => {
+    if (!trusted(event)) return false
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.askForMediaAccess('camera')
+  })
+
   ipcMain.handle(IPC.micStatus, (event): MicAccess => {
     if (!trusted(event)) return 'unknown'
     if (FAKE_MIC) return 'granted'
@@ -572,6 +602,12 @@ function registerIpc(): void {
   ipcMain.handle(IPC.openMicSettings, async (event) => {
     if (trusted(event) && process.platform === 'darwin') {
       await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+    }
+  })
+  // The same for the Camera pane (RECORD's "camera access is off" line).
+  ipcMain.handle(IPC.openCameraSettings, async (event) => {
+    if (trusted(event) && process.platform === 'darwin') {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
     }
   })
   ipcMain.handle(IPC.openLogs, async (event) => {
@@ -717,6 +753,7 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(async () => {
     log(`starting ${app.getName()} ${app.getVersion()} (packaged=${app.isPackaged}, mock=${MOCK}, engine=${ENGINE_DIR})`)
     lockDownPermissions()
+    handleDownloads()
     registerAudioProtocol()
     // FoxBox → About: the designer credit (never written into exported files).
     app.setAboutPanelOptions({

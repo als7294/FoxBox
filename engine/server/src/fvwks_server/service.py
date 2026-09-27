@@ -18,6 +18,7 @@ from __future__ import annotations
 import errno
 import hashlib
 import inspect
+import io
 import itertools
 import json
 import logging
@@ -35,6 +36,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Literal
 
 import numpy as np
+import soundfile as sf
 from pydantic import ValidationError
 
 from fvwks_contracts.models import (
@@ -52,6 +54,8 @@ from fvwks_contracts.models import (
     MacroMap,
     Macros,
     Master,
+    MixInfo,
+    MixRequest,
     ModelInfo,
     ModelManifest,
     SignedModelManifest,
@@ -68,6 +72,10 @@ from fvwks_contracts.models import (
     ScriptPreviewSegment,
     SegmentFlags,
     Settings,
+    Song,
+    SongAnalysis,
+    SongPlacement,
+    SongUpdate,
     SourceInfo,
     SourceList,
     StemInfo,
@@ -95,6 +103,9 @@ log = logging.getLogger("fvwks.engine")
 
 STEM_NAMES = ("dry", "voice", "layers", "fx")
 MAX_UPLOAD_BYTES = 200 << 20
+MAX_SONG_BYTES = 400 << 20  # v0.7 songs: a 15-minute WAV at 48 kHz/24-bit is ~260 MB
+MAX_SONG_S = 15 * 60
+MIX_KEEP = 8  # newest song mixes kept; they're re-creatable (and a whole-song mix is big)
 DISK_RESERVE = 5_000_000_000  # free space that must remain after a model download
 TRANSCRIBE_MODEL = "whisper-aligner"  # the voice package's model behind transcribe()/realign() (v0.3)
 GATE_FOR_ENGINE = {"kokoro": "kokoro", "qwen3": "persona", "asr": "aligner", "denoise": "ingest"}  # ModelInfo.engine
@@ -285,10 +296,16 @@ class EngineService:
         self._models_seen: tuple[float, list[ModelInfo]] | None = None  # health's cached list of missing models
         self._manifest: ModelManifest | None = None
         self._manifest = self._load_manifest()  # the last signed model-update manifest (P9)
+        # v0.7 songs: the user's own tracks, kept at their own rate under <data>/songs/, apart from engine audio
+        self.song_audio = AudioStore(config.data_dir, folder="songs")
+        self._songs: _LRU = _LRU(1)  # song id → (audio, sr); a decoded 15-minute song is ~300 MB
+        self._song_lock = threading.Lock()  # read-modify-write of song rows (analysis job vs PATCH)
         # fx keeps its WORLD analyses in memory, so none survive a restart (and a job killed mid-way left its row
         # "queued"/"running"): start every source at "none" and analyse again on first use.
         self.library.reset_analysis_states()
         self.library.reset_transcript_states()  # transcripts are stored; only unfinished jobs start over
+        for song_id in self.library.unfinished_song_analyses():  # song analyses are stored too
+            self._queue_song_analysis(song_id)
 
     def close(self, timeout: float = 3.0) -> bool:
         """Stop the engine: cancel background jobs and start-up work, wait up to ``timeout`` s for them (so no worker
@@ -1421,14 +1438,259 @@ class EngineService:
             self._stack.put(key, src)
         return src
 
+    # ------------------------------------------------------------------------------------------ songs (v0.7)
+
+    def upload_song(self, data: bytes, filename: str | None, name: str | None) -> Song:
+        """Import a track: decoded once, kept at its own rate (FLAC-24 when it fits), analysed in the background."""
+        unreadable = ApiException(400, "unsupported_format", "Couldn't read this file as audio.",
+                                  hint="Use WAV, AIFF, FLAC or MP3 (the app converts other formats).")
+        if not data:
+            raise unreadable
+        if len(data) > MAX_SONG_BYTES:
+            raise ApiException(400, "file_too_large", f"Songs are limited to {MAX_SONG_BYTES >> 20} MB.",
+                               hint="Use an MP3 or FLAC of it, or trim it.")
+        too_long = ApiException(400, "song_too_long", f"Songs are limited to {MAX_SONG_S // 60} minutes.",
+                                hint="Trim it to the part you'll play.")
+        try:
+            head = sf.info(io.BytesIO(data))
+            if head.samplerate > 0 and head.frames / head.samplerate > MAX_SONG_S:  # before decoding all of it
+                raise too_long
+            frames, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
+        except ApiException:
+            raise
+        except Exception:  # libsndfile: not audio, or a format it can't decode
+            raise unreadable from None
+        audio = np.ascontiguousarray(frames.T)
+        if audio.shape[-1] == 0 or sr <= 0 or not np.isfinite(audio).all():
+            raise unreadable
+        if audio.shape[0] > 2:
+            raise ApiException(400, "unsupported_format", f"This file has {audio.shape[0]} channels.",
+                               hint="Use a mono or stereo mix of it.")
+        if audio.shape[-1] / sr > MAX_SONG_S:
+            raise too_long
+        digest = audio_hash(audio, sr)
+        for row in self.library.select("songs", "audio_hash = ?", (digest,), limit=1):  # the same file again
+            if self.song_audio.exists(row["audio_id"]):
+                return self._song(row)
+        try:
+            audio_id = self.song_audio.put(audio, sr, "sng", compact=True)
+        except Exception as exc:
+            raise _write_error(exc, "upload_failed", "Couldn't store the song") from exc
+        analyse = callable(getattr(fx, "analyze_song", None))
+        song = Song(id=new_id("sng"), name=(name or "").strip()[:200] or Path(filename or "").stem[:200] or "Song",
+                    duration_s=round(audio.shape[-1] / sr, 5), sample_rate=int(sr), channels=audio.shape[0],
+                    peaks=peaks(audio, sr), audio_id=audio_id, analysis_state="queued" if analyse else "error",
+                    created_at=utcnow())
+        self.library.insert("songs", id=song.id, name=song.name, created_at=song.created_at, audio_hash=digest,
+                            audio_id=audio_id, analysis_state=song.analysis_state, info=song.model_dump(mode="json"))
+        with self._lock:
+            self._songs.put(song.id, (audio, int(sr)))
+        if analyse:
+            self._queue_song_analysis(song.id)
+        return song
+
+    def list_songs(self) -> list[Song]:
+        return [self._song(row) for row in self.library.select("songs")]
+
+    def get_song(self, song_id: str) -> Song:
+        row = self.library.get("songs", song_id)
+        if row is None:
+            raise NotFound("song", song_id)
+        return self._song(row)
+
+    def update_song(self, song_id: str, body: SongUpdate) -> Song:
+        """PATCH: only the fields present in the body; an explicit null clears an override."""
+        fields = body.model_fields_set
+        update: dict[str, Any] = {}
+        if "name" in fields and body.name is not None and body.name.strip():
+            update["name"] = body.name.strip()
+        if "bpm_override" in fields:
+            update["bpm_override"] = body.bpm_override
+        if "downbeat_override_s" in fields:
+            update["downbeat_override_s"] = body.downbeat_override_s
+        if "key_override" in fields:
+            try:
+                update["key_override"] = key_name(body.key_override) if body.key_override else None
+            except ValueError:
+                raise ApiException(422, "invalid_request", f"key_override: unknown key '{body.key_override}'.",
+                                   hint="Use a key like Am, F#m or C.") from None
+        song = self.get_song(song_id)
+        if update.get("downbeat_override_s") is not None and update["downbeat_override_s"] >= song.duration_s:
+            raise ApiException(422, "invalid_request", "Bar 1 must be inside the song.")
+        updated = self._set_song(song_id, **update)
+        if updated is None:
+            raise NotFound("song", song_id)
+        return updated
+
+    def delete_song(self, song_id: str) -> None:
+        """The song, its audio and every mix of it."""
+        row = self.library.get("songs", song_id)
+        if row is None:
+            raise NotFound("song", song_id)
+        for job in self.jobs.list(kind="song_analysis", active_only=True):
+            if job.meta.get("song_id") == song_id:
+                self.jobs.cancel(job.id)
+        for mix in self.library.select("mixes", "song_id = ?", (song_id,)):
+            self._drop_mix(mix)
+        self.library.delete("songs", [song_id])
+        self.song_audio.delete(row["audio_id"])
+        with self._lock:
+            self._songs.pop(song_id, None)
+
+    def mix_song(self, req: MixRequest) -> MixInfo:
+        return self._mix(req.render_id, req.placement, req.quality)
+
+    def _song(self, row: dict[str, Any]) -> Song:
+        return Song.model_validate({**row["info"], "name": row["name"], "analysis_state": row["analysis_state"]})
+
+    def _set_song(self, song_id: str, **update: Any) -> Song | None:
+        """Change a stored song (None when it was deleted meanwhile)."""
+        with self._song_lock:
+            row = self.library.get("songs", song_id)
+            if row is None:
+                return None
+            song = self._song(row).model_copy(update=update)
+            self.library.update("songs", song_id, name=song.name, analysis_state=song.analysis_state,
+                                info=song.model_dump(mode="json"))
+            return song
+
+    def _song_audio(self, song_id: str) -> tuple[np.ndarray, int]:
+        with self._lock:
+            cached = self._songs.touch(song_id)
+        if cached is not None:
+            return cached
+        row = self.library.get("songs", song_id)
+        if row is None:
+            raise NotFound("song", song_id)
+        try:
+            loaded = self.song_audio.load(row["audio_id"])
+        except FileNotFoundError:
+            raise ApiException(409, "song_missing", "This song's audio is gone.", hint="Import it again.") from None
+        with self._lock:
+            self._songs.put(song_id, loaded)
+        return loaded
+
+    def _queue_song_analysis(self, song_id: str) -> None:
+        self.jobs.submit("song_analysis", self._analyze_song, song_id, lane="songs",
+                         dedupe_key=f"song_analysis:{song_id}", meta={"song_id": song_id})
+
+    def _analyze_song(self, ctx: JobContext, song_id: str) -> dict[str, Any] | None:
+        if self._set_song(song_id, analysis_state="running") is None:
+            return None  # deleted while queued
+        try:
+            audio, sr = self._song_audio(song_id)
+            ctx.check()
+            with self._fx_background:
+                analysis = SongAnalysis.model_validate(fx.analyze_song(audio, sr))
+        except JobCancelled:
+            self._set_song(song_id, analysis_state="queued")  # the engine is stopping: analysed on next launch
+            raise
+        except Exception:
+            self._set_song(song_id, analysis_state="error")
+            raise
+        self._set_song(song_id, analysis_state="done", analysis=analysis)
+        return {"song_id": song_id}
+
+    @staticmethod
+    def _song_grid(song: Song) -> tuple[float, float, int]:
+        """(bpm, bar 1 in seconds, beats per bar): the user's overrides, else the analysis."""
+        a = song.analysis
+        bpm = song.bpm_override or (a.bpm if a else None)
+        downbeat = song.downbeat_override_s if song.downbeat_override_s is not None else (a.downbeat_s if a else None)
+        if bpm is None or downbeat is None:
+            pending = song.analysis_state in ("queued", "running")
+            raise ApiException(409, "song_not_analyzed",
+                               "This song is still being analysed." if pending else "This song's analysis failed.",
+                               hint="Wait a moment, or set its BPM and bar 1 yourself.", retryable=pending)
+        return float(bpm), float(downbeat), a.beats_per_bar if a else 4
+
+    def _mix(self, render_id: str, placement: SongPlacement, quality: str) -> MixInfo:
+        mix_fn = getattr(fx, "mix_song", None)
+        if not callable(mix_fn):
+            raise ApiException(501, "not_implemented", "This sound engine can't mix songs yet.")
+        row = self.library.get("renders", render_id)
+        if row is None:
+            raise NotFound("render", render_id)
+        song = self.get_song(placement.song_id)
+        bpm, downbeat, beats = self._song_grid(song)
+        bar_s = beats * 60.0 / bpm
+
+        def at(bar: int) -> float:  # song bars are 1-based on the song's grid
+            return downbeat + (bar - 1) * bar_s
+
+        drop_start = at(placement.at_bar)
+        if drop_start >= song.duration_s:
+            raise ApiException(422, "invalid_request", f"Bar {placement.at_bar} is past the end of the song.")
+        excerpt = None
+        if placement.start_bar is not None or placement.end_bar is not None:
+            start = at(placement.start_bar) if placement.start_bar is not None else 0.0
+            end = at(placement.end_bar) if placement.end_bar is not None else song.duration_s
+            start, end = min(max(start, 0.0), song.duration_s), min(max(end, 0.0), song.duration_s)
+            if end <= start:
+                raise ApiException(422, "invalid_request", "The excerpt is empty or outside the song.")
+            if not start <= drop_start < end:
+                raise ApiException(422, "invalid_request", f"Bar {placement.at_bar} is outside the excerpt.",
+                                   hint="Start the excerpt at or before the drop.")
+            excerpt = (round(start, 6), round(end, 6))
+        master = RenderRequest.model_validate(row["request"]).master
+        payload = {"render": render_id, "song": song.id, "song_audio": song.audio_id, "grid": [bpm, downbeat, beats],
+                   "placement": placement.model_dump(mode="json"), "quality": quality,
+                   "master": master.model_dump(mode="json")}
+        key = request_hash("mix", payload, salt=self.fx_salt)
+        with self._keyed(key):
+            hit = self.library.find("mixes", "request_hash", key)
+            if hit is not None and self.audio.exists(hit["audio_id"]):
+                self.library.update("mixes", hit["id"], created_at=utcnow())  # just used: the GC keeps it
+                return MixInfo.model_validate(hit["info"])
+            drop, drop_sr = self._load_render_audio(row["audio"].get("wet"))
+            audio, sr = self._song_audio(song.id)
+            try:
+                with self._fx_lock():
+                    out = mix_fn(audio, sr, drop, drop_sr, drop_start_s=drop_start, bpm=bpm, placement=placement,
+                                 excerpt_s=excerpt, master=master, quality=quality)
+            except Exception as exc:
+                if not isinstance(exc, ApiException):
+                    log.exception("mix failed")
+                raise _passthrough(exc, 500, "mix_failed", "Mixing failed", retryable=True) from exc
+            mixed, out_sr = as_channels_first(out.audio), int(out.sample_rate)
+            if mixed.shape[-1] == 0 or not np.isfinite(mixed).all():
+                raise ApiException(500, "mix_failed", "The mix came out empty or with NaN/Inf samples.")
+            try:
+                audio_id = self.audio.put(mixed, out_sr, "mix", compact=quality == "final")
+            except Exception as exc:
+                raise _write_error(exc, "mix_failed", "Couldn't store the mix") from exc
+            info = MixInfo(id=new_id("mix"), render_id=render_id, song_id=song.id, audio_id=audio_id,
+                           sample_rate=out_sr, duration_s=round(mixed.shape[-1] / out_sr, 5),
+                           start_s=float(out.start_s), drop_start_s=float(out.drop_start_s),
+                           peaks=peaks(mixed, out_sr), loudness=out.loudness, warnings=list(out.warnings))
+            self.library.insert("mixes", id=info.id, render_id=render_id, song_id=song.id, created_at=utcnow(),
+                                request_hash=key, audio_id=audio_id, info=info.model_dump(mode="json"))
+        self._gc_mixes()
+        return info
+
+    def _drop_mix(self, row: dict[str, Any]) -> None:
+        self.library.delete("mixes", [row["id"]])
+        self.audio.delete(row["audio_id"])
+
+    def _gc_mixes(self) -> None:
+        for row in self.library.select("mixes", limit=-1, offset=MIX_KEEP):
+            self._drop_mix(row)
+
     # ------------------------------------------------------------------------------------------ exports
 
     def create_exports(self, req: ExportRequest) -> ExportResult:
         files: list[ExportedFile] = []
         warnings: list[str] = []
         for render_id in dict.fromkeys(req.render_ids):
+            # v0.7: the song with this drop in it. Mixed first, so a song that can't be mixed yet (409) or a bad
+            # placement (422) fails the export before any file is written.
+            mix = self._mix(render_id, req.bake, "final") if req.bake is not None else None
             more, notes = self._export_render(render_id, req.variants, req.format, req.bit_depth, req.title,
                                               stems=req.stems)
+            if mix is not None:
+                baked, baked_notes = self._export_baked(render_id, req.bake, mix, req.format, req.bit_depth,
+                                                        req.title)
+                more, notes = [*more, *baked], [*notes, *baked_notes]
             files += more
             warnings += [n for n in notes if n not in warnings]
         return ExportResult(files=files, warnings=warnings)
@@ -1466,20 +1728,68 @@ class EngineService:
             raise ApiException(422, "export_failed", f"Could not export: {exc}") from exc
         except Exception as exc:  # libsndfile (RuntimeError), mutagen and OS errors while writing
             raise _write_error(exc, "export_failed", "Could not write the export") from exc
+        return self._record_exports(written, info, fmt, root, warnings), warnings
+
+    def _record_exports(self, written: list[writer.WrittenFile], info: RenderInfo, fmt: str, root: Path | None,
+                        warnings: list[str], **fields: Any) -> list[ExportedFile]:
+        """Library rows for written files. ``fields`` override the render's bpm/key/bars/first_word_s/tail_s."""
         files = []
         for w in written:
             path = self._inside_root(w.path, root)
-            f = ExportedFile(id=new_id("exp"), render_id=info.id, variant=w.variant, title=w.title,
-                             filename=w.filename, path=str(path), format=fmt, sample_rate=w.sample_rate,
-                             bit_depth=w.bit_depth, channels=w.channels, n_samples=w.frames,
-                             duration_s=round(w.duration_s, 5), bpm=info.bpm, key=info.key, bars=info.bars,
-                             first_word_s=info.first_word_s, tail_s=info.tail_s, size_bytes=w.bytes,
-                             created_at=utcnow())
+            f = ExportedFile(**{
+                "id": new_id("exp"), "render_id": info.id, "variant": w.variant, "title": w.title,
+                "filename": w.filename, "path": str(path), "format": fmt, "sample_rate": w.sample_rate,
+                "bit_depth": w.bit_depth, "channels": w.channels, "n_samples": w.frames,
+                "duration_s": round(w.duration_s, 5), "bpm": info.bpm, "key": info.key, "bars": info.bars,
+                "first_word_s": info.first_word_s, "tail_s": info.tail_s, "size_bytes": w.bytes,
+                "created_at": utcnow(), **fields})
             self.library.insert("exports", id=f.id, render_id=info.id, created_at=f.created_at, path=f.path,
                                 info=f.model_dump(mode="json"))
             files.append(f)
             if w.clipped_samples:
                 warnings.append(f"{w.filename}: {w.clipped_samples} samples clipped at {w.bit_depth}-bit.")
+        return files
+
+    def _export_baked(self, render_id: str, placement: SongPlacement, mix: MixInfo, fmt: str, bit_depth: int,
+                      title: str | None) -> tuple[list[ExportedFile], list[str]]:
+        """v0.7: the song (or its excerpt) with the drop baked in (``mix``, final quality), as variant 'baked' next to
+        the render's files. Tagged with the song's tempo and key, since that's what the file plays at; the drop's cues
+        move with it."""
+        row = self.library.get("renders", render_id)
+        info, filled = RenderInfo.model_validate(row["info"]), RenderRequest.model_validate(row["request"])
+        song = self.get_song(placement.song_id)
+        bpm, _, _ = self._song_grid(song)
+        try:
+            audio, sr = self.audio.load(mix.audio_id)
+        except FileNotFoundError:
+            raise ApiException(409, "render_missing", "The mix for this export is gone.", hint="Export again.",
+                               retryable=True) from None
+        try:
+            key = key_name(song.key_override or (song.analysis.key if song.analysis else None))
+        except ValueError:
+            key = None
+        settings, meta = self.settings(), row["meta"]
+        params = {**_render_params(info, filled, self.fx_salt), "song_id": song.id, "mix_id": mix.id,
+                  "placement": placement.model_dump(mode="json"), "start_s": mix.start_s,
+                  "drop_start_s": mix.drop_start_s}
+        export_meta = writer.ExportMeta(
+            script=meta.get("script") or meta.get("source_name") or "take", preset=self._preset_label(info.preset_id),
+            bpm=round(bpm, 2), bars=None, key=key, name=title, artist=settings.artist, render_params=params,
+            pattern=settings.filename_pattern)
+        directory = self.export_root
+        self._inside_root(directory)
+        try:
+            written = writer.export_files(directory, export_meta, [writer.ExportItem("baked", audio, sr)], fmt=fmt,
+                                          bit_depth=bit_depth, channels=as_channels_first(audio).shape[0])
+        except ValueError as exc:
+            raise ApiException(422, "export_failed", f"Could not export: {exc}") from exc
+        except Exception as exc:
+            raise _write_error(exc, "export_failed", "Could not write the export") from exc
+        warnings = list(mix.warnings)
+        files = self._record_exports(
+            written, info, fmt, None, warnings, bpm=round(bpm, 2), key=key, bars=None,
+            first_word_s=round(mix.drop_start_s + info.first_word_s, 5),
+            tail_s=round(mix.drop_start_s + info.tail_s, 5) if info.tail_s is not None else None)
         return files, warnings
 
     def _load_render_audio(self, audio_id: str | None) -> tuple[np.ndarray, int]:
@@ -1693,7 +2003,8 @@ class EngineService:
     def audio_path(self, audio_id: str) -> Path:
         if not AudioStore.valid(audio_id):
             raise NotFound("audio", audio_id)
-        path = self.audio.stream_path(audio_id)
+        store = self.song_audio if audio_id.startswith("sng_") else self.audio
+        path = store.stream_path(audio_id)
         if path is None and audio_id.startswith("smp_"):
             if audio_id not in self._samples:
                 self.list_voices()

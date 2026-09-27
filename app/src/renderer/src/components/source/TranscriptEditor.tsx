@@ -15,7 +15,7 @@ const PENDING = new Set(['queued', 'running'])
 const ASR_MODEL = 'whisper-aligner'
 const SAVED_MS = 2500
 
-type Blocked = { kind: 'model'; detail: string | null } | { kind: 'engine' } | null
+type Blocked = { kind: 'model'; detail: string | null; modelId: string } | { kind: 'engine' } | null
 
 /**
  * Puts a saved transcript everywhere the Studio keeps the source: its take or import (even after switching
@@ -115,7 +115,7 @@ function Transcript({ source }: { source: SourceInfo }) {
     } catch (err) {
       const e = err instanceof EngineError ? err : new EngineError(0, null, String(err))
       if (e.status === 503 && e.code === 'model_not_installed')
-        blockedRef.current = { kind: 'model', detail: e.hint ? `${e.message} ${e.hint}` : e.message }
+        blockedRef.current = { kind: 'model', detail: e.hint ? `${e.message} ${e.hint}` : e.message, modelId: e.modelId ?? ASR_MODEL }
       else if (e.status === 501 || e.code === 'not_implemented') blockedRef.current = { kind: 'engine' }
       else setError(e)
       setBlocked(blockedRef.current)
@@ -182,7 +182,7 @@ function Transcript({ source }: { source: SourceInfo }) {
               ? blocked.detail
               : 'Word timings for recordings need the whisper-aligner model. Install it in VOICES to edit this transcript.'}
           </p>
-          <button type="button" className={styles.noticeAction} onClick={() => openModelsFor(ASR_MODEL)}>
+          <button type="button" className={styles.noticeAction} onClick={() => openModelsFor(blocked?.kind === 'model' ? blocked.modelId : ASR_MODEL)}>
             INSTALL IN VOICES
           </button>
         </div>

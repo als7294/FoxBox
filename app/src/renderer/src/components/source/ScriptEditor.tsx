@@ -1,7 +1,8 @@
 import { EngineError } from '@/api/client'
 import { useScriptPreview } from '@/api/queries'
 import { schedulePreview } from '@/state/renderController'
-import { PLACEHOLDER_SCRIPT, studio, useStudio } from '@/state/studio'
+import { studio, useStudio } from '@/state/studio'
+import { toast } from '@/state/toasts'
 import { MarkupEditor } from './MarkupEditor'
 import styles from './scriptEditor.module.css'
 
@@ -20,32 +21,40 @@ function refusal(err: unknown): string | null {
  */
 export function ScriptEditor() {
   const script = useStudio((s) => s.script)
+  const defaultLine = useStudio((s) => s.defaultLine)
   const bpm = useStudio((s) => s.bpm)
   const sourceWarnings = useStudio((s) => (s.tab === 'type' ? (s.source?.warnings ?? NO_WARNINGS) : NO_WARNINGS))
   const preview = useScriptPreview(script, bpm)
   const refused = script.trim() ? refusal(preview.error) : null
   const warnings = [...new Set([...(refused ? [] : (preview.data?.warnings ?? [])), ...sourceWarnings])]
-  const segments = !refused && script.trim() ? (preview.data?.segments ?? []) : []
-  const says = segments.length > 0 ? segments.map((s) => s.say).join(' | ') : null
   return (
     <MarkupEditor
       label="Script"
       title="SCRIPT"
       value={script}
       bpm={bpm}
-      placeholder={PLACEHOLDER_SCRIPT}
+      placeholder={defaultLine}
+      status={
+        <button
+          type="button"
+          className={styles.shuffle}
+          aria-label="Shuffle the line"
+          title={script.trim() ? 'Swap in another line (undo in the toast)' : 'Another starting line'}
+          onClick={() => {
+            const replaced = studio.shuffleLine()
+            schedulePreview()
+            if (replaced != null) toast.info('LINE SHUFFLED', { actions: [{ label: 'UNDO', run: () => (studio.setScript(replaced), schedulePreview()) }] })
+          }}
+        >
+          <span aria-hidden="true">🎲</span>
+        </button>
+      }
       testId="script-editor"
       onChange={(value) => {
         studio.setScript(value)
         schedulePreview()
       }}
     >
-      {says && (
-        <p className={styles.says} aria-label="What the voice will say" title={says}>
-          <span>SAYS</span>
-          {says}
-        </p>
-      )}
       {(refused || warnings.length > 0) && (
         <ul className={styles.warnings}>
           {refused && <li data-tone="error">▲ {refused}</li>}

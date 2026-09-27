@@ -401,21 +401,6 @@
   font: 500 10.5px/1.45 var(--vb-font-mono);
   color: var(--vb-amber);
 }
-.says {
-  margin: 0;
-  font: 500 10.5px/1.45 var(--vb-font-mono);
-  color: var(--vb-ink);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow-wrap: anywhere;
-}
-.says > span:first-child {
-  color: var(--vb-dim);
-  letter-spacing: 0.18em;
-  margin-right: 6px;
-}
 .warnings {
   list-style: none;
   margin: 0;
@@ -509,4 +494,26 @@
   background: var(--vb-ink);
   padding: 0 3px;
   justify-self: start;
+}
+
+/* SHUFFLE: another starting line (or another line in place of the text, with UNDO). */
+.shuffle {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--vb-line-3);
+  border-radius: 50%;
+  background: none;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+  filter: grayscale(1) brightness(1.4);
+  transition: filter var(--vb-fast), border-color var(--vb-fast);
+}
+.shuffle:hover,
+.shuffle:focus-visible {
+  border-color: var(--vb-amber);
+  filter: none;
 }

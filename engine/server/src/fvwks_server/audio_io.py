@@ -83,8 +83,8 @@ def as_channels_first(audio: np.ndarray) -> np.ndarray:
 
 
 class AudioStore:
-    def __init__(self, data_dir: Path, stream_budget: int = STREAM_BUDGET):
-        self.dir = Path(data_dir) / "audio"
+    def __init__(self, data_dir: Path, stream_budget: int = STREAM_BUDGET, folder: str = "audio"):
+        self.dir = Path(data_dir) / folder
         self.stream_dir = self.dir / "stream"
         self.stream_dir.mkdir(parents=True, exist_ok=True)
         self.stream_budget = stream_budget
@@ -103,10 +103,12 @@ class AudioStore:
 
     def put(self, audio: np.ndarray, sr: int, prefix: str = "aud", audio_id: str | None = None,
             compact: bool = False) -> str:
-        """Store a buffer; ``compact`` keeps it as FLAC 24-bit (unless it goes over full scale, which would clip)."""
+        """Store a buffer; ``compact`` keeps it as FLAC 24-bit (unless it goes over full scale, which would clip).
+        libsndfile scales FLAC-24 by 2^23 both ways: -1.0 fits (and a decoded 16/24-bit file round-trips exactly),
+        +1.0 would wrap."""
         audio_id = audio_id or new_id(prefix)
         a = as_channels_first(audio)
-        compact = compact and a.size > 0 and float(np.max(np.abs(a))) < 1.0
+        compact = compact and a.size > 0 and float(a.max()) < 1.0 and float(a.min()) >= -1.0
         wav, flac = self._masters(audio_id)
         path, stale = (flac, wav) if compact else (wav, flac)
         tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.part")

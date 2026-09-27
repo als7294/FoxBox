@@ -72,6 +72,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Uninstall Model
+         * @description v0.6 (S3 P8): free disk. 409 model_required / model_busy. S3 implements.
+         */
+        delete: operations["uninstallModel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Apply Model Manifest
+         * @description v0.6 (S3 P9): signed model-update manifest from the app's updater. S3 implements.
+         */
+        put: operations["applyModelManifest"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -207,6 +247,70 @@ export interface paths {
         post?: never;
         /** Delete Source */
         delete: operations["deleteSource"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Songs */
+        get: operations["listSongs"];
+        put?: never;
+        /**
+         * Upload Song
+         * @description v0.7: import a track (WAV/AIFF/FLAC/MP3; the app decodes other formats to WAV first). Analysis runs in
+         *     the background (analysis_state); poll GET /songs/{id}.
+         */
+        post: operations["uploadSong"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{song_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Song */
+        get: operations["getSong"];
+        put?: never;
+        post?: never;
+        /** Delete Song */
+        delete: operations["deleteSong"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Song
+         * @description Only the fields present in the body change; an explicit null clears an override.
+         */
+        patch: operations["updateSong"];
+        trace?: never;
+    };
+    "/api/mix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mix Song
+         * @description v0.7: a song + drop mix (backing-track preview, camera-clip soundtrack).
+         */
+        post: operations["mixSong"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -516,6 +620,11 @@ export interface components {
              * @default false
              */
             retryable: boolean;
+            /**
+             * Model Id
+             * @description For model_not_installed: the model to install (deep link) (v0.6, S3 P7).
+             */
+            model_id?: string | null;
         };
         /** Arrange */
         Arrange: {
@@ -652,6 +761,13 @@ export interface components {
              */
             playlist?: string | null;
         };
+        /** Body_uploadSong */
+        Body_uploadSong: {
+            /** File */
+            file: string;
+            /** Name */
+            name?: string | null;
+        };
         /** Body_uploadSource */
         Body_uploadSource: {
             /** File */
@@ -710,6 +826,8 @@ export interface components {
             stems: boolean;
             /** Title */
             title?: string | null;
+            /** @description v0.7: also write the song with this drop baked in (variant 'baked'), one per render. start_bar/end_bar cut an excerpt; None = the whole song. */
+            bake?: components["schemas"]["SongPlacement"] | null;
         };
         /** ExportResult */
         ExportResult: {
@@ -729,7 +847,7 @@ export interface components {
             render_id: string;
             /**
              * Variant
-             * @description 'wet' | 'dry' | 'alt:<preset_id>' | 'stem:<name>'
+             * @description 'wet' | 'dry' | 'alt:<preset_id>' | 'stem:<name>' | 'baked' (v0.7: the song with the drop in it)
              */
             variant: string;
             /** Title */
@@ -852,7 +970,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "model_install" | "batch" | "analysis" | "persona_design";
+            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis";
             /**
              * State
              * @enum {string}
@@ -1037,6 +1155,27 @@ export interface components {
              */
             space: number;
         };
+        /** ManifestModel */
+        ManifestModel: {
+            /** Version */
+            version: string;
+            /** Notes */
+            notes?: string | null;
+            /** Repos */
+            repos: components["schemas"]["ManifestRepo"][];
+        };
+        /** ManifestRepo */
+        ManifestRepo: {
+            /** Repo Id */
+            repo_id: string;
+            /**
+             * Revision
+             * @description Pinned Hugging Face commit sha (content-addressed).
+             */
+            revision: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
         /** MaskStrength */
         MaskStrength: {
             /**
@@ -1085,6 +1224,54 @@ export interface components {
              * @enum {integer}
              */
             channels: 1 | 2;
+        };
+        /**
+         * MixInfo
+         * @description A song + drop mix (v0.7): the backing-track preview, and the soundtrack of camera clips.
+         */
+        MixInfo: {
+            /** Id */
+            id: string;
+            /** Render Id */
+            render_id: string;
+            /** Song Id */
+            song_id: string;
+            /**
+             * Audio Id
+             * @description Stream with GET /api/audio/{audio_id}.
+             */
+            audio_id: string;
+            /** Sample Rate */
+            sample_rate: number;
+            /** Duration S */
+            duration_s: number;
+            /**
+             * Start S
+             * @description Where this mix starts on the song's timeline (excerpt start).
+             * @default 0
+             */
+            start_s: number;
+            /**
+             * Drop Start S
+             * @description Where the drop starts inside this mix.
+             */
+            drop_start_s: number;
+            peaks: components["schemas"]["Peaks"];
+            loudness?: components["schemas"]["Loudness"] | null;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** MixRequest */
+        MixRequest: {
+            /** Render Id */
+            render_id: string;
+            placement: components["schemas"]["SongPlacement"];
+            /**
+             * Quality
+             * @default preview
+             * @enum {string}
+             */
+            quality: "preview" | "final";
         };
         /** ModelInfo */
         ModelInfo: {
@@ -1139,6 +1326,23 @@ export interface components {
              * @description Remaining download + the disk reserve needed to install (v0.5, S3 P6).
              */
             install_needs_bytes?: number | null;
+        };
+        /**
+         * ModelManifest
+         * @description Model-update manifest published with app releases (v0.6, S3 P9). Only same-file-name/same-license pin moves.
+         */
+        ModelManifest: {
+            /**
+             * Schema Version
+             * @default 1
+             */
+            schema_version: number;
+            /** Published */
+            published: string;
+            /** Models */
+            models: {
+                [key: string]: components["schemas"]["ManifestModel"];
+            };
         };
         /** ModuleSpec */
         ModuleSpec: {
@@ -1631,6 +1835,153 @@ export interface components {
              * @default Am
              */
             default_key: string;
+        };
+        /**
+         * SignedModelManifest
+         * @description PUT /api/models/manifest body: the manifest plus a base64 ed25519 signature over its canonical JSON (v0.6).
+         */
+        SignedModelManifest: {
+            manifest: components["schemas"]["ModelManifest"];
+            /** Signature */
+            signature: string;
+            /** Key Id */
+            key_id?: string | null;
+        };
+        /**
+         * Song
+         * @description A track the user imported to put drops over (v0.7). Songs are local-only; they never leave the Mac.
+         */
+        Song: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Duration S */
+            duration_s: number;
+            /** Sample Rate */
+            sample_rate: number;
+            /** Channels */
+            channels: number;
+            peaks: components["schemas"]["Peaks"];
+            /**
+             * Audio Id
+             * @description Stream with GET /api/audio/{audio_id} (preview / backing track).
+             */
+            audio_id: string;
+            /**
+             * Analysis State
+             * @default queued
+             * @enum {string}
+             */
+            analysis_state: "queued" | "running" | "done" | "error";
+            analysis?: components["schemas"]["SongAnalysis"] | null;
+            /**
+             * Bpm Override
+             * @description User's tempo when the detected one is wrong.
+             */
+            bpm_override?: number | null;
+            /**
+             * Downbeat Override S
+             * @description User's bar-1 position (grid nudge).
+             */
+            downbeat_override_s?: number | null;
+            /** Key Override */
+            key_override?: string | null;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * SongAnalysis
+         * @description Tempo, key and grid of an imported song (v0.7). Produced by the sound engine (FxAPI.analyze_song).
+         */
+        SongAnalysis: {
+            /** Bpm */
+            bpm: number;
+            /**
+             * Bpm Confidence
+             * @default 0
+             */
+            bpm_confidence: number;
+            /**
+             * Key
+             * @description e.g. 'Am', 'F#'; None when the key is unclear.
+             */
+            key?: string | null;
+            /**
+             * Camelot
+             * @description e.g. '8A'.
+             */
+            camelot?: string | null;
+            /**
+             * Key Confidence
+             * @default 0
+             */
+            key_confidence: number;
+            /**
+             * Downbeat S
+             * @description Time of bar 1, beat 1: the grid anchor.
+             * @default 0
+             */
+            downbeat_s: number;
+            /**
+             * Beats Per Bar
+             * @default 4
+             */
+            beats_per_bar: number;
+        };
+        /**
+         * SongPlacement
+         * @description Where a drop sits in a song, and how the two are balanced (v0.7).
+         */
+        SongPlacement: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * At Bar
+             * @description Song bar (1-based, on the song's grid) where the drop starts.
+             * @default 1
+             */
+            at_bar: number;
+            /**
+             * Duck Db
+             * @description Song level under the drop (sidechain-style duck).
+             * @default -6
+             */
+            duck_db: number;
+            /**
+             * Song Gain Db
+             * @default 0
+             */
+            song_gain_db: number;
+            /**
+             * Drop Gain Db
+             * @default 0
+             */
+            drop_gain_db: number;
+            /**
+             * Start Bar
+             * @description Excerpt start bar (camera clips, previews); None = song start.
+             */
+            start_bar?: number | null;
+            /**
+             * End Bar
+             * @description Excerpt end bar, exclusive; None = song end.
+             */
+            end_bar?: number | null;
+        };
+        /**
+         * SongUpdate
+         * @description PATCH body. Only the fields present are applied; an explicit null clears an override.
+         */
+        SongUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Bpm Override */
+            bpm_override?: number | null;
+            /** Downbeat Override S */
+            downbeat_override_s?: number | null;
+            /** Key Override */
+            key_override?: string | null;
         };
         /** SourceInfo */
         SourceInfo: {
@@ -2159,6 +2510,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    uninstallModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelInfo"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    applyModelManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignedModelManifest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelInfo"][];
                 };
             };
             /** @description Bad Request */
@@ -2850,6 +3355,466 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSongs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Song"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    uploadSong: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadSong"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Song"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSong: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Song"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteSong: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateSong: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SongUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Song"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    mixSong: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MixRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MixInfo"];
+                };
             };
             /** @description Bad Request */
             400: {

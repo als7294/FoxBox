@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { launchLine, pickLine } from './defaultLines'
 import type {
   BarsSetting,
   Chain,
@@ -28,7 +29,6 @@ export function cleanupOf(denoise: number | null | undefined): Cleanup | null {
 }
 export type RenderPhase = 'idle' | 'synthesizing' | 'rendering' | 'finalizing' | 'exporting'
 
-export const PLACEHOLDER_SCRIPT = 'WE ARE GUY FVWKS | EXPECT *US*'
 export const DEFAULT_VOICE = 'kokoro:am_fenrir'
 
 export interface RecordedTake {
@@ -63,6 +63,8 @@ export interface StudioError {
 export interface StudioState {
   tab: SourceTab
   script: string
+  /** The line shown (and rendered) while the script is empty: random per launch (DEFAULT_LINES), SHUFFLE swaps it. */
+  defaultLine: string
   voiceId: string
   speed: number
 
@@ -101,6 +103,8 @@ export interface StudioState {
   renderKey: string | null
   phase: RenderPhase
   error: StudioError | null
+  /** A render is scheduled and waiting: 'typing' (the line previews once typing pauses) or 'controls' (a release). */
+  queued: 'typing' | 'controls' | null
   /** Files exported from the current render (the cartridge). */
   exports: ExportedFile[]
 
@@ -118,6 +122,7 @@ const initialMacros: Macros = { depth: 0.5, grit: 0.5, machine: 0.5, space: 0.5 
 export const useStudio = create<StudioState>(() => ({
   tab: 'type',
   script: '',
+  defaultLine: launchLine(),
   voiceId: DEFAULT_VOICE,
   speed: 0.9,
   bpm: 140,
@@ -146,6 +151,7 @@ export const useStudio = create<StudioState>(() => ({
   renderKey: null,
   phase: 'idle',
   error: null,
+  queued: null,
   exports: [],
   side: 'wet',
   loop: false,
@@ -168,8 +174,8 @@ function stable(value: unknown): string {
   )
 }
 
-export function scriptOf(s: Pick<StudioState, 'script'>): string {
-  return s.script.trim() || PLACEHOLDER_SCRIPT
+export function scriptOf(s: Pick<StudioState, 'script' | 'defaultLine'>): string {
+  return s.script.trim() || s.defaultLine
 }
 
 /** Identity of a TTS source. BPM matters because [2b] pauses are sized in beats. */
@@ -218,7 +224,19 @@ export const studio = {
     if (tab === 'import') source = s.imported?.source ?? null
     set({ tab, source, sourceKey: tab === 'type' ? null : (source?.id ?? null) })
   },
-  setScript: (script: string) => set({ script }),
+  setScript: (script: string) =>
+    // Clearing the script brings a fresh default line (never the one just used).
+    set((s) => (script.trim() || !s.script.trim() ? { script } : { script, defaultLine: pickLine(s.script) })),
+  /** SHUFFLE: another default line (the script is empty) or another line in place of the text; returns the replaced text. */
+  shuffleLine: (): string | null => {
+    const s = get()
+    if (!s.script.trim()) {
+      set({ defaultLine: pickLine(s.defaultLine) })
+      return null
+    }
+    set({ script: pickLine(s.script) })
+    return s.script
+  },
   setVoice: (voiceId: string) => set({ voiceId }),
   setSpeed: (speed: number) => set({ speed }),
   setBpm: (bpm: number) => set({ bpm: Math.min(200, Math.max(60, Math.round(bpm * 10) / 10)) }),

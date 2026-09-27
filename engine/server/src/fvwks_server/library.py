@@ -1,5 +1,5 @@
-"""Library (owned by S3): SQLite for sources, renders, takes, exports, user presets, personas and settings, plus a
-content-addressed artifact cache (hash of a request → the artifact it produced).
+"""Library (owned by S3): SQLite for sources, renders, takes, exports, user presets, personas, settings, songs and
+their mixes (v0.7), plus a content-addressed artifact cache (hash of a request → the artifact it produced).
 
 Rows hold the contract model as JSON (``info``/``data``) next to a few indexed columns used for lookups, so the
 HTTP layer validates them straight back into ``SourceInfo``, ``RenderInfo``, ``ExportedFile`` and friends. One
@@ -24,7 +24,7 @@ from typing import Any, Iterable, Iterator
 
 import numpy as np
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA_V1 = """
 CREATE TABLE sources (
@@ -122,7 +122,32 @@ _SCHEMA_V3 = """
 ALTER TABLE sources ADD COLUMN transcript_state TEXT NOT NULL DEFAULT 'none';  -- none | queued | running | done | error
 """
 
-_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3}
+_SCHEMA_V4 = """
+CREATE TABLE songs (                           -- v0.7: the user's own tracks to put drops over (local only)
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  audio_hash     TEXT,                         -- the decoded audio (the same file imported again is the same song)
+  audio_id       TEXT NOT NULL,                -- key in the songs audio store, at the file's own rate
+  analysis_state TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | error
+  info           TEXT NOT NULL                 -- Song JSON
+);
+CREATE INDEX songs_audio_hash ON songs(audio_hash);
+
+CREATE TABLE mixes (                           -- v0.7: song + drop mixes (previews, camera clips, baked exports)
+  id             TEXT PRIMARY KEY,
+  render_id      TEXT NOT NULL,
+  song_id        TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  request_hash   TEXT,
+  audio_id       TEXT NOT NULL,
+  info           TEXT NOT NULL                 -- MixInfo JSON
+);
+CREATE INDEX mixes_song ON mixes(song_id);
+CREATE INDEX mixes_request_hash ON mixes(request_hash);
+"""
+
+_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, 4: _SCHEMA_V4}
 
 # Columns stored as JSON text, per table, with their empty value.
 _JSON_COLUMNS: dict[str, dict[str, Any]] = {
@@ -133,10 +158,12 @@ _JSON_COLUMNS: dict[str, dict[str, Any]] = {
     "presets": {"data": {}},
     "personas": {"data": {}},
     "cache": {"meta": {}},
+    "songs": {"info": {}},
+    "mixes": {"info": {}},
 }
 _BOOL_COLUMNS = {"takes": {"starred"}}
 _ID_PREFIX = {"sources": "src", "renders": "rnd", "takes": "tak", "exports": "exp", "presets": "pre",
-              "personas": "per", "cache": "cch"}
+              "personas": "per", "cache": "cch", "songs": "sng", "mixes": "mix"}
 TABLES = tuple(_JSON_COLUMNS)
 
 
@@ -388,6 +415,12 @@ class Library:
         """Mark every source unanalysed (the analyses live in the fx process's memory). Returns rows changed."""
         with self._lock:
             return self._conn.execute("UPDATE sources SET analysis_state = 'none' WHERE analysis_state != 'none'").rowcount
+
+    def unfinished_song_analyses(self) -> list[str]:
+        """Songs whose analysis the last process never finished (analyses are stored, so only these start over)."""
+        with self._lock:
+            return [r["id"] for r in self._conn.execute(
+                "SELECT id FROM songs WHERE analysis_state IN ('queued', 'running') ORDER BY created_at")]
 
     def reset_transcript_states(self) -> int:
         """Transcripts are stored, so only a transcription the last process never finished starts over."""

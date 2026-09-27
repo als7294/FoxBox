@@ -4,7 +4,10 @@ import { beatSeconds } from '@/audio/grid'
 import { audioContext } from '@/audio/player'
 import { click, MicError, MicRecorder } from '@/audio/recorder'
 import { durationOf, encodeWav, type PcmAudio } from '@/audio/wav'
+import { camera, takeFilm, useCamera } from '@/components/camera/cameraStore'
+import { CameraRig } from '@/components/camera/CameraRig'
 import { Button } from '@/components/common/Button'
+import { Segmented } from '@/components/rack/Segmented'
 import { bridge } from '@/env'
 import { renderNow } from '@/state/renderController'
 import { currentDenoise, studio, useStudio, type RecordedTake } from '@/state/studio'
@@ -73,6 +76,8 @@ function savedDevice(): string {
 /**
  * RECORD: input device, the record orb (3-beat count-in at the session BPM, auto-stop at the bar count),
  * the scrolling input strip and meter, and the takes. Any take can be USEd as the source.
+ * VOICE + CAMERA puts the camera (faces hidden) in the orb's place: takes film too, and its settings and clips sit
+ * under the meters.
  */
 export function Recorder() {
   const [state, setState] = useState<RecState>('idle')
@@ -93,6 +98,7 @@ export function Recorder() {
   const takes = useStudio((s) => s.takes)
   const activeId = useStudio((s) => s.activeTakeId)
   const presetName = useStudio((s) => s.presetName)
+  const cameraOn = useCamera((s) => s.on)
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -118,6 +124,7 @@ export function Recorder() {
     const r = rec.current
     if (!r || !r.isRecording) return
     setBusy(true)
+    const film = takeFilm.stop?.() ?? Promise.resolve(null)
     const pcm = await r.stop()
     setState('idle')
     setBusy(false)
@@ -141,6 +148,7 @@ export function Recorder() {
       error: null,
     }
     studio.addTake(take)
+    void film.then((video) => video && camera.keepTakeVideo(take.id, video))
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-take="${take.id}"]`)
       el?.animate?.(
@@ -177,12 +185,16 @@ export function Recorder() {
     for (let i = 0; i < COUNT_IN_BEATS; i++) click(ctx, t0 + i * beat, i === 0)
     timing.current = { ...timing.current, countT0: performance.now() + 50, beatMs: beat * 1000 }
     setState('count')
-    countTimer.current = setTimeout(() => {
-      countTimer.current = null
-      rec.current?.start()
-      timing.current.recT0 = performance.now()
-      setState('rec')
-    }, COUNT_IN_BEATS * beat * 1000 + 50)
+    countTimer.current = setTimeout(
+      () => {
+        countTimer.current = null
+        rec.current?.start()
+        takeFilm.start?.()
+        timing.current.recT0 = performance.now()
+        setState('rec')
+      },
+      COUNT_IN_BEATS * beat * 1000 + 50,
+    )
   }, [deviceId, refreshDevices])
 
   const toggle = useCallback(() => {
@@ -273,8 +285,26 @@ export function Recorder() {
         ? 'GET READY'
         : 'RECORDING · CLICK TO STOP'
   const rate = rec.current?.sampleRate ?? audioContext().sampleRate
+  const info = (
+    <>
+      <div className={styles.recInfo}>
+        <span ref={timeEl} className={styles.recTime} aria-hidden="true">
+          00:00.00
+        </span>
+        <span className={styles.recLabel} data-state={state} role="status">
+          {label}
+        </span>
+      </div>
+      <div className={styles.meters}>
+        <div className={styles.strip}>
+          <canvas ref={strip} className={styles.canvas} aria-hidden="true" />
+        </div>
+        <InputMeter />
+      </div>
+    </>
+  )
   return (
-    <div className={styles.record}>
+    <div className={styles.record} data-camera={cameraOn ? 'on' : undefined}>
       <div className={styles.inputRow}>
         <span className={styles.kicker}>INPUT</span>
         <select
@@ -305,35 +335,70 @@ export function Recorder() {
         <span className={styles.rate}>{Math.round(rate / 1000)}k · MONO</span>
       </div>
       <CleanupControl />
-      <div className={styles.orbBox}>
-        <canvas ref={orb} className={styles.canvas} aria-hidden="true" />
-        <button
-          type="button"
-          className={styles.orbBtn}
-          data-state={state}
-          aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording'}
-          aria-keyshortcuts="R"
-          disabled={busy}
-          onClick={toggle}
-        >
-          <span className={styles.orbBig}>{state === 'count' ? '' : state === 'rec' ? 'STOP' : 'REC'}</span>
-          <span className={styles.orbHint}>{state === 'idle' ? 'CLICK · R' : ''}</span>
-        </button>
-      </div>
-      <div className={styles.recInfo}>
-        <span ref={timeEl} className={styles.recTime} aria-hidden="true">
-          00:00.00
-        </span>
-        <span className={styles.recLabel} data-state={state} role="status">
-          {label}
-        </span>
-      </div>
-      <div className={styles.meters}>
-        <div className={styles.strip}>
-          <canvas ref={strip} className={styles.canvas} aria-hidden="true" />
+      <div className={styles.cameraRow}>
+        <span className={styles.kicker}>CAMERA</span>
+        <div className={styles.cleanupSeg}>
+          <Segmented
+            label="Camera"
+            hideLabel
+            size="sm"
+            value={cameraOn ? 'on' : 'off'}
+            disabled={state !== 'idle' || busy}
+            options={[
+              { value: 'off' as const, label: 'VOICE ONLY' },
+              { value: 'on' as const, label: 'VOICE + CAMERA' },
+            ]}
+            onChange={(v) => camera.setOn(v === 'on')}
+          />
         </div>
-        <InputMeter />
+        <span className={styles.beta} title="The camera is new: tell us how it goes">
+          BETA
+        </span>
       </div>
+      {cameraOn ? (
+        <CameraRig
+          recButton={
+            <button
+              type="button"
+              className={styles.camRec}
+              data-state={state}
+              aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording (films too)'}
+              aria-keyshortcuts="R"
+              disabled={busy}
+              onClick={toggle}
+            >
+              {state === 'count' ? '•••' : state === 'rec' ? 'STOP' : 'REC'}
+            </button>
+          }
+        >
+          {({ preview, settings }) => (
+            <>
+              {preview}
+              {info}
+              {settings}
+            </>
+          )}
+        </CameraRig>
+      ) : (
+        <>
+          <div className={styles.orbBox}>
+            <canvas ref={orb} className={styles.canvas} aria-hidden="true" />
+            <button
+              type="button"
+              className={styles.orbBtn}
+              data-state={state}
+              aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording'}
+              aria-keyshortcuts="R"
+              disabled={busy}
+              onClick={toggle}
+            >
+              <span className={styles.orbBig}>{state === 'count' ? '' : state === 'rec' ? 'STOP' : 'REC'}</span>
+              <span className={styles.orbHint}>{state === 'idle' ? 'CLICK · R' : ''}</span>
+            </button>
+          </div>
+          {info}
+        </>
+      )}
       <TranscriptEditor />
       <div className={styles.takesHead}>
         <span className={styles.kicker}>TAKES · {takes.length}</span>

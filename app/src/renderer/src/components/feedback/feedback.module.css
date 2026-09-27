@@ -457,37 +457,51 @@
   height: 1px;
   background: rgba(var(--vb-ink-rgb), 0.08);
 }
-.bootCenter {
+.bootHero {
+  /* The loading screen's lockup: the fox as the hero (~32% of the window), then the wordmark and the kicker,
+     then the real progress. Centred; nothing competes with it. */
   position: absolute;
-  left: clamp(80px, 10.6cqw, 160px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: min(680px, 62%);
+  inset: 0 0 6vh;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
 }
-.bootHead {
-  display: flex;
-  align-items: baseline;
-  gap: 18px;
+.bootFox {
+  width: clamp(200px, 32vh, 380px);
+  height: clamp(200px, 32vh, 380px);
+  filter: drop-shadow(0 0 calc(28px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35));
 }
-.bootTitle {
-  font: var(--vb-display-weight) clamp(72px, 5.8cqw, 88px) / 0.9 var(--vb-font-display);
-  letter-spacing: 0.06em;
+.bootWord {
+  margin-top: clamp(14px, 2.4vh, 26px);
+  font: var(--vb-display-weight) clamp(44px, 6.4vh, 68px) / 0.9 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  /* The letter-spacing trails the last glyph: pull it back so the word sits centred under the fox. */
+  margin-right: -0.14em;
   white-space: nowrap;
   color: var(--vb-ink);
 }
-.bootSub {
-  font: 500 14px/1 var(--vb-font-mono);
-  letter-spacing: 0.4em;
+.bootKicker {
+  margin-top: 12px;
+  font: 500 13px/1 var(--vb-font-mono);
+  letter-spacing: 0.42em;
+  margin-right: -0.42em;
   color: var(--vb-accent);
+}
+.bootProgress {
+  margin-top: clamp(22px, 4vh, 40px);
+  width: min(360px, 60vw);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
 }
 .bootBarTrack {
   position: relative;
-  height: 1px;
-  margin-top: -18px;
-  background: rgba(var(--vb-ink-rgb), 0.08);
+  height: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.1);
 }
 .bootBar {
   position: absolute;
@@ -497,93 +511,69 @@
   transform-origin: left;
   transform: scaleX(0);
 }
-.bootLines {
+.bootPct {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font: 500 12px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+  font-variant-numeric: tabular-nums;
+}
+.bootPctNum {
+  color: var(--vb-ink);
+  font-weight: 700;
+}
+.bootStage {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+/* The boot log: small and dim at the bottom (the last few lines), never competing with the fox. */
+.bootLog {
+  position: absolute;
+  left: 50%;
+  bottom: 86px;
+  transform: translateX(-50%);
+  width: min(560px, 80vw);
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  min-height: 248px;
+  gap: 4px;
+  opacity: 0.55;
+  pointer-events: none;
 }
 .bootLine {
   display: flex;
   align-items: center;
-  gap: 14px;
-  font: 500 14px/1.4 var(--vb-font-mono);
+  gap: 12px;
+  font: 500 11px/1.4 var(--vb-font-mono);
   white-space: pre;
-  color: rgba(var(--vb-ink-rgb), 0.78);
-}
-.bootLine[data-last] {
-  color: var(--vb-ink);
+  color: rgba(var(--vb-ink-rgb), 0.7);
+  overflow: hidden;
 }
 .bootTs {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--vb-dim);
   font-variant-numeric: tabular-nums;
 }
 .bootCursor {
   display: inline-block;
-  width: 9px;
-  height: 16px;
+  width: 6px;
+  height: 11px;
   background: var(--vb-accent);
-  box-shadow: 0 0 calc(10px * var(--vb-glow)) var(--vb-accent);
-  margin-left: -10px;
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--vb-accent);
 }
 .bootOk {
-  font: 700 10.5px var(--vb-font-mono);
+  font: 700 10px var(--vb-font-mono);
   letter-spacing: 0.14em;
   color: var(--vb-amber);
   font-variant-numeric: tabular-nums;
 }
-.bootLine[data-last] .bootOk {
-  color: var(--vb-accent);
-}
 .bootLine[data-fail] .bootOk {
   color: var(--vb-accent);
-}
-.bootFoot {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.bootSegs {
-  display: grid;
-  grid-template-columns: repeat(40, minmax(0, 1fr));
-  gap: 3px;
-  height: 4px;
-}
-.bootSegs span {
-  background: rgba(var(--vb-ink-rgb), 0.08);
-  transition: background 0.15s;
-}
-.bootSegs span[data-on] {
-  background: var(--vb-amber);
-  box-shadow: 0 0 calc(6px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.6);
-}
-.bootSegs span[data-on][data-hot] {
-  background: var(--vb-accent);
-  box-shadow: 0 0 calc(6px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.6);
-}
-.bootTicks {
-  position: relative;
-  height: 5px;
-  margin-top: -4px;
-}
-.bootTicks span {
-  position: absolute;
-  top: 0;
-  width: 1px;
-  height: 5px;
-  background: rgba(var(--vb-ink-rgb), 0.25);
-}
-.bootTicks span:nth-child(even) {
-  height: 3px;
-  background: rgba(var(--vb-ink-rgb), 0.18);
-}
-.bootMeta {
-  display: flex;
-  justify-content: space-between;
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.2em;
-  color: var(--vb-dim);
 }
 .bootClock {
   font-variant-numeric: tabular-nums;
@@ -621,19 +611,49 @@
   align-self: auto;
 }
 
-/* The FoxBox mark on the boot screen: small in the top edge, large beside the title. */
+/* The small FoxBox mark in the boot screen's top edge. */
 .bootMark {
   flex: none;
   color: var(--vb-accent);
   filter: drop-shadow(0 0 calc(6px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.6));
 }
-.bootHeadMark {
-  flex: none;
-  align-self: center;
-  /* The fox dominates the lockup: ~1.6x the wordmark's cap height (the title is clamp(72px, 5.8cqw, 88px)), 28 px apart. */
-  width: calc(clamp(72px, 5.8cqw, 88px) * 1.15);
-  height: calc(clamp(72px, 5.8cqw, 88px) * 1.15);
-  margin-right: 10px;
+
+/* A failed start: the reason and RETRY / SHOW LOG under the lockup (the Studio never appears half-ready). */
+.bootError {
+  margin-top: clamp(22px, 4vh, 40px);
+  width: min(520px, 80vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  pointer-events: auto;
+}
+.bootErrorText {
+  margin: 0;
+  font: 500 13px/1.5 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.bootFail {
+  font-weight: 700;
+  letter-spacing: 0.14em;
   color: var(--vb-accent);
-  filter: drop-shadow(0 0 calc(14px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.45));
+}
+.bootActions {
+  display: flex;
+  gap: 10px;
+}
+.bootAction {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 12px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+}
+.bootAction:hover,
+.bootAction:focus-visible {
+  border-color: var(--vb-accent);
+  color: var(--vb-accent);
 }

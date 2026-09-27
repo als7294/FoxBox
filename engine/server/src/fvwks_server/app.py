@@ -26,6 +26,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from fvwks_contracts.models import (
     ApiError,
+    BatchRequest,
     ErrorEnvelope,
     ExportRequest,
     ExportResult,
@@ -33,6 +34,8 @@ from fvwks_contracts.models import (
     Job,
     Lexicon,
     LibraryPage,
+    MixInfo,
+    MixRequest,
     ModelInfo,
     PersonaCandidate,
     PersonaDesignRequest,
@@ -45,21 +48,22 @@ from fvwks_contracts.models import (
     RenderRequest,
     ScriptPreview,
     ScriptPreviewRequest,
-    SignedModelManifest,
     Settings,
+    SignedModelManifest,
+    Song,
+    SongUpdate,
     SourceInfo,
     SourceList,
+    TTSRequest,
     Take,
     TakePatch,
     TranscriptUpdate,
-    TTSRequest,
     Voice,
-    BatchRequest,
 )
 
 from .config import VERSION, Config
 from .errors import ApiException, NotFound
-from .service import MAX_UPLOAD_BYTES, EngineService
+from .service import MAX_SONG_BYTES, MAX_UPLOAD_BYTES, EngineService
 
 log = logging.getLogger("fvwks.engine")
 
@@ -232,6 +236,47 @@ def create_app(config: Config) -> FastAPI:
     def delete_source(source_id: str) -> Response:
         service.delete_source(source_id)
         return Response(status_code=204)
+
+    # ------------------------------------------------------------------ songs (v0.7)
+    def _songs(name: str):
+        fn = getattr(service, name, None)
+        if fn is None:
+            raise ApiException(501, "not_implemented", "Songs arrive with the v0.7 server work.")
+        return fn
+
+    @r.post("/songs", response_model=Song, tags=["songs"], operation_id="uploadSong")
+    async def upload_song(file: UploadFile = File(...), name: str | None = Form(None)) -> Song:
+        """v0.7: import a track (WAV/AIFF/FLAC/MP3; the app decodes other formats to WAV first). Analysis runs in
+        the background (analysis_state); poll GET /songs/{id}."""
+        fn = _songs("upload_song")
+        if file.size is not None and file.size > MAX_SONG_BYTES:  # refuse before reading it into memory
+            raise ApiException(400, "file_too_large", f"Songs are limited to {MAX_SONG_BYTES >> 20} MB.",
+                               hint="Use an MP3 or FLAC of it, or trim it.")
+        data = await file.read()
+        return await run_in_threadpool(fn, data, file.filename, name)
+
+    @r.get("/songs", response_model=list[Song], tags=["songs"], operation_id="listSongs")
+    def list_songs() -> list[Song]:
+        return _songs("list_songs")()
+
+    @r.get("/songs/{song_id}", response_model=Song, tags=["songs"], operation_id="getSong")
+    def get_song(song_id: str) -> Song:
+        return _songs("get_song")(song_id)
+
+    @r.patch("/songs/{song_id}", response_model=Song, tags=["songs"], operation_id="updateSong")
+    def update_song(song_id: str, body: SongUpdate) -> Song:
+        """Only the fields present in the body change; an explicit null clears an override."""
+        return _songs("update_song")(song_id, body)
+
+    @r.delete("/songs/{song_id}", status_code=204, response_class=Response, tags=["songs"], operation_id="deleteSong")
+    def delete_song(song_id: str) -> Response:
+        _songs("delete_song")(song_id)
+        return Response(status_code=204)
+
+    @r.post("/mix", response_model=MixInfo, tags=["songs"], operation_id="mixSong")
+    def mix_song(req: MixRequest) -> MixInfo:
+        """v0.7: a song + drop mix (backing-track preview, camera-clip soundtrack)."""
+        return _songs("mix_song")(req)
 
     @r.post("/personas/design", response_model=Job, tags=["voices"], operation_id="designPersona")
     def design_persona(req: PersonaDesignRequest) -> Job:

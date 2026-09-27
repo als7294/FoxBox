@@ -20,7 +20,8 @@ import { bridge } from '@/env'
 import { formatBytes, LOW_DISK_BYTES } from '@/lib/format'
 import { KEY_OPTIONS } from '@/lib/keys'
 import { engineHealth, engineView, isEngineUsable, useEngine, type EngineView } from '@/state/engine'
-import { PLACEHOLDER_SCRIPT, studio, useStudio } from '@/state/studio'
+import { studio, useStudio } from '@/state/studio'
+import { useViewPrefs } from '@/state/viewPrefs'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import styles from './settings.module.css'
@@ -147,7 +148,7 @@ function slugify(text: string, maxWords = 4, maxLen = 32): string {
 }
 
 /** What the next export of the Studio's current take would be called (version 01, the wet variant). */
-function previewName(s: Full, studioState: { script: string; presetName: string | null; bpm: number; bars: number | 'auto' | null; key: string; resolvedBars?: number | null }): string {
+function previewName(s: Full, studioState: { script: string; defaultLine: string; presetName: string | null; bpm: number; bars: number | 'auto' | null; key: string; resolvedBars?: number | null }): string {
   const tokens = tokenize(s.filename_pattern)
   if (typeof tokens === 'string') return ''
   const values: Record<string, string | number> = {
@@ -158,7 +159,7 @@ function previewName(s: Full, studioState: { script: string; presetName: string 
         .replace(/-{2,}/g, '-')
         .replace(/^-+|-+$/g, '')
         .toUpperCase() || 'RAW',
-    slug: slugify(studioState.script.trim() || PLACEHOLDER_SCRIPT),
+    slug: slugify(studioState.script.trim() || studioState.defaultLine),
     bpm: String(Math.round(studioState.bpm * 100) / 100),
     // AUTO files are named after the count the engine picked (the last render's, else 4).
     bars: studioState.bars === 'auto' ? String(studioState.resolvedBars ?? 4) : studioState.bars ? String(studioState.bars) : 'free',
@@ -574,9 +575,10 @@ function NamingCard({ s, change, flush, problems, failure }: { s: Full; change: 
   const bpm = useStudio((st) => st.bpm)
   const bars = useStudio((st) => st.bars)
   const resolvedBars = useStudio((st) => st.render?.bars ?? null)
+  const defaultLine = useStudio((st) => st.defaultLine)
   const key = useStudio((st) => st.key)
   const patternError = problems.filename_pattern ?? (failure?.field === 'filename_pattern' ? failure.message : null)
-  const preview = patternError ? '' : previewName(s, { script, presetName, bpm, bars, key, resolvedBars })
+  const preview = patternError ? '' : previewName(s, { script, defaultLine, presetName, bpm, bars, key, resolvedBars })
   return (
     <Card title="Naming" area="naming">
       <div className={styles.namingGrid}>
@@ -651,9 +653,16 @@ function DefaultsCard({ s, change }: { s: Full; change: Change }) {
           />
         </div>
         <SelectField label="Key" value={s.default_key} options={keyOptions} onChange={(v) => change('default_key', v, DISCRETE_MS)} />
+        <ShowVoiceCore />
       </div>
     </Card>
   )
+}
+
+/** A view preference (this machine only): the Studio's VOICE CORE panel, closed with its ×. */
+function ShowVoiceCore() {
+  const on = useViewPrefs((v) => v.showVoiceCore)
+  return <Switch row label="Show voice core" checked={on} onChange={(v) => useViewPrefs.getState().setShowVoiceCore(v)} />
 }
 
 const VIEW_LABEL: Record<EngineView, string> = {

@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.6 contracts: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v0.7 contracts: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -409,7 +409,7 @@ class StemInfo(Model):
 class ExportedFile(Model):
     id: str
     render_id: str
-    variant: str = Field(description="'wet' | 'dry' | 'alt:<preset_id>' | 'stem:<name>'")
+    variant: str = Field(description="'wet' | 'dry' | 'alt:<preset_id>' | 'stem:<name>' | 'baked' (v0.7: the song with the drop in it)")
     title: str
     filename: str
     path: str = Field(description="Absolute path inside the export root.")
@@ -487,6 +487,9 @@ class ExportRequest(Model):
     variants: list[str] = Field(default_factory=lambda: ["wet"], description="'wet' | 'dry' | 'alt:<preset_id>'")
     stems: bool = False
     title: str | None = None
+    bake: "SongPlacement | None" = Field(default=None, description=(
+        "v0.7: also write the song with this drop baked in (variant 'baked'), one per render. start_bar/end_bar "
+        "cut an excerpt; None = the whole song."))
 
 
 class ExportResult(Model):
@@ -561,7 +564,7 @@ class JobItem(Model):
 
 class Job(Model):
     id: str
-    kind: Literal["model_install", "batch", "analysis", "persona_design"]
+    kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis"]
     state: JobState
     progress: float = Field(default=0.0, ge=0, le=1)
     message: str | None = None
@@ -665,3 +668,82 @@ DEFAULT_LEXICON = Lexicon(
         *[LexiconEntry(word=a, say=a, acronym=True) for a in _ACRONYMS],
     ]
 )
+
+
+# --------------------------------------------------------------------------- songs (v0.7)
+
+
+class SongAnalysis(Model):
+    """Tempo, key and grid of an imported song (v0.7). Produced by the sound engine (FxAPI.analyze_song)."""
+
+    bpm: float = Field(gt=0)
+    bpm_confidence: float = Field(default=0.0, ge=0, le=1)
+    key: str | None = Field(default=None, description="e.g. 'Am', 'F#'; None when the key is unclear.")
+    camelot: str | None = Field(default=None, description="e.g. '8A'.")
+    key_confidence: float = Field(default=0.0, ge=0, le=1)
+    downbeat_s: float = Field(default=0.0, ge=0, description="Time of bar 1, beat 1: the grid anchor.")
+    beats_per_bar: int = Field(default=4, ge=1)
+
+
+class Song(Model):
+    """A track the user imported to put drops over (v0.7). Songs are local-only; they never leave the Mac."""
+
+    id: str
+    name: str
+    duration_s: float
+    sample_rate: int
+    channels: int
+    peaks: Peaks
+    audio_id: str = Field(description="Stream with GET /api/audio/{audio_id} (preview / backing track).")
+    analysis_state: Literal["queued", "running", "done", "error"] = "queued"
+    analysis: SongAnalysis | None = None
+    bpm_override: float | None = Field(default=None, gt=0, description="User's tempo when the detected one is wrong.")
+    downbeat_override_s: float | None = Field(default=None, ge=0, description="User's bar-1 position (grid nudge).")
+    key_override: str | None = None
+    created_at: str
+
+
+class SongUpdate(Model):
+    """PATCH body. Only the fields present are applied; an explicit null clears an override."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    bpm_override: float | None = Field(default=None, gt=0)
+    downbeat_override_s: float | None = Field(default=None, ge=0)
+    key_override: str | None = None
+
+
+class SongPlacement(Model):
+    """Where a drop sits in a song, and how the two are balanced (v0.7)."""
+
+    song_id: str
+    at_bar: int = Field(default=1, ge=1, description="Song bar (1-based, on the song's grid) where the drop starts.")
+    duck_db: float = Field(default=-6.0, ge=-24, le=0, description="Song level under the drop (sidechain-style duck).")
+    song_gain_db: float = Field(default=0.0, ge=-24, le=12)
+    drop_gain_db: float = Field(default=0.0, ge=-24, le=12)
+    start_bar: int | None = Field(default=None, ge=1, description="Excerpt start bar (camera clips, previews); None = song start.")
+    end_bar: int | None = Field(default=None, ge=2, description="Excerpt end bar, exclusive; None = song end.")
+
+
+class MixRequest(Model):
+    render_id: str
+    placement: SongPlacement
+    quality: Literal["preview", "final"] = "preview"
+
+
+class MixInfo(Model):
+    """A song + drop mix (v0.7): the backing-track preview, and the soundtrack of camera clips."""
+
+    id: str
+    render_id: str
+    song_id: str
+    audio_id: str = Field(description="Stream with GET /api/audio/{audio_id}.")
+    sample_rate: int
+    duration_s: float
+    start_s: float = Field(default=0.0, description="Where this mix starts on the song's timeline (excerpt start).")
+    drop_start_s: float = Field(description="Where the drop starts inside this mix.")
+    peaks: Peaks
+    loudness: Loudness | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+ExportRequest.model_rebuild()  # v0.7: ExportRequest.bake refers to SongPlacement, defined above

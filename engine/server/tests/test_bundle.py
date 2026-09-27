@@ -204,3 +204,25 @@ def test_bytecode_is_never_revalidated(app_engine):
     assert len(pycs) > 1000
     flags = {int.from_bytes(p.read_bytes()[4:8], "little") for p in pycs[::50]}
     assert flags == {1}, flags
+
+
+def test_no_file_names_the_build_machine(app_engine):
+    """The app ships to other people: no file may carry the builder's home folder (also dash-escaped, as temp folders
+    spell it) or the folder the bundle was built in. uv writes both into sysconfig, pyvenv.cfg, direct_url.json,
+    libpython's install name and every .pyc; bundle_engine.sh rewrites them to /install."""
+    home = os.path.expanduser("~")
+    built = app_engine.parents[4] / "build" / "engine"  # where the app_engine fixture built it
+    needles = [n.encode() for n in {home, home.replace("/", "-"), str(built), os.path.realpath(built)}]
+    leaks = []
+    for folder, _, files in os.walk(app_engine):
+        for name in files:
+            path = Path(folder, name)
+            data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
+            if any(n in data for n in needles):
+                leaks.append(str(path.relative_to(app_engine)))
+    assert leaks == []
+    out = subprocess.run([str(app_engine / "venv" / "bin" / "python"), "-I", "-B", "-c",
+                          "import sys, sysconfig; print(sys.base_prefix); print(sysconfig.get_paths()['stdlib'])"],
+                         capture_output=True, text=True, check=True)
+    base_prefix, stdlib = out.stdout.split()
+    assert Path(base_prefix) == app_engine / "python" and Path(stdlib) == app_engine / "python" / "lib" / "python3.12"

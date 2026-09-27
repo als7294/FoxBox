@@ -26,6 +26,7 @@ from .models import (
     Loudness,
     MacroMap,
     Macros,
+    Master,
     MaskStrength,
     ModelInfo,
     Motion,
@@ -36,6 +37,8 @@ from .models import (
     ScriptPreview,
     Segment,
     SourceInfo,
+    SongAnalysis,
+    SongPlacement,
     SourceKind,
     TTSRequest,
     Voice,
@@ -50,6 +53,18 @@ class Source:
 
     info: SourceInfo
     audio: np.ndarray  # shape (1, n), float32, ENGINE_SR
+
+
+@dataclass
+class MixOutput:
+    """v0.7: a song + drop mix."""
+
+    audio: np.ndarray  # (channels, n) float32 at sample_rate
+    sample_rate: int
+    start_s: float  # excerpt start on the song timeline
+    drop_start_s: float  # drop start inside `audio`
+    loudness: "Loudness | None" = None
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -95,6 +110,19 @@ class FxAPI(Protocol):
 
     def render(self, main: Source, stack: list[Source | None], req: RenderRequest) -> RenderOutput:
         """`stack[i]` corresponds to req.stack[i]; None means pseudo-stack (detuned copy of main)."""
+        ...
+
+    # v0.7 songs (optional: the server checks with getattr and answers 501 until the sound engine has them)
+    def analyze_song(self, audio: np.ndarray, sr: int) -> SongAnalysis:
+        """Tempo, key and bar-1 position of a song. `audio` is (channels, n) float32 at `sr` (the file's own rate)."""
+        ...
+
+    def mix_song(self, song: np.ndarray, song_sr: int, drop: np.ndarray, drop_sr: int, *, drop_start_s: float,
+                 bpm: float, placement: SongPlacement, excerpt_s: tuple[float, float] | None,
+                 master: Master, quality: str) -> "MixOutput":
+        """Put the (already mastered) drop into the song at `drop_start_s` on the song's timeline: duck the song
+        under it, apply the gains, keep true peak <= master.true_peak_db, and return the excerpt
+        [start, end) of the song timeline (None = the whole song) at master.sample_rate."""
         ...
 
 

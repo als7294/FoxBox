@@ -555,6 +555,8 @@ def _item_label(meta: ExportMeta, item: ExportItem) -> tuple[str, str]:
         return preset, preset
     if kind == "stem":
         return preset, f"{preset} stem {arg}".strip()
+    if kind == "baked":  # v0.7: the song with the drop in it
+        return preset, "baked"
     return preset, f"{preset} {kind}"
 
 
