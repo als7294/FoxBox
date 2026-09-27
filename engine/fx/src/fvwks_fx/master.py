@@ -340,7 +340,13 @@ def master(
         z = resample(z, work_sr, sr_out)
         if n_out is not None:
             z = fit_length(z, n_out)
-        z = fade_edges(z, 0, int(0.001 * sr_out))
+    # The chain's oversampled clip, limiter and resampler ring a little energy back onto the edges: fade them
+    # again at the output and pin the first and last samples to exactly 0, so a drop never starts or ends
+    # on a click (fades only lower levels: true peak and loudness hold).
+    z = fade_edges(z, max(1, int(fade_in_ms * sr_out / 1000.0)), max(1, int(max(fade_out_ms, 1.0) * sr_out / 1000.0)))
+    if z.shape[-1]:
+        z[:, 0] = 0.0
+        z[:, -1] = 0.0
     rep = measure(z, sr_out, tp_final) if work_sr == sr_out else measure(z_work, work_sr, tp_final)
     rep.gain_db, rep.limiter_ceiling_db, rep.target, rep.iterations = g, lc, tgt, it
     rep.mode = {"club": "club", "custom": "custom"}.get(mode, "bake")

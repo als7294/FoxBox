@@ -317,3 +317,25 @@ def test_auto_bars_reports_the_count_it_rendered(we_are):
     free = api.render(we_are, [], _req("raw", quality="preview", bars=None))
     assert free.bars is None
 
+
+@pytest.mark.parametrize("bars", ["auto", 1])
+def test_radio_bed_and_its_echoes_end_inside_the_file(bars):
+    # QA v1.0.0: LEGION's noise bed closes 0.25 s after the speech with a squelch, and DYNAMICS brings it up nearly
+    # to the voice, so its delay echo was cut by a tight 2-bar file end (the last 50 ms sat at -35 dBFS). It now
+    # closes sooner when the file is tight -- still after the last word -- and the drop doesn't grow for it.
+    import sys
+    from pathlib import Path
+
+    from fvwks_fx.pipeline import BED_END_MARGIN_S, TAIL_FLOOR_DB
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from conftest import load_voice
+
+    out = api.render(load_voice("remember_remember"), [None, None], _req("legion", bars=bars, bpm=120))
+    x = out.audio.astype(np.float64)
+    db = lambda z: 10 * np.log10(np.mean(z**2) + 1e-30)
+    assert db(x[:, -int(0.05 * out.sample_rate):]) < db(x) + TAIL_FLOOR_DB
+    assert out.bars == 2 and out.fit.reserved_tail_s == 0.5  # the voice's tail room: same length as before the fix
+    close = max(e.t for e in out.motion.events if e.kind == "squelch")  # the closing burst, where the audio has it
+    assert out.tail_s - 0.09 <= close and close + 0.09 <= out.audio.shape[1] / out.sample_rate - BED_END_MARGIN_S
+

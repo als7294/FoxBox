@@ -21,7 +21,8 @@ the bottom). The audition pack is ready in `out/audition/`.**
     rack ranges and lists every module in rack order with its effective params.
 - **Pipeline order:** PREP → MASK → LAYERS → MACHINE → PLACE → DRIVE → CRUSH → TONE → MOTION → DYNAMICS → SPACE →
   STEREO → FINISH → MASTER.
-  - Stage-memoized on a hash of everything upstream: a SPACE tweak reuses MASK..DYNAMICS.
+  - Stage-memoized on a hash of everything upstream: a SPACE tweak reuses MASK..DYNAMICS (except a CRUSH radio
+    bed in a tight file: it closes in time for SPACE's echoes, so there a SPACE move re-runs CRUSH..DYNAMICS).
   - The dry A/B master is cached across FX tweaks.
   - PLACE (ARRANGE placement) sits before the time-based FX, so delays, throws, reverb tails and the swell live on
     the grid.
@@ -172,6 +173,11 @@ The coordinator allowed more dependencies. None are added for now:
   regenerated. A/B delta for the user: `out/audition/delta/` (39 MB, README inside).
 - AUTO bars (v0.2): the coordinator's api stopgap is now resolved in `plan_placement` (5c4155a).
 - `engine/uv.lock` not committed; fvwks-fx adds no runtime dependencies (setuptools / pybind11 are build-time only).
+- v1.0.0 QA (the render sweep was stopped early at the coordinator's call): two real failures, both fixed with
+  tests. Every render's first and last samples carried a small click (-40 to -70 dBFS), from the master's
+  clip, limiter and resampler ringing onto the edges; the output edges are now faded again and pinned to 0.
+  LEGION's radio bed had its echo cut by a tight 2-bar end at 120 BPM (-35 dBFS in the last 50 ms); the bed
+  now closes sooner when the file is tight. Bar counts and tail room are unchanged.
 
 ## Cross-reviews
 - **S1 → S2** (Beat-Lock, words, throws):

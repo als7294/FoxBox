@@ -366,9 +366,9 @@ def stage_inserts(ctx: Ctx, p: Params, module: str, x: np.ndarray, plan: arr.Pla
                                                   mp3_quality=q, mix=p.f("crush", "mix"), derez=derez, seed=ctx.seed + 12))
         noise_db = p.f("crush", "noise_db") if p.on("crush") else -80.0
         squelch = p.on("edit") and bool(p.get("edit", "squelch"))
-        if noise_db > -79.5 or squelch:
-            start = max(0.0, plan.first_word_s - 0.12)
-            end = plan.speech_end_s + 0.25
+        span = bed_span_s(p, plan, ctx.arrange.bpm)
+        if span is not None:
+            start, end = span
             level = noise_db if noise_db > -79.5 else -36.0
             bed = C.noise_bed(y.shape[1], sr, level, start=int(start * sr), end=int(end * sr), squelch=squelch,
                               seed=ctx.seed + 5, channels=y.shape[0])
@@ -474,6 +474,30 @@ RELEASE_S = 0.12  # the last word's own release
 TAIL_FLOOR_DB = -30.0  # an FX tail may end once it is this far under the voice
 MAX_TAIL_S = 6.0
 THROW_FEEDBACK = 0.55  # SP.throws_wet: throws echo on a dotted quarter with this feedback
+BED_POST_S = 0.25  # the CRUSH noise bed and its closing squelch run this long past the speech end ...
+BED_END_MARGIN_S = 0.15  # ... and always stop at least this long before the file end
+
+
+def _echoes(level_db: float, feedback: float, period_s: float) -> float:
+    """Seconds until a feedback echo train starting ``level_db`` under its input falls TAIL_FLOOR_DB under it."""
+    if level_db <= TAIL_FLOOR_DB or period_s <= 0:
+        return 0.0
+    return (1.0 + (TAIL_FLOOR_DB - level_db) / (20.0 * math.log10(min(max(feedback, 1e-3), 0.99)))) * period_s
+
+
+def space_ring_s(p: Params, bpm: float) -> float:
+    """How long SPACE's reverb and delay ring on after their input stops, until TAIL_FLOOR_DB under it."""
+    if not p.on("space"):
+        return 0.0
+    ring = 0.0
+    rv = p.f("space", "reverb_mix")
+    if rv > 0:
+        ring = max(ring, max(0.0, float(lin_to_db(rv)) - TAIL_FLOOR_DB) / 60.0 * p.f("space", "reverb_decay_s"))
+    dl = p.f("space", "delay_mix")
+    if dl > 0:
+        ring = max(ring, _echoes(float(lin_to_db(dl)), p.f("space", "delay_feedback"),
+                                 note_seconds(str(p.get("space", "delay_div")), bpm)))
+    return ring
 
 
 def tail_room_s(p: Params, bpm: float, segments: Sequence[Any] | None, tape_beats: float) -> float:
@@ -483,27 +507,29 @@ def tail_room_s(p: Params, bpm: float, segments: Sequence[Any] | None, tape_beat
     Rounded up to 0.25 s, so small SPACE moves keep the cached plan."""
     if tape_beats > 0:
         return 0.0
-    tail = RELEASE_S
+    tail = max(RELEASE_S, space_ring_s(p, bpm))
     if p.on("space"):
-        def echoes(level_db: float, feedback: float, period_s: float) -> float:
-            if level_db <= TAIL_FLOOR_DB or period_s <= 0:
-                return 0.0
-            return (1.0 + (TAIL_FLOOR_DB - level_db) / (20.0 * math.log10(min(max(feedback, 1e-3), 0.99)))) * period_s
-
-        rv = p.f("space", "reverb_mix")
-        if rv > 0:
-            tail = max(tail, max(0.0, float(lin_to_db(rv)) - TAIL_FLOOR_DB) / 60.0 * p.f("space", "reverb_decay_s"))
-        dl = p.f("space", "delay_mix")
-        if dl > 0:
-            tail = max(tail, echoes(float(lin_to_db(dl)), p.f("space", "delay_feedback"),
-                                    note_seconds(str(p.get("space", "delay_div")), bpm)))
         th = p.f("space", "throw_send")
         segs = [arr.seg_from(sg, i) for i, sg in enumerate(segments or [])]
         ends = [b for sg in segs for _, b in sg.throw_spans_src()]
         if th > 0 and ends:  # each echo of a thrown span ends one period later than the last
             lead = max(0.0, max(sg.end_s for sg in segs) - max(ends))
-            tail = max(tail, echoes(float(lin_to_db(th)) - 1.0, THROW_FEEDBACK, note_seconds("1/4d", bpm)) - lead)
+            tail = max(tail, _echoes(float(lin_to_db(th)) - 1.0, THROW_FEEDBACK, note_seconds("1/4d", bpm)) - lead)
     return min(MAX_TAIL_S, math.ceil(tail / 0.25 - 1e-9) * 0.25)
+
+
+def bed_span_s(p: Params, plan: arr.PlacementPlan, bpm: float) -> tuple[float, float] | None:
+    """Where the CRUSH radio bed sits on the output timeline (its squelch bursts sit at both edges); None when off.
+    It opens just before the first word and closes BED_POST_S after the speech -- sooner when the file is tight, so
+    its own reverb and echoes ring out inside the file (after DYNAMICS the bed sits nearly as loud as the voice), but
+    never before the last word ends -- and always stops BED_END_MARGIN_S before the file end. The bed never makes the
+    arrangement grow: the tail room is the voice's."""
+    if not ((p.on("crush") and p.f("crush", "noise_db") > -79.5) or (p.on("edit") and bool(p.get("edit", "squelch")))):
+        return None
+    start = max(0.0, plan.first_word_s - 0.12)
+    end = min(plan.speech_end_s + BED_POST_S, plan.length_s - max(space_ring_s(p, bpm), BED_END_MARGIN_S))
+    end = min(max(end, _voice_out(plan) or 0.0), plan.length_s - BED_END_MARGIN_S)
+    return round(start, 5), round(max(start, end), 5)
 
 
 def _motion(ctx: Ctx, p: Params, plan: arr.PlacementPlan, returns: np.ndarray, mix: np.ndarray, sr: int,
@@ -523,7 +549,7 @@ def _motion(ctx: Ctx, p: Params, plan: arr.PlacementPlan, returns: np.ndarray, m
     th = p.f("space", "throw_send") if space else 0.0
     data = MOT.compute(plan, returns=returns, mix=mix, sr=sr, f0=f0, frame_period_ms=period, bpm=bpm,
                        tape_beats=tape_beats, swell_beats=p.f("space", "swell_beats") if space else 0.0,
-                       squelch=p.on("edit") and bool(p.get("edit", "squelch")),
+                       squelch=p.on("edit") and bool(p.get("edit", "squelch")), bed=bed_span_s(p, plan, bpm),
                        throw_level_db=float(lin_to_db(th)) - 1.0 if th > 0 else None,
                        throw_period_s=note_seconds("1/4d", bpm))
     return {"motion": _MotionModel.model_validate(data) if _MotionModel is not None else data}
@@ -651,7 +677,8 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
     # --- inserts
     x, k = placed, k_place
     for module in ("drive", "crush", "tone", "motion", "dynamics"):
-        extra = p.module_params("edit") if module == "crush" else None
+        # the CRUSH bed's span also follows SPACE (it closes in time for its echoes to ring out)
+        extra = (p.module_params("edit"), bed_span_s(p, plan, a.bpm)) if module == "crush" else None
         k = stable_hash(module, k, p.module_params(module), extra)
         x = _timed(ctx, module, k, lambda m=module, xin=x: stage_inserts(ctx, p, m, xin, plan))
 

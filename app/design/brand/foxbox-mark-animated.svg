@@ -2,30 +2,25 @@
   <title>FoxBox</title>
   <!--
     Animated FoxBox mark for loading screens (boot, Setup, updater).
-    Intro (~1.3 s): a scan line locks the head in, the jaw rises into place, the eyes open.
-    Loop: the jaw "speaks" in short bursts, the eyes blink now and then, the glow breathes.
+    Intro (~1 s, once): the head rises in, the jaw settles into place, the eyes open. Expo-out easing, no overshoot.
+    Loop: a soft light sweep crosses the mark and the glow breathes, slowly. Nothing else moves.
     Colour follows `color` (currentColor); defaults to ember. prefers-reduced-motion shows the static mark.
   -->
   <style>
-    .fb-top    { transform-box: view-box; transform-origin: 256px 300px; animation: fb-in .55s cubic-bezier(.2,.8,.2,1) both; }
-    .fb-jaw    { transform-box: view-box; animation: fb-jaw-in .6s .25s cubic-bezier(.2,1.4,.4,1) both, fb-talk 3.2s 1.4s ease-in-out infinite; }
-    .fb-eye    { transform-box: fill-box; transform-origin: 50% 50%; animation: fb-eye-open .35s .85s cubic-bezier(.2,.8,.2,1) both, fb-blink 5.3s 2.6s infinite; }
-    .fb-glow   { animation: fb-glow 3.2s 1.4s ease-in-out infinite; }
-    .fb-scan   { animation: fb-scan 1.05s .05s cubic-bezier(.45,0,.2,1) both; }
-    @keyframes fb-in      { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
-    @keyframes fb-jaw-in  { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: none; } }
-    @keyframes fb-talk    { 0%, 34%, 100% { transform: none; }
-                            5%  { transform: translateY(9px); }   10% { transform: translateY(3px); }
-                            15% { transform: translateY(11px); }  21% { transform: translateY(2px); }
-                            27% { transform: translateY(7px); } }
-    @keyframes fb-eye-open { from { transform: scaleY(.08); } to { transform: none; } }
-    @keyframes fb-blink   { 0%, 94%, 100% { transform: none; } 96.5% { transform: scaleY(.08); } }
-    @keyframes fb-glow    { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255,75,43,.28)); }
-                            18% { filter: drop-shadow(0 0 22px rgba(255,75,43,.55)); } }
-    @keyframes fb-scan    { from { transform: translateY(-40px); opacity: 1; } 85% { opacity: 1; } to { transform: translateY(520px); opacity: 0; } }
+    .fb-top   { transform-box: view-box; animation: fb-rise .7s cubic-bezier(.16,1,.3,1) both; }
+    .fb-jaw   { transform-box: view-box; animation: fb-settle .7s .14s cubic-bezier(.16,1,.3,1) both; }
+    .fb-eye   { transform-box: fill-box; transform-origin: 50% 50%; animation: fb-open .5s .42s cubic-bezier(.16,1,.3,1) both; }
+    .fb-glow  { animation: fb-breathe 4.8s 1s ease-in-out infinite; }
+    .fb-sheen { animation: fb-sweep 4.8s 1.1s cubic-bezier(.45,0,.25,1) infinite both; }
+    @keyframes fb-rise    { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes fb-settle  { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+    @keyframes fb-open    { from { transform: scaleY(0); } to { transform: none; } }
+    @keyframes fb-breathe { 0%, 100% { filter: drop-shadow(0 0 10px rgba(255,75,43,.22)); }
+                            50% { filter: drop-shadow(0 0 18px rgba(255,75,43,.42)); } }
+    @keyframes fb-sweep   { 0% { transform: translateX(-420px); } 32%, 100% { transform: translateX(560px); } }
     @media (prefers-reduced-motion: reduce) {
-      .fb-top, .fb-jaw, .fb-eye, .fb-glow, .fb-scan { animation: none; }
-      .fb-scan { display: none; }
+      .fb-top, .fb-jaw, .fb-eye, .fb-glow { animation: none; }
+      .fb-sheen { display: none; }
     }
   </style>
   <defs>
@@ -40,9 +35,9 @@
     <clipPath id="fb-above"><path d="M0 0 H512 V298 H456 L256 410 L56 298 H0 Z"/></clipPath>
     <clipPath id="fb-below"><path d="M0 298 H56 L256 410 L456 298 H512 V512 H0 Z"/></clipPath>
     <clipPath id="fb-head"><path d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/></clipPath>
-    <linearGradient id="fb-scan-g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffb23e" stop-opacity="0"/>
-      <stop offset=".8" stop-color="#ffd9a0" stop-opacity=".95"/>
+    <linearGradient id="fb-sheen-g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".22"/>
       <stop offset="1" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
   </defs>
@@ -54,7 +49,7 @@
       <path fill="currentColor" mask="url(#fb-cut)" clip-path="url(#fb-below)" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
     </g>
   </g>
-  <g clip-path="url(#fb-head)" style="mix-blend-mode:screen">
-    <rect class="fb-scan" x="0" y="0" width="512" height="36" fill="url(#fb-scan-g)"/>
+  <g clip-path="url(#fb-head)" mask="url(#fb-cut)">
+    <g transform="rotate(18 256 256)"><rect class="fb-sheen" x="0" y="-80" width="150" height="680" fill="url(#fb-sheen-g)"/></g>
   </g>
 </svg>

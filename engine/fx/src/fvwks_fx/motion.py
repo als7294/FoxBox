@@ -28,10 +28,11 @@ def _b64(a: np.ndarray) -> str:
 
 
 def events(plan: PlacementPlan, *, bpm: float, tape_beats: float = 0.0, swell_beats: float = 0.0, squelch: bool = False,
-           throw_level_db: float | None = None, throw_period_s: float = 0.0, throw_feedback: float = 0.55
-           ) -> list[dict[str, Any]]:
+           throw_level_db: float | None = None, throw_period_s: float = 0.0, throw_feedback: float = 0.55,
+           bed: tuple[float, float] | None = None) -> list[dict[str, Any]]:
     """Exact output-timeline events from the plan, sorted: Beat-Locked chunk onsets, stutter slices, the tape-stop,
-    the reverse swell into the first word, each audible echo of a thrown span, the squelch bursts."""
+    the reverse swell into the first word, each audible echo of a thrown span, the squelch bursts (at the edges of
+    ``bed``, the CRUSH bed's span as the pipeline placed it; by default where an untightened bed would sit)."""
     beat = 60.0 / bpm
     ev: list[tuple[str, float, float]] = []
     for c, st in zip(plan.chunks, plan.starts_s):
@@ -54,8 +55,7 @@ def events(plan: PlacementPlan, *, bpm: float, tape_beats: float = 0.0, swell_be
                     ev.append(("throw_echo", a + k * throw_period_s, b - a))
                     k += 1
     if squelch:
-        start = max(0.0, plan.first_word_s - 0.12)
-        end = min(plan.length_s, plan.speech_end_s + 0.25)
+        start, end = bed or (max(0.0, plan.first_word_s - 0.12), min(plan.length_s, plan.speech_end_s + 0.25))
         ev += [("squelch", start, SQUELCH_S), ("squelch", max(start, end - SQUELCH_S), SQUELCH_S)]
     length = plan.length_s
     return [{"t": round(t, 4), "dur": round(max(0.0, min(d, length - t)), 4), "kind": k}
@@ -108,13 +108,14 @@ def pitch_track(plan: PlacementPlan, f0: np.ndarray, frame_period_ms: float, fra
 
 def compute(plan: PlacementPlan, *, returns: np.ndarray, mix: np.ndarray, sr: int, f0: np.ndarray | None,
             frame_period_ms: float, bpm: float, tape_beats: float = 0.0, swell_beats: float = 0.0,
-            squelch: bool = False, throw_level_db: float | None = None, throw_period_s: float = 0.0) -> dict[str, Any]:
+            squelch: bool = False, throw_level_db: float | None = None, throw_period_s: float = 0.0,
+            bed: tuple[float, float] | None = None) -> dict[str, Any]:
     """The ``Motion`` payload (proposal 10) for one render."""
     frames = n_frames(plan.length_s)
     return {
         "fps": FPS,
         "events": events(plan, bpm=bpm, tape_beats=tape_beats, swell_beats=swell_beats, squelch=squelch,
-                         throw_level_db=throw_level_db, throw_period_s=throw_period_s),
+                         throw_level_db=throw_level_db, throw_period_s=throw_period_s, bed=bed),
         "returns": level_track(returns, mix, sr, frames),
         "f0": pitch_track(plan, f0, frame_period_ms, frames) if f0 is not None else _b64(np.zeros(frames)),
     }

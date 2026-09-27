@@ -92,3 +92,18 @@ def test_silence_is_left_alone():
     x = np.zeros((2, 44100), np.float32)
     out, rep = MS.master(x, 44100, mode="club", n_out=44100)
     assert np.all(out == 0) and np.all(np.isfinite(out))
+
+
+@pytest.mark.parametrize("quality,mode", [("final", "club"), ("preview", "club"), ("final", "bake"), ("final", "custom")])
+def test_output_starts_and_ends_on_exact_silence(quality, mode):
+    # QA v1.0.0: a drop whose first word sits on sample 0 must not start (or end) on a click. The clip / limiter /
+    # resampler ring energy back onto the edges after the pre-chain fades, so the output edges are faded again.
+    sr = 48000
+    t = np.arange(int(1.5 * sr)) / sr
+    x = to_stereo((0.8 * np.sign(np.sin(2 * np.pi * 110 * t)) * np.exp(-t / 2.0)).astype(np.float32)[None, :])  # loud at t=0
+    y, rep = MS.master(x, sr, mode=mode, sr_out=44100, n_out=int(1.5 * 44100), fade_in_ms=2.0, fade_out_ms=30.0,
+                       quality=quality)
+    assert np.all(y[:, 0] == 0.0) and np.all(y[:, -1] == 0.0)
+    assert np.max(np.abs(y[:, :20])) < 0.01  # a 2 ms fade, not a step
+    if mode == "club":
+        assert MS.true_peak(y, 44100) <= -1.0 + 1e-6
