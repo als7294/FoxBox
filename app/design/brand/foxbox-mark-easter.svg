@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FoxBox" style="color:#ff4b2b">
+  <title>FoxBox</title>
+  <!--
+    Easter-egg FoxBox mark: looks like the static mark almost all the time. Once every 17 s it glances left,
+    then right, settles, and flicks its right ear twice (the ear tip moves; the head stays one shape, so there is no seam). Small, quick moves; the pauses do the work.
+    Colour follows `color` (currentColor). prefers-reduced-motion keeps it still.
+  -->
+  <style>
+    .fe-eye { transform-box: view-box; animation: fe-look 17s 3s cubic-bezier(.65,0,.35,1) infinite; }
+    .fe-head  { animation: fe-twitch 17s 3s ease-out infinite; }
+    .fe-inner { animation: fe-twitch-in 17s 3s ease-out infinite; }
+    @keyframes fe-look {
+      0%, 60%, 88%, 100% { transform: none; }
+      62.5%, 68%   { transform: translateX(-11px); }
+      71%, 77.5%   { transform: translateX(10px); }
+      80.5%        { transform: none; }
+    }
+    @keyframes fe-twitch {
+      0%, 83%, 100% { d: path("M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"); }
+      83.7% { d: path("M96 56 L204 172 L308 172 L431 70 L452 296 L256 470 L60 296 Z"); }
+      84.7% { d: path("M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"); }
+      85.5% { d: path("M96 56 L204 172 L308 172 L424 62 L452 296 L256 470 L60 296 Z"); }
+      86.6% { d: path("M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"); }
+    }
+    @keyframes fe-twitch-in {
+      0%, 83%, 100% { d: path("M400 104 L316 190 L382 222 Z"); }
+      83.7% { d: path("M412 116 L316 190 L382 222 Z"); }
+      84.7% { d: path("M400 104 L316 190 L382 222 Z"); }
+      85.5% { d: path("M406 109 L316 190 L382 222 Z"); }
+      86.6% { d: path("M400 104 L316 190 L382 222 Z"); }
+    }
+    @media (prefers-reduced-motion: reduce) { .fe-eye, .fe-head, .fe-inner { animation: none; } }
+  </style>
+  <defs>
+    <mask id="fe-cut" maskUnits="userSpaceOnUse" x="-64" y="-64" width="640" height="640">
+      <rect x="-64" y="-64" width="640" height="640" fill="#fff"/>
+      <path d="M112 104 L196 190 L130 222 Z" fill="#000"/>
+      <path class="fe-inner" d="M400 104 L316 190 L382 222 Z" fill="#000"/>
+      <g class="fe-eye">
+        <path d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000"/>
+        <path d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/>
+      </g>
+      <path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" stroke-width="28" stroke-linejoin="miter"/>
+    </mask>
+  </defs>
+  <path class="fe-head" fill="currentColor" mask="url(#fe-cut)" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+</svg>
