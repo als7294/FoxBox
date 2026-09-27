@@ -1,6 +1,7 @@
 """Model catalog and installer. No real downloads: the child process is replaced by small scripts."""
 
 import errno
+import sys
 import time
 from collections import namedtuple
 
@@ -325,3 +326,35 @@ def test_kokoro_loads_from_a_pinned_download_without_refs_main(tmp_path, monkeyp
     engine = KokoroEngine()
     assert engine.model_dir() == snap and engine.is_installed("am_fenrir")
     assert next(m for m in api.list_models() if m.id == "kokoro-82m").installed
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="APFS clones")
+def test_reuses_a_complete_copy_already_on_this_mac(tmp_path, monkeypatch):
+    from huggingface_hub import constants
+
+    ours, other = tmp_path / "ours", tmp_path / "other"
+    ours.mkdir()
+    monkeypatch.setattr(constants, "HF_HUB_CACHE", str(ours))
+    monkeypatch.setattr(models, "_other_caches", lambda: [other])
+    rev = "a" * 40
+    repo = models.Repo("org/tiny", rev, 11, ("config.json", "w/model.bin"))
+    spec = models.ModelSpec("tiny", "Tiny", "kokoro", False, "MIT", "", (repo,))
+    # Another cache holds the pinned snapshot in the hub's layout: blobs, and the snapshot's links to them.
+    blobs = other / "models--org--tiny" / "blobs"
+    snap = other / "models--org--tiny" / "snapshots" / rev
+    blobs.mkdir(parents=True)
+    (snap / "w").mkdir(parents=True)
+    (blobs / "h1").write_bytes(b"{}{}{}")
+    (blobs / "h2").write_bytes(b"1234")  # short: the sizes don't add up to the pin
+    (snap / "config.json").symlink_to("../../blobs/h1")
+    (snap / "w" / "model.bin").symlink_to("../../../blobs/h2")
+    assert models.repo_dir(repo) is None  # not trusted: it downloads as before
+    (blobs / "h2").write_bytes(b"12345")
+
+    said = []
+    models.install(spec, lambda fraction, message: said.append(message))
+    assert said == ["Found Tiny on this Mac."]  # cloned, nothing downloaded
+    found = models.repo_dir(repo)
+    assert found == ours / "models--org--tiny" / "snapshots" / rev
+    assert (found / "w" / "model.bin").read_bytes() == b"12345"
+    assert (found / "config.json").is_symlink() and (ours / "models--org--tiny" / "blobs" / "h1").is_file()

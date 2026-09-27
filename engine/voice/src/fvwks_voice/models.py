@@ -7,7 +7,9 @@
   (describe a voice) and Base 1.7B (clone the chosen candidate for every line). The id matches the server's
   fallback list and the app's VOICES screen, which gates the designer on the first `engine == "qwen3"` model.
 
-Revisions are pinned, so an install is reproducible and ENGINE_VERSION means something.
+Revisions are pinned, so an install is reproducible and ENGINE_VERSION means something. A pinned snapshot that is
+already complete elsewhere on this Mac (the standard Hugging Face cache, another FoxBox data dir) is cloned into ours
+(APFS clones: instant, no extra disk) instead of downloaded again.
 Downloads run in a child process: a cancel really stops the transfer (a thread can't be killed), and the
 partial files stay in the Hugging Face cache, so the next install resumes where it stopped.
 
@@ -73,7 +75,7 @@ class ModelSpec:
 
 
 KOKORO_REPO = Repo(
-    "mlx-community/Kokoro-82M-bf16", "a71e4d38b236d968966a2002c4c895dbd12b1c3c", 356_398_294,
+    "mlx-community/Kokoro-82M-bf16", "a71e4d38b236d968966a2002c4c895dbd12b1c3c", 341_742_463,
     ("config.json", "kokoro-v1_0.safetensors", "voices/am_fenrir.safetensors", "voices/bm_george.safetensors"),
     ("config.json", "kokoro-v1_0.safetensors", "voices/a*.safetensors", "voices/b*.safetensors"))
 QWEN3_FILES = ("config.json", "model.safetensors", "speech_tokenizer/model.safetensors")
@@ -120,15 +122,112 @@ def _cache_root() -> Path:
     return Path(constants.HF_HUB_CACHE)
 
 
-def repo_dir(repo: Repo) -> Path | None:
-    """The folder holding the first required file (usually the snapshot root) when every required file is cached
-    (no network)."""
+def _cached_dir(repo: Repo) -> Path | None:
     from huggingface_hub import try_to_load_from_cache
 
     found = [try_to_load_from_cache(repo.repo_id, f, revision=repo.revision) for f in repo.required_files]
     if not all(isinstance(p, str) and Path(p).exists() for p in found):
         return None
     return Path(found[0]).parent
+
+
+def repo_dir(repo: Repo) -> Path | None:
+    """The folder holding the first required file (usually the snapshot root) when every required file is cached
+    (no network). A complete copy elsewhere on this Mac is cloned in first (see _adopt)."""
+    found = _cached_dir(repo)
+    if found is None and _adopt(repo):
+        found = _cached_dir(repo)
+    return found
+
+
+# -- reuse what this Mac already has (1.1.1) ------------------------------------------------------------
+def _other_caches() -> list[Path]:
+    """Hugging Face hub caches on this Mac besides ours: the standard one (and $HF_HUB_CACHE / $HF_HOME) and the
+    other FoxBox data dirs' (<data>/models/hub)."""
+    home = Path.home()
+    places = [Path(p) for p in (os.environ.get("HF_HUB_CACHE"),) if p]
+    if os.environ.get("HF_HOME"):
+        places.append(Path(os.environ["HF_HOME"]) / "hub")
+    places.append(home / ".cache" / "huggingface" / "hub")
+    places += sorted((home / "Library" / "Application Support").glob("FoxBox*/models/hub"))
+    ours = _cache_root().resolve()
+    out: list[Path] = []
+    for p in places:
+        try:
+            p = p.resolve()
+        except OSError:
+            continue
+        if p != ours and p.is_dir() and p not in out:
+            out.append(p)
+    return out
+
+
+def _complete_snapshot(cache: Path, repo: Repo) -> dict[str, Path] | None:
+    """The pinned snapshot's files in `cache` (path in the repo → file) when it is complete: every required file is
+    there, and the files the install would download add up to exactly the pinned size."""
+    snap = cache / f"models--{repo.repo_id.replace('/', '--')}" / "snapshots" / repo.revision
+    if not snap.is_dir():
+        return None
+    files: dict[str, Path] = {}
+    total = 0
+    try:
+        for p in snap.rglob("*"):
+            name = p.relative_to(snap).as_posix()
+            if not p.is_file() or (repo.allow_patterns and not any(fnmatch(name, pat) for pat in repo.allow_patterns)):
+                continue  # folders, broken links (a blob that never finished), files the install doesn't fetch
+            total += p.stat().st_size
+            files[name] = p
+    except OSError:
+        return None
+    if total != repo.size_bytes or not all(f in files for f in repo.required_files):
+        return None
+    return files
+
+
+def _clone(src: Path, dst: Path) -> None:
+    """An APFS clone: nothing is copied and no disk is used until one side changes. Raises where it can't clone
+    (another volume, another file system)."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["cp", "-c", str(src), str(dst)], check=True, capture_output=True)
+
+
+def _adopt(repo: Repo) -> bool:
+    """Clone a complete copy of the pinned snapshot from another cache on this Mac into ours, in the hub's layout
+    (blobs, and the snapshot's links to them), so the pinned revision resolves without a download. False, leaving
+    nothing behind, when there is no complete copy or it can't be cloned (then it downloads as before)."""
+    if sys.platform != "darwin":
+        return False
+    with _lock:
+        for other in _other_caches():
+            files = _complete_snapshot(other, repo)
+            if files is None:
+                continue
+            ours = _cache_root() / f"models--{repo.repo_id.replace('/', '--')}"
+            snap = ours / "snapshots" / repo.revision
+            made: list[Path] = []
+            try:
+                for name, src in files.items():
+                    dst = snap / name
+                    if dst.exists():
+                        continue
+                    if dst.is_symlink():
+                        dst.unlink()  # a link to a blob that never finished
+                    real = src.resolve()
+                    if src.is_symlink() and real.parent.name == "blobs":
+                        blob = ours / "blobs" / real.name
+                        if not blob.exists():
+                            _clone(real, blob)
+                            made.append(blob)
+                        dst.parent.mkdir(parents=True, exist_ok=True)
+                        dst.symlink_to(os.path.relpath(blob, dst.parent))
+                    else:
+                        _clone(real, dst)
+                    made.append(dst)
+                return True
+            except (OSError, subprocess.CalledProcessError):
+                for p in reversed(made):
+                    p.unlink(missing_ok=True)
+    return False
 
 
 # -- which revision is in use ---------------------------------------------------------------------
@@ -336,11 +435,17 @@ def install(spec: ModelSpec, progress: Progress | None = None, *, poll_s: float 
     until the new one is complete."""
     report = _reporter(progress)
     new = target(spec)
+    found = [r for r in new.repos if _cached_dir(r) is None and _adopt(r)]
     missing = [r for r in new.repos if repo_dir(r) is None]
     total = new.size_bytes
     if not missing:
-        report(1.0, f"{spec.name} is installed.", bytes_done=total, bytes_total=total, current_item=None)
+        message = f"Found {spec.name} on this Mac." if found else f"{spec.name} is installed."
+        report(1.0, message, bytes_done=total, bytes_total=total, current_item=None)
         return
+    if found:
+        done = sum(r.size_bytes for r in found)
+        report(done / total, f"Found part of {spec.name} on this Mac.", bytes_done=done, bytes_total=total,
+               current_item=None)
     base = MODELS.get(spec.id, spec)
     if new != base:
         check_update(base, new, hub)

@@ -88,7 +88,7 @@ class KokoroEngine:
         return voice is None or (d / "voices" / f"{voice}.safetensors").exists()
 
     def install(self, progress: Callable[[float], None] | None = None) -> Path:
-        """Download the pinned model and the English voices (~356 MB), as the engine's installer does. Only needed on
+        """Download the pinned model and the English voices (~342 MB), as the engine's installer does. Only needed on
         a fresh machine."""
         models.install(models.KOKORO, (lambda fraction, message: progress(fraction or 0.0)) if progress else None)
         self._dir = None
