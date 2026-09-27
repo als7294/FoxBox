@@ -1,4 +1,7 @@
-// electron-builder config (used by scripts/package.mjs). `--mac dir` → release/mac-arm64/FoxBox.app
+// electron-builder config (used by scripts/package.mjs): release/mac-arm64/FoxBox.app, and with --dmg
+// release/FoxBox-<version>-arm64.dmg (the note in build-resources/ rides along in the disk image).
+const { join } = require('node:path')
+
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId: 'com.smittytech.foxbox',
@@ -19,6 +22,7 @@ module.exports = {
   },
   mac: {
     target: [{ target: 'dir', arch: ['arm64'] }],
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     category: 'public.app-category.music',
     // The FoxBox app icon (design/brand/foxbox-icon-1024.png, built into an .icns with iconutil).
     icon: 'build-resources/icon.icns',
@@ -33,5 +37,20 @@ module.exports = {
       // The engine's wheels (mlx, mlx-metal, numpy, scipy) are macosx_14_0_arm64: macOS 14 on Apple silicon only.
       LSMinimumSystemVersion: '14.0',
     },
+  },
+  // The branded install window (design/brand/dmg-background*.png as one HiDPI TIFF, built with tiffutil): the app and
+  // the Applications link sit on the art's dashed slots; the first-open steps are printed on it, so the note file
+  // sits below the visible window for anyone who scrolls.
+  dmg: {
+    title: '${productName} ${version}',
+    icon: 'build-resources/icon.icns',
+    background: 'build-resources/dmg-background.tiff',
+    window: { width: 660, height: 420 },
+    iconSize: 128,
+    contents: [
+      { x: 180, y: 205, type: 'file' },
+      { x: 480, y: 205, type: 'link', path: '/Applications' },
+      { x: 330, y: 560, type: 'file', path: join(__dirname, 'build-resources', 'Open FoxBox.txt') },
+    ],
   },
 }

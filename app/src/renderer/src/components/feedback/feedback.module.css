@@ -409,6 +409,17 @@
   overflow: hidden;
   cursor: default;
 }
+/* Behind everything on the boot screen: seamless loops (still under reduced motion), never over the text. */
+.bootBg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.2;
+  pointer-events: none;
+  user-select: none;
+}
 .bootCv {
   position: absolute;
   inset: 0;
@@ -619,6 +630,10 @@
 .bootHeadMark {
   flex: none;
   align-self: center;
+  /* The fox dominates the lockup: ~1.6x the wordmark's cap height (the title is clamp(72px, 5.8cqw, 88px)), 28 px apart. */
+  width: calc(clamp(72px, 5.8cqw, 88px) * 1.15);
+  height: calc(clamp(72px, 5.8cqw, 88px) * 1.15);
+  margin-right: 10px;
   color: var(--vb-accent);
   filter: drop-shadow(0 0 calc(14px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.45));
 }

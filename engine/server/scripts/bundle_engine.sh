@@ -77,7 +77,8 @@ chmod +x "$OUT/bin/fvwks-engine"
 
 echo "==> smoke test"
 "$OUT/bin/fvwks-engine" --version
-"$OUT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, mutagen, soundfile'
+"$OUT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, mutagen, soundfile
+from fvwks_server.writer import cover_art; cover_art()  # package data (the AIFF cover art) is in'
 {
   echo "fvwks-engine bundle"
   echo "built:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"

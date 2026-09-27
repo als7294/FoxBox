@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import type { UpdateState } from '@shared/bridge'
 import { CreditLink } from '@/components/common/CreditLink'
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
@@ -13,12 +14,15 @@ import { Panel, Screen, ScreenHeader } from '@/components/layout/Screen'
 import { orderPresets } from '@/components/rack/PresetStrip'
 import { Segmented } from '@/components/rack/Segmented'
 import { Switch } from '@/components/rack/Switch'
+import { agoText, errorText } from '@/components/updates/format'
+import { laterId, useUpdates } from '@/components/updates/useUpdates'
 import { bridge } from '@/env'
 import { formatBytes, LOW_DISK_BYTES } from '@/lib/format'
 import { KEY_OPTIONS } from '@/lib/keys'
 import { engineHealth, engineView, isEngineUsable, useEngine, type EngineView } from '@/state/engine'
 import { PLACEHOLDER_SCRIPT, studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
+import { useUi } from '@/state/ui'
 import styles from './settings.module.css'
 
 type Rekordbox = NonNullable<Settings['rekordbox']>
@@ -750,6 +754,202 @@ function EngineCard() {
   )
 }
 
+type UpdateTone = 'ok' | 'new' | 'bad' | 'busy'
+
+/** The last check's answer, or what the update is doing now (the bar under the top bar has the actions). */
+function updateResult(s: UpdateState): { text: string; tone: UpdateTone } | null {
+  const v = s.latest ?? 'update'
+  switch (s.phase) {
+    case 'checking':
+      return { text: 'Checking…', tone: 'busy' }
+    case 'up-to-date':
+      return { text: 'Up to date', tone: 'ok' }
+    case 'available':
+      return { text: `${v} available`, tone: 'new' }
+    case 'downloading':
+      return { text: `Downloading ${v}…`, tone: 'busy' }
+    case 'verifying':
+      return { text: `Verifying ${v}…`, tone: 'busy' }
+    case 'ready':
+      return { text: `${v} is ready: restart to update`, tone: 'new' }
+    case 'installing':
+      return { text: 'Restarting…', tone: 'busy' }
+    case 'error':
+      if (s.error?.during === 'check') return { text: s.error.message, tone: 'bad' }
+      return s.latest ? { text: `${s.latest} available`, tone: 'new' } : null
+    default:
+      return null
+  }
+}
+
+/** Phases a check can start from (main ignores the request otherwise). */
+const CAN_CHECK: readonly UpdateState['phase'][] = ['idle', 'up-to-date', 'error', 'available']
+
+/** SETTINGS → UPDATES (desktop app only): the version, checks, the update source and an optional GitHub token. */
+export function UpdatesCard() {
+  const { updates, state: s, apply } = useUpdates()
+  const undismiss = useUi((u) => u.undismiss)
+  const tokenId = useId()
+  const [asking, setAsking] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const [token, setToken] = useState('')
+  const [tokenError, setTokenError] = useState<string | null>(null)
+  const [savingToken, setSavingToken] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(t)
+  }, [])
+  if (!updates || !s) return null
+
+  const checkNow = async () => {
+    setAsking(true)
+    setCheckError(null)
+    try {
+      const next = await updates.check()
+      apply(next)
+      setNow(Date.now())
+      // Asking again brings back a bar hidden with "Later".
+      if (next.latest) undismiss(laterId(next.latest))
+    } catch (err) {
+      setCheckError(errorText(err))
+    } finally {
+      setAsking(false)
+    }
+  }
+  const saveToken = async () => {
+    const value = token.trim()
+    if (!value) return
+    setSavingToken(true)
+    setTokenError(null)
+    try {
+      apply(await updates.setToken(value))
+      setToken('')
+    } catch (err) {
+      setTokenError(errorText(err))
+    } finally {
+      setSavingToken(false)
+    }
+  }
+  const removeToken = async () => {
+    setTokenError(null)
+    try {
+      apply(await updates.setToken(null))
+    } catch (err) {
+      setTokenError(errorText(err))
+    }
+  }
+  const result = asking
+    ? { text: 'Checking…', tone: 'busy' as const }
+    : checkError
+      ? { text: checkError, tone: 'bad' as const }
+      : updateResult(s)
+  const source = s.feedIsDefault ? 'GitHub releases (default)' : (s.feedUrl ?? '')
+  return (
+    <Card title="Updates" area="updates">
+      <div className={styles.updGrid}>
+        <div className={styles.updCol}>
+          <p className={styles.updFacts}>
+            <span>v{s.current}</span>
+            <span>Last checked: {agoText(s.lastChecked, now)}</span>
+          </p>
+          <div className={styles.updRow}>
+            <Button size="sm" disabled={asking || !CAN_CHECK.includes(s.phase)} onClick={() => void checkNow()}>
+              Check now
+            </Button>
+            <span className={styles.updResult} role="status" data-tone={result?.tone} title={result?.text}>
+              {result?.text}
+            </span>
+          </div>
+        </div>
+        <div className={styles.updCol}>
+          <Switch
+            row
+            label="Check automatically"
+            checked={s.checkAutomatically}
+            onChange={(on) =>
+              void updates.setCheckAutomatically(on).then(apply, (err: unknown) => toast.error('SETTING NOT SAVED', { detail: errorText(err) }))
+            }
+          />
+          <div className={common.field}>
+            <span className={common.fieldLabel}>Source</span>
+            <div className={styles.updRow}>
+              <span className={styles.updValue} title={s.feedIsDefault ? s.defaultFeedUrl : source}>
+                {source}
+              </span>
+              {!s.feedIsDefault && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    void updates.setFeedUrl(null).then(apply, (err: unknown) => toast.error('SOURCE NOT CHANGED', { detail: errorText(err) }))
+                  }
+                >
+                  Use default
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <form
+          className={common.field}
+          data-invalid={tokenError ? true : undefined}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void saveToken()
+          }}
+        >
+          {s.hasToken ? (
+            <>
+              <span className={common.fieldLabel}>GitHub token (private repo)</span>
+              <div className={styles.updRow}>
+                <span className={styles.updValue} data-tone="ok">
+                  Token saved
+                </span>
+                <Button size="sm" variant="ghost" aria-label="Remove GitHub token" onClick={() => void removeToken()}>
+                  Remove
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <label htmlFor={tokenId} className={common.fieldLabel}>
+                GitHub token (private repo)
+              </label>
+              <span className={common.pathRow}>
+                <input
+                  id={tokenId}
+                  type="password"
+                  className={common.input}
+                  data-mono
+                  value={token}
+                  placeholder="Optional · ghp_… or github_pat_…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={tokenError ? true : undefined}
+                  aria-describedby={tokenError ? `${tokenId}-err` : undefined}
+                  onChange={(e) => {
+                    setToken(e.target.value)
+                    setTokenError(null)
+                  }}
+                />
+                <button type="submit" className={common.pathBtn} aria-label="Save GitHub token" disabled={!token.trim() || savingToken}>
+                  SAVE
+                </button>
+              </span>
+            </>
+          )}
+          {tokenError && (
+            <span id={`${tokenId}-err`} className={common.fieldError} role="alert">
+              ⚠ {tokenError}
+            </span>
+          )}
+        </form>
+      </div>
+    </Card>
+  )
+}
+
 /** Stand-in for an engine-backed card while settings load (or the engine is away). */
 function Waiting({ title, area, message, onRetry }: { title: string; area: string; message: string; onRetry?: () => void }) {
   return (
@@ -822,6 +1022,7 @@ export function SettingsScreen() {
         )}
         <AudioOutputCard />
         <EngineCard />
+        <UpdatesCard />
       </div>
       <footer className={styles.foot}>
         <CreditLink />

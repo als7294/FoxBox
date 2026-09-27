@@ -27,7 +27,15 @@ export const handlers = [
   http.get(`${API}/rack`, () => HttpResponse.json(engine.rack())),
   http.get(`${API}/voices`, () => HttpResponse.json(engine.voices())),
   http.get(`${API}/models`, () => HttpResponse.json(engine.models())),
-  http.post(`${API}/models/:modelId/install`, () => HttpResponse.json(engine.failedJob('model_install', 'not_available', 'Model installs are not available in the mock engine.'))),
+  // A simulated download (bytes, rate, ETA, verify, cancel with resume): see mocks/installSim.ts.
+  http.post(
+    `${API}/models/:modelId/install`,
+    safe(({ params }) => {
+      const job = engine.installer.install(String(params.modelId))
+      if (!job) throw new MockError(404, 'not_found', `model '${String(params.modelId)}' not found`)
+      return HttpResponse.json(job)
+    }),
+  ),
   http.get(`${API}/jobs/:jobId`, safe(({ params }) => HttpResponse.json(engine.job(String(params.jobId))))),
   http.post(
     `${API}/jobs/:jobId/cancel`,

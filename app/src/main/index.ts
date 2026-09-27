@@ -6,6 +6,7 @@ import {
   Menu,
   nativeImage,
   protocol,
+  safeStorage,
   session,
   shell,
   systemPreferences,
@@ -14,7 +15,7 @@ import {
   type NativeImage,
 } from 'electron'
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,14 +26,27 @@ import {
   type EngineResponse,
   type EngineStatus,
   type MicAccess,
+  type SetupCompleteResult,
+  type SetupInfo,
+  type UpdateState,
 } from '../shared/bridge'
-import { resolveEngineLaunch } from './engine/command'
+import {
+  bundledEngineDir,
+  bundledModelsDir,
+  clearEngineQuarantine,
+  isTranslocated,
+  MOVE_TO_APPLICATIONS,
+  resolveEngineLaunch,
+  type QuarantineResult,
+} from './engine/command'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
 import { ExportGuard } from './exportGuard'
 import { buildMenu } from './menu'
 import { cartridgePng } from './png'
+import { hasSetupMarker, requiredMissing, shouldShowSetup, writeSetupMarker } from './setup'
+import { Updater } from './updater'
 
 // Dev only: a packaged app launched with FVWKS_MOCK must never silently talk to mocks and play fake audio.
 const MOCK = process.env.FVWKS_MOCK === '1' && !app.isPackaged
@@ -67,6 +81,20 @@ const ENGINE_DIR = resolve(
   (!app.isPackaged && process.env.FVWKS_ENGINE_DIR) || linkedEngineDir() || join(app.getAppPath(), app.isPackaged ? '../../../engine' : '../engine'),
 )
 const DEV_DATA = join(ENGINE_DIR, '..', '.devdata')
+// Builds for fresh Macs carry the engine inside the app (Contents/Resources/engine, from bundle_engine.sh). Only a
+// packaged app looks for it; linked and development builds run ENGINE_DIR as before.
+const BUNDLED_ENGINE = app.isPackaged ? bundledEngineDir(process.resourcesPath) : null
+// Opened straight from Downloads or the disk image: macOS runs a read-only copy. Setup asks to move the app first.
+const TRANSLOCATED = app.isPackaged && isTranslocated(process.execPath)
+// The bundled engine's quarantine is cleared once per launch. Setup asks for the same answer: a copy that is
+// read-only and still quarantined can't start the engine, so it says to move the app, as for a translocated one.
+let quarantineCheck: Promise<QuarantineResult> | null = null
+function engineQuarantine(): Promise<QuarantineResult> {
+  quarantineCheck ??= BUNDLED_ENGINE
+    ? clearEngineQuarantine(BUNDLED_ENGINE, { within: process.resourcesPath, log: (line) => log(`engine: ${line}`) })
+    : Promise.resolve('skipped')
+  return quarantineCheck
+}
 
 const USER_DATA_OVERRIDE = devEnv('FVWKS_USER_DATA_DIR')
 if (USER_DATA_OVERRIDE) app.setPath('userData', resolve(USER_DATA_OVERRIDE))
@@ -96,6 +124,9 @@ const token = randomBytes(32).toString('base64url')
 let supervisor: EngineSupervisor | null = null
 let offlineReason: string | null = null
 let mainWindow: BrowserWindow | null = null
+/** The first-run Setup window (900×620), open instead of the main window until setup completes. */
+let setupWindow: BrowserWindow | null = null
+let updater: Updater | null = null
 let quitting = false
 let cachedIcon: NativeImage | null = null
 let lastState: EngineStatus['state'] | null = null
@@ -150,6 +181,27 @@ function trusted(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return ok
 }
 
+/**
+ * The optional GitHub token for a private releases repo, encrypted with safeStorage (a Keychain-held key) in
+ * userData. Never logged, never sent to the renderer; the updater sends it to api.github.com only.
+ */
+function githubTokenStore(file: string): { load(): string | null; save(token: string | null): void } {
+  return {
+    load() {
+      if (!existsSync(file) || !safeStorage.isEncryptionAvailable()) return null
+      return safeStorage.decryptString(readFileSync(file)) || null
+    },
+    save(token) {
+      if (token === null) {
+        rmSync(file, { force: true })
+        return
+      }
+      if (!safeStorage.isEncryptionAvailable()) throw new Error("The macOS Keychain isn't available, so the token can't be stored safely.")
+      writeFileSync(file, safeStorage.encryptString(token), { mode: 0o600 })
+    },
+  }
+}
+
 function dragIcon(): NativeImage {
   if (!cachedIcon || cachedIcon.isEmpty()) cachedIcon = nativeImage.createFromBuffer(cartridgePng(64), { scaleFactor: 2 })
   return cachedIcon
@@ -161,6 +213,14 @@ function dragIcon(): NativeImage {
 function sendToRenderer(channel: string, payload: unknown): void {
   const wc = mainWindow?.webContents
   if (wc && !wc.isDestroyed()) wc.send(channel, payload)
+}
+
+/** Engine status and update state go to every app window (the Setup window watches the engine too). */
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of [mainWindow, setupWindow]) {
+    const wc = win?.webContents
+    if (wc && !wc.isDestroyed()) wc.send(channel, payload)
+  }
 }
 
 function createWindow(): void {
@@ -191,6 +251,125 @@ function createWindow(): void {
   })
   if (RENDERER_URL) void win.loadURL(RENDERER_URL)
   else void win.loadFile(join(RENDERER_DIR, 'index.html'))
+}
+
+/**
+ * First-run Setup: the same renderer bundle and preload, `index.html?window=setup`. It watches the engine (which
+ * starts as usual and installs the required models), offers the optional ones, and hands over to the main window
+ * through IPC.setupComplete. Closing it before that quits the app; setup resumes on the next launch.
+ */
+function createSetupWindow(): void {
+  const win = new BrowserWindow({
+    width: 900,
+    height: 620,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: false,
+    title: 'FoxBox Setup',
+    backgroundColor: '#0b0b0c',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 18 },
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      spellcheck: false,
+    },
+  })
+  setupWindow = win
+  win.once('ready-to-show', () => win.show())
+  win.on('closed', () => {
+    if (setupWindow === win) setupWindow = null
+  })
+  if (RENDERER_URL) {
+    const url = new URL(RENDERER_URL)
+    url.searchParams.set('window', 'setup')
+    void win.loadURL(url.toString())
+  } else {
+    void win.loadFile(join(RENDERER_DIR, 'index.html'), { query: { window: 'setup' } })
+  }
+}
+
+/** Required models still missing, per the engine itself (so the marker is only written once they're installed). */
+async function setupCheck(): Promise<{ missing: string[]; healthState: string | null; error: string | null }> {
+  if (!supervisor?.isReady) return { missing: [], healthState: null, error: 'The engine is not running yet.' }
+  try {
+    const missing = requiredMissing(await supervisor.getJson('/api/models', 15_000))
+    if (!missing) return { missing: [], healthState: null, error: 'The engine answered with an unexpected model list.' }
+    const health = (await supervisor.getJson('/api/health', 5_000).catch(() => null)) as { state?: unknown } | null
+    return { missing, healthState: typeof health?.state === 'string' ? health.state : null, error: null }
+  } catch (err) {
+    return { missing: [], healthState: null, error: `The engine did not answer: ${(err as Error).message}` }
+  }
+}
+
+/** A native yes/no the renderer can't answer for the user (update source changes, installing an update). */
+async function confirmDialog(o: { message: string; detail: string; ok: string }): Promise<boolean> {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow
+  const options: Electron.MessageBoxOptions = {
+    type: 'question',
+    buttons: [o.ok, 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+    message: o.message,
+    detail: o.detail,
+  }
+  const result = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+  return result.response === 0
+}
+
+/** The running .app (…/FoxBox.app/Contents/MacOS/FoxBox → the bundle). */
+function runningAppBundle(): string | null {
+  const bundle = resolve(process.execPath, '..', '..', '..')
+  return bundle.endsWith('.app') ? bundle : null
+}
+
+/** App updates come from the feed address the user sets in SETTINGS → UPDATES; there is no built-in host. */
+function createUpdater(): Updater {
+  const u = new Updater({
+    currentVersion: app.getVersion(),
+    userData: USER_DATA,
+    packaged: app.isPackaged,
+    appBundle: app.isPackaged ? runningAppBundle() : null,
+    log: (line) => log(`updates: ${line}`),
+    confirmFeed: (url) =>
+      confirmDialog({
+        message: 'Get FoxBox updates from this address?',
+        detail: `${url}\n\nUpdates are downloaded from here and verified (SHA-256, bundle id, version, code signature) before they can install.`,
+        ok: 'Use this address',
+      }),
+    confirmInstall: ({ version, host }) =>
+      confirmDialog({
+        message: `Restart to update to FoxBox ${version}?`,
+        detail: `Downloaded from ${host} and verified. FoxBox quits, replaces itself and reopens. The current version is kept until the new one has started.`,
+        ok: 'Restart to update',
+      }),
+    // The engine runs from inside the app bundle: stop it before the bundle moves, start it again if the swap failed.
+    beforeSwap: async () => {
+      await supervisor?.stop()
+    },
+    afterFailedSwap: async () => {
+      await supervisor?.start()
+    },
+    // The new app's engine came out of a downloaded archive: clear its quarantine before it first launches.
+    afterSwap: async (appPath) => {
+      const resources = join(appPath, 'Contents', 'Resources')
+      const dir = bundledEngineDir(resources)
+      if (dir) await clearEngineQuarantine(dir, { within: resources, log: (line) => log(`updates: ${line}`) })
+    },
+    relaunch: () => {
+      quitting = true
+      app.relaunch()
+      app.exit(0)
+    },
+    tokenStore: githubTokenStore(join(USER_DATA, 'updates-token.bin')),
+  })
+  u.on('state', (state) => broadcast(IPC.updatesState, state))
+  return u
 }
 
 /** The only sites a link in the app may open in the browser (the uv install hint). */
@@ -398,6 +577,68 @@ function registerIpc(): void {
   ipcMain.handle(IPC.openLogs, async (event) => {
     if (trusted(event)) await shell.openPath(LOG_DIR)
   })
+
+  // First-run Setup -------------------------------------------------------------------------
+  ipcMain.handle(IPC.setupInfo, async (event): Promise<SetupInfo | null> => {
+    if (!trusted(event)) return null
+    return {
+      bundled: Boolean(BUNDLED_ENGINE),
+      modelsDir: BUNDLED_ENGINE ? bundledModelsDir(DATA_DIR) : process.env.HF_HOME || join(homedir(), '.cache', 'huggingface'),
+      dataDir: DATA_DIR,
+      home: homedir(),
+      // Both mean "Move FoxBox to Applications, then open it again".
+      translocated: TRANSLOCATED || (await engineQuarantine()) === 'blocked',
+    }
+  })
+
+  ipcMain.handle(IPC.setupComplete, async (event): Promise<SetupCompleteResult> => {
+    const setup = setupWindow
+    if (!trusted(event) || !setup || event.sender !== setup.webContents) return { ok: false, error: 'Refused.' }
+    let restartEngine = false
+    if (!MOCK) {
+      const check = await setupCheck()
+      if (check.error) return { ok: false, error: check.error }
+      if (check.missing.length) return { ok: false, error: `Still installing: ${check.missing.join(', ')}.`, missing: check.missing }
+      // A first-run download that failed and was retried leaves the engine reporting that error until it restarts.
+      restartEngine = check.healthState === 'error'
+    }
+    try {
+      writeSetupMarker(USER_DATA, { version: app.getVersion(), bundled: Boolean(BUNDLED_ENGINE) })
+    } catch (err) {
+      log(`setup marker not written: ${(err as Error).message}`)
+      return { ok: false, error: `Could not save the setup state: ${(err as Error).message}` }
+    }
+    log(`setup complete; opening the studio${restartEngine ? ' (restarting the engine to load the new models)' : ''}`)
+    if (restartEngine) void supervisor?.restart()
+    if (!mainWindow) createWindow()
+    setup.close()
+    return { ok: true }
+  })
+
+  // App updates (all network and file work happens in the Updater) ---------------------------
+  const updates = (channel: string, fn: (u: Updater, arg: unknown) => Promise<UpdateState> | UpdateState) =>
+    ipcMain.handle(channel, async (event, arg: unknown) => {
+      if (!trusted(event) || !updater) throw new Error('Refused.')
+      return fn(updater, arg)
+    })
+  updates(IPC.updatesGet, (u) => u.getState())
+  updates(IPC.updatesCheck, (u) => u.check())
+  updates(IPC.updatesDownload, (u) => u.download())
+  updates(IPC.updatesCancel, (u) => u.cancel())
+  updates(IPC.updatesInstall, (u) => u.install())
+  updates(IPC.updatesSetFeed, (u, url) => {
+    if (url !== null && typeof url !== 'string') throw new Error('The feed address must be text.')
+    return u.setFeedUrl(url)
+  })
+  updates(IPC.updatesSetToken, (u, token) => {
+    if (token !== null && typeof token !== 'string') throw new Error('The token must be text.')
+    return u.setToken(token)
+  })
+  updates(IPC.updatesSetAuto, (u, on) => {
+    if (typeof on !== 'boolean') throw new Error('Expected true or false.')
+    return u.setCheckAutomatically(on)
+  })
+  updates(IPC.updatesDismissWhatsNew, (u) => u.dismissWhatsNew())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -410,15 +651,29 @@ async function startEngine(): Promise<void> {
   }
   let launch
   try {
-    launch = resolveEngineLaunch({ env: process.env, engineDir: ENGINE_DIR, exportDir: EXPORT_DIR, allowOverrides: !app.isPackaged })
+    launch = resolveEngineLaunch({
+      env: process.env,
+      engineDir: ENGINE_DIR,
+      exportDir: EXPORT_DIR,
+      allowOverrides: !app.isPackaged,
+      bundle: BUNDLED_ENGINE ? { dir: BUNDLED_ENGINE, dataDir: DATA_DIR } : null,
+    })
   } catch (err) {
     offlineReason = (err as Error).message
     log(`engine: ${offlineReason}`)
-    sendToRenderer(IPC.engineStatus, engineStatus())
+    broadcast(IPC.engineStatus, engineStatus())
     return
   }
   offlineReason = null
   log(`engine: ${launch.describe} (data ${DATA_DIR}, exports ${EXPORT_DIR})`)
+  // A downloaded DMG quarantines the bundled Python; Gatekeeper may refuse to exec it from our child process.
+  if ((await engineQuarantine()) === 'blocked') {
+    // Launching would bring up a Gatekeeper dialog for each of the engine's libraries: ask for the move instead.
+    offlineReason = MOVE_TO_APPLICATIONS
+    log(`engine: not started: ${offlineReason}`)
+    broadcast(IPC.engineStatus, engineStatus())
+    return
+  }
   exportGuard.setRoot(EXPORT_DIR)
   supervisor = new EngineSupervisor({
     command: launch.command,
@@ -438,7 +693,7 @@ async function startEngine(): Promise<void> {
     const health = status.health as { export_dir?: unknown } | null
     if (status.state === 'ready' && typeof health?.export_dir === 'string') exportGuard.setRoot(health.export_dir)
     lastState = status.state
-    sendToRenderer(IPC.engineStatus, status)
+    broadcast(IPC.engineStatus, status)
   })
   await supervisor.start()
 }
@@ -450,9 +705,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+    const win = mainWindow ?? setupWindow
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.focus()
   })
 
   lockDownNavigation()
@@ -476,13 +732,32 @@ if (!app.requestSingleInstanceLock()) {
         !app.isPackaged,
       ),
     )
-    createWindow()
+    updater = createUpdater()
+    // An update that kept failing to start: put the previous app back (it relaunches) before anything else runs.
+    if (updater.needsRollback && updater.rollback()) return
+    if (TRANSLOCATED) log(`running translocated (${process.execPath}); Setup asks to move the app to Applications`)
+    const firstRun = shouldShowSetup({
+      packaged: app.isPackaged,
+      bundled: Boolean(BUNDLED_ENGINE),
+      forceEnv: devEnv('FVWKS_FORCE_SETUP'),
+      markerExists: hasSetupMarker(USER_DATA),
+    })
+    if (firstRun) {
+      log(`first run: opening Setup (bundled engine: ${BUNDLED_ENGINE ?? 'no'})`)
+      createSetupWindow()
+    } else {
+      createWindow()
+    }
+    // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
+    ;(mainWindow ?? setupWindow)?.webContents.once('did-finish-load', () => updater?.confirmLaunch())
+    updater.startAutoCheck()
     await startEngine()
   })
 
   app.on('window-all-closed', () => app.quit())
 
   app.on('before-quit', (event) => {
+    updater?.dispose()
     if (quitting || !supervisor) return
     event.preventDefault()
     quitting = true

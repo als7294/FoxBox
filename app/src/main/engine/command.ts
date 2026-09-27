@@ -1,7 +1,113 @@
-import { accessSync, constants, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { accessSync, constants, existsSync, mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, join, resolve } from 'node:path'
+import { basename, delimiter, join, resolve, sep } from 'node:path'
 import type { SetupStep } from './supervisor'
+
+/** Written by engine/server/scripts/bundle_engine.sh at the root of every engine bundle it makes. */
+export const ENGINE_BUNDLE_MARKER = '.fvwks-engine-bundle'
+
+/** Where a bundled engine keeps its models: under the app's data folder, never the shared ~/.cache. */
+export const bundledModelsDir = (dataDir: string): string => join(dataDir, 'models')
+
+/**
+ * The portable engine shipped inside a packaged app (`Contents/Resources/engine`), or null when this build has none
+ * (linked and development builds). Only the marker is checked here; a bundle whose launcher is missing is reported
+ * by resolveEngineLaunch rather than silently falling back to a linked engine that isn't on this Mac.
+ */
+export function bundledEngineDir(resourcesPath: string): string | null {
+  const dir = join(resourcesPath, 'engine')
+  return existsSync(join(dir, ENGINE_BUNDLE_MARKER)) ? dir : null
+}
+
+/** macOS runs a quarantined app that was never moved out of Downloads or the disk image from a read-only copy. */
+export const isTranslocated = (execPath: string): boolean => execPath.includes('/AppTranslocation/')
+
+export type ExecTool = (file: string, args: string[]) => Promise<void>
+
+const execTool: ExecTool = (file, args) =>
+  new Promise((done, fail) => {
+    execFile(file, args, { timeout: 60_000 }, (err) => (err ? fail(err) : done()))
+  })
+
+/** What Setup and the engine status say when the bundle can't be cleared where it is. */
+export const MOVE_TO_APPLICATIONS = 'Move FoxBox to Applications, then open it again.'
+
+/**
+ * - cleared: done (xattr -dr also succeeds when nothing was quarantined);
+ * - skipped: not our bundle, or read-only with nothing quarantined;
+ * - blocked: read-only (a disk image, a locked folder) or refused, and still quarantined. Gatekeeper would stop each
+ *   of the engine's libraries with a dialog, so the caller asks the user to move the app instead of launching;
+ * - failed: anything else (logged; the launch goes ahead).
+ */
+export type QuarantineResult = 'cleared' | 'skipped' | 'blocked' | 'failed'
+
+const REFUSED_RE = /Operation not permitted|Permission denied|Read-only file system|EPERM|EACCES|EROFS/i
+
+/** `path` is inside `root`, both with symlinks resolved, so a link can't point the strip anywhere else. */
+function isInside(path: string, root: string): boolean {
+  try {
+    return realpathSync(path).startsWith(realpathSync(root) + sep)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A DMG downloaded from the web is quarantined, and so is every file copied out of it. The user approves the app
+ * once (right-click → Open), but Gatekeeper can still refuse to exec the bundle's quarantined, ad-hoc-signed Python
+ * from a child process. So, before each launch of a bundled engine, drop `com.apple.quarantine` from that folder:
+ * only our own marked `Resources/engine` (inside `within`, when given), never through a shell. The attribute is not
+ * part of the code signature.
+ */
+export async function clearEngineQuarantine(
+  engineDir: string,
+  o: { exec?: ExecTool; log?: (line: string) => void; within?: string } = {},
+): Promise<QuarantineResult> {
+  const log = o.log ?? (() => {})
+  const exec = o.exec ?? execTool
+  if (
+    basename(engineDir) !== 'engine' ||
+    !existsSync(join(engineDir, ENGINE_BUNDLE_MARKER)) ||
+    (o.within !== undefined && !isInside(engineDir, o.within))
+  ) {
+    log(`not clearing quarantine: ${engineDir} is not the engine bundle`)
+    return 'skipped'
+  }
+  const quarantined = async (): Promise<boolean> => {
+    for (const p of [engineDir, join(engineDir, 'bin', 'fvwks-engine')]) {
+      const found = await exec('/usr/bin/xattr', ['-p', 'com.apple.quarantine', p]).then(
+        () => true,
+        () => false,
+      )
+      if (found) return true
+    }
+    return false
+  }
+  try {
+    accessSync(engineDir, constants.W_OK)
+  } catch {
+    if (await quarantined()) {
+      log(`cannot clear quarantine: ${engineDir} is read-only (a disk image or a locked folder) and quarantined`)
+      return 'blocked'
+    }
+    log(`not clearing quarantine: ${engineDir} is read-only, and nothing in it is quarantined`)
+    return 'skipped'
+  }
+  try {
+    await exec('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', engineDir])
+    log(`cleared com.apple.quarantine under ${engineDir}`)
+    return 'cleared'
+  } catch (err) {
+    const message = (err as Error).message
+    if (REFUSED_RE.test(message) && (await quarantined())) {
+      log(`cannot clear quarantine under ${engineDir}: ${message}`)
+      return 'blocked'
+    }
+    log(`could not clear quarantine under ${engineDir}: ${message}`)
+    return 'failed'
+  }
+}
 
 export interface EngineLaunch {
   command: string
@@ -26,6 +132,12 @@ export interface ResolveOptions {
   /** The engine's `engine/` folder (uv workspace). */
   engineDir: string
   exportDir: string
+  /**
+   * The engine bundle inside a packaged app (bundledEngineDir). Runs `<bundle>/bin/fvwks-engine` with no uv and no
+   * setup step, and keeps models under `<dataDir>/models` (HF_HOME). Null or absent: the linked/development engine,
+   * whose environment is left exactly as it is (its models stay in ~/.cache).
+   */
+  bundle?: { dir: string; dataDir: string } | null
 }
 
 function isExecutable(p: string): boolean {
@@ -101,6 +213,7 @@ export function markVenvSynced(engineDir: string): void {
 /**
  * How to launch the engine:
  * - `FVWKS_ENGINE_CMD='["node","fake.mjs"]'` runs any command (tests).
+ * - A packaged app with an engine bundle runs `<bundle>/bin/fvwks-engine` (no uv), models under `<data>/models`.
  * - Otherwise `<engine>/.venv/bin/fvwks-engine`, after a one-time `uv sync --all-packages` if the venv is
  *   missing. Every launch adds `--export-dir <dir> --exit-with-parent`; the port is 0 and the engine
  *   announces the one it bound (`FVWKS_ENGINE_READY port=N`).
@@ -121,6 +234,31 @@ export function resolveEngineLaunch(opts: ResolveOptions): EngineLaunch {
     }
     const [command, ...args] = parsed as string[]
     return { command: command!, args, extraArgs, env, describe: parsed.join(' ') }
+  }
+
+  if (opts.bundle) {
+    const bundleDir = resolve(opts.bundle.dir)
+    const bin = join(bundleDir, 'bin', 'fvwks-engine')
+    if (!isExecutable(bin)) {
+      throw new Error(`The engine inside the app is damaged (${bin} is missing). Reinstall FoxBox.`)
+    }
+    // A fresh Mac downloads its models next to the app's data, where the disk checks look. HF_HUB_CACHE would
+    // override HF_HOME, so an inherited one is dropped.
+    const models = bundledModelsDir(resolve(opts.bundle.dataDir))
+    env.HF_HOME = models
+    delete env.HF_HUB_CACHE
+    delete env.HUGGINGFACE_HUB_CACHE
+    // The installer measures free space on the cache folder's parent, which must exist on a first launch.
+    mkdirSync(models, { recursive: true })
+    return {
+      command: bin,
+      args: [],
+      extraArgs,
+      // Never inside the (signed, read-only) app bundle.
+      cwd: resolve(opts.bundle.dataDir),
+      env,
+      describe: `${bin} ${extraArgs.join(' ')} (bundled engine, HF_HOME=${models})`,
+    }
   }
 
   const engineDir = resolve(opts.engineDir)

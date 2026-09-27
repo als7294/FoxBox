@@ -1,0 +1,13 @@
+FOXBOX: first open
+
+1. Drag FoxBox into Applications (the folder beside it), then open it from Applications.
+
+2. FoxBox isn't from the App Store, so macOS stops it the first time:
+   - macOS 15 Sequoia or later: open FoxBox once and click Done, then go to
+     System Settings > Privacy & Security, scroll down and click "Open Anyway" next to FoxBox.
+   - macOS 14 Sonoma: right-click FoxBox > Open > Open.
+   You only do this once.
+
+3. The first launch downloads the voice models (about 0.4 GB) and needs about 5.5 GB free.
+
+Needs a Mac with Apple silicon (M1 or later) and macOS 14 Sonoma or later.

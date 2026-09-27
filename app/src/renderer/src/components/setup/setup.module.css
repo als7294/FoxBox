@@ -1,0 +1,569 @@
+/*
+ * First-run Setup window (900×620): functional TRANSMISSION styling on the app's --vb-* tokens. Claude Design's
+ * visuals replace this later; the class names follow the handoff's components. Type never goes under 12 px.
+ * Spacing comes from the --space-* scale (4 / 8 / 12 / 16 / 24 / 32): rows and small cards pad 8 × 12, panels
+ * 12 × 16, blocks sit 16 apart, and every screen keeps a 32 px left and right edge (header and footer too).
+ */
+
+.window {
+  position: relative;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr) 44px;
+  background: var(--vb-bg);
+  color: var(--vb-ink);
+  font: 500 12px/1.45 var(--vb-font-mono);
+  overflow: hidden;
+}
+.window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--vb-scanlines);
+}
+
+/* ---------------------------------------------------------------- top bar (draggable, traffic lights at left) */
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-6) 0 88px; /* 88: clear of the traffic lights */
+  border-bottom: 1px solid var(--vb-line);
+  background: var(--vb-chrome);
+  -webkit-app-region: drag;
+}
+.top button {
+  -webkit-app-region: no-drag;
+}
+.mark {
+  flex: none;
+  color: var(--vb-accent);
+}
+.brand {
+  font: var(--vb-display-weight) 20px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.brandSub {
+  color: var(--vb-dim);
+  letter-spacing: 0.24em;
+}
+.steps {
+  margin: 0 0 0 auto;
+  padding: 0;
+  display: flex;
+  gap: var(--space-4);
+  list-style: none;
+  font: 500 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.steps li[aria-current='step'] {
+  color: var(--vb-ink);
+}
+.steps li[data-done] {
+  color: var(--vb-ok);
+}
+
+/* ---------------------------------------------------------------- body */
+.body {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-6) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.kicker {
+  margin-bottom: var(--space-2);
+  font: 500 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.24em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.title {
+  font: var(--vb-display-weight) 34px/0.9 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lede {
+  margin: 0;
+  max-width: 60ch;
+  font: 400 13px/1.55 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.note {
+  margin: 0;
+  font: 400 12px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.path {
+  color: var(--vb-ink);
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+/* Always in view: the list scrolls under it when a screen runs long. */
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  padding: var(--space-1) 0 var(--space-3); /* + the body's 12 px gap: 16 px under the content */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  background: var(--vb-bg);
+  box-shadow: 0 calc(-1 * var(--space-4)) var(--space-4) calc(-1 * var(--space-2)) var(--vb-bg);
+}
+.actions > :first-child {
+  margin-right: auto;
+}
+/* A borderless button's label sits on the content's left edge. */
+.actions > [data-variant='ghost']:first-child {
+  margin-left: calc(-1 * var(--space-3));
+}
+
+/* ---------------------------------------------------------------- welcome */
+.welcome {
+  --hero: 72px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  justify-items: start;
+  gap: var(--space-4) 28px; /* 28: the boot screen's mark-to-wordmark gap */
+  padding-bottom: var(--space-5);
+}
+.welcome > * {
+  grid-column: 1 / -1;
+}
+/* The mark's artwork sits 12.5 % inside its box: pull it onto the content's left edge. */
+.bigMark {
+  --mark: 48px;
+  width: var(--mark);
+  height: var(--mark);
+  margin-left: calc(var(--mark) * -0.125);
+  color: var(--vb-accent);
+}
+/* The hero: the mark beside the wordmark at 1.15 × its font size (about 1.6 × the cap height), centred on the
+   wordmark's line below the kicker (12 px + 8), as on the boot screen. */
+.welcome > .bigMark {
+  --mark: calc(var(--hero) * 1.15);
+  grid-column: 1;
+  align-self: start;
+  margin-top: calc(12px + var(--space-2) + var(--hero) * 0.45 - var(--mark) / 2);
+}
+.welcome > .bigMark + div {
+  grid-column: 2;
+}
+.welcomeTitle {
+  font: var(--vb-display-weight) var(--hero) / 0.9 var(--vb-font-display);
+  letter-spacing: 0.08em;
+}
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 64ch;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--vb-amber-line);
+  border-radius: var(--vb-r2);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  font: 400 12px/1.5 var(--vb-font-mono);
+}
+
+/* ---------------------------------------------------------------- component list */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.groupHead {
+  font: 500 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r2);
+  background: var(--vb-panel);
+}
+.row[data-selected] {
+  border-color: var(--vb-line-3);
+}
+.row[data-locked] {
+  background: var(--vb-card);
+}
+.row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--vb-accent);
+  cursor: pointer;
+}
+.row input[type='checkbox']:disabled {
+  cursor: not-allowed;
+}
+.rowText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rowName {
+  font: 700 13px/16px var(--vb-font-mono);
+  letter-spacing: 0.04em;
+}
+.rowDesc {
+  line-height: 16px;
+  color: var(--vb-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Status chip, then a fixed size column: chips and sizes line up down the list (the engine row has no size). */
+.rowMeta {
+  display: grid;
+  grid-template-columns: auto 11ch;
+  align-items: center;
+  column-gap: var(--space-3);
+  font-size: 13px; /* the size column's ch */
+  white-space: nowrap;
+}
+.rowMeta > .chip {
+  grid-column: 1;
+  justify-self: end;
+}
+.size {
+  grid-column: 2;
+  text-align: right;
+  font: 700 13px/1 var(--vb-font-mono);
+}
+.chip {
+  padding: 3px 7px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  font: 500 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.chip[data-tone='ok'] {
+  border-color: rgba(127, 208, 138, 0.5);
+  color: var(--vb-ok);
+}
+.chip[data-tone='busy'] {
+  border-color: var(--vb-amber-line);
+  color: var(--vb-amber);
+}
+.chip[data-tone='bad'] {
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- disk meter */
+.disk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r2);
+}
+.disk[data-short] {
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+  background: rgba(var(--vb-accent-rgb), 0.05);
+}
+.diskBar {
+  position: relative;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--vb-fill-2);
+  overflow: hidden;
+}
+.diskNeed {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--vb-amber);
+}
+.diskReserve {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, rgba(var(--vb-amber-rgb), 0.55) 0 3px, transparent 3px 6px);
+}
+.disk[data-short] .diskNeed {
+  background: var(--vb-accent);
+}
+.diskText {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.diskWarn {
+  margin: 0;
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- progress */
+.overall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.overallHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.pct {
+  font: var(--vb-display-weight) 40px/1 var(--vb-font-display);
+  letter-spacing: 0.04em;
+}
+.bar {
+  position: relative;
+  height: 14px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: 1px;
+  background: var(--vb-well);
+  overflow: hidden;
+}
+.bar[data-size='sm'] {
+  height: 6px;
+}
+/* A signal locking in: scan lines sweep through the fill. */
+.fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 4px),
+    linear-gradient(90deg, rgba(var(--vb-accent-rgb), 0.75), var(--vb-accent));
+  transition: transform 0.4s var(--vb-ease);
+}
+.fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  background-size: 30% 100%;
+  background-repeat: no-repeat;
+  animation: sweep 1.6s linear infinite;
+}
+.bar[data-state='verifying'] .fill {
+  background: var(--vb-amber);
+}
+.bar[data-state='done'] .fill {
+  background: var(--vb-ok);
+}
+.bar[data-state='done'] .fill::after,
+.bar[data-state='failed'] .fill::after,
+.bar[data-state='cancelled'] .fill::after,
+.bar[data-state='queued'] .fill::after {
+  animation: none;
+  background: none;
+}
+.bar[data-state='failed'] .fill,
+.bar[data-state='cancelled'] .fill {
+  background: var(--vb-line-3);
+}
+@keyframes sweep {
+  from {
+    background-position: -30% 0;
+  }
+  to {
+    background-position: 130% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fill,
+  .fill::after {
+    animation: none;
+    transition: none;
+  }
+}
+/* The overall bar's caption: it sits with the bar, not a block away. */
+.current {
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--vb-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+/* State chip on the name's line; every bar starts and ends at the same x. */
+.item {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'state name meta'
+    '. bar bar';
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r2);
+  background: var(--vb-panel);
+}
+.item[data-state='failed'] {
+  border-color: rgba(var(--vb-accent-rgb), 0.5);
+}
+.itemState {
+  grid-area: state;
+  justify-self: start;
+}
+.itemName {
+  grid-area: name;
+  font: 700 13px/1.3 var(--vb-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.itemMeta {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.item > .bar {
+  grid-area: bar;
+}
+.itemError {
+  grid-column: 2 / 4;
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- error panel, confirm, log */
+.problem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--vb-accent);
+  border-radius: var(--vb-r2);
+  background: rgba(var(--vb-accent-rgb), 0.06);
+}
+.problem[data-kind='cancelled'] {
+  border-color: var(--vb-amber-line);
+  background: rgba(var(--vb-amber-rgb), 0.05);
+}
+.problemTitle {
+  font: var(--vb-display-weight) 22px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vb-accent);
+}
+.problem[data-kind='cancelled'] .problemTitle {
+  color: var(--vb-amber);
+}
+.problemActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--vb-amber-line);
+  border-radius: var(--vb-r2);
+  background: var(--vb-raise);
+}
+.confirm > span {
+  flex: 1;
+}
+.log {
+  border-top: 1px solid var(--vb-line);
+  padding-top: var(--space-2);
+}
+.log summary {
+  cursor: pointer;
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.logLines {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  max-height: 140px;
+  overflow: auto;
+  list-style: none;
+  background: var(--vb-well);
+  border: 1px solid var(--vb-line);
+  font: 400 12px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+  user-select: text;
+}
+.logLines time {
+  color: var(--vb-ink);
+  margin-right: var(--space-2);
+}
+
+/* ---------------------------------------------------------------- ready */
+.summary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.summary li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.ok {
+  color: var(--vb-ok);
+}
+.bad {
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- footer */
+.foot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  border-top: 1px solid var(--vb-line);
+  color: var(--vb-dim);
+}
+.footNote {
+  min-width: 0;
+  font: 400 12px/1.4 var(--vb-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

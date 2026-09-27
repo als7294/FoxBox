@@ -8,6 +8,7 @@ import type { WaveAnalysis } from './analysis'
 import { clamp, f2, HX, prep, rgba } from './canvas'
 import type { Sweep } from './state'
 import type { VbTheme } from './theme'
+import { layoutWordLabels, wordAt, type WordLabel } from './wordLabels'
 
 export interface Geom {
   /** Length of the analysed audio (s). */
@@ -137,6 +138,32 @@ export interface WaveInputs {
 }
 
 const offscreen: { cv: HTMLCanvasElement | null } = { cv: null }
+
+/** Word label lanes under the waveform: row height and the gap from a word's tick to its text (CSS px). */
+const LANE = 11
+const LABEL_PAD = 5
+
+const labelCache = {
+  words: null as readonly Word[] | null,
+  w: 0,
+  viewLen: 0,
+  font: '',
+  fonts: '' as string | undefined,
+  out: [] as WordLabel[],
+}
+
+/** The word labels' layout, measured and redone only when the words, the width, the view or the fonts change. */
+function wordLabels(x: CanvasRenderingContext2D, words: readonly Word[], w: number, viewLen: number): WordLabel[] {
+  const c = labelCache
+  const fonts = typeof document === 'undefined' ? '' : document.fonts?.status
+  if (c.words === words && c.w === w && c.viewLen === viewLen && c.font === x.font && c.fonts === fonts) return c.out
+  const texts = words.map((q) => q.w.toUpperCase())
+  // Ticks on the device-pixel grid (the backing store is 2x), so each reads as one crisp line.
+  const ticks = words.map((q) => Math.round((q.t0 / viewLen) * w * 2) / 2)
+  c.out = layoutWordLabels(ticks, texts, texts.map((s) => x.measureText(s).width), { right: w - 2, pad: LABEL_PAD })
+  Object.assign(c, { words, w, viewLen, font: x.font, fonts })
+  return c.out
+}
 
 /** Band-coloured waveform with reveal/morph sweeps, stale greying, played-part dimming, words and playhead. */
 export function drawWave(cv: HTMLCanvasElement | null, o: WaveInputs): void {
@@ -333,14 +360,22 @@ export function drawWave(cv: HTMLCanvasElement | null, o: WaveInputs): void {
     env(v, 0, cols)
     x.fill()
   }
-  const ry = bot + 8
-  for (const wd of o.words) {
-    const a = X(wd.t0)
-    const said = pt != null && pt >= wd.t0
-    x.fillStyle = said ? th.amber : rgba(th.ink, 0.22)
-    x.fillRect(a, ry, 1, 12)
-    x.fillStyle = wd.th ? th.accent : said ? th.ink : th.dim
-    x.fillText(wd.w.toUpperCase(), a + 5, ry + 7)
+  // Words: a tick at each start and the label in one of two lanes (visuals/wordLabels.ts). While the playhead is in
+  // the speech, the current word is lit and the rest stay dim (throws keep their accent, dimmed).
+  const labels = wordLabels(x, o.words, w, g.viewLen)
+  const cur = pt != null ? wordAt(o.words, pt) : -1
+  for (let i = 0; i < o.words.length; i++) {
+    const wd = o.words[i]!
+    const lab = labels[i]
+    if (!lab) break
+    if (!lab.tick) continue
+    const y = bot + 5 + lab.lane * LANE
+    const on = i === cur
+    x.fillStyle = on ? th.amber : pt != null && pt >= wd.t0 ? rgba(th.amber, 0.45) : rgba(th.ink, 0.22)
+    x.fillRect(lab.x - LABEL_PAD, y, 1, LANE - 1)
+    if (!lab.text) continue
+    x.fillStyle = wd.th ? (on || pt == null ? th.accent : rgba(th.accent, 0.6)) : on ? th.amber : th.dim
+    x.fillText(lab.text, lab.x, y + 6)
   }
   if (pt != null) {
     const px = Math.round(X(pt))

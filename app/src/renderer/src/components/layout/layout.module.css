@@ -498,3 +498,13 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------- update bar (components/updates/UpdateBanner) */
+/* While it shows, the shell gets a 34 px row for it under the top bar; the rail and the screen take the rest. */
+.shell:has(> [data-update-bar]) {
+  grid-template-rows: var(--vb-top-h) auto minmax(0, 1fr);
+}
+.shell:has(> [data-update-bar]) > .rail,
+.shell:has(> [data-update-bar]) > .main {
+  grid-row: 3;
+}

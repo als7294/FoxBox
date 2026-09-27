@@ -14,6 +14,7 @@ from fvwks_server.writer import (
     ExportMeta,
     FileNaming,
     TrackTags,
+    cover_art,
     export_files,
     folder_name,
     normalize_wav,
@@ -113,6 +114,38 @@ def test_aiff_id3v23_tags_read_back(tmp_path):
                                          "bpm": 140, "bars": 4, "key": "Am", "render": None}
     info = sf.info(str(out.path))
     assert (info.frames, info.samplerate, info.channels, info.subtype) == (FRAMES_4BAR_140, SR, 2, "PCM_24")
+
+
+def jpeg_frame(data: bytes) -> tuple[int, int, int]:
+    """(SOF marker, width, height) of a JPEG; marker 0xC0 is baseline, 0xC2 progressive."""
+    pos = 2
+    while pos + 9 <= len(data):
+        marker, size = data[pos + 1], struct.unpack_from(">H", data, pos + 2)[0]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            height, width = struct.unpack_from(">HH", data, pos + 5)
+            return marker, width, height
+        pos += 2 + size
+    raise AssertionError("no SOF marker")
+
+
+def test_every_aiff_carries_the_fox_cover(tmp_path):
+    art = cover_art()
+    assert art[:3] == b"\xff\xd8\xff" and len(art) < 150_000
+    assert jpeg_frame(art) == (0xC0, 600, 600)  # baseline 600x600
+    items = [ExportItem("wet", tone(4410), SR), ExportItem("dry", tone(4410), SR),
+             ExportItem("alt:legion", tone(4410), SR), ExportItem("stem:sub", tone(4410), SR)]
+    for out in export_files(tmp_path, meta(), items):
+        tags = AIFF(str(out.path)).tags
+        assert tags.version == (2, 3, 0)
+        [apic] = tags.getall("APIC")
+        assert (apic.type, apic.mime, apic.desc) == (3, "image/jpeg", "FoxBox") and apic.data == art
+        assert read_tags(out.path)["id3"]["APIC:FoxBox"] == {"mime": "image/jpeg", "type": 3, "desc": "FoxBox",
+                                                              "bytes": len(art)}
+        assert tags["TIT2"].text and f"TXXX:{RENDER_TXXX}" in tags  # the other tags are still there
+    [wav] = export_files(tmp_path, meta(), [ExportItem("wet", tone(4410), SR)], fmt="wav")
+    assert b"ID3" not in wav.path.read_bytes()  # WAV stays RIFF INFO only
+    [bare] = export_files(tmp_path / "bare", meta(cover=None), [ExportItem("wet", tone(4410), SR)])
+    assert AIFF(str(bare.path)).tags.getall("APIC") == []
 
 
 def test_wav_riff_info_read_back(tmp_path):

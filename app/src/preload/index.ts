@@ -12,7 +12,12 @@ import {
   type FvwksBridge,
   type MenuCommand,
   type MicAccess,
+  type SetupBridge,
+  type SetupCompleteResult,
+  type SetupInfo,
   type StartDragOptions,
+  type UpdatesBridge,
+  type UpdateState,
 } from '../shared/bridge'
 
 const boot = ipcRenderer.sendSync(IPC.bootInfo) as BootInfo
@@ -23,6 +28,26 @@ function subscribe<T>(channel: string, listener: (value: T) => void): () => void
   return () => {
     ipcRenderer.removeListener(channel, handler)
   }
+}
+
+const invokeState = (channel: string, arg?: unknown) => ipcRenderer.invoke(channel, arg) as Promise<UpdateState>
+
+const updates: UpdatesBridge = {
+  getState: () => invokeState(IPC.updatesGet),
+  check: () => invokeState(IPC.updatesCheck),
+  download: () => invokeState(IPC.updatesDownload),
+  cancel: () => invokeState(IPC.updatesCancel),
+  install: () => invokeState(IPC.updatesInstall),
+  setFeedUrl: (url) => invokeState(IPC.updatesSetFeed, url),
+  setToken: (token) => invokeState(IPC.updatesSetToken, token),
+  setCheckAutomatically: (on) => invokeState(IPC.updatesSetAuto, on),
+  dismissWhatsNew: () => invokeState(IPC.updatesDismissWhatsNew),
+  onState: (listener) => subscribe<UpdateState>(IPC.updatesState, listener),
+}
+
+const setup: SetupBridge = {
+  info: () => ipcRenderer.invoke(IPC.setupInfo) as Promise<SetupInfo>,
+  complete: () => ipcRenderer.invoke(IPC.setupComplete) as Promise<SetupCompleteResult>,
 }
 
 const bridge: FvwksBridge = {
@@ -47,6 +72,8 @@ const bridge: FvwksBridge = {
   restartEngine: () => ipcRenderer.invoke(IPC.engineRestart) as Promise<void>,
   onMenuCommand: (listener) => subscribe<MenuCommand>(IPC.menuCommand, listener),
   openLogs: () => ipcRenderer.invoke(IPC.openLogs) as Promise<void>,
+  updates,
+  setup,
 }
 
 contextBridge.exposeInMainWorld('fvwks', bridge)

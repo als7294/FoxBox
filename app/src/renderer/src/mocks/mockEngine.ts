@@ -5,7 +5,6 @@
  */
 import healthExample from '../../../../../contracts/examples/health.json'
 import lexiconExample from '../../../../../contracts/examples/lexicon.json'
-import modelsExample from '../../../../../contracts/examples/models.json'
 import settingsExample from '../../../../../contracts/examples/settings.json'
 import rackDescriptor from '../../../../../contracts/rack.v0.json'
 import type {
@@ -41,6 +40,7 @@ import { barSeconds } from '@/audio/grid'
 import { decodeWav, encodeWav, type PcmAudio } from '@/audio/wav'
 import { segmentsOf } from '@/lib/markup'
 import { fixtureForVoice, loadFixture } from './fixtures'
+import { MockInstaller } from './installSim'
 
 // The Kokoro voices the stub engine lists (contracts/examples/voices.json only shows the first few).
 const KOKORO: [string, string, string, 'male' | 'female', boolean, string[]][] = [
@@ -284,6 +284,8 @@ export class MockEngine {
   readonly exports = new Map<string, ExportedFile>()
   readonly takes = new Map<string, Take>()
   readonly jobs = new Map<string, Job & { startedAt: number }>()
+  /** Models, install jobs (bytes, rate, ETA) and first-run health: see installSim.ts. */
+  readonly installer = new MockInstaller(this.jobs)
   readonly userPresets = new Map<string, Preset>()
   // v0.3 contracts: AUTO bars is the default.
   settings: Settings = { ...(structuredClone(settingsExample) as Settings), default_bars: 'auto' }
@@ -298,7 +300,7 @@ export class MockEngine {
   transcriptMs = 1_500
 
   health(): Health {
-    return { ...(healthExample as Health), export_dir: this.settings.export_dir }
+    return { ...(healthExample as Health), export_dir: this.settings.export_dir, ...this.installer.health() }
   }
 
   rack(): RackDescriptor {
@@ -310,7 +312,7 @@ export class MockEngine {
   }
 
   models(): ModelInfo[] {
-    return modelsExample as ModelInfo[]
+    return this.installer.models()
   }
 
   presets(): Preset[] {

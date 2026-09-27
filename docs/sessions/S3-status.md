@@ -7,7 +7,7 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - `writer.py`: AIFF/WAV writing.
     - AIFF by default, or WAV, 24-bit via soundfile. 16-bit output gets TPDF dither.
     - Canonical WAV layout: `fmt ` (tag 0x0001) at byte 12, `data` at byte 36, then `LIST/INFO`. Any extensible (0xFFFE) header is rewritten.
-    - Tags: ID3v2.3 in AIFF (TIT2, TPE1, TALB, TBPM, TKEY, COMM, TXXX:FVWKS_RENDER JSON, TYER, TSSE). RIFF INFO in WAV (INAM, IART, IPRD, ICMT, ICRD, ISFT).
+    - Tags: ID3v2.3 in AIFF (TIT2, TPE1, TALB, TBPM, TKEY, COMM, TXXX:FVWKS_RENDER JSON, TYER, TSSE, APIC cover art). RIFF INFO in WAV (INAM, IART, IPRD, ICMT, ICRD, ISFT).
     - Files are named by `Settings.filename_pattern`. Every file of one export shares the next free `v<nn>`.
     - Writes are staged and atomic.
   - `rekordbox.py`: DJ_PLAYLISTS/COLLECTION/PLAYLISTS.
@@ -201,6 +201,13 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - **Renamed to FoxBox:**
     - Data dir `~/Library/Application Support/FoxBox`; default export folder `~/Music/FoxBox`.
     - rekordbox PRODUCT `FoxBox` / `SmittyTech`; file tags `FoxBox`.
+
+- **1.0 release fixes** (`fda0feb` and this commit):
+  - **Signed app stays sealed:** the bundle's .pyc files are unchecked-hash and the launcher sets `PYTHONDONTWRITEBYTECODE=1`, so first launch no longer rewrites 413 .pyc files inside the app. The opt-in bundle tests check the bundle is byte-for-byte unchanged after a launch.
+  - **Cover art:** every exported AIFF (wet, dry, alts, stems) carries the FoxBox fox as APIC (front cover, `image/jpeg`, desc `FoxBox`).
+    - The art is `fvwks_server/assets/cover.jpg`: the brand icon flattened on black, a 600×600 baseline JPEG, 32 KB. The bundle's smoke test loads it.
+    - WAV gets none (RIFF INFO has no art field Rekordbox reads).
+    - No `embed_cover_art` setting: it would be a contract change. The writer takes `ExportMeta.cover=None`, so a future setting is a one-line wire-up.
 
 ## Performance (HTTP, real engines, M3 Pro; `uv run --all-packages python server/scripts/bench_http.py`)
 | what | p50 ms | p95 ms |

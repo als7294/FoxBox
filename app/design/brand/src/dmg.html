@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:BSD;font-weight:800;src:url(../../../src/renderer/src/assets/fonts/big-shoulders-display-latin-800-normal.woff2)}
+@font-face{font-family:JBM;font-weight:500;src:url(../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-500-normal.woff2)}
+html,body{margin:0}
+.w{position:relative;width:660px;height:420px;overflow:hidden;background:radial-gradient(90% 110% at 50% 45%,#16100e 0%,#0e0c0c 45%,#0b0b0c 80%)}
+.w::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.016) 0 1px,transparent 1px 3px)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(233,229,218,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(233,229,218,.035) 1px,transparent 1px);background-size:30px 30px}
+.top{position:absolute;left:0;right:0;top:30px;text-align:center;font:800 30px/1 BSD;letter-spacing:.06em;color:#e9e5da}
+.top b{color:#ff4b2b}
+.sub{position:absolute;left:0;right:0;top:66px;text-align:center;font:500 11px/1 JBM;letter-spacing:.28em;color:#8d8a82}
+.arrow{position:absolute;left:262px;top:176px;width:136px;height:40px}
+.hint{position:absolute;left:0;right:0;top:246px;text-align:center;font:500 11px/1 JBM;letter-spacing:.3em;color:#ff4b2b}
+.slot{position:absolute;top:130px;width:150px;height:150px;border:1px dashed rgba(233,229,218,.10);border-radius:22px}
+.foot{position:absolute;left:0;right:0;bottom:20px;text-align:center;font:500 10px/1.8 JBM;letter-spacing:.1em;color:#6f6c66}
+.foot span{color:#ffb23e}
+</style></head><body>
+<div class="w"><div class="grid"></div>
+<div class="top">FOX<b>BOX</b></div>
+<div class="sub">VOICE MASK STUDIO</div>
+<div class="slot" style="left:105px"></div><div class="slot" style="left:405px"></div>
+<svg class="arrow" viewBox="0 0 136 40"><defs><linearGradient id="a" gradientUnits="userSpaceOnUse" x1="4" y1="0" x2="120" y2="0"><stop offset="0" stop-color="#ff4b2b" stop-opacity=".15"/><stop offset="1" stop-color="#ff4b2b"/></linearGradient></defs>
+<path d="M4 20 H118" stroke="url(#a)" stroke-width="3" stroke-dasharray="7 6"/><path d="M110 9 L128 20 L110 31" fill="none" stroke="#ff4b2b" stroke-width="3.2" stroke-linejoin="miter"/></svg>
+<div class="hint">DRAG TO APPLICATIONS</div>
+<div class="foot">FIRST OPEN · <span>RIGHT-CLICK → OPEN</span><br/>macOS 15+ · <span>SETTINGS → PRIVACY &amp; SECURITY → OPEN ANYWAY</span></div>
+</div></body></html>

@@ -6,17 +6,70 @@
  * glitch, breathing).
  *
  * Particles draw into an offscreen layer that fades rather than clears, which is where the trails come from;
- * the visible canvas composites that layer (sliced and split during SIGNAL glitches) under the glow and labels.
+ * the visible canvas composites that layer (sliced and split during SIGNAL glitches) over the glow. The text around
+ * the core (caption, band labels, readouts) is DOM over the canvas (components/signal/VoiceCore.tsx), so it stays
+ * crisp; the sphere is laid out to leave it room (coreLayout).
  */
 import { clamp, f2, HX, nz, prep } from './canvas'
 import type { Geom, Word } from './draw'
 import type { MotionProfile } from './motionProfile'
 import type { MotionSample } from './motionTrack'
 import type { VbTheme } from './theme'
+import { wordAt } from './wordLabels'
+
+/**
+ * The panel edges the HUD keeps for itself (CSS px; signal.module.css places the HUD inside them): the VOICE CORE
+ * kicker at the top, the caption (word + BAR, up to ~42 px tall from 30 px up) and the PITCH / RMS readouts at the
+ * bottom, the HIGH / MID / LOW column on the right (56 px, plus a 4 px gap to the sphere).
+ */
+export const CORE_HUD = { top: 30, bottom: 74, left: 20, right: 60 } as const
+
+/** The sphere's silhouette at rest in core radii: the perspective bulge plus the idle spectrum's push. */
+export const CORE_REST = 1.12
+
+export interface CoreLayout {
+  /** Centre of the sphere and its radius at rest (CSS px). */
+  cx: number
+  cy: number
+  r: number
+}
+
+/** Where the sphere sits in a w×h panel: centred in what the HUD leaves, its resting silhouette filling that. */
+export function coreLayout(w: number, h: number): CoreLayout {
+  const x0 = CORE_HUD.left
+  const x1 = w - CORE_HUD.right
+  const y0 = CORE_HUD.top
+  const y1 = h - CORE_HUD.bottom
+  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, r: Math.max(26, Math.min(x1 - x0, y1 - y0) / (2 * CORE_REST)) }
+}
+
+export interface CoreCaption {
+  /** Changes when the caption does: a new word (even the same text again), a pause, or the stopped line. */
+  key: string
+  word: string
+  /** A thrown word (drawn in the accent). */
+  thrown: boolean
+  bar: string
+}
+
+/** The caption under the core: the word being said and the beat while playing, else the file's length and bars. */
+export function coreCaption(playT: number | null, words: readonly Word[], g: Geom): CoreCaption {
+  if (playT == null) {
+    const word = `${f2(g.target)} S`
+    return { key: `stop ${word}`, word, thrown: false, bar: `${g.barCount} BARS @ ${Math.round(240 / g.barDur)}` }
+  }
+  const i = wordAt(words, playT)
+  const wd = i >= 0 ? words[i]! : null
+  return {
+    key: wd ? `word ${i}` : 'pause',
+    word: wd ? wd.w.toUpperCase() : '·',
+    thrown: Boolean(wd?.th),
+    bar: `BAR ${Math.floor(playT / g.barDur) + 1}.${Math.floor((playT % g.barDur) / (g.barDur / 4)) + 1}`,
+  }
+}
 
 export interface CoreInputs {
   th: VbTheme
-  g: Geom
   /** Seconds (frozen when idle under Reduce Motion). */
   t: number
   /** performance.now() and the time since the last frame, ms. */
@@ -30,10 +83,6 @@ export interface CoreInputs {
   /** Beat index while playing, -1 when stopped (stepped rotation locks to it). */
   beat: number
   stMix: number
-  playT: number | null
-  words: readonly Word[]
-  leftLabel: string
-  rightLabel: string
   sm: Float32Array
   motion: MotionProfile
   /** Stack voices in the chain (satellite shells). */
@@ -114,19 +163,20 @@ const S = {
   f0a: 0,
 }
 
-export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): void {
+/** Draws a frame; returns the layout it used (the HUD follows it), or null when the canvas isn't showing. */
+export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayout | null {
   const P = prep(cv)
-  if (!P || !cv) return
+  if (!P || !cv) return null
   const { x, w, h } = P
-  const { th, g, t } = o
+  const { th, t } = o
   const M = o.motion
   const calm = o.reduced
   const pl = o.playing
   const lv = o.lvl
   const tr = pl ? (o.track ?? null) : null
-  const cx = w / 2
-  const cy = h / 2 - 10
-  const R0 = Math.max(26, Math.min(w * 0.5 - 22, h * 0.5 - 46) * 0.8)
+  const lay = coreLayout(w, h)
+  const { cx, cy } = lay
+  const R0 = lay.r
   const dts = Math.min(0.1, o.dt / 1000)
   init()
   const sm = o.sm
@@ -205,7 +255,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): void {
   const alphaK = (1 - M.darkness * 0.4) * (1 - M.pale * 0.4) * (1 - o.stMix * 0.5)
 
   const layer = layerFor(cv, w, h)
-  if (!layer) return
+  if (!layer) return null
   const T = layer.x
   // Hold frames: SIGNAL's glitch, and the arrange plan's stutter (freeze-frames on the repeats).
   const stutter = (glitching && S.frame % 2 === 0) || (!calm && Boolean(tr?.stutter) && S.frame % 3 !== 0)
@@ -406,7 +456,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): void {
     x.globalAlpha = 1
   }
 
-  // ---- visible canvas: glow, the particle layer, speckle, labels
+  // ---- visible canvas: glow, the particle layer, speckle (the text is the DOM HUD's)
   x.clearRect(0, 0, w, h)
   const glowA = 1 - M.darkness * 0.5
   const ret = tr?.returns ?? 0
@@ -452,32 +502,5 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): void {
     }
     x.globalAlpha = 1
   }
-
-  const ly = cy + R0 * 1.42 + 4
-  x.textAlign = 'center'
-  x.textBaseline = 'middle'
-  const pt = o.playT
-  const wd = pt != null ? o.words.find((q) => pt >= q.t0 && pt < q.t1 + 0.05) : null
-  x.font = `${th.displayWeight} ${Math.round(Math.min(22, R0 * 0.3))}px ${th.display}`
-  x.fillStyle = wd && wd.th ? th.accent : th.ink
-  x.fillText(pt != null ? (wd ? wd.w.toUpperCase() : '·') : `${f2(g.target)} S`, cx, ly)
-  x.font = `500 8.5px ${th.mono}`
-  x.fillStyle = th.dim
-  x.fillText(
-    pt != null
-      ? `BAR ${Math.floor(pt / g.barDur) + 1}.${Math.floor((pt % g.barDur) / (g.barDur / 4)) + 1}`
-      : `${g.barCount} BARS @ ${Math.round(240 / g.barDur)}`,
-    cx,
-    ly + 16,
-  )
-  x.font = `600 9.5px ${th.mono}`
-  x.textAlign = 'left'
-  x.fillText(o.leftLabel, 14, h - 15)
-  x.textAlign = 'right'
-  x.fillText(o.rightLabel, w - 14, h - 15)
-  x.fillStyle = th.dim
-  x.fillText('HIGH', w - 14, cy - R0 * 0.75)
-  x.fillText('MID', w - 14, cy)
-  x.fillText('LOW', w - 14, cy + R0 * 0.75)
-  x.textAlign = 'left'
+  return lay
 }

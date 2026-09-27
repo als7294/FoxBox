@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { FoxMark } from '@/components/common/FoxMark'
+import easterMarkUrl from '../../../../../design/brand/foxbox-mark-easter.svg?url'
 import { useSettings, useUpdateSettings } from '@/api/queries'
 import type { Settings } from '@/api/types'
 import { bridge } from '@/env'
@@ -36,13 +36,17 @@ function currentFormat(s: Settings | undefined): Format {
 
 const formatLabel = (f: Format) => `${f.format.toUpperCase()} ${f.bit}/${f.rate === 48000 ? '48' : '44.1'}`
 
-/** The FoxBox mark in ember. Pulses with the beat. */
+/**
+ * The FoxBox mark in ember, pulsing with the beat. It's the easter-egg mark (design/brand/foxbox-mark-easter.svg):
+ * still almost all the time, then every 17 s the fox glances left and right and flicks an ear (still under
+ * prefers-reduced-motion).
+ */
 export function Mark() {
-  const ref = useRef<SVGSVGElement>(null)
+  const ref = useRef<HTMLImageElement>(null)
   useFrame(() => {
     if (ref.current) ref.current.style.opacity = String(0.7 + vis.beatPulse * 0.3)
   })
-  return <FoxMark ref={ref} size={26} className={styles.mark} />
+  return <img ref={ref} src={easterMarkUrl} width={26} height={26} alt="" aria-hidden="true" draggable={false} className={styles.mark} />
 }
 
 function RenderButton() {

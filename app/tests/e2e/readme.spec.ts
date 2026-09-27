@@ -88,7 +88,8 @@ test('README screenshots', async () => {
   await shot('01-studio.png')
 
   // Voice core frames for studio.gif (PACT, about 6 s at ~12 fps), then the preset crops for 03.
-  const core = page.getByRole('img', { name: 'Voice core visualiser' })
+  // The whole panel: the canvas plus its DOM captions (word, BAR, HIGH/MID/LOW, PITCH/RMS).
+  const core = page.locator('div:has(> canvas[aria-label="Voice core visualiser"])').first()
   await page.keyboard.press(' ') // stop, then play from the top for the GIF
   await page.waitForTimeout(300)
   await page.keyboard.press(' ')

@@ -1,0 +1,144 @@
+/*
+ * The update bar: a 34 px row across the shell, under the top bar (layout.module.css adds the row while it shows,
+ * so the screens shrink by 34 px instead of being covered). The dot sits over the rail; the text lines up with the
+ * screens' 12 px inset. Tone: amber offer / busy, ok ready, ember failure.
+ */
+.bar {
+  --tone: var(--vb-amber);
+  grid-column: 1 / -1;
+  grid-row: 2;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+  min-width: 0;
+  padding-right: 14px;
+  border-bottom: 1px solid var(--vb-line);
+  background: var(--vb-chrome);
+  color: var(--vb-ink);
+  font: 500 12px/1 var(--vb-font-mono);
+}
+.bar[data-tone='ready'] {
+  --tone: var(--vb-ok);
+}
+.bar[data-tone='failed'] {
+  --tone: var(--vb-accent);
+}
+.lead {
+  flex: none;
+  align-self: stretch;
+  width: var(--vb-rail-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--vb-line);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--tone);
+}
+.bar[data-tone='busy'] .dot {
+  animation: updatePulse 1.2s ease-in-out infinite;
+}
+@keyframes updatePulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.msg {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.head {
+  color: var(--tone);
+  font-weight: 700;
+}
+.bar[data-tone='busy'] .head {
+  color: var(--vb-ink);
+}
+.note {
+  color: var(--vb-dim);
+}
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background var(--vb-fast),
+    border-color var(--vb-fast),
+    color var(--vb-fast);
+}
+.btn:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+  background: var(--vb-fill-2);
+}
+.btn[data-kind='solid'] {
+  border-color: var(--vb-ink);
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.btn[data-kind='solid']:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.85);
+  background: rgba(var(--vb-ink-rgb), 0.85);
+}
+.btn[data-kind='accent'] {
+  border-color: var(--vb-accent);
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+  box-shadow: var(--vb-accent-glow);
+}
+.btn[data-kind='accent']:hover:not(:disabled) {
+  border-color: var(--vb-accent);
+  background: var(--vb-accent);
+  box-shadow: 0 0 26px rgba(var(--vb-accent-rgb), calc(0.45 * var(--vb-glow)));
+}
+.btn[data-kind='quiet'] {
+  border-color: transparent;
+  color: var(--vb-dim);
+}
+.btn[data-kind='quiet']:hover:not(:disabled) {
+  border-color: transparent;
+  background: none;
+  color: var(--vb-ink);
+}
+
+/* Download progress: replaces the bar's bottom hairline. */
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: rgba(var(--vb-amber-rgb), 0.14);
+  pointer-events: none;
+}
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--vb-amber);
+  box-shadow: 0 0 calc(6px * var(--vb-glow)) var(--vb-amber);
+  transform-origin: left;
+  transition: transform 0.25s linear;
+}

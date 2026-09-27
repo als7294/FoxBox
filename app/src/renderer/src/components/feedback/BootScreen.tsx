@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CreditLink } from '@/components/common/CreditLink'
+import bootBgUrl from '../../../../../design/brand/foxbox-boot-bg.svg?url'
+import { AnimatedFoxMark } from '@/components/common/AnimatedFoxMark'
 import { FoxMark } from '@/components/common/FoxMark'
 import { useLexicon, useRack } from '@/api/queries'
 import { audioContext } from '@/audio/player'
@@ -287,6 +289,8 @@ function Boot() {
       aria-label="Starting FoxBox"
       onPointerDown={() => finish.current()}
     >
+      {/* The techy fox backdrop (design/brand/foxbox-boot-bg.svg: drifting grid, fox lattice, traced outline), at 20%. */}
+      <img src={bootBgUrl} className={styles.bootBg} alt="" aria-hidden="true" draggable={false} />
       <canvas ref={cvRef} className={styles.bootCv} aria-hidden="true" />
       <div className={styles.bootEdge} data-edge="top" aria-hidden="true">
         <FoxMark size={12} className={styles.bootMark} />
@@ -304,7 +308,7 @@ function Boot() {
       </div>
       <div className={styles.bootCenter}>
         <div className={styles.bootHead}>
-          <FoxMark size={64} className={styles.bootHeadMark} />
+          <AnimatedFoxMark size={64} className={styles.bootHeadMark} />
           <span ref={titleRef} className={styles.bootTitle}>
             FOXBOX
           </span>

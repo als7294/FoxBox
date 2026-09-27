@@ -80,6 +80,117 @@ export interface EngineResponse {
   body: ArrayBuffer | null
 }
 
+// ---------------------------------------------------------------------------------------------- app updates
+
+/**
+ * Where an app update is. `installing` (swapping the app, then restarting) follows `ready` once the user presses
+ * "Restart to update"; nothing installs on its own.
+ */
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'verifying'
+  | 'ready'
+  | 'installing'
+  | 'error'
+
+export interface UpdateTransfer {
+  bytes_done: number
+  bytes_total: number
+  rate_bps: number | null
+  eta_s: number | null
+}
+
+export interface UpdateFailure {
+  /** check: couldn't reach or read the feed (quiet) · download / verify / install: "Update failed, still on vX". */
+  during: 'check' | 'download' | 'verify' | 'install'
+  code: string
+  message: string
+}
+
+/** Shown once after the app restarted into a new version (WhatsNew). */
+export interface WhatsNewInfo {
+  from: string | null
+  version: string
+  released: string | null
+  notes: string[]
+}
+
+export interface UpdateState {
+  phase: UpdatePhase
+  /** This app's version. */
+  current: string
+  /** The feed's version when it is newer than `current` (never a downgrade). */
+  latest: string | null
+  sizeBytes: number | null
+  released: string | null
+  notes: string[]
+  download: UpdateTransfer | null
+  error: UpdateFailure | null
+  /** The feed in use: the user's, or FoxBox's GitHub Releases (DEFAULT_FEED_URL) when they haven't set one. */
+  feedUrl: string | null
+  feedIsDefault: boolean
+  defaultFeedUrl: string
+  /** A GitHub token is stored (Keychain-encrypted) for a private releases repo. The token itself never leaves main. */
+  hasToken: boolean
+  checkAutomatically: boolean
+  /** Epoch ms of the last successful check. */
+  lastChecked: number | null
+  /** Development builds may use an http://localhost feed; packaged builds need https. */
+  allowLocalFeed: boolean
+  /** Why this build can't install updates (not packaged, read-only folder…), or null when it can. */
+  installBlocked: string | null
+  whatsNew: WhatsNewInfo | null
+}
+
+/** App updates: every download, check and file operation runs in main; the renderer only asks. */
+export interface UpdatesBridge {
+  getState(): Promise<UpdateState>
+  check(): Promise<UpdateState>
+  download(): Promise<UpdateState>
+  /** Stops a running download. */
+  cancel(): Promise<UpdateState>
+  /** "Restart to update": swaps the app and relaunches. Resolves only when that failed (the state says why). */
+  install(): Promise<UpdateState>
+  /** Rejects when the address isn't allowed (see feedUrlProblem) or the user declines it. null: back to the default. */
+  setFeedUrl(url: string | null): Promise<UpdateState>
+  /** Stores a read-only GitHub token (Keychain-encrypted; sent only to api.github.com). null removes it. */
+  setToken(token: string | null): Promise<UpdateState>
+  setCheckAutomatically(on: boolean): Promise<UpdateState>
+  dismissWhatsNew(): Promise<UpdateState>
+  onState(listener: (state: UpdateState) => void): () => void
+}
+
+// ---------------------------------------------------------------------------------------------- first-run setup
+
+export interface SetupInfo {
+  /** The engine runs from the bundle inside the app (a fresh Mac), not a linked checkout. */
+  bundled: boolean
+  /** Where downloaded models live (bundled: <data>/models; otherwise the Hugging Face cache). */
+  modelsDir: string | null
+  dataDir: string | null
+  /** The home folder, so paths can be shown as "~/…". */
+  home: string | null
+  /** macOS is running a read-only copy (the app was opened from Downloads or the DMG): it must be moved first. */
+  translocated: boolean
+}
+
+export interface SetupCompleteResult {
+  ok: boolean
+  /** Why main refused (required models still missing, engine unreachable). */
+  error?: string
+  missing?: string[]
+}
+
+export interface SetupBridge {
+  info(): Promise<SetupInfo>
+  /** The required parts are installed: main writes the setup marker, opens the Studio and closes this window. */
+  complete(): Promise<SetupCompleteResult>
+}
+
 /** What the preload script exposes as `window.fvwks`. */
 export interface FvwksBridge {
   readonly isElectron: true
@@ -112,6 +223,10 @@ export interface FvwksBridge {
   restartEngine(): Promise<void>
   onMenuCommand(listener: (command: MenuCommand) => void): () => void
   openLogs(): Promise<void>
+  /** App updates (checked, downloaded, verified and installed by main). */
+  readonly updates: UpdatesBridge
+  /** The first-run Setup window. */
+  readonly setup: SetupBridge
 }
 
 export const IPC = {
@@ -129,6 +244,18 @@ export const IPC = {
   openMicSettings: 'fvwks:open-mic-settings',
   menuCommand: 'fvwks:menu-command',
   openLogs: 'fvwks:open-logs',
+  updatesState: 'fvwks:updates-state',
+  updatesGet: 'fvwks:updates-get',
+  updatesCheck: 'fvwks:updates-check',
+  updatesDownload: 'fvwks:updates-download',
+  updatesCancel: 'fvwks:updates-cancel',
+  updatesInstall: 'fvwks:updates-install',
+  updatesSetFeed: 'fvwks:updates-set-feed',
+  updatesSetToken: 'fvwks:updates-set-token',
+  updatesSetAuto: 'fvwks:updates-set-auto',
+  updatesDismissWhatsNew: 'fvwks:updates-dismiss-whats-new',
+  setupInfo: 'fvwks:setup-info',
+  setupComplete: 'fvwks:setup-complete',
 } as const
 
 export interface BootInfo {

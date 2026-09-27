@@ -8,12 +8,15 @@ Contract-agnostic on purpose: it takes numpy buffers and plain metadata, so the 
   then ``data``, then ``LIST/INFO``. CDJs reject WAVE_FORMAT_EXTENSIBLE (0xFFFE) with E-8305, so an extensible
   header from any library is rewritten.
 - Tags: ID3v2.3 in AIFF, RIFF INFO in WAV. Rekordbox reads ID3 from AIFF but only RIFF INFO from WAV.
+- Cover art: every AIFF carries the FoxBox fox as APIC (front cover), so drops show it in Rekordbox, Finder and on
+  CDJs. WAV gets none: RIFF INFO has no artwork field Rekordbox reads.
 - Filenames come from ``Settings.filename_pattern`` (default
   ``GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}``). All files of one export
   (variants and stems) share the next free version number.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -25,6 +28,7 @@ import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
+from importlib import resources
 from pathlib import Path
 from typing import Any, Iterable, Literal, Sequence
 
@@ -39,6 +43,7 @@ DEFAULT_ARTIST = "GUY FVWKS"
 DEFAULT_ALBUM = "FoxBox"
 SOFTWARE = "FoxBox"
 RENDER_TXXX = "FVWKS_RENDER"  # TXXX description that holds the render parameters as JSON
+COVER_DESC = "FoxBox"  # APIC description of the cover art
 MAX_CHANNELS = 8
 
 _SF_FORMAT = {"aiff": "AIFF", "wav": "WAV"}
@@ -270,6 +275,13 @@ def _seeded_rng(seed: str) -> np.random.Generator:
 # ------------------------------------------------------------------------------------------------- tags
 
 
+@functools.cache
+def cover_art() -> bytes:
+    """The FoxBox fox for APIC: app/design/brand/foxbox-icon-1024.png flattened on black, 600x600 baseline JPEG
+    (quality 88, 4:4:4, untagged sRGB). Baseline, not progressive, which some DJ hardware can't decode."""
+    return (resources.files(__package__) / "assets" / "cover.jpg").read_bytes()
+
+
 @dataclass
 class TrackTags:
     title: str
@@ -283,6 +295,7 @@ class TrackTags:
     year: int | None = None
     created: str | None = None  # ISO date for RIFF ICRD; defaults to today
     software: str = SOFTWARE
+    cover: bytes | None = None  # JPEG for APIC (front cover); AIFF only
 
     def comment(self) -> str:
         """COMM text: preset and script, e.g. ``[PACT] WE ARE GUY FVWKS | EXPECT *US*``."""
@@ -318,9 +331,9 @@ def build_info_chunk(fields: dict[str, str]) -> bytes:
 
 
 def tag_aiff(path: Path, tags: TrackTags) -> None:
-    """Write an ID3v2.3 chunk into an AIFF (TIT2, TPE1, TALB, TBPM, TKEY, COMM, TXXX, TDRC→TYER, TSSE)."""
+    """Write an ID3v2.3 chunk into an AIFF (TIT2, TPE1, TALB, TBPM, TKEY, COMM, TXXX, TDRC→TYER, TSSE, APIC)."""
     from mutagen.aiff import AIFF
-    from mutagen.id3 import COMM, TALB, TBPM, TDRC, TIT2, TKEY, TPE1, TSSE, TXXX
+    from mutagen.id3 import APIC, COMM, TALB, TBPM, TDRC, TIT2, TKEY, TPE1, TSSE, TXXX, PictureType
 
     audio = AIFF(str(path))
     if audio.tags is None:
@@ -340,6 +353,8 @@ def tag_aiff(path: Path, tags: TrackTags) -> None:
         t.add(TXXX(encoding=3, desc=RENDER_TXXX, text=[canonical_json(tags.render_params)]))
     t.add(TDRC(encoding=3, text=[str(tags.year or date.today().year)]))
     t.add(TSSE(encoding=3, text=[tags.software]))
+    if tags.cover:
+        t.add(APIC(encoding=0, mime="image/jpeg", type=PictureType.COVER_FRONT, desc=COVER_DESC, data=tags.cover))
     t.update_to_v23()
     audio.save(v2_version=3)
 
@@ -430,12 +445,17 @@ def read_tags(path: Path) -> dict[str, Any]:
     if path.suffix.lower() == ".wav":
         return {"format": "wav", "info": read_riff_info(path)}
     from mutagen.aiff import AIFF
+    from mutagen.id3 import APIC
 
     audio = AIFF(str(path))
     frames: dict[str, Any] = {}
     if audio.tags is not None:
         for frame_id, frame in audio.tags.items():
-            frames[frame_id] = list(getattr(frame, "text", [])) if hasattr(frame, "text") else str(frame)
+            if isinstance(frame, APIC):  # its repr would carry the whole image
+                frames[frame_id] = {"mime": frame.mime, "type": int(frame.type), "desc": frame.desc,
+                                    "bytes": len(frame.data)}
+            else:
+                frames[frame_id] = list(getattr(frame, "text", [])) if hasattr(frame, "text") else str(frame)
         frames["_version"] = audio.tags.version
     return {"format": "aiff", "id3": frames}
 
@@ -516,6 +536,7 @@ class ExportMeta:
     album: str | None = DEFAULT_ALBUM
     render_params: dict[str, Any] = field(default_factory=dict)
     pattern: str = DEFAULT_PATTERN
+    cover: bytes | None = field(default_factory=cover_art)  # on every AIFF of the export; None leaves it out
 
 
 @dataclass
@@ -584,7 +605,7 @@ def export_files(
             }
             tags = TrackTags(title=title, artist=meta.artist, album=meta.album, bpm=meta.bpm, key=meta.key,
                              script=meta.script, preset=preset if item.variant == "wet" else label,
-                             render_params=params)
+                             render_params=params, cover=meta.cover)
             temps.append(directory / f".{filename}.{uuid.uuid4().hex[:8]}.part")
             track = write_track(temps[-1], item.audio, item.sample_rate, fmt=fmt, bit_depth=bit_depth,
                                 tags=tags, channels=channels, dither_seed=filename)

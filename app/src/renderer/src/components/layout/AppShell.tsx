@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react'
 import { Banner } from '@/components/feedback/Banner'
 import { ScreenFx } from '@/components/feedback/ScreenFx'
+import { UpdateBanner } from '@/components/updates/UpdateBanner'
 import { SCREENS, useUi } from '@/state/ui'
 import { TopBar } from './TopBar'
 import styles from './layout.module.css'
 
-/** Root grid (76px rail × 56px top bar), the current screen, the wipe/banner layers and scanlines. */
+/**
+ * Root grid (76px rail × 56px top bar, plus the update bar's row while it shows), the current screen, the
+ * wipe/banner layers and scanlines.
+ */
 export function AppShell({ children, overlays }: { children: ReactNode; overlays?: ReactNode }) {
   const screen = useUi((s) => s.screen)
   const wiping = useUi((s) => Boolean(s.wipe))
@@ -14,6 +18,7 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
   return (
     <div className={styles.shell} data-screen={screen} data-wipe={wiping || undefined}>
       <TopBar />
+      <UpdateBanner />
       <nav className={styles.rail} aria-label="Screens" data-reveal="1">
         {SCREENS.map((n) => (
           <button
