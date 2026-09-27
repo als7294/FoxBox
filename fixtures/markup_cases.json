@@ -1,0 +1,43 @@
+{
+  "_note": "Shared markup parse expectations for S1 (parser) and S4 (ScriptEditor highlighter). 'say' = text sent to TTS after lexicon + ALL-CAPS lower-casing. Proposals to change these go to the coordinator.",
+  "cases": [
+    {
+      "script": "WE ARE GUY FVWKS | EXPECT *US*",
+      "segments": [
+        {"text": "WE ARE GUY FVWKS", "say": "we are guy Fawkes", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "EXPECT *US*", "say": "expect us", "flags": {"beat_break": false, "throw": true, "pause_after_s": 0, "pause_after_beats": 0}}
+      ]
+    },
+    {
+      "script": "REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES | WE DO NOT FORGIVE | *EXPECT US*",
+      "segments": [
+        {"text": "REMEMBER, REMEMBER", "say": "remember, remember", "flags": {"beat_break": false, "throw": false, "pause_after_s": 0.5, "pause_after_beats": 0}},
+        {"text": "THE SIGNAL NEVER DIES", "say": "the signal never dies", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "WE DO NOT FORGIVE", "say": "we do not forgive", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "*EXPECT US*", "say": "expect us", "flags": {"beat_break": false, "throw": true, "pause_after_s": 0, "pause_after_beats": 0}}
+      ]
+    },
+    {
+      "script": "WE DO NOT FORGIVE [2b] WE DO NOT FORGET",
+      "segments": [
+        {"text": "WE DO NOT FORGIVE", "say": "we do not forgive", "flags": {"beat_break": false, "throw": false, "pause_after_s": 0, "pause_after_beats": 2}},
+        {"text": "WE DO NOT FORGET", "say": "we do not forget", "flags": {"beat_break": false, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}}
+      ]
+    },
+    {
+      "script": "Put your hands up",
+      "segments": [
+        {"text": "Put your hands up", "say": "Put your hands up", "flags": {"beat_break": false, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}}
+      ]
+    },
+    {
+      "script": "ONE | TWO | THREE | *FOUR*",
+      "segments": [
+        {"text": "ONE", "say": "one", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "TWO", "say": "two", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "THREE", "say": "three", "flags": {"beat_break": true, "throw": false, "pause_after_s": 0, "pause_after_beats": 0}},
+        {"text": "*FOUR*", "say": "four", "flags": {"beat_break": false, "throw": true, "pause_after_s": 0, "pause_after_beats": 0}}
+      ]
+    }
+  ]
+}

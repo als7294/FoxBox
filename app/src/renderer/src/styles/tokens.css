@@ -1,0 +1,105 @@
+/*
+ * Design tokens from the Claude Design handoff (app/design/voicebox-engine.js THEMES).
+ * One theme: TRANSMISSION.
+ * Canvas drawings read the same values from src/visuals/theme.ts.
+ */
+:root {
+  color-scheme: dark;
+  --vb-bg: #0b0b0c;
+  --vb-panel: #111113;
+  --vb-chrome: #0d0d0f;
+  --vb-raise: #18181b;
+  --vb-card: #141417;
+  --vb-well: #0b0b0c;
+  --vb-knob: #17171a;
+  --vb-ink: #e9e5da;
+  --vb-dim: #8d8a82;
+  --vb-accent: #ff4b2b;
+  --vb-amber: #ffb23e;
+  --vb-ice: #7cc8ff;
+  --vb-ok: #7fd08a;
+  --vb-ink-rgb: 233, 229, 218;
+  --vb-panel-rgb: 17, 17, 19;
+  --vb-accent-rgb: 255, 75, 43;
+  --vb-amber-rgb: 255, 178, 62;
+  --vb-shadow-rgb: 0, 0, 0;
+  --vb-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --vb-font-display: 'Big Shoulders Display', sans-serif;
+  --vb-display-weight: 800;
+  --vb-glow: 1;
+  --vb-scanlines: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+}
+
+:root {
+  /* derived lines and fills */
+  --vb-line: rgba(var(--vb-ink-rgb), 0.08);
+  --vb-line-soft: rgba(var(--vb-ink-rgb), 0.05);
+  --vb-line-2: rgba(var(--vb-ink-rgb), 0.14);
+  --vb-line-3: rgba(var(--vb-ink-rgb), 0.2);
+  --vb-fill-1: rgba(var(--vb-ink-rgb), 0.03);
+  --vb-fill-2: rgba(var(--vb-ink-rgb), 0.06);
+  --vb-amber-line: rgba(var(--vb-amber-rgb), 0.45);
+  --vb-accent-glow: 0 0 22px rgba(var(--vb-accent-rgb), calc(0.28 * var(--vb-glow)));
+  --vb-pop: 0 20px 50px rgba(var(--vb-shadow-rgb), 0.7);
+
+  /* radii */
+  --vb-r1: 2px;
+  --vb-r2: 3px;
+  --vb-r3: 4px;
+
+  /* motion */
+  --vb-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --vb-ease-io: cubic-bezier(0.7, 0, 0.2, 1);
+  --vb-fast: 0.15s;
+  --vb-med: 0.3s;
+  --vb-slow: 0.55s;
+
+  /* layout */
+  --vb-rail-w: 76px;
+  --vb-top-h: 56px;
+  --vb-gap: 12px;
+
+  /* Phase 1 token names, kept as aliases so every component reads the design values. */
+  --color-bg: var(--vb-bg);
+  --color-surface: var(--vb-panel);
+  --color-surface-2: var(--vb-raise);
+  --color-surface-3: var(--vb-raise);
+  --color-border: var(--vb-line);
+  --color-border-strong: var(--vb-line-3);
+  --color-text: var(--vb-ink);
+  --color-text-muted: var(--vb-dim);
+  --color-text-faint: var(--vb-dim);
+  --color-accent: var(--vb-accent);
+  --color-accent-strong: var(--vb-accent);
+  --color-accent-contrast: var(--vb-bg);
+  --color-meter: var(--vb-amber);
+  --color-ok: var(--vb-ok);
+  --color-warn: var(--vb-amber);
+  --color-danger: var(--vb-accent);
+  --color-focus: var(--vb-amber);
+  --color-overlay: rgba(5, 5, 6, 0.78);
+  --font-ui: var(--vb-font-mono);
+  --font-mono: var(--vb-font-mono);
+  --font-display: var(--vb-font-display);
+  --text-2xs: 9.5px;
+  --text-xs: 10.5px;
+  --text-sm: 11px;
+  --text-md: 12px;
+  --text-lg: 16px;
+  --text-xl: 26px;
+  --text-2xl: 44px;
+  --tracking-caps: 0.16em;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: var(--vb-r1);
+  --radius-md: var(--vb-r2);
+  --radius-lg: var(--vb-r3);
+  --radius-round: 999px;
+  --dur-fast: 0.15s;
+  --dur-med: 0.3s;
+  --ease-out: var(--vb-ease);
+}

@@ -1,0 +1,12 @@
+# Build and test outputs (S4)
+out/
+release/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# Design-hook cache (tooling, not project content)
+.impeccable/
+
+# The credit's contact address (build-time injection; never committed)
+credit.local.json

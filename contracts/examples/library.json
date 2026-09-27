@@ -1,0 +1,137 @@
+{
+  "items": [
+    {
+      "id": "tak_d6e60a3f1f63",
+      "render_id": "rnd_cda47b95ae5b",
+      "source_id": "src_bff54d2a0749",
+      "title": "WE ARE GUY FVWKS EXPECT US",
+      "created_at": "2026-09-27T00:38:27.397+00:00",
+      "starred": false,
+      "tags": [],
+      "script": "WE ARE GUY FVWKS | EXPECT *US*",
+      "source_kind": "tts",
+      "voice_id": "kokoro:am_fenrir",
+      "preset_id": "pact",
+      "preset_name": "PACT",
+      "bpm": 140.0,
+      "bars": 4,
+      "key": "Am",
+      "duration_s": 6.85714,
+      "loudness": {
+        "integrated_lufs": -7.832,
+        "short_term_max_lufs": -7.002,
+        "true_peak_db": -1.02,
+        "sample_peak_db": -1.026
+      },
+      "mask": {
+        "level": "synthetic",
+        "score": 7.0,
+        "reasons": [
+          "Synthetic TTS voice: no biometric voice present.",
+          "On a recording this chain would score STRONG."
+        ]
+      },
+      "audio_id": "rnd_bc34dbf8692e",
+      "peaks": {
+        "buckets": 800,
+        "duration_s": 6.85714,
+        "min": [
+          -0.4411,
+          -0.7777,
+          -0.7706,
+          -0.748,
+          -0.6675,
+          -0.7356,
+          -0.7827,
+          -0.7752,
+          -0.8181,
+          -0.679,
+          -0.8177,
+          -0.7729,
+          "…"
+        ],
+        "max": [
+          0.5073,
+          0.7365,
+          0.8048,
+          0.8196,
+          0.8173,
+          0.7622,
+          0.7588,
+          0.7646,
+          0.6925,
+          0.6885,
+          0.7522,
+          0.7716,
+          "…"
+        ]
+      },
+      "exports": [
+        {
+          "id": "exp_73ad5da0f4b7",
+          "render_id": "rnd_cda47b95ae5b",
+          "variant": "wet",
+          "title": "WE ARE GUY FVWKS EXPECT US (PACT v01)",
+          "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
+          "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
+          "format": "aiff",
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "channels": 2,
+          "n_samples": 302400,
+          "duration_s": 6.85714,
+          "bpm": 140.0,
+          "key": "Am",
+          "bars": 4,
+          "first_word_s": 0.0,
+          "tail_s": null,
+          "size_bytes": 1825646,
+          "created_at": "2026-09-27T00:38:27.442+00:00"
+        },
+        {
+          "id": "exp_ca931366db70",
+          "render_id": "rnd_cda47b95ae5b",
+          "variant": "wet",
+          "title": "WE ARE GUY FVWKS EXPECT US (PACT v02)",
+          "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v02.aiff",
+          "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v02.aiff",
+          "format": "aiff",
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "channels": 2,
+          "n_samples": 302400,
+          "duration_s": 6.85714,
+          "bpm": 140.0,
+          "key": "Am",
+          "bars": 4,
+          "first_word_s": 0.0,
+          "tail_s": null,
+          "size_bytes": 1825646,
+          "created_at": "2026-09-27T00:38:27.474+00:00"
+        },
+        {
+          "id": "exp_93cf9ca8f363",
+          "render_id": "rnd_cda47b95ae5b",
+          "variant": "dry",
+          "title": "WE ARE GUY FVWKS EXPECT US (PACT dry v02)",
+          "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v02.aiff",
+          "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v02.aiff",
+          "format": "aiff",
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "channels": 2,
+          "n_samples": 302400,
+          "duration_s": 6.85714,
+          "bpm": 140.0,
+          "key": "Am",
+          "bars": 4,
+          "first_word_s": 0.0,
+          "tail_s": null,
+          "size_bytes": 1825662,
+          "created_at": "2026-09-27T00:38:27.474+00:00"
+        }
+      ]
+    }
+  ],
+  "total": 1
+}

@@ -1,0 +1,119 @@
+{
+  "id": "raw",
+  "name": "RAW",
+  "description": "Anonymizer base for your own voice: prep, pitch + formant + McAdams only. Build from here.",
+  "factory": true,
+  "tags": [
+    "anonymizer",
+    "clean",
+    "base"
+  ],
+  "voice_hint": null,
+  "speed_hint": null,
+  "chain": {
+    "modules": [
+      {
+        "id": "prep",
+        "enabled": true,
+        "params": {
+          "hp_hz": 70,
+          "gate_db": -55,
+          "deess": 0.3,
+          "normalize": true
+        }
+      },
+      {
+        "id": "mask",
+        "enabled": true,
+        "params": {
+          "pitch_mode": "natural",
+          "breath": 0.0,
+          "growl": 0.0
+        }
+      },
+      {
+        "id": "drive",
+        "enabled": true,
+        "params": {
+          "mode": "tanh",
+          "tone": 0.5,
+          "drive_db": 12,
+          "oversample": "2"
+        }
+      },
+      {
+        "id": "space",
+        "enabled": true,
+        "params": {
+          "reverb_decay_s": 1.2,
+          "reverb_dark": 0.7,
+          "reverb_type": "plate",
+          "delay_mix": 0,
+          "throw_send": 0.0
+        }
+      },
+      {
+        "id": "stereo",
+        "enabled": true,
+        "params": {
+          "width": 1.0,
+          "mono_below_hz": 150
+        }
+      }
+    ]
+  },
+  "macros": {
+    "depth": 0.5,
+    "grit": 0.5,
+    "machine": 0.5,
+    "space": 0.5
+  },
+  "macro_map": {
+    "depth": [
+      {
+        "module": "mask",
+        "param": "pitch_st",
+        "min": 0.0,
+        "max": -8.0,
+        "curve": "lin"
+      },
+      {
+        "module": "mask",
+        "param": "formant_st",
+        "min": 0.0,
+        "max": -8.0,
+        "curve": "lin"
+      }
+    ],
+    "grit": [
+      {
+        "module": "drive",
+        "param": "mix",
+        "min": -0.6,
+        "max": 0.6,
+        "curve": "lin"
+      }
+    ],
+    "machine": [
+      {
+        "module": "mask",
+        "param": "mcadams",
+        "min": 1.0,
+        "max": 0.6,
+        "curve": "lin"
+      }
+    ],
+    "space": [
+      {
+        "module": "space",
+        "param": "reverb_mix",
+        "min": -0.2,
+        "max": 0.2,
+        "curve": "lin"
+      }
+    ]
+  },
+  "stack": [],
+  "arrange_hint": {},
+  "master_hint": {}
+}

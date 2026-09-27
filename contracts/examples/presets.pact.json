@@ -1,0 +1,220 @@
+{
+  "id": "pact",
+  "name": "PACT",
+  "description": "Deathpact-inspired entity: deep, formant-dropped, sub-heavy, parallel tube→clip, faint robotic collage, dark plate and 1/8 slap.",
+  "factory": true,
+  "tags": [
+    "signature",
+    "demon",
+    "announcer"
+  ],
+  "voice_hint": "kokoro:am_fenrir",
+  "speed_hint": 0.9,
+  "chain": {
+    "modules": [
+      {
+        "id": "prep",
+        "enabled": true,
+        "params": {
+          "hp_hz": 60,
+          "gate_db": -55,
+          "deess": 0.3,
+          "normalize": true
+        }
+      },
+      {
+        "id": "mask",
+        "enabled": true,
+        "params": {
+          "pitch_mode": "natural",
+          "mcadams": 1.0,
+          "breath": 0.0,
+          "growl": 0.12
+        }
+      },
+      {
+        "id": "layers",
+        "enabled": true,
+        "params": {
+          "sub_st": -12,
+          "sub_formant_st": -3,
+          "ghost_gain_db": -60
+        }
+      },
+      {
+        "id": "machine",
+        "enabled": true,
+        "params": {
+          "vocoder_bands": 32,
+          "vocoder_carrier": "saw",
+          "vocoder_chord": "root",
+          "vocoder_octave": 2,
+          "ring_hz": 45,
+          "shift_mix": 0.0,
+          "shift_hz": 0
+        }
+      },
+      {
+        "id": "drive",
+        "enabled": true,
+        "params": {
+          "mode": "tube>hard",
+          "tone": 0.45,
+          "mix": 0.45,
+          "oversample": "4"
+        }
+      },
+      {
+        "id": "tone",
+        "enabled": true,
+        "params": {
+          "hp_hz": 50,
+          "lp_hz": 8000,
+          "low_hz": 120,
+          "low_db": 2,
+          "mid_hz": 300,
+          "mid_db": -3,
+          "mid_q": 1.0
+        }
+      },
+      {
+        "id": "dynamics",
+        "enabled": true,
+        "params": {
+          "comp_threshold_db": -24,
+          "comp_ratio": 4,
+          "comp_attack_ms": 5,
+          "comp_release_ms": 120,
+          "makeup_db": 6
+        }
+      },
+      {
+        "id": "space",
+        "enabled": true,
+        "params": {
+          "reverb_decay_s": 1.0,
+          "reverb_dark": 0.8,
+          "predelay_ms": 10,
+          "reverb_type": "plate",
+          "delay_div": "1/8",
+          "delay_feedback": 0.25,
+          "pingpong": false,
+          "throw_send": 0.7,
+          "swell_beats": 0
+        }
+      },
+      {
+        "id": "stereo",
+        "enabled": true,
+        "params": {
+          "width": 1.2,
+          "mono_below_hz": 150
+        }
+      }
+    ]
+  },
+  "macros": {
+    "depth": 0.5,
+    "grit": 0.5,
+    "machine": 0.5,
+    "space": 0.5
+  },
+  "macro_map": {
+    "depth": [
+      {
+        "module": "mask",
+        "param": "pitch_st",
+        "min": -4.0,
+        "max": -14.0,
+        "curve": "lin"
+      },
+      {
+        "module": "mask",
+        "param": "formant_st",
+        "min": -2.0,
+        "max": -8.0,
+        "curve": "lin"
+      },
+      {
+        "module": "layers",
+        "param": "sub_gain_db",
+        "min": -18.0,
+        "max": 2.0,
+        "curve": "lin"
+      }
+    ],
+    "grit": [
+      {
+        "module": "drive",
+        "param": "drive_db",
+        "min": 8.0,
+        "max": 28.0,
+        "curve": "lin"
+      },
+      {
+        "module": "dynamics",
+        "param": "ott",
+        "min": 0.1,
+        "max": 0.5,
+        "curve": "lin"
+      }
+    ],
+    "machine": [
+      {
+        "module": "machine",
+        "param": "vocoder_mix",
+        "min": 0.0,
+        "max": 0.3,
+        "curve": "lin"
+      },
+      {
+        "module": "machine",
+        "param": "ring_mix",
+        "min": 0.0,
+        "max": 0.2,
+        "curve": "lin"
+      },
+      {
+        "module": "mask",
+        "param": "monotone",
+        "min": 0.0,
+        "max": 0.4,
+        "curve": "lin"
+      }
+    ],
+    "space": [
+      {
+        "module": "space",
+        "param": "reverb_mix",
+        "min": 0.05,
+        "max": 0.25,
+        "curve": "lin"
+      },
+      {
+        "module": "space",
+        "param": "delay_mix",
+        "min": 0.05,
+        "max": 0.3,
+        "curve": "lin"
+      }
+    ]
+  },
+  "stack": [
+    {
+      "voice_id": "kokoro:am_michael",
+      "pitch_st": -8.0,
+      "formant_st": -3.0,
+      "pan": -0.4,
+      "gain_db": -14.0
+    },
+    {
+      "voice_id": "kokoro:bm_george",
+      "pitch_st": -10.0,
+      "formant_st": -4.0,
+      "pan": 0.4,
+      "gain_db": -14.0
+    }
+  ],
+  "arrange_hint": {},
+  "master_hint": {}
+}

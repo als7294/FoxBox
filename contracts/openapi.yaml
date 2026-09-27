@@ -1,0 +1,4421 @@
+openapi: 3.1.0
+info:
+  title: FoxBox Engine
+  version: 0.1.0
+paths:
+  /api/health:
+    get:
+      tags:
+      - system
+      summary: Get Health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/rack:
+    get:
+      tags:
+      - system
+      summary: Get Rack
+      operationId: getRack
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RackDescriptor'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/models:
+    get:
+      tags:
+      - system
+      summary: List Models
+      operationId: listModels
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ModelInfo'
+                type: array
+                title: Response Listmodels
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/models/{model_id}/install:
+    post:
+      tags:
+      - system
+      summary: Install Model
+      operationId: installModel
+      parameters:
+      - name: model_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Model Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/models/{model_id}:
+    delete:
+      tags:
+      - system
+      summary: Uninstall Model
+      description: 'v0.6 (S3 P8): free disk. 409 model_required / model_busy. S3 implements.'
+      operationId: uninstallModel
+      parameters:
+      - name: model_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Model Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/models/manifest:
+    put:
+      tags:
+      - system
+      summary: Apply Model Manifest
+      description: 'v0.6 (S3 P9): signed model-update manifest from the app''s updater. S3 implements.'
+      operationId: applyModelManifest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignedModelManifest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ModelInfo'
+                type: array
+                title: Response Applymodelmanifest
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/jobs/{job_id}:
+    get:
+      tags:
+      - system
+      summary: Get Job
+      operationId: getJob
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/jobs/{job_id}/cancel:
+    post:
+      tags:
+      - system
+      summary: Cancel Job
+      operationId: cancelJob
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/voices:
+    get:
+      tags:
+      - voices
+      summary: List Voices
+      operationId: listVoices
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Voice'
+                type: array
+                title: Response Listvoices
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/sources/tts:
+    post:
+      tags:
+      - sources
+      summary: Create Tts Source
+      operationId: createTtsSource
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TTSRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/sources/upload:
+    post:
+      tags:
+      - sources
+      summary: Upload Source
+      operationId: uploadSource
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_uploadSource'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/sources/{source_id}/transcript:
+    put:
+      tags:
+      - sources
+      summary: Update Transcript
+      description: 'v0.3: edit a recording''s transcript (markup allowed) → re-segment + re-align.'
+      operationId: updateTranscript
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranscriptUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/sources:
+    get:
+      tags:
+      - sources
+      summary: List Sources
+      operationId: listSources
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - tts
+            - recording
+            - import
+            type: string
+          - type: 'null'
+          title: Kind
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceList'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/sources/{source_id}:
+    get:
+      tags:
+      - sources
+      summary: Get Source
+      operationId: getSource
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - sources
+      summary: Delete Source
+      operationId: deleteSource
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/personas/design:
+    post:
+      tags:
+      - voices
+      summary: Design Persona
+      operationId: designPersona
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonaDesignRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/personas:
+    post:
+      tags:
+      - voices
+      summary: Save Persona
+      operationId: savePersona
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonaSaveRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Voice'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/personas/candidates/{candidate_id}:
+    get:
+      tags:
+      - voices
+      summary: Get Persona Candidate
+      operationId: getPersonaCandidate
+      parameters:
+      - name: candidate_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Candidate Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonaCandidate'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/script/preview:
+    post:
+      tags:
+      - sources
+      summary: Preview Script
+      operationId: previewScript
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScriptPreviewRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptPreview'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/presets:
+    get:
+      tags:
+      - presets
+      summary: List Presets
+      operationId: listPresets
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Preset'
+                type: array
+                title: Response Listpresets
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags:
+      - presets
+      summary: Create Preset
+      operationId: createPreset
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Preset'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preset'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/presets/{preset_id}:
+    put:
+      tags:
+      - presets
+      summary: Update Preset
+      operationId: updatePreset
+      parameters:
+      - name: preset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Preset Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Preset'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preset'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - presets
+      summary: Delete Preset
+      operationId: deletePreset
+      parameters:
+      - name: preset_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Preset Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/render:
+    post:
+      tags:
+      - render
+      summary: Render
+      operationId: render
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/renders/{render_id}:
+    get:
+      tags:
+      - render
+      summary: Get Render
+      operationId: getRender
+      parameters:
+      - name: render_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Render Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenderInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/exports:
+    post:
+      tags:
+      - export
+      summary: Create Exports
+      operationId: createExports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResult'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/exports/rekordbox:
+    post:
+      tags:
+      - export
+      summary: Export Rekordbox
+      operationId: exportRekordbox
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RekordboxRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RekordboxResult'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/library:
+    get:
+      tags:
+      - library
+      summary: List Library
+      operationId: listLibrary
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Q
+      - name: starred
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Starred
+      - name: preset_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LibraryPage'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/library/{take_id}:
+    get:
+      tags:
+      - library
+      summary: Get Take
+      operationId: getTake
+      parameters:
+      - name: take_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Take Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Take'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    patch:
+      tags:
+      - library
+      summary: Update Take
+      operationId: updateTake
+      parameters:
+      - name: take_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Take Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TakePatch'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Take'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - library
+      summary: Delete Take
+      operationId: deleteTake
+      parameters:
+      - name: take_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Take Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/batch:
+    post:
+      tags:
+      - batch
+      summary: Create Batch
+      operationId: createBatch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/settings:
+    get:
+      tags:
+      - settings
+      summary: Get Settings
+      operationId: getSettings
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags:
+      - settings
+      summary: Update Settings
+      operationId: updateSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/lexicon:
+    get:
+      tags:
+      - settings
+      summary: Get Lexicon
+      operationId: getLexicon
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lexicon'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags:
+      - settings
+      summary: Update Lexicon
+      operationId: updateLexicon
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lexicon'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lexicon'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/audio/{audio_id}:
+    get:
+      tags:
+      - audio
+      summary: Get Audio
+      operationId: getAudio
+      parameters:
+      - name: audio_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Audio Id
+      responses:
+        '200':
+          description: WAV (integer PCM). `?token=` is accepted here instead of the header.
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+components:
+  schemas:
+    ApiError:
+      properties:
+        code:
+          type: string
+          title: Code
+          description: Stable machine code, e.g. 'not_found', 'tts_failed', 'engine_busy'.
+        message:
+          type: string
+          title: Message
+          description: Human-readable message, safe to show in the UI.
+        hint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Hint
+          description: Optional next step for the user.
+        retryable:
+          type: boolean
+          title: Retryable
+          default: false
+        model_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model Id
+          description: 'For model_not_installed: the model to install (deep link) (v0.6, S3 P7).'
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ApiError
+    Arrange:
+      properties:
+        bpm:
+          type: number
+          maximum: 200.0
+          minimum: 60.0
+          title: Bpm
+          default: 140.0
+        bars:
+          anyOf:
+          - type: integer
+            enum:
+            - 1
+            - 2
+            - 4
+            - 8
+            - 16
+          - type: string
+            const: auto
+          - type: 'null'
+          title: Bars
+          description: '''auto'' (default) = the standard bar count (1/2/4/8/16) nearest to the phrase''s natural length that
+            it fits, padding or compressing by at most max_stretch (fvwks_contracts.audio.resolve_auto_bars). None = FREE
+            (no grid fit). RenderInfo.bars reports the resolved count.'
+          default: auto
+        key:
+          type: string
+          title: Key
+          description: Root + optional 'm', e.g. 'Am', 'F#m', 'C'. Drives monotone and vocoder notes.
+          default: Am
+        fit:
+          type: string
+          enum:
+          - auto
+          - pad
+          - stretch
+          title: Fit
+          description: 'auto (v0.4): warp to the grid per snap_end, pad the rest with the tail; if even max_stretch can''t
+            fit, grow to the next bar count (FitReport.status ''extended''), never cut. pad: no time manipulation. stretch:
+            always stretch to fill.'
+          default: auto
+        max_stretch:
+          type: number
+          maximum: 0.25
+          minimum: 0.0
+          title: Max Stretch
+          default: 0.08
+        beat_lock:
+          type: boolean
+          title: Beat Lock
+          default: false
+        first_word_beat:
+          type: number
+          minimum: 0.0
+          title: First Word Beat
+          description: Where the first word lands, in beats from the file start (room for swells/pre-roll).
+          default: 0.0
+        tail_beats:
+          type: number
+          minimum: 0.0
+          title: Tail Beats
+          description: Ring-out reserved at the end, inside the N bars.
+          default: 0.0
+        snap_end:
+          type: string
+          enum:
+          - 'off'
+          - beat
+          - bar
+          title: Snap End
+          description: 'v0.4.1: time-manipulate the phrase so its first word starts on the downbeat and its LAST word ends
+            exactly on a beat (''beat'') or bar line (''bar''), stretching/squeezing within max_stretch (R3), then let the
+            tail ring; ''off'' = natural length. Speech is never truncated.'
+          default: beat
+        auto_tail:
+          type: boolean
+          title: Auto Tail
+          description: Reserve room after the last word for its natural release and the chain's FX tail (reverb/delay/throws)
+            when fitting; speech is never truncated (v0.4).
+          default: true
+        fade_in_ms:
+          type: number
+          minimum: 0.0
+          title: Fade In Ms
+          default: 2.0
+        fade_out_ms:
+          type: number
+          minimum: 0.0
+          title: Fade Out Ms
+          default: 30.0
+      additionalProperties: false
+      type: object
+      title: Arrange
+    BatchExportOptions:
+      properties:
+        format:
+          type: string
+          enum:
+          - aiff
+          - wav
+          title: Format
+          default: aiff
+        bit_depth:
+          type: integer
+          enum:
+          - 16
+          - 24
+          title: Bit Depth
+          default: 24
+        variants:
+          items:
+            type: string
+          type: array
+          title: Variants
+      additionalProperties: false
+      type: object
+      title: BatchExportOptions
+    BatchLine:
+      properties:
+        script:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Script
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        voice_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voice Id
+        preset_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Id
+        bpm:
+          anyOf:
+          - type: number
+            maximum: 200.0
+            minimum: 60.0
+          - type: 'null'
+          title: Bpm
+        bars:
+          anyOf:
+          - type: integer
+            enum:
+            - 1
+            - 2
+            - 4
+            - 8
+            - 16
+          - type: string
+            const: auto
+          - type: 'null'
+          title: Bars
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+      additionalProperties: false
+      type: object
+      required:
+      - script
+      title: BatchLine
+    BatchRequest:
+      properties:
+        lines:
+          items:
+            $ref: '#/components/schemas/BatchLine'
+          type: array
+          maxItems: 200
+          minItems: 1
+          title: Lines
+        voice_id:
+          type: string
+          title: Voice Id
+          default: kokoro:am_fenrir
+        speed:
+          type: number
+          maximum: 2.0
+          minimum: 0.5
+          title: Speed
+          default: 0.9
+        preset_id:
+          type: string
+          title: Preset Id
+          default: pact
+        macros:
+          anyOf:
+          - $ref: '#/components/schemas/Macros'
+          - type: 'null'
+        arrange:
+          $ref: '#/components/schemas/Arrange'
+        master:
+          $ref: '#/components/schemas/Master'
+        export:
+          $ref: '#/components/schemas/BatchExportOptions'
+        playlist:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Playlist
+          description: Also write rekordbox.xml with this playlist name.
+      additionalProperties: false
+      type: object
+      required:
+      - lines
+      title: BatchRequest
+    Body_uploadSource:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        kind:
+          type: string
+          enum:
+          - recording
+          - import
+          title: Kind
+          default: import
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        denoise:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Denoise
+      type: object
+      required:
+      - file
+      title: Body_uploadSource
+    Chain:
+      properties:
+        modules:
+          items:
+            $ref: '#/components/schemas/ModuleState'
+          type: array
+          title: Modules
+          description: Modules not listed are disabled. Order is fixed by the rack.
+      additionalProperties: false
+      type: object
+      title: Chain
+    ErrorEnvelope:
+      properties:
+        error:
+          $ref: '#/components/schemas/ApiError'
+      additionalProperties: false
+      type: object
+      required:
+      - error
+      title: ErrorEnvelope
+      description: Body of every non-2xx response.
+    ExportRequest:
+      properties:
+        render_ids:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Render Ids
+        format:
+          type: string
+          enum:
+          - aiff
+          - wav
+          title: Format
+          default: aiff
+        bit_depth:
+          type: integer
+          enum:
+          - 16
+          - 24
+          title: Bit Depth
+          default: 24
+        variants:
+          items:
+            type: string
+          type: array
+          title: Variants
+          description: '''wet'' | ''dry'' | ''alt:<preset_id>'''
+        stems:
+          type: boolean
+          title: Stems
+          default: false
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      additionalProperties: false
+      type: object
+      required:
+      - render_ids
+      title: ExportRequest
+    ExportResult:
+      properties:
+        files:
+          items:
+            $ref: '#/components/schemas/ExportedFile'
+          type: array
+          title: Files
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+          description: 'e.g. ''no stems: the sound engine doesn''t produce them yet'' (v0.1).'
+      additionalProperties: false
+      type: object
+      required:
+      - files
+      title: ExportResult
+    ExportedFile:
+      properties:
+        id:
+          type: string
+          title: Id
+        render_id:
+          type: string
+          title: Render Id
+        variant:
+          type: string
+          title: Variant
+          description: '''wet'' | ''dry'' | ''alt:<preset_id>'' | ''stem:<name>'''
+        title:
+          type: string
+          title: Title
+        filename:
+          type: string
+          title: Filename
+        path:
+          type: string
+          title: Path
+          description: Absolute path inside the export root.
+        format:
+          type: string
+          enum:
+          - aiff
+          - wav
+          title: Format
+        sample_rate:
+          type: integer
+          title: Sample Rate
+        bit_depth:
+          type: integer
+          title: Bit Depth
+        channels:
+          type: integer
+          title: Channels
+        n_samples:
+          type: integer
+          title: N Samples
+        duration_s:
+          type: number
+          title: Duration S
+        bpm:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bpm
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+        bars:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Bars
+        first_word_s:
+          type: number
+          title: First Word S
+          default: 0.0
+        tail_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tail S
+          description: End of the last word (rekordbox memory cue 'VOICE OUT').
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - render_id
+      - variant
+      - title
+      - filename
+      - path
+      - format
+      - sample_rate
+      - bit_depth
+      - channels
+      - n_samples
+      - duration_s
+      - size_bytes
+      - created_at
+      title: ExportedFile
+    FitReport:
+      properties:
+        status:
+          type: string
+          enum:
+          - fits
+          - stretched
+          - extended
+          - overflow
+          - free
+          title: Status
+          description: '''extended'' (v0.4): the phrase + tail did not fit the requested bars, so the render grew to the next
+            bar count instead of cutting speech. ''overflow'' is legacy (speech is never truncated from v0.4).'
+        speech_s:
+          type: number
+          title: Speech S
+        available_s:
+          type: number
+          title: Available S
+        total_s:
+          type: number
+          title: Total S
+        stretch_ratio:
+          type: number
+          title: Stretch Ratio
+          default: 1.0
+        suggested_bars:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Suggested Bars
+        message:
+          type: string
+          title: Message
+        reserved_tail_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Reserved Tail S
+          description: Room kept after the last word for its release + FX tail (v0.4).
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - speech_s
+      - available_s
+      - total_s
+      - message
+      title: FitReport
+    Health:
+      properties:
+        state:
+          type: string
+          enum:
+          - starting
+          - loading_model
+          - ready
+          - error
+          title: State
+        version:
+          type: string
+          title: Version
+        progress:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Progress
+          description: While loading_model.
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        voice_engine:
+          type: string
+          title: Voice Engine
+          description: e.g. 'stub', 'kokoro-mlx'.
+        fx_engine:
+          type: string
+          title: Fx Engine
+          description: e.g. 'stub', 'fvwks-rack'.
+        disk_free_bytes:
+          type: integer
+          title: Disk Free Bytes
+        data_dir:
+          type: string
+          title: Data Dir
+        export_dir:
+          type: string
+          title: Export Dir
+        required_missing:
+          items:
+            type: string
+          type: array
+          title: Required Missing
+          description: Required model ids not installed yet; the installer/first-run screen fetches them (v0.4).
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - version
+      - voice_engine
+      - fx_engine
+      - disk_free_bytes
+      - data_dir
+      - export_dir
+      title: Health
+    Job:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          type: string
+          enum:
+          - model_install
+          - batch
+          - analysis
+          - persona_design
+          title: Kind
+        state:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - error
+          - cancelled
+          title: State
+        progress:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Progress
+          default: 0.0
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        items:
+          items:
+            $ref: '#/components/schemas/JobItem'
+          type: array
+          title: Items
+        result_ids:
+          items:
+            type: string
+          type: array
+          title: Result Ids
+          description: 'batch: export ids (+ rekordbox xml path in message); persona_design: candidate ids.'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ApiError'
+          - type: 'null'
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        bytes_done:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Bytes Done
+          description: Download/installer progress in bytes (v0.4).
+        bytes_total:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Bytes Total
+          description: Total bytes for this job, when known (v0.4).
+        rate_bps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rate Bps
+          description: Current transfer rate, bytes per second (v0.4).
+        eta_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Eta S
+          description: Estimated seconds remaining (v0.4).
+        current_item:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Item
+          description: What is being fetched right now, e.g. a model file or component name (v0.4).
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - kind
+      - state
+      - created_at
+      - updated_at
+      title: Job
+    JobItem:
+      properties:
+        index:
+          type: integer
+          title: Index
+        label:
+          type: string
+          title: Label
+        state:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - error
+          - cancelled
+          title: State
+        progress:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Progress
+          default: 0.0
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ApiError'
+          - type: 'null'
+        result_ids:
+          items:
+            type: string
+          type: array
+          title: Result Ids
+          description: e.g. take/export ids produced by this item.
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - label
+      - state
+      title: JobItem
+    Lexicon:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/LexiconEntry'
+          type: array
+          title: Entries
+      additionalProperties: false
+      type: object
+      required:
+      - entries
+      title: Lexicon
+    LexiconEntry:
+      properties:
+        word:
+          type: string
+          minLength: 1
+          title: Word
+        say:
+          type: string
+          minLength: 1
+          title: Say
+          description: Respelling or /phonemes/ (misaki syntax).
+        acronym:
+          type: boolean
+          title: Acronym
+          description: Keep ALL-CAPS (spell it out) instead of lower-casing.
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - word
+      - say
+      title: LexiconEntry
+    LibraryPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Take'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      title: LibraryPage
+    Loudness:
+      properties:
+        integrated_lufs:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Integrated Lufs
+        short_term_max_lufs:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Short Term Max Lufs
+        true_peak_db:
+          type: number
+          title: True Peak Db
+        sample_peak_db:
+          type: number
+          title: Sample Peak Db
+      additionalProperties: false
+      type: object
+      required:
+      - true_peak_db
+      - sample_peak_db
+      title: Loudness
+    MacroMap:
+      properties:
+        depth:
+          items:
+            $ref: '#/components/schemas/MacroTarget'
+          type: array
+          title: Depth
+        grit:
+          items:
+            $ref: '#/components/schemas/MacroTarget'
+          type: array
+          title: Grit
+        machine:
+          items:
+            $ref: '#/components/schemas/MacroTarget'
+          type: array
+          title: Machine
+        space:
+          items:
+            $ref: '#/components/schemas/MacroTarget'
+          type: array
+          title: Space
+      additionalProperties: false
+      type: object
+      title: MacroMap
+      description: Macro-controlled params are overwritten by interpolation (like an Ableton macro rack).
+    MacroSpec:
+      properties:
+        id:
+          type: string
+          enum:
+          - depth
+          - grit
+          - machine
+          - space
+          title: Id
+        label:
+          type: string
+          title: Label
+        description:
+          type: string
+          title: Description
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - label
+      - description
+      title: MacroSpec
+    MacroTarget:
+      properties:
+        module:
+          type: string
+          title: Module
+        param:
+          type: string
+          title: Param
+        min:
+          type: number
+          title: Min
+          description: Value at macro = 0.
+        max:
+          type: number
+          title: Max
+          description: Value at macro = 1.
+        curve:
+          type: string
+          enum:
+          - lin
+          - exp
+          - log
+          title: Curve
+          default: lin
+      additionalProperties: false
+      type: object
+      required:
+      - module
+      - param
+      - min
+      - max
+      title: MacroTarget
+    Macros:
+      properties:
+        depth:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Depth
+          default: 0.0
+        grit:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Grit
+          default: 0.0
+        machine:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Machine
+          default: 0.0
+        space:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Space
+          default: 0.0
+      additionalProperties: false
+      type: object
+      title: Macros
+    ManifestModel:
+      properties:
+        version:
+          type: string
+          title: Version
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        repos:
+          items:
+            $ref: '#/components/schemas/ManifestRepo'
+          type: array
+          title: Repos
+      additionalProperties: false
+      type: object
+      required:
+      - version
+      - repos
+      title: ManifestModel
+    ManifestRepo:
+      properties:
+        repo_id:
+          type: string
+          title: Repo Id
+        revision:
+          type: string
+          title: Revision
+          description: Pinned Hugging Face commit sha (content-addressed).
+        size_bytes:
+          type: integer
+          title: Size Bytes
+      additionalProperties: false
+      type: object
+      required:
+      - repo_id
+      - revision
+      - size_bytes
+      title: ManifestRepo
+    MaskStrength:
+      properties:
+        level:
+          type: string
+          enum:
+          - synthetic
+          - weak
+          - medium
+          - strong
+          title: Level
+        score:
+          type: number
+          title: Score
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+      additionalProperties: false
+      type: object
+      required:
+      - level
+      - score
+      - reasons
+      title: MaskStrength
+    Master:
+      properties:
+        mode:
+          type: string
+          enum:
+          - club
+          - bake
+          - custom
+          title: Mode
+          default: club
+        target_lufs:
+          type: number
+          title: Target Lufs
+          description: 'club: short-term (3 s) max; custom: integrated.'
+          default: -7.0
+        true_peak_db:
+          type: number
+          maximum: 0.0
+          title: True Peak Db
+          default: -1.0
+        bake_peak_db:
+          type: number
+          maximum: 0.0
+          title: Bake Peak Db
+          default: -6.0
+        sample_rate:
+          type: integer
+          enum:
+          - 44100
+          - 48000
+          title: Sample Rate
+          default: 44100
+        channels:
+          type: integer
+          enum:
+          - 1
+          - 2
+          title: Channels
+          default: 2
+      additionalProperties: false
+      type: object
+      title: Master
+    ModelInfo:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        engine:
+          type: string
+          title: Engine
+        size_bytes:
+          type: integer
+          title: Size Bytes
+        installed:
+          type: boolean
+          title: Installed
+        required:
+          type: boolean
+          title: Required
+          description: Required models ship by default; others are opt-in downloads.
+        license:
+          type: string
+          title: License
+        description:
+          type: string
+          title: Description
+        version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Version
+          description: Latest available version of this model package (v0.4).
+        installed_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Installed Version
+          description: Installed version, if any (v0.4).
+        update_available:
+          type: boolean
+          title: Update Available
+          description: installed_version is older than version (v0.4).
+          default: false
+        default_selected:
+          type: boolean
+          title: Default Selected
+          description: Installer pre-ticks this optional model (v0.4).
+          default: false
+        install_job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Install Job Id
+          description: Running install job for this model, so UIs can reattach after a reload (v0.5, S3 P6).
+        install_needs_bytes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Install Needs Bytes
+          description: Remaining download + the disk reserve needed to install (v0.5, S3 P6).
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - engine
+      - size_bytes
+      - installed
+      - required
+      - license
+      - description
+      title: ModelInfo
+    ModelManifest:
+      properties:
+        schema_version:
+          type: integer
+          title: Schema Version
+          default: 1
+        published:
+          type: string
+          title: Published
+        models:
+          additionalProperties:
+            $ref: '#/components/schemas/ManifestModel'
+          type: object
+          title: Models
+      additionalProperties: false
+      type: object
+      required:
+      - published
+      - models
+      title: ModelManifest
+      description: Model-update manifest published with app releases (v0.6, S3 P9). Only same-file-name/same-license pin moves.
+    ModuleSpec:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: '''prep'', ''mask'', ''layers'', ''machine'', ''drive'', ''crush'', ''tone'', ''motion'', ''dynamics'',
+            ''space'', ''stereo''.'
+        label:
+          type: string
+          title: Label
+        description:
+          type: string
+          title: Description
+        params:
+          items:
+            $ref: '#/components/schemas/ParamSpec'
+          type: array
+          title: Params
+        available:
+          type: boolean
+          title: Available
+          description: False → not implemented yet; rendered bypassed with a warning.
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - label
+      - description
+      - params
+      title: ModuleSpec
+    ModuleState:
+      properties:
+        id:
+          type: string
+          title: Id
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        params:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+          type: object
+          title: Params
+          description: Missing params use the rack default.
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      title: ModuleState
+    Motion:
+      properties:
+        fps:
+          type: integer
+          title: Fps
+          default: 50
+        events:
+          items:
+            $ref: '#/components/schemas/MotionEvent'
+          type: array
+          title: Events
+        returns:
+          type: string
+          title: Returns
+          description: 'base64 uint8 per frame: SPACE returns (reverb+delay+throws), 0..255 = -60..0 dB re the loudest frame
+            of the mix.'
+        f0:
+          type: string
+          title: F0
+          description: 'base64 uint8 per frame: output pitch as MIDI note x 2 (0 = unvoiced).'
+      additionalProperties: false
+      type: object
+      required:
+      - returns
+      - f0
+      title: Motion
+      description: 'Voice-core motion data: exact arrange events plus two per-frame tracks (frames = ceil(duration_s * fps))
+        (v0.5).'
+    MotionEvent:
+      properties:
+        t:
+          type: number
+          title: T
+          description: Output-timeline seconds.
+        dur:
+          type: number
+          minimum: 0.0
+          title: Dur
+        kind:
+          type: string
+          enum:
+          - beat_lock
+          - stutter
+          - tape_stop
+          - swell
+          - throw_echo
+          - squelch
+          title: Kind
+      additionalProperties: false
+      type: object
+      required:
+      - t
+      - dur
+      - kind
+      title: MotionEvent
+      description: Exact arrange event for the voice-core visuals (v0.5, S2 proposal 10).
+    ParamSpec:
+      properties:
+        id:
+          type: string
+          title: Id
+        label:
+          type: string
+          title: Label
+        kind:
+          type: string
+          enum:
+          - knob
+          - fader
+          - switch
+          - select
+          - segmented
+          - number
+          title: Kind
+        default:
+          anyOf:
+          - type: number
+          - type: integer
+          - type: string
+          - type: boolean
+          title: Default
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        step:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Step
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+          description: '''st'', ''dB'', ''Hz'', ''ms'', ''%'', ''s'', ''beats'', ''x''.'
+        scale:
+          type: string
+          enum:
+          - lin
+          - log
+          title: Scale
+          default: lin
+        options:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Options
+          description: For select/segmented.
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        advanced:
+          type: boolean
+          title: Advanced
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - label
+      - kind
+      - default
+      title: ParamSpec
+    Peaks:
+      properties:
+        buckets:
+          type: integer
+          title: Buckets
+        duration_s:
+          type: number
+          title: Duration S
+        min:
+          items:
+            type: number
+          type: array
+          title: Min
+        max:
+          items:
+            type: number
+          type: array
+          title: Max
+      additionalProperties: false
+      type: object
+      required:
+      - buckets
+      - duration_s
+      - min
+      - max
+      title: Peaks
+      description: 'Waveform overview: `buckets` min/max pairs of the channel-summed signal, normalized to [-1, 1].'
+    PersonaCandidate:
+      properties:
+        id:
+          type: string
+          title: Id
+        audio_id:
+          type: string
+          title: Audio Id
+        description:
+          type: string
+          title: Description
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - audio_id
+      - description
+      title: PersonaCandidate
+    PersonaDesignRequest:
+      properties:
+        description:
+          type: string
+          maxLength: 500
+          minLength: 3
+          title: Description
+        sample_text:
+          type: string
+          title: Sample Text
+          default: We are Guy Fawkes. Expect us.
+        candidates:
+          type: integer
+          maximum: 4.0
+          minimum: 1.0
+          title: Candidates
+          default: 3
+      additionalProperties: false
+      type: object
+      required:
+      - description
+      title: PersonaDesignRequest
+    PersonaSaveRequest:
+      properties:
+        candidate_id:
+          type: string
+          title: Candidate Id
+        name:
+          type: string
+          maxLength: 60
+          minLength: 1
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - candidate_id
+      - name
+      title: PersonaSaveRequest
+    Preset:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        factory:
+          type: boolean
+          title: Factory
+          default: false
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        voice_hint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voice Hint
+        speed_hint:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Speed Hint
+        chain:
+          $ref: '#/components/schemas/Chain'
+        macros:
+          $ref: '#/components/schemas/Macros'
+        macro_map:
+          $ref: '#/components/schemas/MacroMap'
+        stack:
+          items:
+            $ref: '#/components/schemas/StackVoice'
+          type: array
+          maxItems: 3
+          title: Stack
+        arrange_hint:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+            - type: 'null'
+          type: object
+          title: Arrange Hint
+          description: 'Partial Arrange overrides, e.g. {''first_word_beat'': 4}.'
+        master_hint:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+            - type: 'null'
+          type: object
+          title: Master Hint
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - chain
+      title: Preset
+    RackDescriptor:
+      properties:
+        version:
+          type: string
+          title: Version
+        modules:
+          items:
+            $ref: '#/components/schemas/ModuleSpec'
+          type: array
+          title: Modules
+          description: In fixed rack order.
+        macros:
+          items:
+            $ref: '#/components/schemas/MacroSpec'
+          type: array
+          title: Macros
+      additionalProperties: false
+      type: object
+      required:
+      - version
+      - modules
+      - macros
+      title: RackDescriptor
+    RekordboxRequest:
+      properties:
+        export_ids:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Export Ids
+        playlist:
+          type: string
+          title: Playlist
+          default: GUY FVWKS — Drops
+        target_path_root:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Path Root
+          description: Rewrite file locations for another Mac (e.g. the Rekordbox laptop).
+      additionalProperties: false
+      type: object
+      required:
+      - export_ids
+      title: RekordboxRequest
+    RekordboxResult:
+      properties:
+        path:
+          type: string
+          title: Path
+        filename:
+          type: string
+          title: Filename
+        tracks:
+          type: integer
+          title: Tracks
+        playlist:
+          type: string
+          title: Playlist
+      additionalProperties: false
+      type: object
+      required:
+      - path
+      - filename
+      - tracks
+      - playlist
+      title: RekordboxResult
+    RekordboxSettings:
+      properties:
+        hot_cue_first_word:
+          type: boolean
+          title: Hot Cue First Word
+          default: true
+        memory_cue_tail:
+          type: boolean
+          title: Memory Cue Tail
+          default: true
+        target_path_root:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Path Root
+        playlist_default:
+          type: string
+          title: Playlist Default
+          default: GUY FVWKS — Drops
+      additionalProperties: false
+      type: object
+      title: RekordboxSettings
+    RenderInfo:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_id:
+          type: string
+          title: Source Id
+        preset_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Id
+        quality:
+          type: string
+          enum:
+          - preview
+          - final
+          title: Quality
+        created_at:
+          type: string
+          title: Created At
+        sample_rate:
+          type: integer
+          title: Sample Rate
+        channels:
+          type: integer
+          title: Channels
+        n_samples:
+          type: integer
+          title: N Samples
+        duration_s:
+          type: number
+          title: Duration S
+        audio_id:
+          type: string
+          title: Audio Id
+        dry_audio_id:
+          type: string
+          title: Dry Audio Id
+          description: Dry voice placed on the same plan as the wet (onset, stretch, Beat-Lock, stutter) and mastered to the
+            same target, so it is delivery-safe (A/B).
+        peaks:
+          $ref: '#/components/schemas/Peaks'
+        dry_peaks:
+          $ref: '#/components/schemas/Peaks'
+        segments:
+          items:
+            $ref: '#/components/schemas/Segment'
+          type: array
+          title: Segments
+          description: Placed on the output timeline.
+        bpm:
+          type: number
+          title: Bpm
+        bars:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Bars
+        key:
+          type: string
+          title: Key
+        first_word_s:
+          type: number
+          title: First Word S
+        tail_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tail S
+          description: End of the last word on the output timeline (rekordbox memory cue 'VOICE OUT'), independent of tail_beats;
+            None only without speech.
+        fit:
+          $ref: '#/components/schemas/FitReport'
+        loudness:
+          $ref: '#/components/schemas/Loudness'
+        mask:
+          $ref: '#/components/schemas/MaskStrength'
+        resolved_chain:
+          $ref: '#/components/schemas/Chain'
+        macros:
+          $ref: '#/components/schemas/Macros'
+        stems:
+          items:
+            $ref: '#/components/schemas/StemInfo'
+          type: array
+          title: Stems
+        export:
+          anyOf:
+          - $ref: '#/components/schemas/ExportedFile'
+          - type: 'null'
+          description: Set when a final render auto-exported.
+        timings_ms:
+          additionalProperties:
+            type: number
+          type: object
+          title: Timings Ms
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+        motion:
+          anyOf:
+          - $ref: '#/components/schemas/Motion'
+          - type: 'null'
+          description: Voice-core motion data (v0.5); None when fx doesn't provide it.
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - source_id
+      - quality
+      - created_at
+      - sample_rate
+      - channels
+      - n_samples
+      - duration_s
+      - audio_id
+      - dry_audio_id
+      - peaks
+      - dry_peaks
+      - segments
+      - bpm
+      - key
+      - first_word_s
+      - fit
+      - loudness
+      - mask
+      - resolved_chain
+      - macros
+      title: RenderInfo
+    RenderRequest:
+      properties:
+        source_id:
+          type: string
+          title: Source Id
+        preset_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Id
+        chain:
+          anyOf:
+          - $ref: '#/components/schemas/Chain'
+          - type: 'null'
+          description: None → preset's chain. The server fills None fields from the preset before calling fx.
+        macros:
+          anyOf:
+          - $ref: '#/components/schemas/Macros'
+          - type: 'null'
+        macro_map:
+          anyOf:
+          - $ref: '#/components/schemas/MacroMap'
+          - type: 'null'
+        stack:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StackVoice'
+            type: array
+            maxItems: 3
+          - type: 'null'
+          title: Stack
+        arrange:
+          $ref: '#/components/schemas/Arrange'
+        master:
+          $ref: '#/components/schemas/Master'
+        quality:
+          type: string
+          enum:
+          - preview
+          - final
+          title: Quality
+          default: preview
+        stems:
+          type: boolean
+          title: Stems
+          default: false
+        auto_export:
+          type: boolean
+          title: Auto Export
+          description: Final renders also write the wet file to the export root so it is drag-ready.
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - source_id
+      title: RenderRequest
+    ScriptPreview:
+      properties:
+        segments:
+          items:
+            $ref: '#/components/schemas/ScriptPreviewSegment'
+          type: array
+          title: Segments
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      additionalProperties: false
+      type: object
+      required:
+      - segments
+      title: ScriptPreview
+      description: Parse without synthesizing (ScriptEditor highlighting). Same shape as fixtures/markup_cases.json (v0.1).
+    ScriptPreviewRequest:
+      properties:
+        script:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Script
+        bpm:
+          anyOf:
+          - type: number
+            maximum: 200.0
+            minimum: 60.0
+          - type: 'null'
+          title: Bpm
+      additionalProperties: false
+      type: object
+      required:
+      - script
+      title: ScriptPreviewRequest
+    ScriptPreviewSegment:
+      properties:
+        text:
+          type: string
+          title: Text
+          description: Chunk as typed, including markup.
+        say:
+          type: string
+          title: Say
+          description: What TTS will say after lexicon + ALL-CAPS handling.
+        flags:
+          $ref: '#/components/schemas/SegmentFlags'
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      - say
+      title: ScriptPreviewSegment
+    Segment:
+      properties:
+        index:
+          type: integer
+          title: Index
+        text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Text
+          description: Original chunk text including markup, e.g. 'EXPECT *US*'.
+        start_s:
+          type: number
+          title: Start S
+        end_s:
+          type: number
+          title: End S
+        flags:
+          $ref: '#/components/schemas/SegmentFlags'
+        words:
+          items:
+            $ref: '#/components/schemas/Word'
+          type: array
+          title: Words
+          description: TTS sources only; empty for recordings (v0.1).
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - start_s
+      - end_s
+      title: Segment
+    SegmentFlags:
+      properties:
+        throw:
+          type: boolean
+          title: Throw
+          description: '*word* markup: gets the SPACE throw send.'
+          default: false
+        beat_break:
+          type: boolean
+          title: Beat Break
+          description: 'Chunk ended with ''|'': Beat-Lock starts the next chunk on the next beat.'
+          default: false
+        pause_after_s:
+          type: number
+          minimum: 0.0
+          title: Pause After S
+          description: '[0.5] markup.'
+          default: 0.0
+        pause_after_beats:
+          type: number
+          minimum: 0.0
+          title: Pause After Beats
+          description: '[2b] markup.'
+          default: 0.0
+      additionalProperties: false
+      type: object
+      title: SegmentFlags
+    Settings:
+      properties:
+        export_dir:
+          type: string
+          title: Export Dir
+        format:
+          type: string
+          enum:
+          - aiff
+          - wav
+          title: Format
+          default: aiff
+        bit_depth:
+          type: integer
+          enum:
+          - 16
+          - 24
+          title: Bit Depth
+          default: 24
+        master:
+          $ref: '#/components/schemas/Master'
+        filename_pattern:
+          type: string
+          title: Filename Pattern
+          default: GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}
+        artist:
+          type: string
+          title: Artist
+          default: GUY FVWKS
+        rekordbox:
+          $ref: '#/components/schemas/RekordboxSettings'
+        default_voice_id:
+          type: string
+          title: Default Voice Id
+          default: kokoro:am_fenrir
+        default_preset_id:
+          type: string
+          title: Default Preset Id
+          default: pact
+        default_bpm:
+          type: number
+          maximum: 200.0
+          minimum: 60.0
+          title: Default Bpm
+          default: 140.0
+        default_bars:
+          anyOf:
+          - type: integer
+            enum:
+            - 1
+            - 2
+            - 4
+            - 8
+            - 16
+          - type: string
+            const: auto
+          title: Default Bars
+          default: auto
+        default_key:
+          type: string
+          title: Default Key
+          default: Am
+      additionalProperties: false
+      type: object
+      required:
+      - export_dir
+      title: Settings
+    SignedModelManifest:
+      properties:
+        manifest:
+          $ref: '#/components/schemas/ModelManifest'
+        signature:
+          type: string
+          title: Signature
+        key_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key Id
+      additionalProperties: false
+      type: object
+      required:
+      - manifest
+      - signature
+      title: SignedModelManifest
+      description: 'PUT /api/models/manifest body: the manifest plus a base64 ed25519 signature over its canonical JSON (v0.6).'
+    SourceInfo:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          type: string
+          enum:
+          - tts
+          - recording
+          - import
+          title: Kind
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        script:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Script
+          description: Raw script with markup (TTS sources).
+        script_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Script Hash
+          description: Hash of the script; STACK voices must share it (1:1 segments).
+        voice_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voice Id
+        speed:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Speed
+        sample_rate:
+          type: integer
+          title: Sample Rate
+        duration_s:
+          type: number
+          title: Duration S
+        segments:
+          items:
+            $ref: '#/components/schemas/Segment'
+          type: array
+          title: Segments
+        peaks:
+          $ref: '#/components/schemas/Peaks'
+        audio_id:
+          type: string
+          title: Audio Id
+          description: Fetch with GET /api/audio/{audio_id}.
+        created_at:
+          type: string
+          title: Created At
+        bpm:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Bpm
+          description: BPM used to size [Nb] pauses (TTS only). Stack voices reuse it (v0.1).
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+          description: Parser/ingest warnings, e.g. unmatched '*' (v0.1).
+        analysis_state:
+          type: string
+          enum:
+          - none
+          - queued
+          - running
+          - done
+          - error
+          title: Analysis State
+          description: Background WORLD analysis state; UI can show 'analysing…' (v0.1).
+          default: none
+        denoise:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Denoise
+          description: DeepFilterNet3 strength applied at ingest (recordings/imports); None for TTS (v0.3).
+        transcript_state:
+          type: string
+          enum:
+          - none
+          - queued
+          - running
+          - done
+          - error
+          title: Transcript State
+          description: Background transcribe+align state for recordings; UI can show 'transcribing…' (v0.3).
+          default: none
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - kind
+      - sample_rate
+      - duration_s
+      - segments
+      - peaks
+      - audio_id
+      - created_at
+      title: SourceInfo
+    SourceList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SourceInfo'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      title: SourceList
+    StackVoice:
+      properties:
+        voice_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voice Id
+          description: 'None → pseudo-stack: a detuned copy of the main source (use for recordings).'
+        pitch_st:
+          type: number
+          maximum: 24.0
+          minimum: -24.0
+          title: Pitch St
+          default: 0.0
+        formant_st:
+          type: number
+          maximum: 12.0
+          minimum: -12.0
+          title: Formant St
+          default: 0.0
+        pan:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Pan
+          default: 0.0
+        gain_db:
+          type: number
+          maximum: 6.0
+          minimum: -60.0
+          title: Gain Db
+          default: -12.0
+      additionalProperties: false
+      type: object
+      title: StackVoice
+      description: Extra voice layered on the main one (the 'robotic TTS collage').
+    StemInfo:
+      properties:
+        name:
+          type: string
+          enum:
+          - dry
+          - voice
+          - layers
+          - fx
+          title: Name
+        audio_id:
+          type: string
+          title: Audio Id
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - audio_id
+      title: StemInfo
+    TTSRequest:
+      properties:
+        script:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Script
+          description: 'Markup: ''|'' beat break, [0.5] pause s, [2b] pause beats, *word* throw.'
+        voice_id:
+          type: string
+          title: Voice Id
+          default: kokoro:am_fenrir
+        speed:
+          type: number
+          maximum: 2.0
+          minimum: 0.5
+          title: Speed
+          default: 0.9
+        bpm:
+          anyOf:
+          - type: number
+            maximum: 200.0
+            minimum: 60.0
+          - type: 'null'
+          title: Bpm
+          description: Needed to size [Nb] pauses; defaults to 120.
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - script
+      title: TTSRequest
+    Take:
+      properties:
+        id:
+          type: string
+          title: Id
+        render_id:
+          type: string
+          title: Render Id
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+          description: For 'Open in Studio' without an extra round trip (v0.1).
+        title:
+          type: string
+          title: Title
+        created_at:
+          type: string
+          title: Created At
+        starred:
+          type: boolean
+          title: Starred
+          default: false
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        script:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Script
+        source_kind:
+          type: string
+          enum:
+          - tts
+          - recording
+          - import
+          title: Source Kind
+        voice_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Voice Id
+        preset_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Id
+        preset_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preset Name
+        bpm:
+          type: number
+          title: Bpm
+        bars:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Bars
+        key:
+          type: string
+          title: Key
+        duration_s:
+          type: number
+          title: Duration S
+        loudness:
+          $ref: '#/components/schemas/Loudness'
+        mask:
+          $ref: '#/components/schemas/MaskStrength'
+        audio_id:
+          type: string
+          title: Audio Id
+        peaks:
+          $ref: '#/components/schemas/Peaks'
+        exports:
+          items:
+            $ref: '#/components/schemas/ExportedFile'
+          type: array
+          title: Exports
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - render_id
+      - title
+      - created_at
+      - source_kind
+      - bpm
+      - key
+      - duration_s
+      - loudness
+      - mask
+      - audio_id
+      - peaks
+      title: Take
+    TakePatch:
+      properties:
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        starred:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Starred
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+      additionalProperties: false
+      type: object
+      title: TakePatch
+    TranscriptUpdate:
+      properties:
+        script:
+          type: string
+          maxLength: 2000
+          minLength: 1
+          title: Script
+      additionalProperties: false
+      type: object
+      required:
+      - script
+      title: TranscriptUpdate
+      description: 'Edited transcript for a recording (markup allowed): re-segments and re-aligns words, like TTS (v0.3).'
+    Voice:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: '''kokoro:am_fenrir'' | ''persona:<id>'''
+        engine:
+          type: string
+          enum:
+          - kokoro
+          - qwen3
+          - persona
+          title: Engine
+        name:
+          type: string
+          title: Name
+        language:
+          type: string
+          title: Language
+          description: BCP-47, e.g. 'en-US', 'en-GB'.
+        gender:
+          type: string
+          enum:
+          - male
+          - female
+          - neutral
+          title: Gender
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        recommended:
+          type: boolean
+          title: Recommended
+          default: false
+        installed:
+          type: boolean
+          title: Installed
+          default: true
+        sample_audio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sample Audio Id
+          description: Short audition clip, if available.
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - engine
+      - name
+      - language
+      - gender
+      title: Voice
+    Word:
+      properties:
+        text:
+          type: string
+          title: Text
+          description: As spoken, e.g. 'Fawkes' for FVWKS.
+        start_s:
+          type: number
+          title: Start S
+          description: Absolute Source time.
+        end_s:
+          type: number
+          title: End S
+        throw:
+          type: boolean
+          title: Throw
+          description: 'Inside *...*: S2 throws exactly these words.'
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      - start_s
+      - end_s
+      title: Word
+      description: Word timing inside a segment (TTS sources only). Added in v0.1.

@@ -1,0 +1,338 @@
+/* Shared controls in the design's vocabulary: mono caps labels, 1px hairlines, 2px radii, display-face CTAs. */
+
+/* ---------------------------------------------------------------- fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fieldLabel {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+}
+.fieldHint {
+  font: 400 10px/1.45 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.fieldError {
+  font: 500 10px/1.45 var(--vb-font-mono);
+  color: var(--vb-accent);
+}
+.input {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 12px var(--vb-font-mono);
+  outline: none;
+  transition: border-color var(--vb-fast);
+}
+.input:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+.input:focus-visible {
+  outline: none;
+  border-color: var(--vb-amber);
+  box-shadow: 0 0 0 1px rgba(var(--vb-amber-rgb), 0.35);
+}
+.input::placeholder {
+  color: rgba(var(--vb-ink-rgb), 0.3);
+  letter-spacing: 0.08em;
+}
+.input[data-display] {
+  font: 700 18px var(--vb-font-display);
+  letter-spacing: 0.04em;
+}
+.field[data-invalid] .input {
+  border-color: var(--vb-accent);
+}
+select.input {
+  appearance: none;
+  padding-right: 28px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--vb-dim) 50%),
+    linear-gradient(135deg, var(--vb-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+select.input option {
+  background: var(--vb-panel);
+  color: var(--vb-ink);
+}
+textarea.input {
+  height: auto;
+  padding: 10px;
+  resize: none;
+  line-height: 1.5;
+}
+.numberWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.numberWrap .unit {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+}
+.numberWrap .input {
+  padding-right: 44px;
+}
+.numberWrap .input::-webkit-inner-spin-button {
+  display: none;
+}
+.unit {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+}
+.pathRow {
+  display: flex;
+  height: 36px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  overflow: hidden;
+}
+.pathRow:focus-within {
+  border-color: var(--vb-amber);
+}
+.pathValue {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font: 500 12px var(--vb-font-mono);
+  background: var(--vb-well);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+.pathRow .input {
+  flex: 1;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.pathBtn {
+  flex: none;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
+.pathBtn:hover {
+  background: var(--vb-fill-2);
+}
+
+/* ---------------------------------------------------------------- buttons */
+.button {
+  --h: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--h);
+  padding: 0 12px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background var(--vb-fast),
+    border-color var(--vb-fast),
+    color var(--vb-fast),
+    box-shadow var(--vb-fast);
+}
+.button[data-size='sm'] {
+  --h: 28px;
+  padding: 0 9px;
+}
+.button[data-size='lg'] {
+  --h: 38px;
+  padding: 0 16px;
+}
+.button:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.button[data-variant='primary'] {
+  border: 0;
+  border-radius: var(--vb-r2);
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  box-shadow: var(--vb-accent-glow);
+}
+.button[data-variant='primary'][data-size='lg'] {
+  font-size: 17px;
+}
+.button[data-variant='primary']:hover:not(:disabled) {
+  box-shadow: 0 0 30px rgba(var(--vb-accent-rgb), calc(0.5 * var(--vb-glow)));
+}
+.button[data-variant='ink'] {
+  border: 0;
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+  font: var(--vb-display-weight) 14px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+}
+.button[data-variant='ink'][data-size='lg'] {
+  font-size: 16px;
+}
+.button[data-variant='ink']:hover:not(:disabled) {
+  background: #fff;
+}
+.button[data-variant='ghost'] {
+  border-color: transparent;
+  color: var(--vb-dim);
+}
+.button[data-variant='ghost']:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--vb-ink);
+}
+.button[data-variant='danger'] {
+  border-color: var(--vb-accent);
+  color: var(--vb-accent);
+}
+.button[data-variant='danger']:hover:not(:disabled) {
+  border-color: var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.1);
+}
+.button[data-variant='amber'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.45);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  color: var(--vb-amber);
+}
+.button[data-variant='amber']:hover:not(:disabled) {
+  border-color: var(--vb-amber);
+  background: rgba(var(--vb-amber-rgb), 0.16);
+}
+.iconButton {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 12px var(--vb-font-mono);
+  padding: 0;
+}
+.iconButton:hover:not(:disabled) {
+  color: var(--vb-ink);
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+
+/* ---------------------------------------------------------------- modal (native <dialog>) */
+.modal {
+  background: var(--vb-panel);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  border-radius: var(--vb-r3);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+  padding: 0;
+  width: min(520px, 90vw);
+}
+.modal[data-wide] {
+  width: min(860px, 92vw);
+}
+.modal::backdrop {
+  background: rgba(5, 5, 6, 0.78);
+}
+.modal[open] {
+  animation: modalIn 0.32s var(--vb-ease);
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+.modalHeader,
+.modalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 20px 22px 0;
+}
+.modalHeader h2 {
+  font: var(--vb-display-weight) 26px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.modalFooter {
+  justify-content: flex-end;
+  padding: 14px 22px 20px;
+  border-top: 1px solid var(--vb-line);
+}
+.modalBody {
+  padding: 16px 22px 20px;
+  max-height: 70vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------------------------------------------------------------- tooltip */
+.tooltipWrap {
+  position: relative;
+  display: inline-flex;
+}
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 280px;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r3);
+  padding: 10px 12px;
+  font: 400 11px/1.45 var(--vb-font-mono);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* CreditLink: "v0.1.0 · Designed by SmittyTech" → mailto. Quiet but readable (12 px minimum). */
+.credit {
+  font: 500 12px/1.4 var(--vb-font-mono);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+  color: var(--vb-dim);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.credit:hover,
+.credit:focus-visible {
+  color: var(--vb-amber);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,512 @@
+/*
+ * MarkupEditor (ScriptEditor, TranscriptEditor): a transparent textarea over a chip layer, insert buttons
+ * and the cheat sheet. Chips style the real characters, so they take exactly the width of their source:
+ * brackets become pill edges, stars go transparent, and icons are absolutely placed pseudo-elements.
+ */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  flex: none;
+}
+
+/* ---------------------------------------------------------------- head */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  min-height: 22px;
+}
+.kicker {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.typing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vb-amber);
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.typing::before {
+  content: '';
+  width: 5px;
+  height: 9px;
+  background: var(--vb-amber);
+  box-shadow: 0 0 calc(6px * var(--vb-glow)) var(--vb-amber);
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+.status {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.status[data-tone='busy'] {
+  color: var(--vb-amber);
+  animation: vbPulse 1.2s var(--vb-ease-io) infinite;
+}
+.status[data-tone='ok'] {
+  color: var(--vb-ok);
+}
+.status[data-tone='error'] {
+  color: var(--vb-accent);
+}
+@keyframes vbPulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status[data-tone='busy'] {
+    animation: none;
+  }
+}
+.help {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 1px solid var(--vb-line-3);
+  border-radius: 50%;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 11px var(--vb-font-mono);
+  padding: 0;
+}
+.help[aria-expanded='true'] {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber);
+}
+
+/* ---------------------------------------------------------------- editor */
+.surface {
+  display: contents;
+}
+.boxWrap {
+  position: relative;
+  margin-bottom: 4px;
+}
+/* Segment counts, like a legend on the box's bottom border. */
+.count {
+  position: absolute;
+  right: 12px;
+  bottom: -7px;
+  max-width: calc(100% - 24px);
+  padding: 0 6px;
+  background: var(--vb-panel);
+  font: 500 10px/14px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.count[data-near] {
+  color: var(--vb-amber);
+}
+.box {
+  position: relative;
+  height: clamp(150px, 24cqh, 236px);
+  background: var(--vb-well);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-radius: var(--vb-r2);
+  overflow: hidden;
+  user-select: text;
+  transition: border-color var(--vb-fast);
+}
+.box:focus-within {
+  border-color: rgba(var(--vb-accent-rgb), 0.45);
+}
+.box[data-readonly] {
+  background: var(--vb-bg);
+}
+.box[data-readonly]:focus-within {
+  border-color: var(--vb-line-3);
+}
+/* Mirror and textarea share every metric; the gutter keeps wrapping identical when a scrollbar shows. */
+.mirror,
+.textarea {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  /* The bottom padding keeps the last line clear of the counts on the border. */
+  padding: 16px 18px 22px;
+  font: 500 25px/38px var(--vb-font-mono);
+  letter-spacing: normal;
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'calt' 0,
+    'liga' 0;
+  tab-size: 4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  scrollbar-gutter: stable;
+}
+.mirror {
+  color: var(--vb-ink);
+  pointer-events: none;
+  overflow: hidden;
+}
+.textarea {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--vb-accent);
+  outline: none;
+  overflow-y: auto;
+}
+.textarea::placeholder {
+  color: rgba(var(--vb-ink-rgb), 0.22);
+}
+.textarea:focus-visible {
+  outline: none;
+}
+.textarea::selection {
+  color: transparent;
+  background: rgba(var(--vb-ink-rgb), 0.2);
+}
+
+/* ---------------------------------------------------------------- chips */
+/* | beat tick */
+.beat {
+  color: var(--vb-accent);
+  text-shadow: 0 0 calc(12px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.7);
+}
+/* [0.5] / [2b] pause: the brackets are the pill's ends; the opening one holds a ⏸ icon. */
+.pause {
+  color: var(--vb-amber);
+  background: rgba(var(--vb-amber-rgb), 0.13);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(var(--vb-amber-rgb), 0.45);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.pauseEdge {
+  position: relative;
+  color: transparent;
+}
+.pauseEdge[data-edge='open']::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 11px;
+  transform: translate(-30%, -50%);
+  background: linear-gradient(90deg, var(--vb-amber) 0 2.5px, transparent 2.5px 4.5px, var(--vb-amber) 4.5px 7px);
+}
+/* [0.5] means seconds: the closing bracket's cell reads "s". */
+.pause[data-bare] .pauseEdge[data-edge='close']::before {
+  content: 's';
+  position: absolute;
+  left: 0;
+  color: var(--vb-amber);
+}
+/* *word* echo: a glowing pill; the stars are its (transparent) ends. */
+.echo,
+.star[data-echo] {
+  color: var(--vb-bg);
+  background: var(--vb-ink);
+  box-shadow: 0 0 calc(16px * var(--vb-glow)) rgba(var(--vb-ink-rgb), 0.35);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.star,
+.star[data-echo] {
+  color: transparent;
+}
+.star[data-echo][data-edge='open'] {
+  border-radius: var(--vb-r3) 0 0 var(--vb-r3);
+}
+.star[data-echo][data-edge='close'] {
+  border-radius: 0 var(--vb-r3) var(--vb-r3) 0;
+}
+/* A star with no echo text between it and its partner (a cancelled **) stays faintly visible. */
+.star:not([data-echo]) {
+  color: rgba(var(--vb-ink-rgb), 0.28);
+}
+/* What the engine ignores: dimmed and struck through; an unmatched * is flagged. */
+.beat[data-ignored],
+.pause[data-ignored] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.star[data-stray] {
+  color: var(--vb-amber);
+  text-decoration: underline wavy rgba(var(--vb-amber-rgb), 0.7);
+}
+.tag {
+  color: var(--vb-dim);
+  text-decoration: line-through rgba(var(--vb-ink-rgb), 0.35);
+}
+.escape {
+  color: rgba(var(--vb-ink-rgb), 0.3);
+}
+
+/* ---------------------------------------------------------------- insert buttons */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tipWrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+}
+.tool {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition:
+    border-color var(--vb-fast),
+    color var(--vb-fast),
+    background var(--vb-fast);
+}
+.tool:hover:not(:disabled),
+.tool[aria-expanded='true'] {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber);
+}
+.tool:disabled {
+  opacity: 0.4;
+}
+.toolIcon {
+  font-size: 13px;
+  line-height: 1;
+}
+.toolIcon[data-kind='beat'] {
+  color: var(--vb-accent);
+  text-shadow: 0 0 calc(8px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.6);
+}
+.toolIcon[data-kind='pause'] {
+  color: var(--vb-amber);
+}
+.toolIcon[data-kind='echo'] {
+  color: var(--vb-ink);
+  text-shadow: 0 0 calc(8px * var(--vb-glow)) rgba(var(--vb-ink-rgb), 0.6);
+}
+.caretDown {
+  font-size: 10px;
+  color: var(--vb-dim);
+}
+.tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 300px;
+  padding: 7px 9px;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r2);
+  font: 400 11px/1.4 var(--vb-font-mono);
+  color: var(--vb-ink);
+  box-shadow: var(--vb-pop);
+  pointer-events: none;
+}
+.tipWrap:last-child .tip {
+  left: auto;
+  right: 0;
+}
+.tip kbd {
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+
+/* PAUSE ▾ menu */
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 25;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  border-radius: var(--vb-r3);
+  box-shadow: var(--vb-pop);
+}
+.menu[data-placement='up'] {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.menuItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 14px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 12px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  text-align: left;
+  white-space: nowrap;
+}
+.menuItem:hover,
+.menuItem:focus-visible {
+  outline: none;
+  background: rgba(var(--vb-amber-rgb), 0.12);
+  color: var(--vb-amber);
+}
+.menuItem small {
+  font: 500 10.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  letter-spacing: 0.04em;
+}
+.menuItem small b {
+  font-weight: 500;
+  color: var(--vb-amber);
+}
+
+/* ---------------------------------------------------------------- below the editor */
+.note {
+  margin: 0;
+  font: 500 10.5px/1.45 var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.says {
+  margin: 0;
+  font: 500 10.5px/1.45 var(--vb-font-mono);
+  color: var(--vb-ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.says > span:first-child {
+  color: var(--vb-dim);
+  letter-spacing: 0.18em;
+  margin-right: 6px;
+}
+.warnings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 500 10px/1.45 var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.warnings li[data-tone='error'] {
+  color: var(--vb-accent);
+}
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--vb-amber-line);
+  border-radius: var(--vb-r2);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  font: 500 10.5px/1.45 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.notice p {
+  margin: 0;
+}
+.noticeAction {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-amber);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-amber);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.noticeAction:hover {
+  background: rgba(var(--vb-amber-rgb), 0.14);
+}
+
+/* ---------------------------------------------------------------- cheat sheet */
+.cheat {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  width: 270px;
+  z-index: 30;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  border-radius: var(--vb-r3);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font: 500 11px/1.5 var(--vb-font-mono);
+  box-shadow: var(--vb-pop);
+}
+.cheatTitle {
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.2em;
+  color: var(--vb-amber);
+}
+.cheat dl {
+  display: grid;
+  grid-template-columns: 66px 1fr;
+  gap: 6px 10px;
+  margin: 0;
+}
+.cheat dt {
+  white-space: nowrap;
+}
+.cheat dd {
+  margin: 0;
+}
+.cheat kbd {
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.cheatBeat {
+  color: var(--vb-accent);
+}
+.cheatPause {
+  color: var(--vb-amber);
+}
+.cheatEcho {
+  color: var(--vb-bg);
+  background: var(--vb-ink);
+  padding: 0 3px;
+  justify-self: start;
+}

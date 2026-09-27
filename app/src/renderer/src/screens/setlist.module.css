@@ -1,0 +1,106 @@
+/* SETLIST (03 / BATCH) per the design canvas: playlist name and batch actions in the header, the dashed
+   PASTE MANY panel, the lines table (components/output/tables.module.css) and its summary footer. */
+
+.playlist {
+  flex: none;
+  width: 300px;
+  margin-left: 12px;
+}
+.playlist input {
+  height: 32px;
+}
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+/* Header buttons are 36px tall with 10.5px caps (the shared Button is 32px/10px). */
+.headBtn[data-size] {
+  --h: 36px;
+  padding: 0 14px;
+  font-size: 10.5px;
+}
+.headBtn[aria-expanded='true'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.45);
+  color: var(--vb-amber);
+}
+.exportXml[data-size] {
+  border-color: var(--vb-ink);
+}
+.exportXml[data-size]:hover:not(:disabled) {
+  border-color: var(--vb-ink);
+  background: var(--vb-fill-2);
+}
+.renderAll[data-size] {
+  min-width: 150px;
+}
+
+/* ---------------------------------------------------------------- paste panel */
+.pastePanel {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex: none;
+  padding: 12px;
+  border: 1px dashed rgba(var(--vb-amber-rgb), 0.4);
+  border-radius: var(--vb-r3);
+  background: var(--vb-panel);
+}
+.pasteText {
+  flex: 1;
+  min-width: 0;
+  height: 84px;
+  padding: 10px;
+  resize: none;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 14px/1.5 var(--vb-font-mono);
+  outline: none;
+  transition: border-color var(--vb-fast);
+}
+.pasteText::placeholder {
+  color: var(--vb-dim);
+}
+.pasteText:focus-visible {
+  outline: none;
+  border-color: var(--vb-amber);
+  box-shadow: 0 0 0 1px rgba(var(--vb-amber-rgb), 0.35);
+}
+.addLines[data-size][data-variant] {
+  flex: none;
+  width: 120px;
+  height: auto;
+  font-size: 15px;
+}
+
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- footer */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 44px;
+  flex: none;
+  padding: 0 14px;
+  border-top: 1px solid var(--vb-line);
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.partial {
+  color: var(--vb-accent);
+}
+.cues {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

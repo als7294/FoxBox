@@ -1,0 +1,69 @@
+{
+  "entries": [
+    {
+      "word": "FVWKS",
+      "say": "Fawkes",
+      "acronym": false
+    },
+    {
+      "word": "DJ",
+      "say": "DJ",
+      "acronym": true
+    },
+    {
+      "word": "MC",
+      "say": "MC",
+      "acronym": true
+    },
+    {
+      "word": "BPM",
+      "say": "BPM",
+      "acronym": true
+    },
+    {
+      "word": "CDJ",
+      "say": "CDJ",
+      "acronym": true
+    },
+    {
+      "word": "VIP",
+      "say": "VIP",
+      "acronym": true
+    },
+    {
+      "word": "EDM",
+      "say": "EDM",
+      "acronym": true
+    },
+    {
+      "word": "UK",
+      "say": "UK",
+      "acronym": true
+    },
+    {
+      "word": "USA",
+      "say": "USA",
+      "acronym": true
+    },
+    {
+      "word": "FBI",
+      "say": "FBI",
+      "acronym": true
+    },
+    {
+      "word": "CIA",
+      "say": "CIA",
+      "acronym": true
+    },
+    {
+      "word": "NSA",
+      "say": "NSA",
+      "acronym": true
+    },
+    {
+      "word": "TV",
+      "say": "TV",
+      "acronym": true
+    }
+  ]
+}

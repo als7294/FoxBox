@@ -1,0 +1,32 @@
+[project]
+name = "fvwks-fx"
+version = "0.1.0"
+description = "The FVWKS rack: DSP, macros, presets, arrange, master (owned by S2)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fvwks-contracts",
+  "numpy>=1.26",
+  "scipy>=1.13",
+  "pedalboard>=0.9.25,<0.10",
+  "pyworld-prebuilt>=0.3.4",
+  "stftpitchshift>=2.0",
+  "pyloudnorm>=0.1.1",
+]
+
+[project.optional-dependencies]
+dev = ["matplotlib>=3.8"]
+
+[project.scripts]
+fvwks = "fvwks_fx.cli:main"
+
+[build-system]
+# setuptools + pybind11 compile the vendored Airwindows effects (native/airwin, MIT) into fvwks_fx._airwin (setup.py;
+# optional: without a C++ toolchain the package installs without it). Pinned so builds are reproducible from uv's cache.
+requires = ["setuptools==84.0.0", "pybind11==3.1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fvwks_fx = ["presets/*.json"]

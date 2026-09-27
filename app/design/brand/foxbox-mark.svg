@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FoxBox">
+  <title>FoxBox</title>
+  <defs>
+    <mask id="fb-cut">
+      <rect width="512" height="512" fill="#fff"/>
+      <!-- negative space: inner ears, eyes, and the cheek line that draws the muzzle -->
+        <path d="M112 104 L196 190 L130 222 Z" fill="#000"/>
+        <path d="M400 104 L316 190 L382 222 Z" fill="#000"/>
+        <path d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000"/>
+        <path d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/>
+        <path d="M56 298 L256 396 L456 298" fill="none" stroke="#000" stroke-width="24" stroke-linejoin="miter"/>
+    </mask>
+  </defs>
+  <path mask="url(#fb-cut)" fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 508 L60 296 Z"/>
+</svg>

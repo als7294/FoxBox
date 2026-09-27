@@ -1,0 +1,86 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--vb-bg);
+  color: var(--vb-ink);
+  font: 500 12px/1.4 var(--vb-font-mono);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+input,
+textarea {
+  user-select: text;
+}
+:focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+::selection {
+  background: rgba(var(--vb-accent-rgb), 0.35);
+}
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: inherit;
+}
+table {
+  border-collapse: collapse;
+}
+kbd {
+  font-family: var(--vb-font-mono);
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--vb-ink-rgb), 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

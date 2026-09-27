@@ -1,0 +1,26 @@
+# uv workspace for the FoxBox engine.
+# Members are owned by different sessions (see docs/PLAN.md). uv.lock is git-ignored until integration.
+[project]
+name = "fvwks-workspace"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fvwks-contracts", "fvwks-voice", "fvwks-fx", "fvwks-server"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pyyaml>=6.0", "httpx>=0.27"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["contracts", "voice", "fx", "server"]
+
+[tool.uv.sources]
+fvwks-contracts = { workspace = true }
+fvwks-voice = { workspace = true }
+fvwks-fx = { workspace = true }
+fvwks-server = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["contracts/tests", "voice/tests", "fx/tests", "server/tests"]
+addopts = "-q --import-mode=importlib"

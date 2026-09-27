@@ -1,0 +1,258 @@
+/*
+ * SETTINGS (05 / CONFIG). The design's three columns: EXPORT | LOUDNESS | AUDIO OUTPUT, then NAMING (2 wide) |
+ * REKORDBOX; STUDIO DEFAULTS (2 wide) | ENGINE close the grid. All of it fits 1280×800 without scrolling;
+ * the grid scrolls inside itself if it ever has to.
+ */
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    'export loud audio'
+    'naming naming rb'
+    'defaults defaults engine';
+  gap: 12px;
+  align-content: start;
+}
+.card[data-area='export'] {
+  grid-area: export;
+}
+.card[data-area='loud'] {
+  grid-area: loud;
+}
+.card[data-area='audio'] {
+  grid-area: audio;
+}
+.card[data-area='naming'] {
+  grid-area: naming;
+}
+.card[data-area='rb'] {
+  grid-area: rb;
+  gap: 14px;
+}
+.card[data-area='defaults'] {
+  grid-area: defaults;
+}
+.card[data-area='engine'] {
+  grid-area: engine;
+  gap: 12px;
+}
+
+/* ---------------------------------------------------------------- card chrome */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.cardTitle {
+  font: var(--vb-display-weight) 20px/1 var(--vb-font-display);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.caption {
+  min-width: 0;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note {
+  margin: 0;
+  font: 400 11px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- shared controls */
+.seg {
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- loudness */
+.loudFields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.loudFields label {
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.loudFields > [data-idle] {
+  opacity: 0.5;
+  transition: opacity var(--vb-fast);
+}
+.loudFields > [data-idle]:hover,
+.loudFields > [data-idle]:focus-within {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- naming */
+.namingGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 16px 10px;
+  align-items: start;
+}
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.previewName {
+  font: 500 12px/1.45 var(--vb-font-mono);
+  color: var(--vb-amber);
+  word-break: break-all;
+  user-select: text;
+}
+.previewName[data-empty] {
+  color: var(--vb-dim);
+}
+.rootInput {
+  font-size: 11px;
+}
+
+/* ---------------------------------------------------------------- studio defaults */
+.defaultsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 96px 170px 112px;
+  gap: 10px;
+  align-items: start;
+}
+
+/* ---------------------------------------------------------------- engine */
+.engineState {
+  flex: none;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.engineState[data-view='ready'] {
+  color: var(--vb-ok);
+}
+.engineState[data-view='loading'],
+.engineState[data-view='starting'],
+.engineState[data-view='restarting'] {
+  color: var(--vb-amber);
+}
+.engineState[data-view='offline'],
+.engineState[data-view='error'] {
+  color: var(--vb-accent);
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  font: 500 11px/1.4 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.facts > div {
+  display: flex;
+}
+.facts > div + div::before {
+  content: '·';
+  margin: 0 7px;
+  color: var(--vb-dim);
+}
+.facts dd {
+  margin: 0;
+}
+.facts dd[data-warn] {
+  color: var(--vb-amber);
+}
+.engineError {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  font: 400 11px/1.45 var(--vb-font-mono);
+  color: var(--vb-accent);
+}
+.engineActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------------- save indicator (header, right) */
+.saveWrap {
+  margin-left: auto;
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.saveState {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 11px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.12);
+  border-radius: var(--vb-r2);
+  font: 500 10px/1 var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.saveDot {
+  --dot: var(--vb-ok);
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--dot);
+}
+.saveState[data-tone='busy'] {
+  color: var(--vb-amber);
+}
+.saveState[data-tone='busy'] .saveDot {
+  --dot: var(--vb-amber);
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
+.saveState[data-tone='bad'] {
+  color: var(--vb-accent);
+  border-color: rgba(var(--vb-accent-rgb), 0.45);
+}
+.saveState[data-tone='bad'] .saveDot {
+  --dot: var(--vb-accent);
+}
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Footer: the designer credit. */
+.foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px;
+}

@@ -1,0 +1,20 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+engine/uv.lock
+# Node / Electron
+node_modules/
+app/dist/
+app/out/
+app/release/
+# Outputs
+out/
+*.log
+.DS_Store
+
+# Per-worktree dev data and app worktrees
+.devdata/
+.claude/worktrees/

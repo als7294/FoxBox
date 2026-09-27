@@ -1,0 +1,32 @@
+[project]
+name = "fvwks-voice"
+version = "0.1.0"
+description = "Voice sources: TTS, stack voices, persona, markup, lexicon, ingest (owned by S1)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fvwks-contracts",
+  "numpy>=1.26",
+  "scipy>=1.13",
+  "soundfile>=0.12",
+  # Kokoro-82M on MLX. The adapter drives KokoroPipeline directly, so keep to a tested minor.
+  "mlx-audio>=0.5.6,<0.6",
+  # misaki's English G2P. NOT misaki[en]: that extra adds spacy-curated-transformers, which pulls
+  # PyTorch (~560 MB) and is only needed for en_core_web_trf. We use en_core_web_sm, so list the rest here.
+  "misaki>=0.9.4,<0.10",
+  "spacy>=3.8,<3.9",
+  "num2words>=0.5.13",
+  "phonemizer-fork>=3.3.2",
+  "espeakng-loader>=0.2.4",
+  # Pitch-preserving speed for persona voices (Qwen3 has no speed control); same pin as fvwks-fx.
+  "pedalboard>=0.9.25,<0.10",
+  # WORLD Harvest F0 for the voice cards' "F0" (f0:NNN tags); same pin as fvwks-fx.
+  "pyworld-prebuilt>=0.3.4",
+  # mlx_audio.sts imports every speech-to-speech model eagerly (Moshi needs sentencepiece) before DeepFilterNet.
+  "sentencepiece>=0.2.0",
+  # Pinned wheel so misaki never runs `spacy download` (a runtime pip install) on first use.
+  "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.13"]
+build-backend = "uv_build"

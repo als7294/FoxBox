@@ -1,0 +1,461 @@
+/* SIGNAL panel per the design canvas: header transport, voice core | waveform on the bar grid, readouts row. */
+.signal {
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--vb-panel);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r3);
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr) 96px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- header */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--vb-line);
+  min-width: 0;
+}
+.title {
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.status {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  padding: 4px 8px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.12);
+  border-radius: var(--vb-r1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.status[data-busy] {
+  color: var(--vb-amber);
+}
+.flex {
+  flex: 1;
+  min-width: 0;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 10px;
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend i {
+  width: 7px;
+  height: 7px;
+}
+.legend i[data-band='lo'] {
+  background: var(--vb-accent);
+}
+.legend i[data-band='mi'] {
+  background: var(--vb-amber);
+}
+.legend i[data-band='hi'] {
+  background: var(--vb-ice);
+}
+.time {
+  font: 500 12px var(--vb-font-mono);
+  color: var(--vb-ink);
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+  white-space: pre;
+}
+.play {
+  height: 30px;
+  min-width: 82px;
+  padding: 0 12px;
+  border: 1px solid var(--vb-accent);
+  border-radius: var(--vb-r1);
+  background: transparent;
+  color: var(--vb-ink);
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.play[aria-pressed='true'] {
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+}
+.ab {
+  display: flex;
+  height: 30px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  padding: 2px;
+  gap: 2px;
+}
+.ab button {
+  padding: 0 9px;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: var(--vb-dim);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.ab button[aria-pressed='true'] {
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.loop {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.45);
+  border-radius: var(--vb-r1);
+  background: transparent;
+  color: var(--vb-dim);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.loop[aria-pressed='true'] {
+  background: var(--vb-amber);
+  color: var(--vb-bg);
+}
+
+/* ---------------------------------------------------------------- body: core | wave */
+.body {
+  display: grid;
+  grid-template-columns: clamp(200px, 19.3cqw, 292px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+.core {
+  position: relative;
+  border-right: 1px solid var(--vb-line);
+  min-height: 0;
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.coreLabel {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.2em;
+  color: var(--vb-dim);
+  pointer-events: none;
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+.waveCanvas {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14px;
+  width: calc(100% - 28px);
+  height: 100%;
+  display: block;
+}
+.seek {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14px;
+  width: calc(100% - 28px);
+  cursor: text;
+}
+.seek:focus-visible {
+  outline-offset: -2px;
+}
+/* ---------------------------------------------------------------- readouts */
+.readouts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 19.8cqw, 300px) clamp(190px, 14.8cqw, 224px);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 0;
+  border-top: 1px solid var(--vb-line);
+}
+.kicker {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+
+/* FIT */
+.fit {
+  padding: 9px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--vb-line);
+}
+.fitTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.fitState {
+  font: var(--vb-display-weight) 16px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--vb-ink);
+  transition: color var(--vb-med);
+}
+.fit[data-status='free'] .fitState {
+  color: var(--vb-dim);
+}
+.fit[data-status='stretched'] .fitState,
+.fit[data-status='extended'] .fitState {
+  color: var(--vb-amber);
+}
+.fit[data-status='overflow'] .fitState {
+  color: var(--vb-accent);
+}
+.fitLine {
+  min-width: 0;
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fitBar {
+  position: relative;
+  height: 12px;
+}
+.fitBox {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 80%;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  background: rgba(var(--vb-ink-rgb), 0.035);
+}
+.fitTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.16);
+}
+.fitFill {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 80%;
+  background: var(--vb-amber);
+  box-shadow: 0 0 calc(10px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.35);
+  transform-origin: left;
+  transition: transform var(--vb-slow) var(--vb-ease);
+}
+/* v0.4: the tail kept after the last word (release + reverb/delay/echoes), right after the speech. */
+.fitTail {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: repeating-linear-gradient(90deg, rgba(var(--vb-amber-rgb), 0.5) 0 2px, rgba(var(--vb-amber-rgb), 0.18) 2px 5px);
+  transition:
+    left var(--vb-slow) var(--vb-ease),
+    width var(--vb-slow) var(--vb-ease);
+}
+.fitOver {
+  position: absolute;
+  left: 80%;
+  top: 3px;
+  bottom: 3px;
+  width: 20%;
+  background: repeating-linear-gradient(135deg, var(--vb-accent) 0 3px, rgba(var(--vb-accent-rgb), 0.3) 3px 6px);
+  transform-origin: left;
+  transition: transform var(--vb-slow) var(--vb-ease);
+}
+.fitEnd {
+  position: absolute;
+  left: 80%;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--vb-ink);
+}
+.fitFoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 24px;
+}
+.chip {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.45);
+  border-radius: var(--vb-r1);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  color: var(--vb-amber);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  transition: background var(--vb-fast);
+  white-space: nowrap;
+}
+.chip:hover {
+  background: rgba(var(--vb-amber-rgb), 0.16);
+}
+.verdict {
+  min-width: 0;
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LOUDNESS */
+.loudness {
+  padding: 10px 14px;
+  border-right: 1px solid var(--vb-line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+}
+.loudHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tpWarn {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meterCanvas {
+  width: 100%;
+  height: 58px;
+  display: block;
+}
+
+/* MASK STRENGTH */
+.mask {
+  position: relative;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+  cursor: help;
+}
+.mask:focus-visible {
+  outline-offset: -2px;
+}
+.maskLevel {
+  font: var(--vb-display-weight) 26px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.segs {
+  display: flex;
+  gap: 3px;
+}
+.segs span {
+  flex: 1;
+  height: 5px;
+  background: rgba(var(--vb-ink-rgb), 0.12);
+  transition: background var(--vb-med);
+}
+.segs span[data-on] {
+  background: var(--vb-amber);
+}
+.segs[data-level='strong'] span[data-on] {
+  background: var(--vb-accent);
+}
+.pending {
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tip {
+  position: absolute;
+  right: 8px;
+  bottom: 100%;
+  margin-bottom: 8px;
+  width: 260px;
+  z-index: 10;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r3);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+.tip[hidden] {
+  display: none;
+}
+.tipTitle {
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-amber);
+}
+.tipLine {
+  font: 400 11px/1.4 var(--vb-font-mono);
+}
+.tipNote {
+  font: 400 10px/1.4 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* mini waveform (cartridge) */
+.mini {
+  display: block;
+  width: 100%;
+  height: 52px;
+}
+
+/* END (snap_end) at the end of the FIT footer: a neutral chip, apart from the amber FIX suggestions. */
+.endChip {
+  border-color: var(--vb-line-3);
+  background: none;
+  color: var(--vb-ink);
+}
+.endChip:hover {
+  border-color: var(--vb-amber);
+  background: none;
+  color: var(--vb-amber);
+}

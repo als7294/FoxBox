@@ -1,0 +1,60 @@
+{
+  "id": "remember__am_michael",
+  "kind": "tts",
+  "script": "REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES | WE DO NOT FORGIVE | *EXPECT US*",
+  "script_hash": "00ee1dcdce73b572",
+  "voice_id": "kokoro:am_michael",
+  "speed": 0.9,
+  "sample_rate": 48000,
+  "duration_s": 8.96,
+  "segments": [
+    {
+      "index": 0,
+      "text": "REMEMBER, REMEMBER",
+      "start_s": 0.0,
+      "end_s": 2.25,
+      "flags": {
+        "throw": false,
+        "beat_break": false,
+        "pause_after_s": 0.5,
+        "pause_after_beats": 0.0
+      }
+    },
+    {
+      "index": 1,
+      "text": "THE SIGNAL NEVER DIES",
+      "start_s": 2.75,
+      "end_s": 5.3,
+      "flags": {
+        "throw": false,
+        "beat_break": true,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      }
+    },
+    {
+      "index": 2,
+      "text": "WE DO NOT FORGIVE",
+      "start_s": 5.38,
+      "end_s": 7.005,
+      "flags": {
+        "throw": false,
+        "beat_break": true,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      }
+    },
+    {
+      "index": 3,
+      "text": "*EXPECT US*",
+      "start_s": 7.085,
+      "end_s": 8.96,
+      "flags": {
+        "throw": true,
+        "beat_break": false,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      }
+    }
+  ]
+}

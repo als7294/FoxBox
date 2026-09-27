@@ -1,0 +1,10 @@
+[project]
+name = "fvwks-contracts"
+version = "0.1.0"
+description = "Frozen shared models and seams for the FoxBox engine (owned by Step 0 / coordinator)."
+requires-python = ">=3.12,<3.13"
+dependencies = ["pydantic>=2.9,<3", "numpy>=1.26", "scipy>=1.13", "soundfile>=0.12"]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.13"]
+build-backend = "uv_build"

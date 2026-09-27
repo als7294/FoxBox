@@ -1,0 +1,38 @@
+{
+  "model": "mlx-community/Kokoro-82M-bf16",
+  "speed": 0.9,
+  "items": [
+    {
+      "file": "voices/we_are_guy_fvwks.wav",
+      "voice": "am_fenrir",
+      "text": "We are Guy Fawkes. Expect us.",
+      "sample_rate": 24000,
+      "duration_s": 2.425,
+      "peak": 0.6479
+    },
+    {
+      "file": "voices/remember_remember.wav",
+      "voice": "bm_george",
+      "text": "Remember, remember, the signal never dies.",
+      "sample_rate": 24000,
+      "duration_s": 3.9,
+      "peak": 0.3407
+    },
+    {
+      "file": "voices/hands_up.wav",
+      "voice": "am_michael",
+      "text": "Put your hands up for the transmission.",
+      "sample_rate": 24000,
+      "duration_s": 3.15,
+      "peak": 0.4045
+    },
+    {
+      "file": "voices/anonymizer_ref.wav",
+      "voice": "af_heart",
+      "text": "This is a test of the anonymizer. Nobody will know it is me.",
+      "sample_rate": 24000,
+      "duration_s": 4.5,
+      "peak": 0.3534
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+/* VAULT (02 / LIBRARY) per the design canvas: count, filter chips and search in the header; the table panel
+   with its amber-ruled selection bar. The table itself lives in components/output/tables.module.css. */
+
+.count {
+  flex: none;
+  padding-bottom: 4px;
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+.chips {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  padding-bottom: 2px;
+}
+.chip {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition:
+    background var(--vb-fast),
+    border-color var(--vb-fast),
+    color var(--vb-fast);
+}
+.chip:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+  color: var(--vb-ink);
+}
+.chip[aria-pressed='true'] {
+  border-color: var(--vb-ink);
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.search {
+  flex: none;
+  width: 220px;
+  height: 32px;
+  margin-bottom: 1px;
+  padding: 0 12px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 11px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  outline: none;
+  appearance: none;
+  transition: border-color var(--vb-fast);
+}
+.search::placeholder {
+  color: var(--vb-dim);
+}
+.search::-webkit-search-cancel-button {
+  appearance: none;
+}
+.search:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+.search:focus-visible {
+  outline: none;
+  border-color: var(--vb-amber);
+  box-shadow: 0 0 0 1px rgba(var(--vb-amber-rgb), 0.35);
+}
+
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- selection bar */
+.selBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  flex: none;
+  padding: 0 14px;
+  border-top: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  background: var(--vb-card);
+}
+.selLabel {
+  font: var(--vb-display-weight) 18px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+}
+.split {
+  display: flex;
+  flex: none;
+  height: 32px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r1);
+}
+.splitBtn {
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  transition: background var(--vb-fast);
+}
+.splitBtn:hover:not(:disabled) {
+  background: var(--vb-fill-2);
+}
+/* The preset half: a native select dressed as the design's amber "PACT ▾". */
+.splitPick {
+  position: relative;
+  display: flex;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  color: var(--vb-amber);
+}
+.splitPick::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 700 10px/1 var(--vb-font-mono);
+  pointer-events: none;
+}
+.splitPick select {
+  appearance: none;
+  field-sizing: content;
+  max-width: 180px;
+  height: 100%;
+  padding: 0 26px 0 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--vb-fast);
+}
+.splitPick select:hover:not(:disabled) {
+  background: rgba(var(--vb-amber-rgb), 0.08);
+}
+.splitPick select option {
+  background: var(--vb-panel);
+  color: var(--vb-ink);
+}
+/* Scoped under the bar to outrank .button[data-variant='primary'] whatever the stylesheet order. */
+.selBar .exportBtn[data-variant] {
+  padding: 0 14px;
+  border-radius: var(--vb-r1);
+  font-size: 14px;
+  box-shadow: none;
+}

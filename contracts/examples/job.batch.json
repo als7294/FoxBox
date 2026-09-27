@@ -1,0 +1,36 @@
+{
+  "id": "job_70b5b8adc16b",
+  "kind": "batch",
+  "state": "done",
+  "progress": 1.0,
+  "message": "/Users/you/Music/GUY FVWKS/VoiceBox/FVWKS - Warehouse/fvwks-warehouse_rekordbox.xml",
+  "items": [
+    {
+      "index": 0,
+      "label": "WE ARE GUY FVWKS | EXPECT *US*",
+      "state": "done",
+      "progress": 1.0,
+      "error": null,
+      "result_ids": [
+        "exp_703f44495ecb"
+      ]
+    },
+    {
+      "index": 1,
+      "label": "PUT YOUR HANDS UP",
+      "state": "done",
+      "progress": 1.0,
+      "error": null,
+      "result_ids": [
+        "exp_e276e62cf504"
+      ]
+    }
+  ],
+  "result_ids": [
+    "exp_703f44495ecb",
+    "exp_e276e62cf504"
+  ],
+  "error": null,
+  "created_at": "2026-09-27T00:38:27.481+00:00",
+  "updated_at": "2026-09-27T00:38:32.449+00:00"
+}

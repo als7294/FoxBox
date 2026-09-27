@@ -1,0 +1,22 @@
+[
+  {
+    "id": "kokoro-82m",
+    "name": "Kokoro 82M",
+    "engine": "kokoro",
+    "size_bytes": 330000000,
+    "installed": true,
+    "required": true,
+    "license": "Apache-2.0",
+    "description": "Default fast TTS voices."
+  },
+  {
+    "id": "qwen3-tts-voicedesign",
+    "name": "Qwen3-TTS VoiceDesign",
+    "engine": "qwen3",
+    "size_bytes": 3400000000,
+    "installed": false,
+    "required": false,
+    "license": "Apache-2.0",
+    "description": "Optional persona designer: describe a voice, then clone it."
+  }
+]

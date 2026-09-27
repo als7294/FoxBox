@@ -1,0 +1,30 @@
+/* STUDIO per the design canvas: SOURCE | SIGNAL over RACK + OUTPUT; the rack drawer covers the right column. */
+.studio {
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  grid-template-columns: clamp(316px, 24.6cqw, 372px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) clamp(318px, 39cqh, 384px);
+  gap: 12px;
+  min-height: 0;
+}
+.bottom {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 17cqw, 256px);
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+.rackLoading {
+  background: var(--vb-panel);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}

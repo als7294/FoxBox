@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="voicebox-engine.js"></script>
+<style>body{margin:0;background:#0b0b0c}a{color:#ffb23e}a:hover{color:#ff4b2b}[data-vb-t] :focus-visible{outline:2px solid #ffb23e;outline-offset:2px}[data-vb-t] textarea::selection{background:rgba(255,75,43,.35)}</style>
+</helmet>
+<div data-vb-t="" ref="{{ rootRef }}" onPointerEnter="{{ activate }}" onPointerDown="{{ activate }}" style="position:relative;width:100%;height:100vh;min-width:1280px;min-height:800px;container-type:size;overflow:hidden;background:#0b0b0c;color:#e9e5da;font-family:'JetBrains Mono',ui-monospace,monospace;display:grid;grid-template-columns:76px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr);user-select:none">
+
+<header data-reveal="0" style="grid-column:1 / 3;grid-row:1;display:flex;align-items:center;gap:clamp(8px,.8cqw,12px);padding:0 14px 0 0;border-bottom:1px solid rgba(233,229,218,.08);background:#0d0d0f;-webkit-app-region:drag">
+  <div aria-hidden="true" style="width:76px;height:100%;flex:none;display:flex;align-items:center;justify-content:center;gap:8px;border-right:1px solid rgba(233,229,218,.06)">
+    <span style="width:12px;height:12px;border-radius:50%;background:#3a3a3e"></span><span style="width:12px;height:12px;border-radius:50%;background:#3a3a3e"></span><span style="width:12px;height:12px;border-radius:50%;background:#3a3a3e"></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;padding-left:6px">
+    <svg ref="{{ markRef }}" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="9.5" fill="none" stroke="#e9e5da" stroke-width="2"></circle><rect x="1" y="12" width="24" height="2" fill="#ff4b2b"></rect></svg>
+    <span style="font:800 23px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em">FOXBOX</span>
+    <sc-if value="{{ notCompact }}" hint-placeholder-val="{{ true }}"><span style="font:500 10px/1 'JetBrains Mono',monospace;letter-spacing:.32em;color:#8d8a82">VOICEBOX</span></sc-if>
+  </div>
+  <div role="status" style="display:flex;align-items:center;gap:8px;height:28px;padding:0 11px;border:1px solid rgba(233,229,218,.12);border-radius:3px;font:500 10px/1 'JetBrains Mono',monospace;letter-spacing:.14em;margin-left:6px">
+    <span ref="{{ engDotRef }}" style="width:7px;height:7px;border-radius:50%;background:{{ engineColor }};box-shadow:0 0 8px {{ engineColor }}"></span><span>{{ engineLabel }}</span>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;height:36px;border:1px solid rgba(233,229,218,.14);border-radius:3px;-webkit-app-region:no-drag">
+    <span style="padding:0 4px 0 10px;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">BPM</span>
+    <input value="{{ bpmText }}" onChange="{{ onBpmInput }}" onBlur="{{ onBpmBlur }}" onKeyDown="{{ onBpmKey }}" aria-label="Tempo in BPM" style="width:50px;background:none;border:0;color:#e9e5da;font:700 21px/1 'Big Shoulders Display',sans-serif;text-align:center;outline:none;padding:0">
+    <div ref="{{ beatRef }}" aria-hidden="true" style="display:flex;gap:3px;padding:0 8px"><span style="width:5px;height:5px;background:rgba(233,229,218,.18)"></span><span style="width:5px;height:5px;background:rgba(233,229,218,.18)"></span><span style="width:5px;height:5px;background:rgba(233,229,218,.18)"></span><span style="width:5px;height:5px;background:rgba(233,229,218,.18)"></span></div>
+    <button onClick="{{ onTap }}" style="height:100%;padding:0 12px;border:0;border-left:1px solid rgba(233,229,218,.14);background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.16em;cursor:pointer" style-hover="background:rgba(233,229,218,.06)">TAP</button>
+  </div>
+  <label style="display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid rgba(233,229,218,.14);border-radius:3px;-webkit-app-region:no-drag">
+    <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">KEY</span>
+    <select value="{{ keyIdx }}" onChange="{{ onKey }}" aria-label="Key" style="background:none;border:0;color:#e9e5da;font:700 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.04em;appearance:none;cursor:pointer;outline:none">
+      <sc-for list="{{ keys }}" as="kk" hint-placeholder-count="1"><option value="{{ kk.value }}" style="background:#111113;color:#e9e5da">{{ kk.label }}</option></sc-for>
+    </select>
+  </label>
+  <div role="radiogroup" aria-label="Bars" style="display:flex;align-items:center;height:36px;border:1px solid rgba(233,229,218,.14);border-radius:3px;padding:3px;gap:2px;-webkit-app-region:no-drag">
+    <sc-if value="{{ notCompact }}" hint-placeholder-val="{{ true }}"><span style="padding:0 6px;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">BARS</span></sc-if>
+    <sc-for list="{{ bars }}" as="b" hint-placeholder-count="6"><button onClick="{{ b.onClick }}" style="height:100%;min-width:clamp(26px,2.1cqw,30px);padding:0 7px;border:0;border-radius:2px;background:{{ b.bg }};color:{{ b.fg }};font:700 11px 'JetBrains Mono',monospace;cursor:pointer;transition:background .15s">{{ b.label }}</button></sc-for>
+  </div>
+  <button onClick="{{ onFmt }}" style="height:36px;padding:0 11px;border:1px solid rgba(233,229,218,.14);border-radius:3px;background:none;color:#e9e5da;font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer;-webkit-app-region:no-drag">{{ fmtLabel }}</button>
+  <button onClick="{{ onLoud }}" style="height:36px;padding:0 11px;border:1px solid rgba(255,178,62,.4);border-radius:3px;background:none;color:#ffb23e;font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer;-webkit-app-region:no-drag">{{ loudLabel }}</button>
+  <button onClick="{{ onRenderFinal }}" style="position:relative;overflow:hidden;height:38px;min-width:clamp(124px,10.4cqw,158px);padding:0 16px;background:#ff4b2b;color:#0b0b0c;border:0;border-radius:3px;font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 0 22px rgba(255,75,43,.28);-webkit-app-region:no-drag" style-hover="box-shadow:0 0 30px rgba(255,75,43,.5)">
+    <span>{{ renderLabel }}</span><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:0">⌘↩</span>
+    <span ref="{{ progRef }}" style="position:absolute;left:0;bottom:0;height:3px;width:0;background:#0b0b0c"></span>
+  </button>
+</header>
+
+<nav data-reveal="1" aria-label="Screens" style="grid-column:1;grid-row:2;display:flex;flex-direction:column;border-right:1px solid rgba(233,229,218,.08);background:#0d0d0f">
+  <sc-for list="{{ rail }}" as="r" hint-placeholder-count="5">
+    <button onClick="{{ r.onClick }}" aria-current="{{ r.cur }}" style="position:relative;height:72px;background:none;border:0;border-bottom:1px solid rgba(233,229,218,.05);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:{{ r.fg }};font:500 9px/1 'JetBrains Mono',monospace;letter-spacing:.14em;transition:color .2s" style-hover="background:rgba(233,229,218,.03)">
+      <span style="position:absolute;left:0;top:16px;bottom:16px;width:2px;background:{{ r.bar }};box-shadow:0 0 10px {{ r.bar }}"></span>
+      <span style="font:700 19px/1 'Big Shoulders Display',sans-serif">{{ r.n }}</span>
+      <span>{{ r.label }}</span>
+    </button>
+  </sc-for>
+  <div style="flex:1"></div>
+  <button onClick="{{ toggleSim }}" style="height:44px;margin:0 10px 8px;border:1px dashed rgba(255,178,62,.45);border-radius:3px;background:none;color:#ffb23e;font:700 9px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer" style-hover="background:rgba(255,178,62,.08)">STATES</button>
+  <button onClick="{{ toggleKeys }}" aria-label="Keyboard shortcuts" style="height:44px;margin:0 16px 8px;border:1px solid rgba(233,229,218,.14);border-radius:3px;background:none;color:#8d8a82;font:700 13px 'JetBrains Mono',monospace;cursor:pointer">?</button>
+  <button onClick="{{ replayBoot }}" style="height:44px;margin:0 10px 12px;border:0;background:none;color:#8d8a82;font:500 9px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer" style-hover="color:#e9e5da">↻ BOOT</button>
+</nav>
+
+<main style="grid-column:2;grid-row:2;position:relative;min-height:0">
+<sc-if value="{{ isStudio }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:12px;display:grid;grid-template-columns:clamp(316px,24.6cqw,372px) minmax(0,1fr);grid-template-rows:minmax(0,1fr) clamp(318px,39cqh,384px);gap:12px">
+
+  <section data-reveal="2" style="grid-row:1 / 3;grid-column:1;background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+    <div style="display:flex;align-items:center;height:44px;flex:none;padding-left:16px;border-bottom:1px solid rgba(233,229,218,.08)">
+      <span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">SOURCE</span>
+      <div style="flex:1"></div>
+      <div role="tablist" style="display:flex;height:100%">
+        <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="3"><button role="tab" aria-selected="{{ tb.sel }}" onClick="{{ tb.onClick }}" style="position:relative;height:100%;padding:0 14px;background:none;border:0;color:{{ tb.fg }};font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.16em;cursor:pointer">{{ tb.label }}<span style="position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:{{ tb.line }};box-shadow:0 0 8px {{ tb.line }}"></span></button></sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{ isType }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:clamp(12px,2cqh,20px)">
+      <div style="display:flex;flex-direction:column;gap:8px;position:relative">
+        <div style="display:flex;align-items:center;justify-content:space-between;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">
+          <sc-if value="{{ notTyping }}" hint-placeholder-val="{{ true }}"><span>SCRIPT</span></sc-if><sc-if value="{{ typing }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;color:#ffb23e;letter-spacing:.1em"><span style="width:5px;height:9px;background:#ffb23e;box-shadow:0 0 6px #ffb23e"></span>TYPING · KEYS PAUSED</span></sc-if>
+          <div style="display:flex;gap:10px;align-items:center"><span>{{ charCount }}</span><button onClick="{{ toggleCheat }}" aria-label="Markup cheat sheet" style="width:22px;height:22px;border:1px solid rgba(233,229,218,.2);border-radius:50%;background:none;color:#e9e5da;cursor:pointer;font:700 11px 'JetBrains Mono',monospace;padding:0">?</button></div>
+        </div>
+        <div style="position:relative;height:clamp(150px,24cqh,236px);background:#0b0b0c;border:1px solid rgba(233,229,218,.1);border-radius:3px;overflow:hidden;user-select:text">
+          <div aria-hidden="true" style="position:absolute;inset:0;padding:16px 18px;font:500 25px/38px 'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;color:#e9e5da;pointer-events:none"><sc-for list="{{ tokens }}" as="tk" hint-placeholder-count="0"><sc-if value="{{ tk.isTxt }}"><span>{{ tk.t }}</span></sc-if><sc-if value="{{ tk.isTick }}"><span style="color:#ff4b2b;text-shadow:0 0 12px rgba(255,75,43,.7)">{{ tk.t }}</span></sc-if><sc-if value="{{ tk.isPause }}"><span style="color:#ffb23e;background:rgba(255,178,62,.12);border-radius:3px;box-shadow:0 0 0 1px rgba(255,178,62,.35)">{{ tk.t }}</span></sc-if><sc-if value="{{ tk.isThrow }}"><span style="color:#0b0b0c;background:#e9e5da;border-radius:2px;box-shadow:0 0 16px rgba(233,229,218,.35)">{{ tk.t }}</span></sc-if></sc-for></div>
+          <textarea value="{{ script }}" onChange="{{ onScript }}" onFocus="{{ onScriptFocus }}" onBlur="{{ onScriptBlur }}" spellcheck="false" aria-label="Script" placeholder="WE ARE GUY FVWKS | EXPECT *US*" style="position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;padding:16px 18px;margin:0;border:0;resize:none;background:transparent;color:transparent;caret-color:#ff4b2b;font:500 25px/38px 'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;outline:none;overflow:hidden"></textarea>
+        </div>
+        <div style="display:flex;gap:14px;font:500 10px 'JetBrains Mono',monospace;color:#8d8a82;letter-spacing:.06em">
+          <span><span style="color:#ff4b2b">|</span> BEAT</span><span><span style="color:#ffb23e">[0.5]</span> PAUSE</span><span><span style="color:#0b0b0c;background:#e9e5da;padding:0 2px">*word*</span> THROW</span>
+        </div>
+        <sc-if value="{{ cheat }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:30px;right:0;width:250px;z-index:5;background:#18181b;border:1px solid rgba(255,178,62,.35);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:10px;font:500 11px/1.5 'JetBrains Mono',monospace;box-shadow:0 20px 40px rgba(0,0,0,.6)">
+            <div style="font:700 10px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#ffb23e">MARKUP</div>
+            <div style="display:grid;grid-template-columns:62px 1fr;gap:6px 10px"><span style="color:#ff4b2b">|</span><span>Beat tick. Next word lands on the beat.</span><span style="color:#ffb23e">[0.5]</span><span>Pause, in seconds.</span><span>*US*</span><span>Throw: louder, higher, echo send.</span></div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82"><span>VOICE</span><span>5 INSTALLED</span></div>
+        <div role="radiogroup" aria-label="Voice" style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ voices }}" as="v" hint-placeholder-count="5">
+            <div role="radio" aria-checked="{{ v.active }}" tabindex="0" onClick="{{ v.onClick }}" style="display:flex;align-items:center;gap:12px;height:clamp(40px,5.1cqh,50px);padding:0 8px 0 12px;border:1px solid {{ v.border }};background:{{ v.bg }};border-radius:3px;cursor:pointer;transition:border-color .2s,background .2s">
+              <span style="width:6px;height:6px;border-radius:50%;background:{{ v.dot }};flex:none"></span>
+              <span style="font:700 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.05em;width:78px">{{ v.nameU }}</span>
+              <span style="font:400 10px 'JetBrains Mono',monospace;color:#8d8a82;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.desc }}</span>
+              <sc-if value="{{ notCompact }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:4px"><sc-for list="{{ v.tags }}" as="tg" hint-placeholder-count="1"><span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.1em;padding:3px 5px;border:1px solid rgba(233,229,218,.14);border-radius:2px;color:#8d8a82">{{ tg.t }}</span></sc-for></div></sc-if>
+              <button onClick="{{ v.onAud }}" aria-label="Audition 2 seconds" style="height:30px;width:52px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.06em;cursor:pointer" style-hover="border-color:#ffb23e;color:#ffb23e">{{ v.audLabel }}</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82"><span>SPEED</span><span style="color:#e9e5da">{{ speedLabel }}</span></div>
+        <div role="slider" aria-label="Speed" tabindex="0" onPointerDown="{{ onSpeedDown }}" style="position:relative;height:22px;cursor:ew-resize;touch-action:none">
+          <div style="position:absolute;left:0;right:0;top:10px;height:2px;background:rgba(233,229,218,.12)"></div>
+          <div style="position:absolute;left:0;top:10px;height:2px;width:{{ speedFill }};background:#ffb23e"></div>
+          <div style="position:absolute;left:50%;top:4px;width:1px;height:14px;background:rgba(233,229,218,.3)"></div>
+          <div style="position:absolute;left:{{ speedFill }};top:3px;width:10px;height:16px;margin-left:-5px;background:#e9e5da;border-radius:1px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font:400 9px 'JetBrains Mono',monospace;color:#8d8a82"><span>0.80×</span><span>1.00×</span><span>1.20×</span></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isMicDenied }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;padding:24px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
+      <div style="width:120px;height:120px;border-radius:50%;border:2px dashed #ff4b2b;display:flex;align-items:center;justify-content:center;font:800 44px/1 'Big Shoulders Display',sans-serif;color:#ff4b2b">✕</div>
+      <span style="font:800 26px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">MIC ACCESS DENIED</span>
+      <span style="font:400 11px/1.6 'JetBrains Mono',monospace;color:#8d8a82;max-width:260px">macOS blocked VoiceBox from the microphone. TYPE and IMPORT still work.</span>
+      <button onClick="{{ onOpenPrivacy }}" style="height:36px;padding:0 16px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">OPEN PRIVACY SETTINGS</button>
+    </div>
+    </sc-if>
+    <sc-if value="{{ isRecord }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;min-height:0;padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">INPUT</span>
+        <button onClick="{{ onRecDevice }}" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;border:1px solid rgba(233,229,218,.14);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 10.5px 'JetBrains Mono',monospace;cursor:pointer" style-hover="border-color:rgba(233,229,218,.3)"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ recDevice }}</span><span style="color:#8d8a82">▾</span></button>
+        <span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#8d8a82;white-space:nowrap">48k · MONO</span>
+      </div>
+      <div style="position:relative;flex:none;height:clamp(228px,31cqh,300px)">
+        <canvas ref="{{ recOrbRef }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+        <button onClick="{{ onRec }}" aria-label="{{ recAria }}" style="position:absolute;left:50%;top:50%;width:clamp(104px,13cqh,128px);height:clamp(104px,13cqh,128px);transform:translate(-50%,-50%);border-radius:50%;border:0;background:transparent;color:{{ recFg }};cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0">
+          <span style="font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em">{{ recBig }}</span>
+          <span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.18em;opacity:.8">{{ recHint }}</span>
+        </button>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+        <span ref="{{ recTimeRef }}" style="font:700 22px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:pre">00:00.00</span>
+        <span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:{{ recLabelC }};transition:color .3s">{{ recLabel }}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="position:relative;height:52px;background:#0b0b0c;border:1px solid rgba(233,229,218,.08);border-radius:2px;overflow:hidden"><canvas ref="{{ recStripRef }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas></div>
+        <canvas ref="{{ recRef }}" aria-label="Input level meter" style="width:100%;height:6px;display:block"></canvas>
+        <div aria-hidden="true" style="position:relative;height:10px;font:500 8.5px/10px 'JetBrains Mono',monospace;color:#8d8a82"><span style="position:absolute;left:0">−48</span><span style="position:absolute;left:50%;transform:translateX(-50%)">−24</span><span style="position:absolute;left:75%;transform:translateX(-50%)">−12</span><span style="position:absolute;left:87.5%;transform:translateX(-50%)">−6</span><span style="position:absolute;right:0">0</span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82"><span>TAKES · {{ takesCount }}</span><sc-if value="{{ hasTakes }}" hint-placeholder-val="{{ true }}"><button onClick="{{ onClearTakes }}" style="border:0;background:none;color:#8d8a82;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer;padding:0" style-hover="color:#e9e5da">CLEAR</button></sc-if></div>
+      <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:4px">
+        <sc-if value="{{ noTakes }}" hint-placeholder-val="{{ false }}"><div style="padding:14px;border:1px dashed rgba(233,229,218,.14);border-radius:2px;font:400 11px/1.5 'JetBrains Mono',monospace;color:#8d8a82">No takes yet. Every take is cut bar-exact at the session tempo.</div></sc-if>
+        <sc-for list="{{ takes }}" as="tk" hint-placeholder-count="2">
+          <div data-take="{{ tk.id }}" style="flex:none;display:grid;grid-template-columns:26px 54px minmax(0,1fr) 44px 60px;align-items:center;gap:8px;height:42px;padding:0 8px;border:1px solid {{ tk.border }};border-radius:2px;background:{{ tk.bg }};transition:border-color .25s,background .25s">
+            <button onClick="{{ tk.onPlay }}" aria-label="Play take" style="width:26px;height:26px;border:1px solid rgba(233,229,218,.18);border-radius:50%;background:none;color:#e9e5da;font:700 9px 'JetBrains Mono',monospace;cursor:pointer;padding:0" style-hover="border-color:#ffb23e;color:#ffb23e">{{ tk.playT }}</button>
+            <span style="font:700 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em;white-space:nowrap">{{ tk.n }}</span>
+            <svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:20px;display:block"><path d="{{ tk.path }}" fill="{{ tk.waveC }}"></path></svg>
+            <span style="font:500 10px 'JetBrains Mono',monospace;color:#8d8a82;text-align:right;font-variant-numeric:tabular-nums">{{ tk.dur }}</span>
+            <button onClick="{{ tk.onUse }}" style="height:26px;border:1px solid {{ tk.useBorder }};border-radius:2px;background:{{ tk.useBg }};color:{{ tk.useFg }};font:700 9px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer;padding:0;transition:background .2s,color .2s">{{ tk.useT }}</button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;padding:16px;display:flex">
+      <div onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="flex:1;border:1px dashed {{ dropBorder }};background:{{ dropBg }};border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transition:all .2s">
+        <div style="font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">DROP AUDIO</div>
+        <div style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">WAV · AIFF · MP3 · M4A — WE MASK IT</div>
+      </div>
+    </div>
+    </sc-if>
+  </section>
+
+  <section data-reveal="3" style="grid-column:2;grid-row:1;background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:grid;grid-template-rows:44px minmax(0,1fr) 96px;min-height:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 10px 0 16px;border-bottom:1px solid rgba(233,229,218,.08)">
+      <span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">SIGNAL</span>
+      <sc-if value="{{ hasStatus }}" hint-placeholder-val="{{ false }}"><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.14em;color:{{ statusColor }};padding:4px 8px;border:1px solid rgba(233,229,218,.12);border-radius:2px">{{ status }}</span></sc-if>
+      <div style="flex:1"></div>
+      <div aria-hidden="true" style="display:flex;align-items:center;gap:10px;margin-right:10px;font:500 9px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82"><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;background:#ff4b2b"></span>LOW</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;background:#ffb23e"></span>MID</span><span style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;background:#7cc8ff"></span>HIGH</span></div>
+      <span ref="{{ timeRef }}" style="font:500 12px 'JetBrains Mono',monospace;color:#e9e5da;font-variant-numeric:tabular-nums;margin-right:6px">00.00 / 6.86</span>
+      <button onClick="{{ onPlay }}" style="height:30px;min-width:82px;padding:0 12px;border:1px solid #ff4b2b;border-radius:2px;background:{{ playBg }};color:{{ playFg }};font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">{{ playLabel }}</button>
+      <div role="group" aria-label="A/B" style="display:flex;height:30px;border:1px solid rgba(233,229,218,.16);border-radius:2px;padding:2px;gap:2px">
+        <button onClick="{{ onAB }}" style="padding:0 9px;border:0;border-radius:1px;background:{{ aBg }};color:{{ aFg }};font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">A DRY</button>
+        <button onClick="{{ onAB }}" style="padding:0 9px;border:0;border-radius:1px;background:{{ bBg }};color:{{ bFg }};font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">B WET</button>
+      </div>
+      <button onClick="{{ onLoop }}" style="height:30px;padding:0 10px;border:1px solid rgba(255,178,62,.45);border-radius:2px;background:{{ loopBg }};color:{{ loopFg }};font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">⟲ LOOP</button>
+    </div>
+    <div style="display:grid;grid-template-columns:clamp(200px,19.3cqw,292px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0">
+      <div style="position:relative;border-right:1px solid rgba(233,229,218,.08)">
+        <canvas ref="{{ coreRef }}" aria-label="Voice core visualiser" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+        <span style="position:absolute;left:14px;top:12px;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82">VOICE CORE</span>
+      </div>
+      <div style="position:relative;min-height:0">
+        <canvas ref="{{ waveRef }}" aria-label="Output waveform on bar grid" style="position:absolute;top:0;bottom:0;left:14px;width:calc(100% - 28px);height:100%;display:block"></canvas>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none;background:rgba(17,17,19,.72)"><span style="font:800 36px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">NO SIGNAL</span><span style="font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">TYPE A LINE TO TRANSMIT</span></div></sc-if>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) clamp(240px,19.8cqw,300px) clamp(190px,14.8cqw,224px);grid-template-rows:minmax(0,1fr);align-items:stretch;min-height:0;border-top:1px solid rgba(233,229,218,.08)">
+      <div style="padding:9px 16px;display:flex;flex-direction:column;justify-content:center;gap:8px;min-height:0;border-right:1px solid rgba(233,229,218,.08);min-width:0">
+        <div style="display:flex;align-items:baseline;gap:10px;min-width:0">
+          <span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">FIT</span>
+          <span style="font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;color:{{ fitCol }};white-space:nowrap;transition:color .3s">{{ fitIcon }} {{ fitState }} {{ fitDelta }}</span>
+          <span style="flex:1"></span>
+          <span style="min-width:0;font:500 10px 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ fitLine }}</span>
+        </div>
+        <div aria-hidden="true" style="position:relative;height:12px">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:80%;box-sizing:border-box;border:1px solid rgba(233,229,218,.16);background:rgba(233,229,218,.035)"></div>
+          <sc-for list="{{ fitTicks }}" as="ft" hint-placeholder-count="3"><span style="position:absolute;top:0;bottom:0;left:{{ ft.l }};width:1px;background:rgba(233,229,218,.16)"></span></sc-for>
+          <div style="position:absolute;left:0;top:3px;bottom:3px;width:{{ fitFill }};background:#ffb23e;box-shadow:0 0 10px rgba(255,178,62,.35);transition:width .55s cubic-bezier(.2,.8,.2,1)"></div>
+          <div style="position:absolute;left:80%;top:3px;bottom:3px;width:{{ fitOver }};background:repeating-linear-gradient(135deg,#ff4b2b 0 3px,rgba(255,75,43,.3) 3px 6px);transition:width .55s cubic-bezier(.2,.8,.2,1)"></div>
+          <div style="position:absolute;left:80%;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:#e9e5da"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;min-width:0;height:24px">
+          <sc-if value="{{ hasChips }}" hint-placeholder-val="{{ false }}"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82;margin-right:2px">FIX</span></sc-if>
+          <sc-for list="{{ fitChips }}" as="fc" hint-placeholder-count="0"><button onClick="{{ fc.onClick }}" style="flex:none;height:24px;padding:0 9px;border:1px solid rgba(255,178,62,.45);border-radius:2px;background:rgba(255,178,62,.06);color:#ffb23e;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer;transition:background .15s" style-hover="background:rgba(255,178,62,.16)">{{ fc.label }}</button></sc-for>
+          <sc-if value="{{ noChips }}" hint-placeholder-val="{{ false }}"><span style="min-width:0;font:500 10px 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ fitVerdict }}</span></sc-if>
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-right:1px solid rgba(233,229,218,.08);display:flex;flex-direction:column;gap:6px;min-height:0">
+        <div style="display:flex;justify-content:space-between;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82"><span>LOUDNESS</span><sc-if value="{{ tpWarn }}" hint-placeholder-val="{{ false }}"><span style="color:#ff4b2b">▲ {{ tpText }}</span></sc-if></div>
+        <canvas ref="{{ meterRef }}" aria-label="Loudness meter" style="width:100%;height:58px;display:block"></canvas>
+      </div>
+      <div onPointerEnter="{{ onBadgeIn }}" onPointerLeave="{{ onBadgeOut }}" tabindex="0" onFocus="{{ onBadgeIn }}" onBlur="{{ onBadgeOut }}" style="position:relative;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-height:0;cursor:help">
+        <span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">MASK STRENGTH</span>
+        <span style="font:800 26px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">{{ maskLevel }}</span>
+        <div style="display:flex;gap:3px"><sc-for list="{{ maskSegs }}" as="sg" hint-placeholder-count="4"><span style="flex:1;height:5px;background:{{ sg.bg }};transition:background .3s"></span></sc-for></div>
+        <sc-if value="{{ maskPending }}" hint-placeholder-val="{{ false }}"><span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#ffb23e">WAVE READY · MASK WARMING UP</span></sc-if>
+        <sc-if value="{{ badge }}" hint-placeholder-val="{{ false }}">
+          <div role="tooltip" style="position:absolute;right:8px;bottom:100%;margin-bottom:8px;width:260px;z-index:10;background:#18181b;border:1px solid rgba(233,229,218,.18);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 18px 40px rgba(0,0,0,.6)">
+            <div style="font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#ffb23e">WHY {{ maskLevel }}</div>
+            <sc-for list="{{ maskReasons }}" as="mr" hint-placeholder-count="2"><div style="font:400 11px/1.4 'JetBrains Mono',monospace">— {{ mr.r }}</div></sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </section>
+
+  <div style="grid-column:2;grid-row:2;display:grid;grid-template-columns:minmax(0,1fr) clamp(220px,17cqw,256px);gap:12px;min-height:0">
+    <section data-reveal="4" style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;overflow:hidden;min-width:0">
+      <div style="display:flex;align-items:stretch;height:52px;flex:none;border-bottom:1px solid rgba(233,229,218,.08)">
+        <div style="flex:none;width:74px;display:flex;flex-direction:column;justify-content:center;gap:6px;padding-left:16px">
+          <span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">RACK</span>
+          <button onClick="{{ savePreset }}" aria-label="Save preset, Command S" style="align-self:flex-start;border:0;background:none;padding:0;color:#ffb23e;font:700 9px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer" style-hover="color:#e9e5da">+ SAVE</button>
+        </div>
+        <div role="radiogroup" aria-label="Presets" style="position:relative;flex:1;min-width:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));border-left:1px solid rgba(233,229,218,.06)">
+          <span aria-hidden="true" style="position:absolute;left:0;top:0;bottom:0;width:12.5%;transform:{{ presetX }};transition:transform .5s cubic-bezier(.2,.8,.2,1);pointer-events:none">
+            <span style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(255,75,43,.14),rgba(255,75,43,0) 80%)"></span>
+            <span style="position:absolute;left:0;right:0;bottom:-1px;height:2px;background:#ff4b2b;box-shadow:0 0 12px rgba(255,75,43,.9)"></span>
+          </span>
+          <sc-for list="{{ presetCells }}" as="p" hint-placeholder-count="8">
+            <button role="radio" aria-checked="{{ p.sel }}" onClick="{{ p.onClick }}" style="position:relative;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:5px;padding:0 8px;border:0;border-right:1px solid rgba(233,229,218,.05);background:none;color:{{ p.fg }};cursor:pointer;transition:color .3s;text-align:left" style-hover="color:#e9e5da">
+              <span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#8d8a82;white-space:nowrap">{{ p.n }}</span>
+              <span style="display:flex;align-items:center;gap:5px;max-width:100%;font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em;white-space:nowrap"><span style="overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><sc-if value="{{ p.edited }}"><span aria-label="edited" style="flex:none;width:5px;height:5px;border-radius:50%;background:#ffb23e;box-shadow:0 0 6px #ffb23e"></span></sc-if></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:center;padding:4px 8px 8px">
+        <sc-for list="{{ knobs }}" as="k" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;position:relative">
+            <span style="font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.18em">{{ k.label }}</span>
+            <div role="slider" tabindex="0" aria-label="{{ k.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ k.now }}" aria-valuetext="{{ k.valText }}" onPointerDown="{{ k.onDown }}" onDoubleClick="{{ k.onReset }}" onWheel="{{ k.onWheel }}" onKeyDown="{{ k.onKey }}" onFocus="{{ k.onFocus }}" onBlur="{{ k.onBlur }}" style="position:relative;width:clamp(112px,15.3cqh,150px);height:clamp(112px,15.3cqh,150px);cursor:ns-resize;touch-action:none;border-radius:50%">
+              <svg width="100%" height="100%" viewBox="0 0 150 150" aria-hidden="true">
+                <sc-for list="{{ k.maps }}" as="m" hint-placeholder-count="3"><circle cx="75" cy="75" r="{{ m.r }}" fill="none" stroke="rgba(233,229,218,.06)" stroke-width="2" stroke-dasharray="{{ m.track }}" transform="rotate(135 75 75)"></circle><circle cx="75" cy="75" r="{{ m.r }}" fill="none" stroke="#ffb23e" stroke-opacity="{{ m.op }}" stroke-width="2" stroke-dasharray="{{ m.dash }}" transform="rotate(135 75 75)"></circle></sc-for>
+                <circle cx="75" cy="75" r="44" fill="none" stroke="rgba(233,229,218,.1)" stroke-width="7" stroke-dasharray="207.35 600" transform="rotate(135 75 75)"></circle>
+                <circle cx="75" cy="75" r="44" fill="none" stroke="#ff4b2b" stroke-width="7" stroke-dasharray="{{ k.dash }}" transform="rotate(135 75 75)" style="filter:drop-shadow(0 0 4px rgba(255,75,43,.7))"></circle>
+                <circle cx="75" cy="75" r="44" fill="none" stroke="#111113" stroke-width="9" stroke-dasharray="1.4 3.6" transform="rotate(135 75 75)"></circle>
+                <rect x="74" y="24" width="2" height="6" fill="#e9e5da" opacity=".6"></rect>
+                <circle cx="75" cy="75" r="33" fill="#17171a" stroke="rgba(233,229,218,.14)"></circle>
+                <g style="transform:{{ k.rot }};transform-origin:75px 75px"><rect x="74" y="45" width="2" height="11" fill="#e9e5da"></rect></g>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 25px/1 'Big Shoulders Display',sans-serif;pointer-events:none;font-variant-numeric:tabular-nums">{{ k.pct }}</div>
+              <sc-if value="{{ k.tip }}" hint-placeholder-val="{{ false }}">
+                <div role="tooltip" style="position:absolute;left:50%;top:-6px;transform:translate(-50%,-100%);white-space:nowrap;background:#e9e5da;color:#0b0b0c;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.08em;padding:5px 8px;border-radius:2px;z-index:5">{{ k.label }} {{ k.pct }} · SHIFT FINE · DBL-CLICK = PRESET</div>
+              </sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;width:clamp(120px,15.3cqh,150px)">
+              <sc-for list="{{ k.maps }}" as="m2" hint-placeholder-count="3"><div style="display:flex;justify-content:space-between;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.06em"><span style="color:#8d8a82">{{ m2.label }}</span><span style="font-variant-numeric:tabular-nums">{{ m2.val }}</span></div></sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <button onClick="{{ openRack }}" aria-label="Open full rack" style="position:relative;overflow:hidden;flex:none;height:40px;margin:0 10px 10px;display:flex;align-items:center;gap:12px;padding:0 14px;border:1px solid rgba(255,178,62,.45);border-radius:3px;background:linear-gradient(180deg,rgba(255,178,62,.1),rgba(255,178,62,.03));color:#ffb23e;cursor:pointer;box-shadow:0 0 18px rgba(255,178,62,.1),inset 0 1px 0 rgba(255,178,62,.15);transition:background .2s,box-shadow .2s,border-color .2s" style-hover="border-color:#ffb23e;background:linear-gradient(180deg,rgba(255,178,62,.2),rgba(255,178,62,.06));box-shadow:0 0 28px rgba(255,178,62,.28),inset 0 1px 0 rgba(255,178,62,.3)"><span aria-hidden="true" style="display:grid;grid-template-columns:repeat(5,4px);grid-template-rows:repeat(2,4px);gap:2px"><span style="background:#ffb23e"></span><span style="background:#ffb23e"></span><span style="background:#ffb23e"></span><span style="background:rgba(255,178,62,.4)"></span><span style="background:rgba(255,178,62,.4)"></span><span style="background:#ffb23e"></span><span style="background:rgba(255,178,62,.4)"></span><span style="background:#ffb23e"></span><span style="background:#ffb23e"></span><span style="background:rgba(255,178,62,.4)"></span></span><span style="font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.18em;color:#e9e5da">OPEN RACK</span><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#ffb23e">13 MODULES · 12 ACTIVE</span><span style="flex:1"></span><span style="font:700 14px/1 'JetBrains Mono',monospace">↑</span></button>
+    </section>
+
+    <section data-reveal="5" style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;padding:0 14px 14px;gap:12px;min-height:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:48px;flex:none;border-bottom:1px solid rgba(233,229,218,.08);margin:0 -14px;padding:0 14px">
+        <span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">OUTPUT</span>
+        <span style="font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;padding:4px 7px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:{{ cartTagBg }};color:{{ cartTagFg }}">{{ cartTag }}</span>
+      </div>
+      <div ref="{{ cartRef }}" draggable="true" onDragStart="{{ onCartDrag }}" onDragEnd="{{ onCartDragEnd }}" aria-label="Output cartridge, drag into your DAW" style="opacity:{{ cartOp }};background:linear-gradient(180deg,#151518,#0e0e10);border:1px solid rgba(255,178,62,.3);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:10px;cursor:grab;box-shadow:0 1px 0 rgba(233,229,218,.06) inset,0 14px 30px rgba(0,0,0,.55)" style-hover="border-color:rgba(255,178,62,.7)">
+        <canvas ref="{{ miniRef }}" style="width:100%;height:52px;display:block"></canvas>
+        <div style="height:2px;background:rgba(233,229,218,.06)"><div ref="{{ expRef }}" style="height:100%;width:0;background:#ffb23e;box-shadow:0 0 8px #ffb23e"></div></div>
+        <div style="font:500 10px/1.45 'JetBrains Mono',monospace;word-break:break-all;color:#e9e5da">{{ fileName }}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font:500 9.5px 'JetBrains Mono',monospace">
+          <span style="color:#8d8a82">DUR <span style="color:#e9e5da">{{ cartDur }}</span></span><span style="color:#8d8a82">BPM <span style="color:#e9e5da">{{ cartBpm }}</span></span>
+          <span style="color:#8d8a82">KEY <span style="color:#e9e5da">{{ cartKey }}</span></span><span style="color:#8d8a82">LUFS <span style="color:#e9e5da">{{ cartLufs }}</span></span>
+        </div>
+        <div style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82;border-top:1px dashed rgba(233,229,218,.12);padding-top:8px">⠿ DRAG → REKORDBOX / ABLETON</div>
+      </div>
+      <div style="flex:1"></div>
+      <button onClick="{{ onExport }}" style="height:38px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.18em;cursor:pointer">{{ exportLabel }} <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:0">⌘E</span></button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button onClick="{{ onReveal }}" style="height:32px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">REVEAL</button>
+        <button onClick="{{ onSetlist }}" style="height:32px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">+ SETLIST</button>
+      </div>
+    </section>
+  </div>
+
+  <sc-if value="{{ rackOpen }}" hint-placeholder-val="{{ false }}">
+    <div ref="{{ drawerRef }}" style="grid-column:2;grid-row:1 / 3;position:relative;z-index:20;background:#0f0f11;border:1px solid rgba(255,178,62,.25);border-radius:4px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -20px 60px rgba(0,0,0,.6)">
+      <div style="display:flex;align-items:center;gap:12px;height:48px;flex:none;padding:0 12px 0 16px;border-bottom:1px solid rgba(233,229,218,.08)">
+        <span style="font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.2em">RACK</span>
+        <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">13 MODULES · {{ presetName }}</span>
+        <div style="flex:1"></div>
+        <button onClick="{{ closeRack }}" style="height:30px;padding:0 12px;border:1px solid rgba(233,229,218,.2);border-radius:2px;background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer">CLOSE ↓</button>
+      </div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:12px;column-width:230px;column-gap:10px">
+        <sc-for list="{{ modules }}" as="md" hint-placeholder-count="13">
+          <div data-mod="{{ md.i }}" style="break-inside:avoid;margin:0 0 10px;opacity:{{ md.op }};background:#141417;border:1px solid {{ md.border }};border-radius:3px;display:flex;flex-direction:column;transition:opacity .2s,border-color .2s">
+            <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 8px 0 12px">
+              <span style="font:500 9px 'JetBrains Mono',monospace;color:#8d8a82">{{ md.n }}</span>
+              <button onClick="{{ md.onOpen }}" aria-expanded="{{ md.open }}" style="flex:1;text-align:left;background:none;border:0;padding:0;color:#e9e5da;font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">{{ md.name }}</button>
+              <button role="switch" aria-checked="{{ md.swA }}" aria-label="Bypass {{ md.name }}" onClick="{{ md.onToggle }}" style="position:relative;width:34px;height:18px;border:1px solid rgba(233,229,218,.2);border-radius:9px;background:none;cursor:pointer;padding:0"><span style="position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:{{ md.swBg }};transform:{{ md.swX }};transition:transform .2s"></span></button>
+              <button onClick="{{ md.onOpen }}" aria-label="Expand {{ md.name }}" style="width:24px;height:24px;border:1px solid rgba(233,229,218,.14);border-radius:2px;background:none;color:#e9e5da;font:700 12px/1 'JetBrains Mono',monospace;cursor:pointer;padding:0">{{ md.chev }}</button>
+            </div>
+            <sc-if value="{{ md.isNa }}"><div style="margin:0 12px 10px;padding:8px 10px;border:1px dashed rgba(255,178,62,.45);border-radius:2px;font:500 10px/1.45 'JetBrains Mono',monospace;color:#ffb23e">▲ NOT AVAILABLE YET · {{ md.na }}</div></sc-if>
+            <sc-if value="{{ md.closed }}"><button onClick="{{ md.onOpen }}" style="text-align:left;margin:0;padding:0 12px 12px;background:none;border:0;color:#8d8a82;font:500 9.5px/1.5 'JetBrains Mono',monospace;cursor:pointer">{{ md.summary }}</button></sc-if>
+            <sc-if value="{{ md.open }}"><div data-body="" style="display:flex;flex-wrap:wrap;gap:12px 10px;padding:12px;border-top:1px solid rgba(233,229,218,.06)">
+              <sc-for list="{{ md.shown }}" as="p" hint-placeholder-count="3"><div style="width:{{ p.w }};display:flex;flex-direction:column;gap:6px;min-width:0">
+                <div style="display:flex;justify-content:space-between;gap:6px;font:500 9px 'JetBrains Mono',monospace;letter-spacing:.08em"><span style="color:{{ p.labelC }}">{{ p.label }}</span><span style="font-variant-numeric:tabular-nums;white-space:nowrap">{{ p.valT }}</span></div>
+                <sc-if value="{{ p.isKnob }}"><div role="slider" tabindex="0" aria-label="{{ p.label }}" aria-valuetext="{{ p.valT }}" onPointerDown="{{ p.onKnob }}" style="width:44px;height:44px;cursor:ns-resize;touch-action:none;border-radius:50%"><svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="15" fill="none" stroke="rgba(233,229,218,.1)" stroke-width="3" stroke-dasharray="70.69 200" transform="rotate(135 22 22)"></circle><circle cx="22" cy="22" r="15" fill="none" stroke="#ffb23e" stroke-width="3" stroke-dasharray="{{ p.dash }}" transform="rotate(135 22 22)"></circle><circle cx="22" cy="22" r="10" fill="#1c1c20" stroke="rgba(233,229,218,.14)"></circle><g style="transform:{{ p.rot }};transform-origin:22px 22px"><rect x="21" y="13" width="2" height="6" fill="#e9e5da"></rect></g></svg></div></sc-if>
+                <sc-if value="{{ p.isFader }}"><div role="slider" tabindex="0" aria-label="{{ p.label }}" aria-valuetext="{{ p.valT }}" onPointerDown="{{ p.onFader }}" style="position:relative;height:12px;cursor:ew-resize;touch-action:none"><div style="position:absolute;left:0;right:0;top:5px;height:2px;background:rgba(233,229,218,.1)"></div><div style="position:absolute;left:0;top:5px;height:2px;width:{{ p.fill }};background:#ffb23e"></div><div style="position:absolute;left:{{ p.fill }};top:0;width:4px;height:12px;margin-left:-2px;background:#e9e5da"></div></div></sc-if>
+                <sc-if value="{{ p.isSwitch }}"><button role="switch" aria-checked="{{ p.swA }}" aria-label="{{ p.label }}" onClick="{{ p.onSwitch }}" style="position:relative;width:40px;height:20px;border:1px solid rgba(233,229,218,.2);border-radius:10px;background:none;cursor:pointer;padding:0"><span style="position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:{{ p.swBg }};transform:{{ p.swX }};transition:transform .2s"></span></button></sc-if>
+                <sc-if value="{{ p.isSelect }}"><button onClick="{{ p.onCycle }}" aria-label="{{ p.label }}" style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0e0e10;color:#e9e5da;font:500 10.5px 'JetBrains Mono',monospace;cursor:pointer"><span>{{ p.valT }}</span><span style="color:#8d8a82">▾</span></button></sc-if>
+                <sc-if value="{{ p.isSeg }}"><div role="radiogroup" aria-label="{{ p.label }}" style="display:flex;height:26px;border:1px solid rgba(233,229,218,.16);border-radius:2px;padding:2px;gap:2px"><sc-for list="{{ p.segs }}" as="sg" hint-placeholder-count="3"><button onClick="{{ sg.onClick }}" style="flex:1;border:0;border-radius:1px;background:{{ sg.bg }};color:{{ sg.fg }};font:700 9.5px 'JetBrains Mono',monospace;cursor:pointer;transition:background .15s">{{ sg.label }}</button></sc-for></div></sc-if>
+                <sc-if value="{{ p.isNum }}"><div style="display:flex;height:26px;border:1px solid rgba(233,229,218,.16);border-radius:2px"><button onClick="{{ p.onDec }}" aria-label="Decrease {{ p.label }}" style="width:24px;border:0;background:none;color:#8d8a82;cursor:pointer;font:700 12px 'JetBrains Mono',monospace;padding:0">−</button><span style="flex:1;display:flex;align-items:center;justify-content:center;font:700 10.5px 'JetBrains Mono',monospace;background:#0e0e10;white-space:nowrap">{{ p.valT }}</span><button onClick="{{ p.onInc }}" aria-label="Increase {{ p.label }}" style="width:24px;border:0;background:none;color:#8d8a82;cursor:pointer;font:700 12px 'JetBrains Mono',monospace;padding:0">+</button></div></sc-if>
+              </div></sc-for>
+              <sc-if value="{{ md.hasAdv }}"><button onClick="{{ md.onAdv }}" style="width:100%;height:26px;border:1px dashed rgba(255,178,62,.35);border-radius:2px;background:none;color:#ffb23e;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer">{{ md.advLabel }}</button></sc-if>
+            </div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isVault }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:12px;display:flex;flex-direction:column;gap:12px">
+  <div style="display:flex;align-items:flex-end;gap:16px;height:56px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">02 / LIBRARY</span><span style="font:800 44px/0.85 'Big Shoulders Display',sans-serif;letter-spacing:.06em">VAULT</span></div>
+    <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82;padding-bottom:4px">{{ vCount }}</span>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:4px;padding-bottom:2px"><sc-for list="{{ vFilters }}" as="f" hint-placeholder-count="6"><button onClick="{{ f.onClick }}" style="height:30px;padding:0 10px;border:1px solid {{ f.border }};border-radius:2px;background:{{ f.bg }};color:{{ f.fg }};font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">{{ f.label }}</button></sc-for></div>
+    <input value="{{ vQuery }}" onChange="{{ onVQuery }}" placeholder="SEARCH SCRIPTS" aria-label="Search scripts" style="width:220px;height:32px;box-sizing:border-box;padding:0 12px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;outline:none;margin-bottom:1px">
+  </div>
+  <section style="flex:1;min-height:0;background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:grid;grid-template-columns:40px 44px minmax(0,1fr) 92px 84px 160px 64px 70px 140px 36px 96px;align-items:center;height:38px;flex:none;padding:0 12px;border-bottom:1px solid rgba(233,229,218,.08);font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">
+      <span></span><span></span><span>SCRIPT · HOVER TO DECLASSIFY</span><span>PRESET</span><span>VOICE</span><span>BPM · KEY · BARS</span><span>LUFS</span><span>DATE</span><span>TAGS</span><span>★</span><span></span>
+    </div>
+    <div style="flex:1;min-height:0;overflow:auto">
+      <sc-for list="{{ vRows }}" as="r" hint-placeholder-count="8">
+        <div draggable="true" onDragStart="{{ r.onDrag }}" onPointerEnter="{{ r.onEnter }}" onPointerLeave="{{ r.onLeave }}" onClick="{{ r.onSel }}" style="display:grid;grid-template-columns:40px 44px minmax(0,1fr) 92px 84px 160px 64px 70px 140px 36px 96px;align-items:center;height:58px;padding:0 12px;border-bottom:1px solid rgba(233,229,218,.05);background:{{ r.rowBg }};cursor:grab;transition:background .15s">
+          <span role="checkbox" style="width:14px;height:14px;border:1px solid {{ r.selBorder }};display:flex;align-items:center;justify-content:center;font:700 10px/1 'JetBrains Mono',monospace;color:#ffb23e">{{ r.selMark }}</span>
+          <button onClick="{{ r.onPlay }}" aria-label="Play" style="width:30px;height:30px;border:1px solid rgba(233,229,218,.18);border-radius:50%;background:none;color:{{ r.playC }};font:700 10px 'JetBrains Mono',monospace;cursor:pointer;padding:0">{{ r.playT }}</button>
+          <div style="min-width:0;padding-right:16px"><span style="position:relative;display:inline-block;max-width:100%;font:700 20px/1.1 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle">{{ r.script }}<span aria-hidden="true" style="position:absolute;inset:1px -2px;background:repeating-linear-gradient(90deg,#2a2a2f 0 6px,#26262b 6px 7px);transform:{{ r.redact }};transform-origin:right;transition:transform .42s cubic-bezier(.7,0,.2,1)"></span></span></div>
+          <span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;color:#ffb23e">{{ r.preset }}</span>
+          <span style="font:500 11px 'JetBrains Mono',monospace">{{ r.voice }}</span>
+          <span style="font:500 11px 'JetBrains Mono',monospace;color:#e9e5da">{{ r.bpmKey }}</span>
+          <span style="font:500 11px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums">{{ r.lufsT }}</span>
+          <span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82">{{ r.date }}</span>
+          <div style="display:flex;gap:4px"><sc-for list="{{ r.tagsL }}" as="tg" hint-placeholder-count="1"><span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.1em;padding:3px 5px;border:1px solid rgba(233,229,218,.14);border-radius:2px;color:#8d8a82">{{ tg.t }}</span></sc-for></div>
+          <button onClick="{{ r.onStar }}" aria-label="Star" style="background:none;border:0;color:{{ r.starC }};font:400 16px/1 'JetBrains Mono',monospace;cursor:pointer;padding:0">{{ r.starT }}</button>
+          <button onClick="{{ r.onOpen }}" style="height:28px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer" style-hover="border-color:#ff4b2b;color:#ff4b2b">OPEN →</button>
+        </div>
+      </sc-for>
+      <sc-if value="{{ vNone }}" hint-placeholder-val="{{ false }}"><div style="padding:60px;display:flex;flex-direction:column;gap:8px;align-items:center"><span style="font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">NO TRANSMISSIONS MATCH</span><span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82">Clear the filter or search.</span></div></sc-if>
+    </div>
+    <sc-if value="{{ vHasSel }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:10px;height:56px;flex:none;padding:0 14px;border-top:1px solid rgba(255,178,62,.35);background:#141416">
+        <span style="font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;color:#ffb23e">{{ vSelLabel }}</span>
+        <div style="flex:1"></div>
+        <button onClick="{{ onVClear }}" style="height:32px;padding:0 12px;border:0;background:none;color:#8d8a82;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">CLEAR</button>
+        <div style="display:flex;height:32px;border:1px solid rgba(233,229,218,.18);border-radius:2px"><button onClick="{{ onVRerender }}" style="padding:0 12px;border:0;background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">RE-RENDER WITH</button><button onClick="{{ onVRer }}" style="padding:0 12px;border:0;border-left:1px solid rgba(233,229,218,.18);background:none;color:#ffb23e;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">{{ vRer }} ▾</button></div>
+        <button onClick="{{ onVExport }}" style="height:32px;padding:0 14px;border:0;border-radius:2px;background:#ff4b2b;color:#0b0b0c;font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">EXPORT TO REKORDBOX PLAYLIST</button>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSetlist }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:12px;display:flex;flex-direction:column;gap:12px">
+  <div style="display:flex;align-items:flex-end;gap:16px;height:56px;flex:none">
+    <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">03 / BATCH</span><span style="font:800 44px/0.85 'Big Shoulders Display',sans-serif;letter-spacing:.06em">SETLIST</span></div>
+    <label style="display:flex;flex-direction:column;gap:5px;margin-left:12px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">PLAYLIST NAME</span><input value="{{ slName }}" onChange="{{ onSlName }}" style="width:300px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none"></label>
+    <div style="flex:1"></div>
+    <button onClick="{{ onSlPasteToggle }}" style="height:36px;padding:0 14px;border:1px solid rgba(233,229,218,.18);border-radius:2px;background:none;color:#e9e5da;font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">+ PASTE MANY</button>
+    <button onClick="{{ onSlExport }}" style="height:36px;padding:0 14px;border:1px solid #e9e5da;border-radius:2px;background:none;color:#e9e5da;font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">EXPORT FOLDER + XML</button>
+    <button onClick="{{ onSlRender }}" style="height:38px;min-width:150px;padding:0 16px;border:0;border-radius:3px;background:#ff4b2b;color:#0b0b0c;font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer;box-shadow:0 0 22px rgba(255,75,43,.28)">{{ slRenderLabel }}</button>
+  </div>
+  <sc-if value="{{ slPaste }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;gap:12px;align-items:stretch;background:#111113;border:1px dashed rgba(255,178,62,.4);border-radius:4px;padding:12px">
+      <textarea value="{{ slPasteText }}" onChange="{{ onSlPasteText }}" placeholder="One line per transmission…" aria-label="Paste lines" style="flex:1;height:84px;resize:none;background:#0b0b0c;border:1px solid rgba(233,229,218,.1);border-radius:2px;color:#e9e5da;font:500 14px/1.5 'JetBrains Mono',monospace;padding:10px;outline:none"></textarea>
+      <button onClick="{{ onSlPasteAdd }}" style="width:120px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">ADD LINES</button>
+    </div>
+  </sc-if>
+  <section style="flex:1;min-height:0;background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:grid;grid-template-columns:48px minmax(0,1fr) 110px 110px 70px 84px 240px 110px;align-items:center;height:38px;flex:none;padding:0 12px;border-bottom:1px solid rgba(233,229,218,.08);font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">
+      <span>#</span><span>LINE</span><span>PRESET</span><span>VOICE</span><span>BPM</span><span>BARS</span><span>STATUS</span><span></span>
+    </div>
+    <div style="flex:1;min-height:0;overflow:auto">
+      <sc-for list="{{ slLines }}" as="l" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:48px minmax(0,1fr) 110px 110px 70px 84px 240px 110px;align-items:center;min-height:62px;padding:0 12px;border-bottom:1px solid rgba(233,229,218,.05)">
+          <span style="font:700 18px/1 'Big Shoulders Display',sans-serif;color:#8d8a82">{{ l.n }}</span>
+          <div style="display:flex;flex-direction:column;gap:4px;min-width:0;padding-right:16px">
+            <span style="font:700 20px/1.1 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.script }}</span>
+            <sc-if value="{{ l.isFailed }}"><span style="font:500 10px 'JetBrains Mono',monospace;color:#ff4b2b">▲ {{ l.err }}</span></sc-if>
+          </div>
+          <div><button onClick="{{ l.onPreset }}" style="height:28px;padding:0 9px;border:1px solid rgba(255,178,62,.35);border-radius:2px;background:none;color:#ffb23e;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">{{ l.preset }} ▾</button></div>
+          <div><button onClick="{{ l.onVoice }}" style="height:28px;padding:0 9px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:500 11px 'JetBrains Mono',monospace;cursor:pointer">{{ l.voice }} ▾</button></div>
+          <span style="font:700 18px/1 'Big Shoulders Display',sans-serif">{{ l.bpm }}</span>
+          <div><button onClick="{{ l.onBars }}" style="height:28px;padding:0 9px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;cursor:pointer">{{ l.barsT }}</button></div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding-right:16px">
+            <span style="align-self:flex-start;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.12em;padding:3px 7px;border:1px solid {{ l.sBorder }};border-radius:2px;background:{{ l.sBg }};color:{{ l.sFg }}">{{ l.statusT }}</span>
+            <div style="height:2px;background:rgba(233,229,218,.08)"><div style="height:100%;width:{{ l.prog }};background:{{ l.progBg }};transition:width .06s linear"></div></div>
+          </div>
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <sc-if value="{{ l.isFailed }}"><button onClick="{{ l.onRetry }}" style="height:28px;padding:0 9px;border:1px solid #ff4b2b;border-radius:2px;background:none;color:#ff4b2b;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">RETRY</button></sc-if>
+            <button onClick="{{ l.onDel }}" aria-label="Remove line" style="width:28px;height:28px;border:1px solid rgba(233,229,218,.14);border-radius:2px;background:none;color:#8d8a82;font:700 12px 'JetBrains Mono',monospace;cursor:pointer;padding:0">×</button>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;height:44px;flex:none;padding:0 14px;border-top:1px solid rgba(233,229,218,.08);font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">
+      <span>{{ slSummary }}</span>
+      <sc-if value="{{ slFailed }}"><span style="color:#ff4b2b">▲ PARTIAL — FAILED LINES ARE SKIPPED IN EXPORT</span></sc-if>
+      <div style="flex:1"></div><span>EACH FILE: HOT CUE A AT FIRST WORD · MEMORY CUE AT TAIL</span>
+    </div>
+  </section>
+</div>
+</sc-if>
+
+<sc-if value="{{ isVoices }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:12px;display:grid;grid-template-rows:56px 214px minmax(0,1fr);gap:12px">
+  <div style="display:flex;align-items:flex-end;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">04 / OPERATIVES</span><span style="font:800 44px/0.85 'Big Shoulders Display',sans-serif;letter-spacing:.06em">VOICES</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px">
+    <sc-for list="{{ voiceCards }}" as="vc" hint-placeholder-count="5">
+      <div style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">{{ vc.desc }}</span><sc-if value="{{ vc.isDef }}"><span style="font:700 9px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#0b0b0c;background:#ffb23e;padding:2px 5px;border-radius:2px">IN STUDIO</span></sc-if></div>
+        <span style="font:800 40px/0.9 'Big Shoulders Display',sans-serif;letter-spacing:.04em">{{ vc.nameU }}</span>
+        <div style="display:flex;gap:4px"><sc-for list="{{ vc.tagsL }}" as="tg" hint-placeholder-count="1"><span style="font:500 9px 'JetBrains Mono',monospace;letter-spacing:.1em;padding:3px 5px;border:1px solid rgba(233,229,218,.14);border-radius:2px;color:#8d8a82">{{ tg.t }}</span></sc-for><span style="font:500 9px 'JetBrains Mono',monospace;padding:3px 5px;color:#8d8a82">F0 {{ vc.f0T }}</span></div>
+        <div style="flex:1"></div>
+        <button onClick="{{ vc.onAud }}" style="height:34px;border:1px solid rgba(233,229,218,.18);border-radius:2px;background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.14em;cursor:pointer" style-hover="border-color:#ffb23e;color:#ffb23e">{{ vc.audLabel }}</button>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:12px;min-height:0">
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;padding:18px;gap:16px;min-height:0">
+      <div style="display:flex;align-items:baseline;gap:12px"><span style="font:800 26px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">PERSONA DESIGNER</span><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">DESCRIBE → 3 CANDIDATES → AUDITION → SAVE</span></div>
+      <sc-if value="{{ voModelNone }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:14px;border:1px dashed rgba(233,229,218,.16);border-radius:3px;padding:28px">
+          <span style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#ffb23e">OPTIONAL MODEL · NOT INSTALLED</span>
+          <span style="font:800 34px/1 'Big Shoulders Display',sans-serif;letter-spacing:.06em">VOICE-DESIGN MODEL · 1.90 GB</span>
+          <span style="font:400 12px/1.5 'JetBrains Mono',monospace;color:#8d8a82">41.2 GB free on Macintosh HD. Runs locally; nothing leaves this machine.</span>
+          <button onClick="{{ onVoDownload }}" style="height:38px;padding:0 18px;border:0;border-radius:3px;background:#e9e5da;color:#0b0b0c;font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em;cursor:pointer">DOWNLOAD 1.9 GB</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ voModelDl }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:28px;border:1px solid rgba(255,178,62,.3);border-radius:3px">
+          <span style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#ffb23e">DOWNLOADING VOICE-DESIGN MODEL</span>
+          <span style="font:800 64px/1 'Big Shoulders Display',sans-serif;font-variant-numeric:tabular-nums">{{ voDl }}</span>
+          <div style="height:3px;background:rgba(233,229,218,.08)"><div style="height:100%;width:{{ voDlW }};background:#ffb23e;box-shadow:0 0 10px #ffb23e"></div></div>
+          <span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82">{{ voDlMb }} · 41.2 GB free</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ voModelReady }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:10px">
+          <textarea value="{{ voDesc }}" onChange="{{ onVoDesc }}" aria-label="Describe a voice" style="flex:1;height:64px;resize:none;background:#0b0b0c;border:1px solid rgba(233,229,218,.1);border-radius:2px;color:#e9e5da;font:500 15px/1.5 'JetBrains Mono',monospace;padding:10px;outline:none"></textarea>
+          <button onClick="{{ onVoGen }}" style="width:140px;border:0;border-radius:3px;background:#ff4b2b;color:#0b0b0c;font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">GENERATE 3</button>
+        </div>
+        <sc-if value="{{ voGenIdle }}"><div style="flex:1;display:flex;align-items:center;justify-content:center;border:1px dashed rgba(233,229,218,.12);border-radius:3px;font:500 11px 'JetBrains Mono',monospace;color:#8d8a82">Candidates appear here.</div></sc-if>
+        <sc-if value="{{ voGenBusy }}"><div style="flex:1;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,178,62,.3);border-radius:3px;font:500 12px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#ffb23e">SYNTHESIZING CANDIDATES…</div></sc-if>
+        <sc-if value="{{ voGenDone }}">
+          <div style="flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+            <sc-for list="{{ voCands }}" as="cd" hint-placeholder-count="3">
+              <div style="border:1px solid rgba(233,229,218,.12);border-radius:3px;padding:14px;display:flex;flex-direction:column;gap:8px;background:#0e0e10">
+                <div style="display:flex;justify-content:space-between;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82"><span>{{ cd.trait }}</span><span style="color:#ffb23e">{{ cd.match }}</span></div>
+                <span style="font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.06em">{{ cd.name }}</span>
+                <span style="font:500 10px 'JetBrains Mono',monospace;color:#8d8a82">F0 {{ cd.f0T }}</span>
+                <div style="flex:1"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><button onClick="{{ cd.onAud }}" style="height:30px;border:1px solid rgba(233,229,218,.18);border-radius:2px;background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;cursor:pointer">▶ 2S</button><button onClick="{{ cd.onSave }}" style="height:30px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">SAVE</button></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </sc-if>
+    </section>
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;display:flex;flex-direction:column;padding:18px;gap:12px;min-height:0">
+      <div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font:800 26px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">LEXICON</span><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">WRITTEN → SPOKEN</span></div>
+      <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+        <sc-for list="{{ lex }}" as="lx" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:1fr 24px 1fr 28px;align-items:center;gap:8px;height:44px;border-bottom:1px solid rgba(233,229,218,.06)"><span style="font:700 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em">{{ lx.a }}</span><span style="color:#ff4b2b;font:500 12px 'JetBrains Mono',monospace">→</span><span style="font:500 12px 'JetBrains Mono',monospace">“{{ lx.b }}”</span><button onClick="{{ lx.onDel }}" aria-label="Remove" style="width:24px;height:24px;border:0;background:none;color:#8d8a82;cursor:pointer;font:700 12px 'JetBrains Mono',monospace">×</button></div></sc-for>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 64px;gap:6px">
+        <input value="{{ lexA }}" onChange="{{ onLexA }}" placeholder="WRITTEN" aria-label="Written form" style="height:34px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none">
+        <input value="{{ lexB }}" onChange="{{ onLexB }}" placeholder="spoken" aria-label="Spoken form" style="height:34px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none">
+        <button onClick="{{ onLexAdd }}" style="border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">ADD</button>
+      </div>
+    </section>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:12px;display:grid;grid-template-rows:56px minmax(0,1fr);gap:12px">
+  <div style="display:flex;flex-direction:column;justify-content:flex-end;gap:6px"><span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.22em;color:#8d8a82">05 / CONFIG</span><span style="font:800 44px/0.85 'Big Shoulders Display',sans-serif;letter-spacing:.06em">SETTINGS</span></div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;gap:12px;align-content:start">
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:16px">
+      <span style="font:800 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">EXPORT</span>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">EXPORT FOLDER</span><div style="display:flex;height:36px;border:1px solid rgba(233,229,218,.16);border-radius:2px"><span style="flex:1;display:flex;align-items:center;padding:0 10px;font:500 12px 'JetBrains Mono',monospace;background:#0b0b0c">{{ stPath }}</span><button onClick="{{ onStPath }}" style="padding:0 12px;border:0;border-left:1px solid rgba(233,229,218,.16);background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;cursor:pointer">CHOOSE…</button></div></label>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">FORMAT</span><select value="{{ stFmt }}" onChange="{{ onStFmt }}" style="height:36px;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none"><sc-for list="{{ stFormats }}" as="o" hint-placeholder-count="1"><option value="{{ o.value }}" style="background:#111113">{{ o.label }}</option></sc-for></select></label>
+      <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">SAMPLE RATE</span><div role="radiogroup" style="display:flex;height:36px;border:1px solid rgba(233,229,218,.16);border-radius:2px;padding:3px;gap:3px"><sc-for list="{{ stRates }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.onClick }}" style="flex:1;border:0;border-radius:1px;background:{{ o.bg }};color:{{ o.fg }};font:700 11px 'JetBrains Mono',monospace;cursor:pointer">{{ o.label }}</button></sc-for></div></div>
+    </section>
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:16px">
+      <span style="font:800 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">LOUDNESS</span>
+      <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">MODE</span><div role="radiogroup" style="display:flex;height:36px;border:1px solid rgba(233,229,218,.16);border-radius:2px;padding:3px;gap:3px"><sc-for list="{{ stLouds }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.onClick }}" style="flex:1;border:0;border-radius:1px;background:{{ o.bg }};color:{{ o.fg }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em;cursor:pointer">{{ o.label }}</button></sc-for></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">CLUB LUFS</span><input value="{{ stClub }}" onChange="{{ onStClub }}" inputmode="decimal" style="height:36px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:700 18px 'Big Shoulders Display',sans-serif;outline:none;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">BAKE-IN LUFS</span><input value="{{ stBake }}" onChange="{{ onStBake }}" inputmode="decimal" style="height:36px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:700 18px 'Big Shoulders Display',sans-serif;outline:none;width:100%"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82">TP CEILING</span><input value="{{ stTp }}" onChange="{{ onStTp }}" inputmode="decimal" style="height:36px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:700 18px 'Big Shoulders Display',sans-serif;outline:none;width:100%"></label>
+      </div>
+    </section>
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:16px">
+      <span style="font:800 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">AUDIO OUTPUT</span>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">DEVICE</span><select value="{{ stOut }}" onChange="{{ onStOut }}" style="height:36px;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none"><sc-for list="{{ stOuts }}" as="o" hint-placeholder-count="1"><option value="{{ o.value }}" style="background:#111113">{{ o.label }}</option></sc-for></select></label>
+    </section>
+    <section style="grid-column:1 / 3;background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:16px">
+      <span style="font:800 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">NAMING</span>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px">
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">FILENAME PATTERN</span><input value="{{ stPattern }}" onChange="{{ onStPattern }}" style="height:36px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">ARTIST TAG</span><input value="{{ stArtist }}" onChange="{{ onStArtist }}" style="height:36px;box-sizing:border-box;padding:0 10px;border:1px solid rgba(233,229,218,.16);border-radius:2px;background:#0b0b0c;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;outline:none"></label>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">PREVIEW</span><span style="font:500 12px 'JetBrains Mono',monospace;color:#ffb23e;word-break:break-all">{{ stPreview }}</span></div>
+    </section>
+    <section style="background:#111113;border:1px solid rgba(233,229,218,.08);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:14px">
+      <span style="font:800 20px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em">REKORDBOX</span>
+      <button role="switch" aria-checked="{{ hotA }}" onClick="{{ onStHot }}" style="display:flex;align-items:center;justify-content:space-between;height:36px;border:0;background:none;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;cursor:pointer;padding:0">Hot cue A at first word<span style="position:relative;width:40px;height:22px;border:1px solid rgba(233,229,218,.2);border-radius:11px"><span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:{{ hotBg }};transform:{{ hotX }};transition:transform .2s"></span></span></button>
+      <button role="switch" aria-checked="{{ memA }}" onClick="{{ onStMem }}" style="display:flex;align-items:center;justify-content:space-between;height:36px;border:0;background:none;color:#e9e5da;font:500 12px 'JetBrains Mono',monospace;cursor:pointer;padding:0">Memory cue at tail<span style="position:relative;width:40px;height:22px;border:1px solid rgba(233,229,218,.2);border-radius:11px"><span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:{{ memBg }};transform:{{ memX }};transition:transform .2s"></span></span></button>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.18em;color:#8d8a82">TARGET PATH ROOT</span><div style="display:flex;height:36px;border:1px solid rgba(233,229,218,.16);border-radius:2px"><span style="flex:1;display:flex;align-items:center;padding:0 10px;font:500 11px 'JetBrains Mono',monospace;background:#0b0b0c;overflow:hidden;white-space:nowrap">{{ stRoot }}</span><button onClick="{{ onStRoot }}" style="padding:0 12px;border:0;border-left:1px solid rgba(233,229,218,.16);background:none;color:#e9e5da;font:700 10px 'JetBrains Mono',monospace;cursor:pointer">CHOOSE…</button></div></label>
+    </section>
+  </div>
+</div>
+</sc-if>
+<sc-if value="{{ hasBanner }}" hint-placeholder-val="{{ false }}">
+  <div ref="{{ bannerRef }}" role="alert" style="position:absolute;left:50%;top:12px;transform:translate(-50%,0);z-index:70;width:min(680px,80%);display:flex;align-items:center;gap:14px;padding:12px 12px 12px 16px;background:#18181b;border:1px solid {{ bannerCol }};border-radius:3px;box-shadow:0 20px 50px rgba(0,0,0,.7)">
+    <span style="width:28px;height:28px;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid {{ bannerCol }};border-radius:50%;color:{{ bannerCol }};font:700 12px 'JetBrains Mono',monospace">{{ bannerIcon }}</span>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;color:{{ bannerCol }}">{{ bannerTitle }}</span><span style="font:400 11px/1.45 'JetBrains Mono',monospace">{{ bannerBody }}</span></div>
+    <sc-if value="{{ hasBannerAction }}"><button onClick="{{ onBannerAction }}" style="flex:none;height:32px;padding:0 14px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 13px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">{{ bannerAction }}</button></sc-if>
+    <button onClick="{{ onBannerClose }}" aria-label="Dismiss" style="flex:none;width:28px;height:28px;border:0;background:none;color:#8d8a82;font:700 14px 'JetBrains Mono',monospace;cursor:pointer">×</button>
+  </div>
+</sc-if>
+<canvas ref="{{ fxRef }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:40"></canvas>
+</main>
+
+<div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;z-index:60;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px)"></div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div ref="{{ toastRef }}" role="status" style="position:absolute;right:24px;bottom:24px;z-index:80;width:380px;background:#18181b;border:1px solid rgba(255,178,62,.4);border-left:0;border-radius:3px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;box-shadow:0 20px 50px rgba(0,0,0,.7)">
+    <span style="font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em;color:#ffb23e">{{ toastTitle }}</span>
+    <span style="font:400 10.5px/1.5 'JetBrains Mono',monospace;word-break:break-all">{{ toastBody }}</span>
+  </div>
+</sc-if>
+
+<sc-if value="{{ simOpen }}" hint-placeholder-val="{{ false }}">
+  <div role="menu" style="position:absolute;left:84px;bottom:12px;z-index:95;width:270px;max-height:calc(100% - 80px);overflow:auto;background:#141417;border:1px solid rgba(255,178,62,.35);border-radius:4px;padding:8px;display:flex;flex-direction:column;gap:2px;box-shadow:0 20px 60px rgba(0,0,0,.7)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;font:700 9.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#ffb23e"><span>STATE SIMULATOR</span><button onClick="{{ toggleSim }}" aria-label="Close" style="border:0;background:none;color:#8d8a82;font:700 13px 'JetBrains Mono',monospace;cursor:pointer;padding:0">×</button></div>
+    <sc-for list="{{ sims }}" as="sm" hint-placeholder-count="16"><button role="menuitem" onClick="{{ sm.onClick }}" style="display:flex;gap:10px;align-items:center;min-height:32px;padding:0 8px;border:0;border-radius:2px;background:none;color:#e9e5da;font:500 11px 'JetBrains Mono',monospace;text-align:left;cursor:pointer" style-hover="background:rgba(255,178,62,.1)"><span style="color:#8d8a82;font-size:9.5px">{{ sm.n }}</span>{{ sm.label }}</button></sc-for>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasModal }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ onModalClose }}" style="position:absolute;inset:0;z-index:92;background:rgba(5,5,6,.78);display:flex;align-items:center;justify-content:center">
+    <div role="dialog" aria-label="{{ modalTitle }}" onClick="{{ onModalStop }}" style="width:560px;background:#111113;border:1px solid rgba(255,178,62,.35);border-radius:4px;padding:26px;display:flex;flex-direction:column;gap:14px;box-shadow:0 30px 80px rgba(0,0,0,.7)">
+      <span style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#ffb23e">✓ WRITTEN</span>
+      <span style="font:800 30px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">{{ modalTitle }}</span>
+      <span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82;word-break:break-all">{{ modalBody }}</span>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:14px 0;border-top:1px solid rgba(233,229,218,.08);border-bottom:1px solid rgba(233,229,218,.08)">
+        <span style="font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82">IMPORT STEPS</span>
+        <sc-for list="{{ modalSteps }}" as="ms" hint-placeholder-count="3"><div style="display:grid;grid-template-columns:30px 1fr;gap:8px;font:400 12px/1.5 'JetBrains Mono',monospace"><span style="font:700 16px/1.2 'Big Shoulders Display',sans-serif;color:#ff4b2b">{{ ms.n }}</span><span>{{ ms.t }}</span></div></sc-for>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button onClick="{{ onModalClose }}" style="height:36px;padding:0 18px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;cursor:pointer">DONE</button></div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ keysOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ toggleKeys }}" style="position:absolute;inset:0;z-index:90;background:rgba(5,5,6,.78);display:flex;align-items:center;justify-content:center">
+    <div role="dialog" aria-label="Keyboard shortcuts" style="width:440px;background:#111113;border:1px solid rgba(233,229,218,.14);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+      <span style="font:800 26px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em">SHORTCUTS</span>
+      <span style="font:400 10px 'JetBrains Mono',monospace;color:#8d8a82">Paused while typing in the script editor.</span>
+      <sc-for list="{{ shortcuts }}" as="sc" hint-placeholder-count="8"><div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(233,229,218,.06);font:500 12px 'JetBrains Mono',monospace"><span style="color:#8d8a82">{{ sc.a }}</span><span style="padding:3px 8px;border:1px solid rgba(233,229,218,.2);border-radius:3px">{{ sc.k }}</span></div></sc-for>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ booting }}" hint-placeholder-val="{{ true }}">
+  <div ref="{{ bootRef }}" style="position:absolute;inset:0;z-index:100;background:#070708;overflow:hidden">
+    <canvas ref="{{ bootCvRef }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+    <div style="position:absolute;left:32px;right:32px;top:26px;display:flex;align-items:center;gap:16px;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82"><span style="width:6px;height:6px;border-radius:50%;background:#ff4b2b;box-shadow:0 0 8px #ff4b2b"></span><span>FOXBOX 0.9.4</span><span>ARM64 · COREAUDIO 48K</span><span style="flex:1;height:1px;background:rgba(233,229,218,.08)"></span><span>SESSION 7F3A-0042</span></div>
+    <div style="position:absolute;left:32px;right:32px;bottom:26px;display:flex;align-items:center;gap:16px;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82"><span>PID 4471</span><span style="flex:1;height:1px;background:rgba(233,229,218,.08)"></span><span>REMEMBER, REMEMBER</span></div>
+    <div style="position:absolute;left:clamp(80px,10.6cqw,160px);top:50%;transform:translateY(-50%);width:min(680px,62%);display:flex;flex-direction:column;gap:32px">
+      <div style="display:flex;align-items:baseline;gap:18px">
+        <span ref="{{ bootTitleRef }}" style="font:800 clamp(72px,5.8cqw,88px)/0.9 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap;color:#e9e5da">FOXBOX</span>
+        <span ref="{{ bootSubRef }}" style="font:500 14px/1 'JetBrains Mono',monospace;letter-spacing:.4em;color:#ff4b2b">VOICE MASK</span>
+      </div>
+      <div aria-hidden="true" style="position:relative;height:1px;margin-top:-18px;background:rgba(233,229,218,.08)"><div ref="{{ bootBarRef }}" style="position:absolute;inset:0;background:#ff4b2b;box-shadow:0 0 8px #ff4b2b;transform-origin:left;transform:scaleX(0)"></div></div>
+      <div style="display:flex;flex-direction:column;gap:9px;min-height:248px">
+        <sc-for list="{{ bootLines }}" as="bl" hint-placeholder-count="0">
+          <div style="display:flex;align-items:center;gap:14px;font:500 14px/1.4 'JetBrains Mono',monospace;white-space:pre;color:{{ bl.col }}"><span style="font-size:11px;color:#8d8a82;font-variant-numeric:tabular-nums">{{ bl.ts }}</span><span>{{ bl.t }}</span><sc-if value="{{ bl.cursor }}"><span style="display:inline-block;width:9px;height:16px;background:#ff4b2b;box-shadow:0 0 10px #ff4b2b;margin-left:-10px"></span></sc-if><span style="flex:1"></span><sc-if value="{{ bl.ok }}"><span style="font:700 10.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:{{ bl.okC }};font-variant-numeric:tabular-nums">{{ bl.okT }}</span></sc-if></div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(40,minmax(0,1fr));gap:3px;height:4px"><sc-for list="{{ bootSegs }}" as="sg" hint-placeholder-count="40"><span style="background:{{ sg.bg }};box-shadow:{{ sg.sh }};transition:background .15s"></span></sc-for></div>
+        <div aria-hidden="true" style="position:relative;height:5px;margin-top:-4px"><span style="position:absolute;left:0;top:0;width:1px;height:5px;background:rgba(233,229,218,.25)"></span><span style="position:absolute;left:25%;top:0;width:1px;height:3px;background:rgba(233,229,218,.18)"></span><span style="position:absolute;left:50%;top:0;width:1px;height:5px;background:rgba(233,229,218,.25)"></span><span style="position:absolute;left:75%;top:0;width:1px;height:3px;background:rgba(233,229,218,.18)"></span><span style="position:absolute;right:0;top:0;width:1px;height:5px;background:rgba(233,229,218,.25)"></span></div>
+        <div style="display:flex;justify-content:space-between;font:500 10px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82"><span>MODEL {{ bootPct }} · 312 MB · 41.2 GB FREE</span><span ref="{{ bootClockRef }}" style="font-variant-numeric:tabular-nums">T+00:00.00</span></div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1512,&quot;height&quot;:982},&quot;frame&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;fluid&quot;,&quot;1512 × 982&quot;,&quot;1280 × 800&quot;],&quot;default&quot;:&quot;fluid&quot;,&quot;tsType&quot;:&quot;'fluid' | '1512 × 982' | '1280 × 800'&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    const go = () => {
+      if (!window.VB) return (this._t = setTimeout(go, 30));
+      this.ctl = window.VB.controller(this, 'transmission');
+      this.forceUpdate();
+      this.ctl.mount();
+    };
+    go();
+  }
+  componentWillUnmount() { clearTimeout(this._t); this.ctl && this.ctl.unmount(); }
+  renderVals() { return this.ctl ? this.ctl.vals() : { booting: true, isStudio: true, isType: true, bootLines: [] }; }
+}
+</script>
+</body>
+</html>

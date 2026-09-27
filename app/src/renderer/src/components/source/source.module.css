@@ -1,0 +1,599 @@
+/* SOURCE per the design canvas: TYPE (voice, speed; the script editor is scriptEditor.module.css), RECORD (orb,
+ * strip, takes), IMPORT (drop). */
+.kicker {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+/* ---------------------------------------------------------------- voices */
+.voices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.voicesHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.showAll {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}
+.showAll:hover {
+  color: var(--vb-ink);
+}
+.voiceList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+  margin: -2px;
+  padding: 2px;
+}
+.voiceList[data-all] {
+  max-height: calc(5 * clamp(40px, 5.1cqh, 50px) + 24px);
+}
+.voice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: clamp(40px, 5.1cqh, 50px);
+  padding: 0 8px 0 12px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-radius: var(--vb-r2);
+  background: transparent;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.voice:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.2);
+}
+.voice[data-selected] {
+  border-color: var(--vb-amber);
+  background: rgba(var(--vb-amber-rgb), 0.07);
+}
+.voicePick {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--vb-ink);
+  text-align: left;
+}
+.voicePick:focus-visible {
+  outline-offset: 4px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: rgba(var(--vb-ink-rgb), 0.2);
+}
+.voice[data-selected] .dot {
+  background: var(--vb-accent);
+}
+.voiceName {
+  font: 700 20px/1 var(--vb-font-display);
+  letter-spacing: 0.05em;
+  width: 78px;
+  flex: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voiceDesc {
+  font: 400 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+  flex: 1;
+  min-width: 56px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tags {
+  display: flex;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+@container vb (max-width: 1419px) {
+  .tags {
+    display: none;
+  }
+}
+.tag {
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  padding: 3px 5px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.audition {
+  height: 30px;
+  width: 52px;
+  flex: none;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  padding: 0;
+}
+.audition:hover:not(:disabled),
+.audition[aria-pressed='true'] {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber);
+}
+
+/* speed */
+.speed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: none;
+}
+.speedHead {
+  display: flex;
+  justify-content: space-between;
+}
+.speedValue {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-ink);
+}
+.speedTrack {
+  position: relative;
+  height: 22px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.speedTrack::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 10px;
+  height: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.12);
+}
+.speedTrack::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 1px;
+  height: 14px;
+  background: rgba(var(--vb-ink-rgb), 0.3);
+}
+.speedFill {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  height: 2px;
+  width: 100%;
+  background: var(--vb-amber);
+  transform-origin: left;
+}
+.speedThumb {
+  position: absolute;
+  top: 3px;
+  width: 10px;
+  height: 16px;
+  margin-left: -5px;
+  background: var(--vb-ink);
+  border-radius: 1px;
+  z-index: 1;
+}
+.speedScale {
+  display: flex;
+  justify-content: space-between;
+  font: 400 9px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- record */
+.record {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.device {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  appearance: none;
+  padding: 0 24px 0 10px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background-color: var(--vb-well);
+  background-image: linear-gradient(45deg, transparent 50%, var(--vb-dim) 50%),
+    linear-gradient(135deg, var(--vb-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) 50%,
+    calc(100% - 9px) 50%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  color: var(--vb-ink);
+  font: 500 10.5px var(--vb-font-mono);
+  cursor: pointer;
+  outline: none;
+  text-overflow: ellipsis;
+}
+.device:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+.device:focus-visible {
+  border-color: var(--vb-amber);
+}
+.device option {
+  background: var(--vb-panel);
+}
+.rate {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.orbBox {
+  position: relative;
+  flex: none;
+  height: clamp(228px, 31cqh, 300px);
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.orbBtn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(104px, 13cqh, 128px);
+  height: clamp(104px, 13cqh, 128px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--vb-accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+}
+.orbBtn[data-state='rec'] {
+  color: var(--vb-bg);
+}
+.orbBtn:focus-visible {
+  outline-offset: 6px;
+}
+.orbBig {
+  font: var(--vb-display-weight) 30px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+}
+.orbHint {
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  opacity: 0.8;
+}
+.recInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.recTime {
+  font: 700 22px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+.recLabel {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  transition: color var(--vb-med);
+  text-align: center;
+}
+.recLabel[data-state='count'] {
+  color: var(--vb-amber);
+}
+.recLabel[data-state='rec'] {
+  color: var(--vb-accent);
+}
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.strip {
+  position: relative;
+  height: 52px;
+  background: var(--vb-well);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r1);
+  overflow: hidden;
+}
+.level {
+  width: 100%;
+  height: 6px;
+  display: block;
+}
+.scale {
+  position: relative;
+  height: 10px;
+  font: 500 8.5px/10px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.scale span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.scale span:first-child {
+  transform: none;
+}
+.scale span:last-child {
+  transform: none;
+}
+.takesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.clear {
+  border: 0;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  padding: 0;
+}
+.clear:hover {
+  color: var(--vb-ink);
+}
+.takes {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.noTakes {
+  padding: 14px;
+  border: 1px dashed var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  font: 400 11px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.take {
+  flex: none;
+  display: grid;
+  grid-template-columns: 26px 54px minmax(0, 1fr) 44px 60px;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 8px;
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r1);
+  background: transparent;
+  transition:
+    border-color 0.25s,
+    background 0.25s;
+}
+.take[data-active] {
+  border-color: rgba(var(--vb-amber-rgb), 0.45);
+  background: rgba(var(--vb-amber-rgb), 0.05);
+}
+.takePlay {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: 50%;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 9px var(--vb-font-mono);
+  padding: 0;
+}
+.takePlay:hover {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber);
+}
+.takeName {
+  font: 700 15px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.takeWave {
+  width: 100%;
+  height: 20px;
+  display: block;
+  fill: rgba(var(--vb-ink-rgb), 0.45);
+}
+.take[data-active] .takeWave {
+  fill: var(--vb-amber);
+}
+.takeDur {
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.use {
+  height: 26px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: var(--vb-r1);
+  background: transparent;
+  color: var(--vb-ink);
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  padding: 0;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.use[aria-pressed='true'] {
+  background: var(--vb-amber);
+  border-color: var(--vb-amber);
+  color: var(--vb-bg);
+}
+.use[data-status='error'] {
+  border-color: var(--vb-accent);
+  color: var(--vb-accent);
+}
+
+/* mic denied */
+.denied {
+  flex: 1;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+.deniedMark {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px dashed var(--vb-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: var(--vb-display-weight) 44px/1 var(--vb-font-display);
+  color: var(--vb-accent);
+}
+.deniedTitle {
+  font: var(--vb-display-weight) 26px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.deniedBody {
+  font: 400 11px/1.6 var(--vb-font-mono);
+  color: var(--vb-dim);
+  max-width: 260px;
+}
+
+/* ---------------------------------------------------------------- import */
+.import {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.drop {
+  flex: 1;
+  border: 1px dashed rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: var(--vb-r3);
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s;
+  padding: 16px;
+  text-align: center;
+  color: var(--vb-ink);
+  width: 100%;
+}
+.drop[data-over] {
+  border-color: var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.06);
+}
+.drop:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.dropTitle {
+  font: var(--vb-display-weight) 30px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.dropBody {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.dropBusy {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-amber);
+}
+.imported {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  border-radius: var(--vb-r1);
+  background: rgba(var(--vb-amber-rgb), 0.05);
+}
+.importedName {
+  font: 700 15px/1.1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+.importedMeta {
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.error {
+  margin: 0;
+  font: 500 10.5px/1.45 var(--vb-font-mono);
+  color: var(--vb-accent);
+}
+
+
+/* ---------------------------------------------------------------- clean-up (v0.3) */
+.cleanup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.cleanupSeg {
+  flex: 1;
+  min-width: 0;
+}
+.cleanupNote {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+}

@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "Chain": {
+      "additionalProperties": false,
+      "properties": {
+        "modules": {
+          "description": "Modules not listed are disabled. Order is fixed by the rack.",
+          "items": {
+            "$ref": "#/$defs/ModuleState"
+          },
+          "title": "Modules",
+          "type": "array"
+        }
+      },
+      "title": "Chain",
+      "type": "object"
+    },
+    "MacroMap": {
+      "additionalProperties": false,
+      "description": "Macro-controlled params are overwritten by interpolation (like an Ableton macro rack).",
+      "properties": {
+        "depth": {
+          "items": {
+            "$ref": "#/$defs/MacroTarget"
+          },
+          "title": "Depth",
+          "type": "array"
+        },
+        "grit": {
+          "items": {
+            "$ref": "#/$defs/MacroTarget"
+          },
+          "title": "Grit",
+          "type": "array"
+        },
+        "machine": {
+          "items": {
+            "$ref": "#/$defs/MacroTarget"
+          },
+          "title": "Machine",
+          "type": "array"
+        },
+        "space": {
+          "items": {
+            "$ref": "#/$defs/MacroTarget"
+          },
+          "title": "Space",
+          "type": "array"
+        }
+      },
+      "title": "MacroMap",
+      "type": "object"
+    },
+    "MacroTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "param": {
+          "title": "Param",
+          "type": "string"
+        },
+        "min": {
+          "description": "Value at macro = 0.",
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "description": "Value at macro = 1.",
+          "title": "Max",
+          "type": "number"
+        },
+        "curve": {
+          "default": "lin",
+          "enum": [
+            "lin",
+            "exp",
+            "log"
+          ],
+          "title": "Curve",
+          "type": "string"
+        }
+      },
+      "required": [
+        "module",
+        "param",
+        "min",
+        "max"
+      ],
+      "title": "MacroTarget",
+      "type": "object"
+    },
+    "Macros": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "grit": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Grit",
+          "type": "number"
+        },
+        "machine": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Machine",
+          "type": "number"
+        },
+        "space": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Space",
+          "type": "number"
+        }
+      },
+      "title": "Macros",
+      "type": "object"
+    },
+    "ModuleState": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Missing params use the rack default.",
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ModuleState",
+      "type": "object"
+    },
+    "StackVoice": {
+      "additionalProperties": false,
+      "description": "Extra voice layered on the main one (the 'robotic TTS collage').",
+      "properties": {
+        "voice_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None \u2192 pseudo-stack: a detuned copy of the main source (use for recordings).",
+          "title": "Voice Id"
+        },
+        "pitch_st": {
+          "default": 0.0,
+          "maximum": 24,
+          "minimum": -24,
+          "title": "Pitch St",
+          "type": "number"
+        },
+        "formant_st": {
+          "default": 0.0,
+          "maximum": 12,
+          "minimum": -12,
+          "title": "Formant St",
+          "type": "number"
+        },
+        "pan": {
+          "default": 0.0,
+          "maximum": 1,
+          "minimum": -1,
+          "title": "Pan",
+          "type": "number"
+        },
+        "gain_db": {
+          "default": -12.0,
+          "maximum": 6,
+          "minimum": -60,
+          "title": "Gain Db",
+          "type": "number"
+        }
+      },
+      "title": "StackVoice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "factory": {
+      "default": false,
+      "title": "Factory",
+      "type": "boolean"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "voice_hint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Voice Hint"
+    },
+    "speed_hint": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Speed Hint"
+    },
+    "chain": {
+      "$ref": "#/$defs/Chain"
+    },
+    "macros": {
+      "$ref": "#/$defs/Macros"
+    },
+    "macro_map": {
+      "$ref": "#/$defs/MacroMap"
+    },
+    "stack": {
+      "items": {
+        "$ref": "#/$defs/StackVoice"
+      },
+      "maxItems": 3,
+      "title": "Stack",
+      "type": "array"
+    },
+    "arrange_hint": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "description": "Partial Arrange overrides, e.g. {'first_word_beat': 4}.",
+      "title": "Arrange Hint",
+      "type": "object"
+    },
+    "master_hint": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Master Hint",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "description",
+    "chain"
+  ],
+  "title": "Preset",
+  "type": "object"
+}

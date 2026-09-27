@@ -1,0 +1,215 @@
+{
+  "id": "legion",
+  "name": "LEGION",
+  "description": "Intercepted \"we are legion\" broadcast: monotone chorus of voices, GSM codec, band-passed radio, ring mod, noise bed, squelch clicks.",
+  "factory": true,
+  "tags": [
+    "broadcast",
+    "radio",
+    "collective"
+  ],
+  "voice_hint": "kokoro:am_fenrir",
+  "speed_hint": 0.9,
+  "chain": {
+    "modules": [
+      {
+        "id": "prep",
+        "enabled": true,
+        "params": {
+          "hp_hz": 80,
+          "gate_db": -55,
+          "deess": 0.2,
+          "normalize": true
+        }
+      },
+      {
+        "id": "mask",
+        "enabled": true,
+        "params": {
+          "pitch_mode": "monotone",
+          "mcadams": 1.0,
+          "breath": 0.0,
+          "growl": 0.0
+        }
+      },
+      {
+        "id": "layers",
+        "enabled": false,
+        "params": {
+          "sub_gain_db": -60,
+          "ghost_gain_db": -60
+        }
+      },
+      {
+        "id": "machine",
+        "enabled": true,
+        "params": {
+          "vocoder_mix": 0.0,
+          "ring_hz": 60,
+          "shift_mix": 0.0
+        }
+      },
+      {
+        "id": "drive",
+        "enabled": true,
+        "params": {
+          "mode": "tanh",
+          "tone": 0.6,
+          "mix": 0.8,
+          "oversample": "2"
+        }
+      },
+      {
+        "id": "crush",
+        "enabled": true,
+        "params": {
+          "rate_hz": 16000,
+          "codec": "gsm",
+          "noise_db": -30,
+          "mix": 1.0
+        }
+      },
+      {
+        "id": "tone",
+        "enabled": true,
+        "params": {
+          "hp_hz": 300,
+          "lp_hz": 3400,
+          "low_db": 0,
+          "mid_hz": 1200,
+          "mid_db": 4,
+          "mid_q": 1.0
+        }
+      },
+      {
+        "id": "dynamics",
+        "enabled": true,
+        "params": {
+          "comp_threshold_db": -28,
+          "comp_ratio": 6,
+          "makeup_db": 8,
+          "ott": 0.0
+        }
+      },
+      {
+        "id": "space",
+        "enabled": true,
+        "params": {
+          "reverb_decay_s": 0.4,
+          "reverb_dark": 0.5,
+          "reverb_type": "room",
+          "delay_div": "1/8",
+          "delay_feedback": 0.2,
+          "throw_send": 0.5
+        }
+      },
+      {
+        "id": "stereo",
+        "enabled": true,
+        "params": {
+          "width": 0.6,
+          "mono_below_hz": 150
+        }
+      },
+      {
+        "id": "edit",
+        "enabled": true,
+        "params": {
+          "squelch": true,
+          "stutter_div": "off",
+          "tape_stop_beats": 0
+        }
+      }
+    ]
+  },
+  "macros": {
+    "depth": 0.5,
+    "grit": 0.5,
+    "machine": 0.5,
+    "space": 0.5
+  },
+  "macro_map": {
+    "depth": [
+      {
+        "module": "mask",
+        "param": "pitch_st",
+        "min": 0.0,
+        "max": -6.0,
+        "curve": "lin"
+      },
+      {
+        "module": "mask",
+        "param": "formant_st",
+        "min": 0.0,
+        "max": -4.0,
+        "curve": "lin"
+      }
+    ],
+    "grit": [
+      {
+        "module": "drive",
+        "param": "drive_db",
+        "min": 6.0,
+        "max": 24.0,
+        "curve": "lin"
+      },
+      {
+        "module": "crush",
+        "param": "bits",
+        "min": 13.0,
+        "max": 7.0,
+        "curve": "lin"
+      }
+    ],
+    "machine": [
+      {
+        "module": "mask",
+        "param": "monotone",
+        "min": 0.6,
+        "max": 1.0,
+        "curve": "lin"
+      },
+      {
+        "module": "machine",
+        "param": "ring_mix",
+        "min": 0.1,
+        "max": 0.4,
+        "curve": "lin"
+      }
+    ],
+    "space": [
+      {
+        "module": "space",
+        "param": "reverb_mix",
+        "min": 0.0,
+        "max": 0.2,
+        "curve": "lin"
+      },
+      {
+        "module": "space",
+        "param": "delay_mix",
+        "min": 0.0,
+        "max": 0.2,
+        "curve": "lin"
+      }
+    ]
+  },
+  "stack": [
+    {
+      "voice_id": "kokoro:am_michael",
+      "pitch_st": -3.0,
+      "formant_st": 0.0,
+      "pan": -0.5,
+      "gain_db": -6.0
+    },
+    {
+      "voice_id": "kokoro:am_puck",
+      "pitch_st": -3.0,
+      "formant_st": 0.0,
+      "pan": 0.5,
+      "gain_db": -6.0
+    }
+  ],
+  "arrange_hint": {},
+  "master_hint": {}
+}

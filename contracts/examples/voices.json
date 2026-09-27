@@ -1,0 +1,95 @@
+[
+  {
+    "id": "kokoro:af_heart",
+    "engine": "kokoro",
+    "name": "Heart",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "high",
+      "best-graded"
+    ],
+    "recommended": true,
+    "installed": true,
+    "sample_audio_id": "smp_85a7e183c0f2",
+    "description": "US female, Kokoro's best-rated voice. Base voice of GHOST."
+  },
+  {
+    "id": "kokoro:af_alloy",
+    "engine": "kokoro",
+    "name": "Alloy",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "low",
+      "dark"
+    ],
+    "recommended": false,
+    "installed": true,
+    "sample_audio_id": "smp_c7deb8c2b745",
+    "description": null
+  },
+  {
+    "id": "kokoro:af_aoede",
+    "engine": "kokoro",
+    "name": "Aoede",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "mid"
+    ],
+    "recommended": false,
+    "installed": true,
+    "sample_audio_id": "smp_47baebbc1505",
+    "description": null
+  },
+  {
+    "id": "kokoro:af_bella",
+    "engine": "kokoro",
+    "name": "Bella",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "high",
+      "bright"
+    ],
+    "recommended": false,
+    "installed": true,
+    "sample_audio_id": "smp_44298a0fa4e2",
+    "description": null
+  },
+  {
+    "id": "kokoro:af_jessica",
+    "engine": "kokoro",
+    "name": "Jessica",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "mid"
+    ],
+    "recommended": false,
+    "installed": true,
+    "sample_audio_id": "smp_5cd45b365414",
+    "description": null
+  },
+  {
+    "id": "kokoro:af_kore",
+    "engine": "kokoro",
+    "name": "Kore",
+    "language": "en-US",
+    "gender": "female",
+    "tags": [
+      "us",
+      "low"
+    ],
+    "recommended": false,
+    "installed": true,
+    "sample_audio_id": "smp_620202505d3b",
+    "description": null
+  }
+]

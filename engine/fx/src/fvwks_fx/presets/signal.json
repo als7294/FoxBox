@@ -1,0 +1,192 @@
+{
+  "id": "signal",
+  "name": "SIGNAL",
+  "description": "Glitch: DeRez4 down to 8 kHz and crushed to 6-bit, frequency-shifted, stuttered first word, tape-stop out.",
+  "factory": true,
+  "tags": [
+    "glitch",
+    "digital",
+    "edit"
+  ],
+  "voice_hint": "kokoro:am_puck",
+  "speed_hint": 0.95,
+  "chain": {
+    "modules": [
+      {
+        "id": "prep",
+        "enabled": true,
+        "params": {
+          "hp_hz": 90,
+          "gate_db": -50,
+          "deess": 0.3,
+          "normalize": true
+        }
+      },
+      {
+        "id": "mask",
+        "enabled": true,
+        "params": {
+          "pitch_mode": "natural",
+          "mcadams": 1.0
+        }
+      },
+      {
+        "id": "machine",
+        "enabled": true,
+        "params": {
+          "shift_hz": 200,
+          "ring_hz": 90
+        }
+      },
+      {
+        "id": "drive",
+        "enabled": true,
+        "params": {
+          "mode": "fold",
+          "tone": 0.5,
+          "mix": 0.5,
+          "oversample": "2"
+        }
+      },
+      {
+        "id": "crush",
+        "enabled": true,
+        "params": {
+          "codec": "none",
+          "noise_db": -70,
+          "mix": 0.8,
+          "derez": 0.45
+        }
+      },
+      {
+        "id": "tone",
+        "enabled": true,
+        "params": {
+          "hp_hz": 100,
+          "lp_hz": 12000
+        }
+      },
+      {
+        "id": "dynamics",
+        "enabled": true,
+        "params": {
+          "comp_threshold_db": -22,
+          "comp_ratio": 4,
+          "makeup_db": 5
+        }
+      },
+      {
+        "id": "space",
+        "enabled": true,
+        "params": {
+          "reverb_decay_s": 0.5,
+          "reverb_dark": 0.5,
+          "reverb_type": "room",
+          "delay_div": "1/16",
+          "delay_feedback": 0.3,
+          "throw_send": 0.5
+        }
+      },
+      {
+        "id": "stereo",
+        "enabled": true,
+        "params": {
+          "width": 1.2,
+          "mono_below_hz": 150
+        }
+      },
+      {
+        "id": "edit",
+        "enabled": true,
+        "params": {
+          "stutter_div": "1/16",
+          "stutter_repeats": 4,
+          "tape_stop_beats": 1,
+          "squelch": false
+        }
+      }
+    ]
+  },
+  "macros": {
+    "depth": 0.5,
+    "grit": 0.5,
+    "machine": 0.5,
+    "space": 0.5
+  },
+  "macro_map": {
+    "depth": [
+      {
+        "module": "mask",
+        "param": "pitch_st",
+        "min": -2.0,
+        "max": -8.0,
+        "curve": "lin"
+      },
+      {
+        "module": "mask",
+        "param": "formant_st",
+        "min": 0.0,
+        "max": -4.0,
+        "curve": "lin"
+      }
+    ],
+    "grit": [
+      {
+        "module": "crush",
+        "param": "bits",
+        "min": 9.0,
+        "max": 3.0,
+        "curve": "lin"
+      },
+      {
+        "module": "drive",
+        "param": "drive_db",
+        "min": 4.0,
+        "max": 20.0,
+        "curve": "lin"
+      },
+      {
+        "module": "crush",
+        "param": "derez",
+        "min": 0.25,
+        "max": 0.65,
+        "curve": "lin"
+      }
+    ],
+    "machine": [
+      {
+        "module": "machine",
+        "param": "shift_mix",
+        "min": 0.2,
+        "max": 0.6,
+        "curve": "lin"
+      },
+      {
+        "module": "machine",
+        "param": "ring_mix",
+        "min": 0.0,
+        "max": 0.3,
+        "curve": "lin"
+      }
+    ],
+    "space": [
+      {
+        "module": "space",
+        "param": "reverb_mix",
+        "min": 0.0,
+        "max": 0.2,
+        "curve": "lin"
+      },
+      {
+        "module": "space",
+        "param": "delay_mix",
+        "min": 0.0,
+        "max": 0.25,
+        "curve": "lin"
+      }
+    ]
+  },
+  "stack": [],
+  "arrange_hint": {},
+  "master_hint": {}
+}

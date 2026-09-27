@@ -1,0 +1,47 @@
+{
+  "files": [
+    {
+      "id": "exp_ca931366db70",
+      "render_id": "rnd_cda47b95ae5b",
+      "variant": "wet",
+      "title": "WE ARE GUY FVWKS EXPECT US (PACT v02)",
+      "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v02.aiff",
+      "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v02.aiff",
+      "format": "aiff",
+      "sample_rate": 44100,
+      "bit_depth": 24,
+      "channels": 2,
+      "n_samples": 302400,
+      "duration_s": 6.85714,
+      "bpm": 140.0,
+      "key": "Am",
+      "bars": 4,
+      "first_word_s": 0.0,
+      "tail_s": null,
+      "size_bytes": 1825646,
+      "created_at": "2026-09-27T00:38:27.474+00:00"
+    },
+    {
+      "id": "exp_93cf9ca8f363",
+      "render_id": "rnd_cda47b95ae5b",
+      "variant": "dry",
+      "title": "WE ARE GUY FVWKS EXPECT US (PACT dry v02)",
+      "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v02.aiff",
+      "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v02.aiff",
+      "format": "aiff",
+      "sample_rate": 44100,
+      "bit_depth": 24,
+      "channels": 2,
+      "n_samples": 302400,
+      "duration_s": 6.85714,
+      "bpm": 140.0,
+      "key": "Am",
+      "bars": 4,
+      "first_word_s": 0.0,
+      "tail_s": null,
+      "size_bytes": 1825662,
+      "created_at": "2026-09-27T00:38:27.474+00:00"
+    }
+  ],
+  "warnings": []
+}

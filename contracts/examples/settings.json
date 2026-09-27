@@ -1,0 +1,26 @@
+{
+  "export_dir": "/Users/you/Music/GUY FVWKS/VoiceBox",
+  "format": "aiff",
+  "bit_depth": 24,
+  "master": {
+    "mode": "club",
+    "target_lufs": -7.0,
+    "true_peak_db": -1.0,
+    "bake_peak_db": -6.0,
+    "sample_rate": 44100,
+    "channels": 2
+  },
+  "filename_pattern": "GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}",
+  "artist": "GUY FVWKS",
+  "rekordbox": {
+    "hot_cue_first_word": true,
+    "memory_cue_tail": true,
+    "target_path_root": null,
+    "playlist_default": "GUY FVWKS — Drops"
+  },
+  "default_voice_id": "kokoro:am_fenrir",
+  "default_preset_id": "pact",
+  "default_bpm": 140.0,
+  "default_bars": 4,
+  "default_key": "Am"
+}

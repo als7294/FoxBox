@@ -1,0 +1,41 @@
+{
+  "_note": "Example payloads for the installer/updater UI (real contract shapes, v0.5). Sizes are illustrative.",
+  "health_first_run": {
+    "state": "loading_model", "version": "0.5.0", "progress": 0.23,
+    "message": "Downloading Kokoro 82M: 0.1 of 0.4 GB", "voice_engine": "kokoro-mlx", "fx_engine": "fvwks-rack",
+    "disk_free_bytes": 74012345678, "data_dir": "/Users/you/Library/Application Support/FoxBox",
+    "export_dir": "/Users/you/Music/GUY FVWKS/VoiceBox", "required_missing": ["kokoro-82m", "deepfilternet3"]
+  },
+  "models": [
+    {"id": "kokoro-82m", "name": "Kokoro voices", "engine": "kokoro", "size_bytes": 343000000, "installed": false, "required": true,
+     "license": "Apache-2.0", "description": "The fast default voices.", "version": "1.0", "installed_version": null,
+     "update_available": false, "default_selected": true, "install_job_id": "job_1a2b3c4d5e6f", "install_needs_bytes": 5343000000},
+    {"id": "deepfilternet3", "name": "Denoise (DeepFilterNet3)", "engine": "deepfilternet", "size_bytes": 8700000, "installed": false, "required": true,
+     "license": "MIT", "description": "Cleans up recorded takes.", "version": "3.0", "installed_version": null,
+     "update_available": false, "default_selected": true, "install_job_id": null, "install_needs_bytes": 5008700000},
+    {"id": "qwen3-tts-voicedesign", "name": "Persona designer (Qwen3-TTS)", "engine": "qwen3", "size_bytes": 9060000000, "installed": false, "required": false,
+     "license": "Apache-2.0", "description": "Describe a voice, reuse it on every line.", "version": "1.7B-bf16", "installed_version": null,
+     "update_available": false, "default_selected": false, "install_job_id": null, "install_needs_bytes": 14060000000},
+    {"id": "whisper-aligner", "name": "Transcripts for recordings (Whisper + aligner)", "engine": "whisper", "size_bytes": 2900000000, "installed": true, "required": false,
+     "license": "MIT + Apache-2.0", "description": "Echo exact words on your own voice.", "version": "1.1", "installed_version": "1.0",
+     "update_available": true, "default_selected": false, "install_job_id": null, "install_needs_bytes": 7900000000}
+  ],
+  "job_downloading": {
+    "id": "job_1a2b3c4d5e6f", "kind": "model_install", "state": "running", "progress": 0.39,
+    "message": "Downloading kokoro-v1_0.safetensors", "items": [], "result_ids": [], "error": null,
+    "created_at": "2026-09-27T04:10:00Z", "updated_at": "2026-09-27T04:10:07Z",
+    "bytes_done": 128000000, "bytes_total": 327000000, "rate_bps": 18400000, "eta_s": 11, "current_item": "kokoro-v1_0.safetensors"
+  },
+  "job_failed_disk": {
+    "id": "job_9f8e7d6c5b4a", "kind": "model_install", "state": "error", "progress": 0.0, "message": null, "items": [], "result_ids": [],
+    "error": {"code": "disk_full", "message": "Not enough free space for Persona designer (needs 14.1 GB incl. 5 GB reserve, 9.2 GB free).", "hint": "Free up space, then retry.", "retryable": true},
+    "created_at": "2026-09-27T04:12:00Z", "updated_at": "2026-09-27T04:12:00Z",
+    "bytes_done": 0, "bytes_total": 9060000000, "rate_bps": null, "eta_s": null, "current_item": null
+  },
+  "app_update": {
+    "current": "1.1.0", "latest": "1.2.0", "size_bytes": 240000000, "released": "2026-10-05",
+    "notes": ["Voice-core motion follows each preset", "Metronome during playback", "Fix: endings never cut off"],
+    "download": {"bytes_done": 96000000, "bytes_total": 240000000, "rate_bps": 22000000, "eta_s": 7}
+  },
+  "credit": {"text": "Designed by SmittyTech", "href": "mailto:<credit email injected at build time>"}
+}

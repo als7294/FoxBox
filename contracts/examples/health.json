@@ -1,0 +1,11 @@
+{
+  "state": "ready",
+  "version": "0.1.0",
+  "progress": null,
+  "message": null,
+  "voice_engine": "kokoro-mlx",
+  "fx_engine": "fvwks-rack",
+  "disk_free_bytes": 22016065536,
+  "data_dir": "/Users/you/Library/Application Support/FoxBox",
+  "export_dir": "/Users/you/Music/GUY FVWKS/VoiceBox"
+}

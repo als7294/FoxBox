@@ -1,0 +1,479 @@
+/*
+ * VAULT and SETLIST tables per the design canvas: CSS-grid rows under a fixed 38px header, 1px hairlines.
+ * The header and the scrolling body both reserve the scrollbar gutter so their columns stay aligned.
+ */
+
+.table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vault {
+  --cols: 40px 44px minmax(0, 1fr) 92px 84px 160px 64px 70px 140px 36px 96px;
+}
+.setlist {
+  --cols: 48px minmax(0, 1fr) 110px 110px 70px 84px 240px 110px;
+}
+.head {
+  flex: none;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  border-bottom: 1px solid var(--vb-line);
+}
+.headRow,
+.row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  padding: 0 12px;
+}
+.headRow {
+  height: 38px;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}
+.headRow > * {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.row {
+  border-bottom: 1px solid var(--vb-line-soft);
+  transition: background var(--vb-fast);
+}
+.row > * {
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- shared cells */
+.check {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.3);
+  background: none;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: border-color var(--vb-fast);
+}
+.check::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--vb-amber);
+  transform: scale(0);
+  transition: transform var(--vb-fast);
+}
+.check:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.5);
+}
+.check:checked,
+.check:indeterminate {
+  border-color: var(--vb-amber);
+}
+.check:checked::before {
+  transform: none;
+}
+.check:indeterminate::before {
+  height: 2px;
+  transform: none;
+}
+.display {
+  font: 20px/1.1 var(--vb-font-display);
+  font-weight: min(700, var(--vb-display-weight));
+  letter-spacing: 0.06em;
+}
+.mono {
+  font: 500 11px var(--vb-font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dim {
+  color: var(--vb-dim);
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- empty / error state (inside the body) */
+.emptyRow {
+  display: block;
+}
+.empty {
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+}
+.emptyTitle {
+  font: var(--vb-display-weight) 30px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.empty[data-tone='error'] .emptyTitle {
+  color: var(--vb-accent);
+}
+.emptyBody {
+  max-width: 560px;
+  font: 500 11px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.emptyAction {
+  margin-top: 8px;
+}
+
+/* ---------------------------------------------------------------- VAULT rows */
+.vault .row {
+  height: 58px;
+}
+.vault .row:hover {
+  background: var(--vb-fill-1);
+}
+.vault .row[data-selected] {
+  background: rgba(var(--vb-amber-rgb), 0.06);
+}
+.vault .row[draggable='true'] {
+  cursor: grab;
+}
+.vault .row[draggable='true']:active {
+  cursor: grabbing;
+}
+.play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+  border-radius: 50%;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 10px var(--vb-font-mono);
+  transition:
+    border-color var(--vb-fast),
+    color var(--vb-fast);
+}
+.play:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+}
+.play[data-playing] {
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+  color: var(--vb-accent);
+}
+.scriptCell {
+  padding-right: 16px;
+}
+.script {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.scriptText {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The redaction bar: scales away (from the right) while the row is hovered, focused or playing. It overhangs
+   the clipped text by a pixel (the design insets it 1px, which lets the tall strokes of | [ ] peek out). */
+.redact {
+  position: absolute;
+  inset: -1px -2px;
+  background:
+    repeating-linear-gradient(90deg, rgba(var(--vb-ink-rgb), 0.12) 0 6px, rgba(var(--vb-ink-rgb), 0.1) 6px 7px),
+    var(--vb-panel);
+  transform-origin: right;
+  transition: transform 0.42s var(--vb-ease-io);
+}
+.row:hover .redact,
+.row:focus-within .redact,
+.row[data-playing] .redact {
+  transform: scaleX(0);
+}
+.preset {
+  padding-right: 8px;
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-amber);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vault .mono {
+  padding-right: 8px;
+}
+.tags {
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+}
+.tag {
+  flex: none;
+  padding: 3px 5px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+button.tag {
+  border-color: rgba(var(--vb-amber-rgb), 0.35);
+  color: var(--vb-amber);
+  transition:
+    border-color var(--vb-fast),
+    background var(--vb-fast);
+}
+button.tag:hover:not(:disabled) {
+  border-color: var(--vb-amber);
+  background: rgba(var(--vb-amber-rgb), 0.1);
+}
+.star {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--vb-dim);
+  font: 400 16px/1 var(--vb-font-mono);
+  transition: color var(--vb-fast);
+}
+.star:hover {
+  color: var(--vb-ink);
+}
+.star[aria-pressed='true'] {
+  color: var(--vb-amber);
+}
+.open {
+  width: 100%;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  transition:
+    border-color var(--vb-fast),
+    color var(--vb-fast);
+}
+.open:hover:not(:disabled) {
+  border-color: var(--vb-accent);
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- SETLIST rows */
+.setlist .row {
+  min-height: 62px;
+}
+.setlist .row[data-drop='before'] {
+  box-shadow: inset 0 2px 0 var(--vb-amber);
+}
+.setlist .row[data-drop='after'] {
+  box-shadow: inset 0 -2px 0 var(--vb-amber);
+}
+.setlist .row[data-dragging] {
+  opacity: 0.4;
+}
+.num {
+  justify-self: start;
+  font: 18px/1 var(--vb-font-display);
+  font-weight: min(700, var(--vb-display-weight));
+  color: var(--vb-dim);
+  font-variant-numeric: tabular-nums;
+}
+.num[draggable='true'] {
+  cursor: grab;
+}
+.num[draggable='true']:hover {
+  color: var(--vb-ink);
+}
+.lineCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 16px;
+}
+.lineInput {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--vb-ink);
+  text-overflow: ellipsis;
+  transition: border-color var(--vb-fast);
+}
+.lineInput:hover:not(:disabled),
+.bpmInput:hover:not(:disabled) {
+  border-bottom-color: var(--vb-line-3);
+}
+.lineInput:focus-visible,
+.bpmInput:focus-visible {
+  outline: none;
+  border-bottom-color: var(--vb-amber);
+  box-shadow: 0 1px 0 var(--vb-amber);
+}
+.err {
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Per-line pickers: a native <select> dressed as the design's "PACT ▾" button. */
+.pick {
+  position: relative;
+  display: inline-flex;
+  max-width: calc(100% - 8px);
+  vertical-align: middle;
+  color: var(--vb-ink);
+}
+.pick::after {
+  content: '▾';
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 700 10px/1 var(--vb-font-mono);
+  pointer-events: none;
+}
+.pick select {
+  appearance: none;
+  field-sizing: content;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 22px 0 9px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: inherit;
+  font: 500 11px var(--vb-font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color var(--vb-fast),
+    background var(--vb-fast);
+}
+.pick select:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.pick select:disabled {
+  cursor: default;
+}
+.pick select option,
+.pick select optgroup {
+  background: var(--vb-panel);
+  color: var(--vb-ink);
+}
+.pick[data-kind='preset'] {
+  color: var(--vb-amber);
+}
+.pick[data-kind='preset'] select {
+  border-color: rgba(var(--vb-amber-rgb), 0.35);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.pick[data-kind='preset'] select:hover:not(:disabled) {
+  border-color: var(--vb-amber);
+}
+/* The design's BARS button has no ▾. */
+.pick[data-kind='bars']::after {
+  content: none;
+}
+.pick[data-kind='bars'] select {
+  padding: 0 9px;
+  font: 700 10px var(--vb-font-mono);
+}
+.bpmInput {
+  width: 5ch;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--vb-ink);
+  font: 18px/1 var(--vb-font-display);
+  font-weight: min(700, var(--vb-display-weight));
+  transition: border-color var(--vb-fast);
+}
+.bpmInput::placeholder {
+  color: var(--vb-ink);
+  opacity: 1;
+}
+.statusCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 16px;
+}
+.state {
+  align-self: flex-start;
+  padding: 3px 7px;
+  border: 1px solid var(--vb-line-3);
+  border-radius: var(--vb-r1);
+  color: var(--vb-dim);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.state[data-state='running'] {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber);
+}
+.state[data-state='done'] {
+  border-color: var(--vb-ink);
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.state[data-state='error'] {
+  border-color: var(--vb-accent);
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+}
+.bar {
+  height: 2px;
+  background: var(--vb-line);
+}
+.barFill {
+  height: 100%;
+  background: var(--vb-amber);
+  transform-origin: left;
+  transition: transform 0.35s var(--vb-ease);
+}
+.bar[data-state='error'] .barFill {
+  background: var(--vb-accent);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}

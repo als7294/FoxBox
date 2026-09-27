@@ -1,0 +1,36 @@
+{
+  "id": "we_are__am_michael",
+  "kind": "tts",
+  "script": "WE ARE GUY FVWKS | EXPECT *US*",
+  "script_hash": "65e63311d2375593",
+  "voice_id": "kokoro:am_michael",
+  "speed": 0.9,
+  "sample_rate": 48000,
+  "duration_s": 4.03,
+  "segments": [
+    {
+      "index": 0,
+      "text": "WE ARE GUY FVWKS",
+      "start_s": 0.0,
+      "end_s": 2.075,
+      "flags": {
+        "throw": false,
+        "beat_break": true,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      }
+    },
+    {
+      "index": 1,
+      "text": "EXPECT *US*",
+      "start_s": 2.155,
+      "end_s": 4.03,
+      "flags": {
+        "throw": true,
+        "beat_break": false,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      }
+    }
+  ]
+}

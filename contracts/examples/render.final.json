@@ -1,0 +1,335 @@
+{
+  "id": "rnd_cda47b95ae5b",
+  "source_id": "src_bff54d2a0749",
+  "preset_id": "pact",
+  "quality": "final",
+  "created_at": "2026-09-27T00:38:27.397+00:00",
+  "sample_rate": 44100,
+  "channels": 2,
+  "n_samples": 302400,
+  "duration_s": 6.85714,
+  "audio_id": "rnd_bc34dbf8692e",
+  "dry_audio_id": "dry_d040e98ed114",
+  "peaks": {
+    "buckets": 800,
+    "duration_s": 6.85714,
+    "min": [
+      -0.4411,
+      -0.7777,
+      -0.7706,
+      -0.748,
+      -0.6675,
+      -0.7356,
+      -0.7827,
+      -0.7752,
+      -0.8181,
+      -0.679,
+      -0.8177,
+      -0.7729,
+      "…"
+    ],
+    "max": [
+      0.5073,
+      0.7365,
+      0.8048,
+      0.8196,
+      0.8173,
+      0.7622,
+      0.7588,
+      0.7646,
+      0.6925,
+      0.6885,
+      0.7522,
+      0.7716,
+      "…"
+    ]
+  },
+  "dry_peaks": {
+    "buckets": 800,
+    "duration_s": 6.85714,
+    "min": [
+      -0.2315,
+      -0.3692,
+      -0.6972,
+      -0.7962,
+      -0.8269,
+      -0.8524,
+      -0.8615,
+      -0.8525,
+      -0.8413,
+      -0.8661,
+      -0.8653,
+      -0.8654,
+      "…"
+    ],
+    "max": [
+      0.4407,
+      0.617,
+      0.8103,
+      0.8659,
+      0.8659,
+      0.8645,
+      0.8609,
+      0.8548,
+      0.861,
+      0.8658,
+      0.8648,
+      0.8606,
+      "…"
+    ]
+  },
+  "segments": [
+    {
+      "index": 0,
+      "text": "WE ARE GUY FVWKS",
+      "start_s": 0.0,
+      "end_s": 1.01898,
+      "flags": {
+        "throw": false,
+        "beat_break": true,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      },
+      "words": []
+    },
+    {
+      "index": 1,
+      "text": "EXPECT *US*",
+      "start_s": 1.26898,
+      "end_s": 2.19546,
+      "flags": {
+        "throw": true,
+        "beat_break": false,
+        "pause_after_s": 0.0,
+        "pause_after_beats": 0.0
+      },
+      "words": []
+    }
+  ],
+  "bpm": 140.0,
+  "bars": 4,
+  "key": "Am",
+  "first_word_s": 0.0,
+  "tail_s": null,
+  "fit": {
+    "status": "fits",
+    "speech_s": 2.1955,
+    "available_s": 6.8571,
+    "total_s": 6.8571,
+    "stretch_ratio": 1.0,
+    "suggested_bars": null,
+    "message": "Fits: speech 2.20s in 6.86s (4 bars @ 140)"
+  },
+  "loudness": {
+    "integrated_lufs": -7.832,
+    "short_term_max_lufs": -7.002,
+    "true_peak_db": -1.02,
+    "sample_peak_db": -1.026
+  },
+  "mask": {
+    "level": "synthetic",
+    "score": 7.0,
+    "reasons": [
+      "Synthetic TTS voice: no biometric voice present.",
+      "On a recording this chain would score STRONG."
+    ]
+  },
+  "resolved_chain": {
+    "modules": [
+      {
+        "id": "prep",
+        "enabled": true,
+        "params": {
+          "hp_hz": 60,
+          "gate_db": -55,
+          "deess": 0.3,
+          "normalize": true
+        }
+      },
+      {
+        "id": "mask",
+        "enabled": true,
+        "params": {
+          "pitch_st": -9,
+          "pitch_mode": "natural",
+          "monotone": 0.2,
+          "formant_st": -5,
+          "mcadams": 1,
+          "breath": 0,
+          "growl": 0.12
+        }
+      },
+      {
+        "id": "layers",
+        "enabled": true,
+        "params": {
+          "sub_gain_db": -8,
+          "sub_st": -12,
+          "sub_formant_st": -3,
+          "ghost_gain_db": -60,
+          "ghost_st": 12
+        }
+      },
+      {
+        "id": "machine",
+        "enabled": true,
+        "params": {
+          "vocoder_mix": 0.15,
+          "vocoder_bands": 32,
+          "vocoder_carrier": "saw",
+          "vocoder_chord": "root",
+          "vocoder_octave": 2,
+          "ring_mix": 0.1,
+          "ring_hz": 45,
+          "shift_mix": 0,
+          "shift_hz": 0
+        }
+      },
+      {
+        "id": "drive",
+        "enabled": true,
+        "params": {
+          "mode": "tube>hard",
+          "drive_db": 18,
+          "tone": 0.45,
+          "mix": 0.45,
+          "oversample": "4"
+        }
+      },
+      {
+        "id": "crush",
+        "enabled": false,
+        "params": {
+          "bits": 24,
+          "rate_hz": 48000,
+          "codec": "none",
+          "mp3_kbps": 32,
+          "noise_db": -80,
+          "mix": 1
+        }
+      },
+      {
+        "id": "tone",
+        "enabled": true,
+        "params": {
+          "hp_hz": 50,
+          "lp_hz": 8000,
+          "low_hz": 120,
+          "low_db": 2,
+          "mid_hz": 300,
+          "mid_db": -3,
+          "mid_q": 1,
+          "resonance": 0
+        }
+      },
+      {
+        "id": "motion",
+        "enabled": false,
+        "params": {
+          "phaser_mix": 0,
+          "phaser_rate_hz": 0.3,
+          "chorus_mix": 0,
+          "chorus_rate_hz": 0.8
+        }
+      },
+      {
+        "id": "dynamics",
+        "enabled": true,
+        "params": {
+          "comp_threshold_db": -24,
+          "comp_ratio": 4,
+          "comp_attack_ms": 5,
+          "comp_release_ms": 120,
+          "makeup_db": 6,
+          "ott": 0.3
+        }
+      },
+      {
+        "id": "space",
+        "enabled": true,
+        "params": {
+          "reverb_mix": 0.15,
+          "reverb_decay_s": 1,
+          "reverb_dark": 0.8,
+          "predelay_ms": 10,
+          "reverb_type": "plate",
+          "delay_mix": 0.175,
+          "delay_div": "1/8",
+          "delay_feedback": 0.25,
+          "pingpong": false,
+          "throw_send": 0.7,
+          "swell_beats": 0
+        }
+      },
+      {
+        "id": "stereo",
+        "enabled": true,
+        "params": {
+          "width": 1.2,
+          "mono_below_hz": 150
+        }
+      },
+      {
+        "id": "edit",
+        "enabled": false,
+        "params": {
+          "stutter_div": "off",
+          "stutter_repeats": 4,
+          "tape_stop_beats": 0,
+          "squelch": false
+        }
+      }
+    ]
+  },
+  "macros": {
+    "depth": 0.5,
+    "grit": 0.5,
+    "machine": 0.5,
+    "space": 0.5
+  },
+  "stems": [],
+  "export": {
+    "id": "exp_73ad5da0f4b7",
+    "render_id": "rnd_cda47b95ae5b",
+    "variant": "wet",
+    "title": "WE ARE GUY FVWKS EXPECT US (PACT v01)",
+    "filename": "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
+    "path": "/Users/you/Music/GUY FVWKS/VoiceBox/GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
+    "format": "aiff",
+    "sample_rate": 44100,
+    "bit_depth": 24,
+    "channels": 2,
+    "n_samples": 302400,
+    "duration_s": 6.85714,
+    "bpm": 140.0,
+    "key": "Am",
+    "bars": 4,
+    "first_word_s": 0.0,
+    "tail_s": null,
+    "size_bytes": 1825646,
+    "created_at": "2026-09-27T00:38:27.442+00:00"
+  },
+  "timings_ms": {
+    "sources": 1.43,
+    "mask": 38.35,
+    "layers": 173.47,
+    "machine": 13.51,
+    "plan": 1.21,
+    "place": 0.76,
+    "drive": 53.49,
+    "crush": 0.01,
+    "tone": 9.48,
+    "motion": 0.01,
+    "dynamics": 45.63,
+    "space": 131.11,
+    "stereo": 16.36,
+    "finish": 1.26,
+    "master": 236.97,
+    "dry": 0.02,
+    "total": 724.35,
+    "rack_sr": 48000.0,
+    "engine_fx": 725.4,
+    "engine_store": 28.7
+  },
+  "warnings": []
+}

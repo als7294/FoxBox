@@ -1,0 +1,304 @@
+/* OUTPUT per the design canvas: the cartridge (drag into the DAW), EXPORT, REVEAL, + SETLIST; the export sheet. */
+.output {
+  background: var(--vb-panel);
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r3);
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px 14px;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  flex: none;
+  border-bottom: 1px solid var(--vb-line);
+  margin: 0 -14px;
+  padding: 0 14px;
+}
+.title {
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.tag {
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  padding: 4px 7px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.tag[data-final] {
+  background: var(--vb-accent);
+  border-color: var(--vb-accent);
+  color: var(--vb-bg);
+}
+.tag[data-stale] {
+  background: none;
+  border-color: rgba(var(--vb-amber-rgb), 0.45);
+  color: var(--vb-amber);
+}
+
+/* the cartridge */
+.flexCol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cart {
+  background: linear-gradient(180deg, #151518, #0e0e10);
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.3);
+  border-radius: var(--vb-r3);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow:
+    0 1px 0 rgba(var(--vb-ink-rgb), 0.06) inset,
+    0 14px 30px rgba(0, 0, 0, 0.55);
+  transition:
+    border-color var(--vb-fast),
+    opacity var(--vb-fast);
+  min-width: 0;
+}
+.cart[draggable='true'] {
+  cursor: grab;
+}
+.cart[draggable='true']:hover,
+.cart[draggable='true']:focus-visible {
+  border-color: rgba(var(--vb-amber-rgb), 0.7);
+}
+.cart[data-empty] {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.expTrack {
+  height: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.expFill {
+  height: 100%;
+  width: 100%;
+  background: var(--vb-amber);
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--vb-amber);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.filename {
+  font: 500 10px/1.45 var(--vb-font-mono);
+  word-break: break-all;
+  color: var(--vb-ink);
+  min-height: 29px;
+}
+.filename[data-muted] {
+  color: var(--vb-dim);
+  word-break: normal;
+}
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  font: 500 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  margin: 0;
+}
+.facts div {
+  display: flex;
+  gap: 5px;
+  white-space: nowrap;
+  min-width: 0;
+}
+.facts dt {
+  color: var(--vb-dim);
+}
+.facts dd {
+  margin: 0;
+  color: var(--vb-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dragHint {
+  font: 500 9px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  border-top: 1px dashed rgba(var(--vb-ink-rgb), 0.12);
+  padding-top: 8px;
+}
+.flex {
+  flex: 1;
+}
+
+/* actions */
+.exportRow {
+  display: flex;
+  height: 38px;
+  flex: none;
+}
+.export {
+  flex: 1;
+  border: 0;
+  border-radius: var(--vb-r1) 0 0 var(--vb-r1);
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.18em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.export:hover:not(:disabled) {
+  background: #fff;
+}
+.exportKey {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0;
+}
+.exportMore {
+  width: 34px;
+  flex: none;
+  border: 0;
+  border-left: 1px solid rgba(var(--vb-panel-rgb), 0.6);
+  border-radius: 0 var(--vb-r1) var(--vb-r1) 0;
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+  font: 700 11px var(--vb-font-mono);
+}
+.exportMore:hover:not(:disabled) {
+  background: #fff;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: none;
+}
+.pair button {
+  height: 32px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.pair button:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+
+/* export sheet (EXPORT ▾) */
+.sheetGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+}
+.sheetSwitches {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sheetHeading {
+  margin: 4px 0 0;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.2em;
+  color: var(--vb-dim);
+}
+.files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fileRow {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.3);
+  border-radius: var(--vb-r1);
+  background: var(--vb-card);
+}
+.fileRow[draggable='true'] {
+  cursor: grab;
+}
+.fileRow[draggable='true']:hover {
+  border-color: rgba(var(--vb-amber-rgb), 0.7);
+}
+.grip {
+  color: var(--vb-dim);
+}
+.fileName {
+  font: 500 10.5px var(--vb-font-mono);
+  word-break: break-all;
+}
+.mono {
+  font: 500 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.linkButton {
+  border: 0;
+  background: none;
+  color: var(--vb-amber);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  padding: 0;
+}
+.linkButton:hover {
+  color: var(--vb-ink);
+}
+.xmlRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.warn {
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-accent);
+}
+.muted {
+  margin: 0;
+  color: var(--vb-dim);
+  font: 400 10px/1.45 var(--vb-font-mono);
+}
+
+/* Short windows (1280×800): the bottom row is 318px high, so the cartridge tightens up to keep EXPORT in view. */
+@container vb (max-height: 900px) {
+  .output {
+    gap: 8px;
+    padding-bottom: 10px;
+  }
+  .head {
+    height: 40px;
+  }
+  .cart {
+    padding: 10px;
+    gap: 7px;
+  }
+  .cart canvas {
+    height: 38px;
+  }
+  .dragHint {
+    display: none;
+  }
+  .exportRow {
+    height: 34px;
+  }
+  .pair button {
+    height: 28px;
+  }
+}
