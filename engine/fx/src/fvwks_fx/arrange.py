@@ -148,6 +148,7 @@ class PlacementPlan:
     placed: list[Placed]
     fit: Fit
     notes: list[str] = field(default_factory=list)
+    word_stutter: tuple[float, int, float] | None = None  # (slice_s, lead-in repeats, share of words)
 
 
 # --------------------------------------------------------------------------- helpers
@@ -283,6 +284,7 @@ def plan_placement(
     tape_stop_beats: float = 0.0,
     tail_room_s: float = 0.0,
     snap_end: str = "off",
+    stutter_words: float = 0.0,
 ) -> PlacementPlan:
     a = as2d(x)
     segs = [seg_from(s, i) for i, s in enumerate(segments or [])]
@@ -475,7 +477,11 @@ def plan_placement(
     notes = []
     if stutter:
         notes.append(f"stutter {stutter_div} x{stutter_repeats}")
-    return PlacementPlan(sr, chunks, starts, factor, first_s, stutter, n_tl, length_s, speech_end, placed, fit, notes)
+    word_stut = (note_seconds("1/32", bpm), 2, min(1.0, stutter_words)) if stutter_words > 0 else None
+    if word_stut:
+        notes.append(f"stutter on {round(word_stut[2] * 100)}% of words")
+    return PlacementPlan(sr, chunks, starts, factor, first_s, stutter, n_tl, length_s, speech_end, placed, fit, notes,
+                         word_stut)
 
 
 # --------------------------------------------------------------------------- rendering a plan
@@ -499,7 +505,35 @@ def apply_placement(plan: PlacementPlan, x: np.ndarray, high_quality: bool = Tru
     if plan.stutter:
         at_s, slice_s, repeats = plan.stutter
         out = stutter(out, sr, at_s, slice_s, repeats)
+    if plan.word_stutter:
+        out = word_stutter(out, sr, [w for p in plan.placed for w in p.words], *plan.word_stutter)
     return out
+
+
+def word_stutter(x: np.ndarray, sr: int, words: list, slice_s: float, repeats: int, share: float) -> np.ndarray:
+    """A quick retrigger of a word's first ``slice_s`` just before it ("g-g-GITHUB"), on ``share`` of the words
+    after the first. The word itself is untouched, so the line stays legible; the lead-ins only overlap the tail
+    of the previous word, quieter than the word."""
+    ln = int(round(slice_s * sr))
+    if ln <= 0 or share <= 0:
+        return x
+    f = int(0.002 * sr)
+    for i in range(1, len(words)):
+        if int(i * share) == int((i - 1) * share):  # evenly spread: every 1/share-th word
+            continue
+        on = int(round(words[i].start_s * sr))
+        prev = words[i - 1]
+        floor_ = int(round((prev.start_s + 0.6 * (prev.end_s - prev.start_s)) * sr))  # keep the previous word's body
+        sl = x[:, on : on + ln].copy()
+        if sl.shape[1] < ln:
+            continue
+        sl = fade_edges(sl, f, f)
+        for k in range(1, repeats + 1):
+            at = on - k * ln
+            if at < max(0, floor_):
+                break
+            add_at(x, sl * (0.75 - 0.15 * (k - 1)), at)
+    return x
 
 
 def stutter(x: np.ndarray, sr: int, at_s: float, slice_s: float, repeats: int) -> np.ndarray:

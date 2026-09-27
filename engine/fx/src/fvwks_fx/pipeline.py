@@ -618,10 +618,11 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
     stut_div = str(p.get("edit", "stutter_div")) if edit_on else "off"
     stut_rep = int(round(p.f("edit", "stutter_repeats"))) if edit_on else 0
     tape_beats = p.f("edit", "tape_stop_beats") if edit_on else 0.0
+    stut_words = p.f("edit", "stutter_words") if edit_on and "stutter_words" in p.module_params("edit") else 0.0
     room = tail_room_s(p, a.bpm, main.info.segments, tape_beats) if getattr(a, "auto_tail", True) else 0.0
     snap = str(getattr(a, "snap_end", "off"))  # v0.4.1: land the last word on the grid
     arr_key = dict(bpm=a.bpm, bars=a.bars, fit=a.fit, max_stretch=a.max_stretch, beat_lock=a.beat_lock,
-                   first_word_beat=a.first_word_beat, tail_beats=a.tail_beats, stut=(stut_div, stut_rep), tape=tape_beats,
+                   first_word_beat=a.first_word_beat, tail_beats=a.tail_beats, stut=(stut_div, stut_rep, stut_words), tape=tape_beats,
                    room=room, snap=snap)
     # the plan (onset, chunks, stretch, beat-lock) comes from the dry voice, so it -- and the dry A/B master --
     # stay cached while MASK/LAYERS/FX knobs move
@@ -633,6 +634,7 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
             dry_src, sr, main.info.segments, bpm=a.bpm, bars=a.bars, fit_mode=a.fit, max_stretch=a.max_stretch,
             beat_lock=a.beat_lock, first_word_beat=a.first_word_beat, tail_beats=a.tail_beats,
             stutter_div=stut_div, stutter_repeats=stut_rep, tape_stop_beats=tape_beats, tail_room_s=room, snap_end=snap,
+            stutter_words=stut_words,
         )
         return plan, arr.apply_placement(plan, dry_src, quality == "final")
 

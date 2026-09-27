@@ -109,7 +109,9 @@ describe('recording', () => {
     expect(pickMimeType((t) => t.startsWith('video/webm'))).toBe('video/webm;codecs=vp9,opus')
     expect(pickMimeType(() => false)).toBeNull()
     expect(extensionOf('video/mp4;codecs=avc1')).toBe('mp4')
-    expect(clipName('video/webm', new Date(2026, 8, 27, 2, 31))).toBe('FoxBox-clip-2026-09-27-0231.webm')
+    expect(clipName('video/webm', [], new Date(2026, 8, 27, 2, 31))).toBe('FoxBox-clip-2026-09-27-0231.webm')
+    expect(clipName('video/mp4', ['WHAT', 'THE', 'FUCK', 'IS', 'UP', 'HEADBANGERS'])).toBe('what-the-fuck-is_clip.mp4')
+    expect(clipName('video/mp4', ["LET'S", 'GO'])).toBe('lets-go_clip.mp4')
   })
 })
 

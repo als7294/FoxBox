@@ -11,7 +11,7 @@ Contract-agnostic on purpose: it takes numpy buffers and plain metadata, so the 
 - Cover art: every AIFF carries the FoxBox fox as APIC (front cover), so drops show it in Rekordbox, Finder and on
   CDJs. WAV gets none: RIFF INFO has no artwork field Rekordbox reads.
 - Filenames come from ``Settings.filename_pattern`` (default
-  ``GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}``). All files of one export
+  ``{slug}_{preset}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}``). All files of one export
   (variants and stems) share the next free version number.
 """
 from __future__ import annotations
@@ -135,7 +135,8 @@ def safe_path(root: Path, *parts: str) -> Path:
 # ------------------------------------------------------------------------------------------------- naming
 
 
-DEFAULT_PATTERN = "GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}"
+DEFAULT_PATTERN = "{slug}_{preset}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}"  # the words lead (1.2.2)
+OLD_DEFAULT_PATTERN = "GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}"
 PATTERN_FIELDS = frozenset({"artist", "preset", "slug", "bpm", "bars", "key", "variant", "version"})
 _VARIANT_MARK, _VERSION_MARK = "V", "N"
 

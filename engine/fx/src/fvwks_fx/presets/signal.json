@@ -101,8 +101,9 @@
         "params": {
           "stutter_div": "1/16",
           "stutter_repeats": 4,
-          "tape_stop_beats": 1,
-          "squelch": false
+          "tape_stop_beats": 0,
+          "squelch": false,
+          "stutter_words": 0.6
         }
       }
     ]

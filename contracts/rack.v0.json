@@ -1171,6 +1171,20 @@
           "advanced": false
         },
         {
+          "id": "stutter_words",
+          "label": "STUTTER ALL",
+          "kind": "knob",
+          "default": 0,
+          "min": 0.0,
+          "max": 1.0,
+          "step": null,
+          "unit": "x",
+          "scale": "lin",
+          "options": null,
+          "description": null,
+          "advanced": false
+        },
+        {
           "id": "tape_stop_beats",
           "label": "TAPE STOP",
           "kind": "knob",

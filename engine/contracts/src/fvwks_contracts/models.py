@@ -640,7 +640,7 @@ class Settings(Model):
     format: Literal["aiff", "wav"] = "aiff"
     bit_depth: Literal[16, 24] = 24
     master: Master = Field(default_factory=Master)
-    filename_pattern: str = "GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}"
+    filename_pattern: str = "{slug}_{preset}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}"
     artist: str = "GUY FVWKS"
     rekordbox: RekordboxSettings = Field(default_factory=RekordboxSettings)
     default_voice_id: str = "kokoro:am_fenrir"

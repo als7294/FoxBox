@@ -1,6 +1,6 @@
 /**
  * The camera clip's frame: the camera on top (faces masked), the clip's sound as a waveform with a playhead underneath
- * (the song, if there is one, with the drop over it), and a small FOXBOX mark; optionally the animated fox watermark in
+ * (the song, if there is one, with the drop over it); optionally the animated fox watermark in
  * the picture's bottom-right and the drop's words as subtitles over the picture. Everything is drawn on one canvas,
  * which is what gets recorded.
  */
@@ -157,6 +157,8 @@ export interface Wave {
 
 export interface FrameInput {
   video: HTMLVideoElement | null
+  /** VOICE ONLY: the voice core as the picture (coreSource.ts), in place of a camera. */
+  core?: HTMLCanvasElement | null
   /** Face boxes in camera pixels (padding included). */
   faces: readonly Box[]
   /** Hide the whole camera picture: the user's choice, and always while face detection isn't running. */
@@ -178,8 +180,6 @@ export interface FrameInput {
 
 // ------------------------------------------------------------------------------------------ intro / outro
 
-/** After the drop's last word the picture holds this long (the take's last frame, or the live camera paused). */
-export const FREEZE_S = 2
 export const CARD_FADE_S = 0.35
 /** The outro (the fox with MADE WITH FOXBOX) runs at least this long: a clip without a song runs on to fit it. */
 export const OUTRO_MIN_S = 3
@@ -193,6 +193,8 @@ export interface Card {
   t: number
   /** MADE WITH FOXBOX, 0–1 (0 in the intro). */
   madeWith: number
+  /** The closing card (after the last word), not the opening one. */
+  outro: boolean
 }
 
 /** Where the voice is in a clip, in seconds: from its first word to its last. */
@@ -201,23 +203,20 @@ export interface ClipVoice {
   end: number
 }
 
-/** A clip's full length with the outro: the song's tail, or longer when that's too short for the freeze and outro. */
-export const clipLength = (length: number, voiceEnd: number): number => Math.max(length, voiceEnd + FREEZE_S + OUTRO_MIN_S)
-
-/** True while the picture should hold still: from the last word until the outro's fox. */
-export const frozenAt = (v: ClipVoice, t: number): boolean => t >= v.end && t < v.end + FREEZE_S + CARD_FADE_S
+/** A clip's full length with the outro: the song's tail, or longer when that's too short for the outro. */
+export const clipLength = (length: number, voiceEnd: number): number => Math.max(length, voiceEnd + OUTRO_MIN_S)
 
 /**
  * The fox card `t` seconds into a clip: over the picture until the first word (fading out as it comes), and again
- * after the last word plus FREEZE_S, with MADE WITH FOXBOX, to the end. Null while the picture shows.
+ * from the last word, with MADE WITH FOXBOX, to the end. Null while the picture shows.
  */
 export function clipCard(v: ClipVoice, t: number): Card | null {
-  const outro = v.end + FREEZE_S
+  const outro = v.end
   if (t >= outro) {
     const s = t - outro
-    return { alpha: clamp01(s / CARD_FADE_S), t: s, madeWith: clamp01((s - MADE_WITH_AT_S) / 0.5) }
+    return { alpha: clamp01(s / CARD_FADE_S), t: s, madeWith: clamp01((s - MADE_WITH_AT_S) / 0.5), outro: true }
   }
-  if (t < v.from) return { alpha: clamp01((v.from - t) / CARD_FADE_S), t: Math.max(0, t), madeWith: 0 }
+  if (t < v.from) return { alpha: clamp01((v.from - t) / CARD_FADE_S), t: Math.max(0, t), madeWith: 0, outro: false }
   return null
 }
 
@@ -287,13 +286,16 @@ export function markPose(t: number | null): MarkPose {
 }
 
 /**
- * The watermark: ~56 px tall on 1080-wide video (scaled with it), 24 px in from the picture's bottom-right corner (so
+ * The watermark: WATERMARK_PX tall on 1080-wide video (scaled with it), 24 px in from the picture's bottom-right corner (so
  * above the waveform strip), ember at 85 % with a soft dark shadow so it reads over bright video. It's cut out on
  * `stamp` (cutting the frame itself would cut the video) and then drawn on.
  */
+/** The watermark's height on 1080-wide video. */
+export const WATERMARK_PX = 84
+
 export function drawWatermark(ctx: CanvasRenderingContext2D, L: Layout, t: number | null, stamp: HTMLCanvasElement): void {
   const k = Math.min(L.w, L.h) / 1080
-  const size = paintMark(stamp, 56 * k, markPose(t), Math.ceil(12 * k))
+  const size = paintMark(stamp, WATERMARK_PX * k, markPose(t), Math.ceil(12 * k))
   if (!size) return
   const { w, h, pad } = size
   const margin = 24 * k
@@ -352,32 +354,50 @@ function drawCard(ctx: CanvasRenderingContext2D, L: Layout, card: Card, stamp: H
   const unit = Math.min(L.w, L.h) / 1080
   const fox = Math.min(r.w, r.h) * 0.34
   const cx = r.x + r.w / 2
-  const cy = r.y + r.h * 0.46 - (card.madeWith ? fox * 0.12 * card.madeWith : 0)
+  const outro = card.outro
+  // The outro's sign-off, staggered from when its text starts (card.t = MADE_WITH_AT_S): the fox rises to make room,
+  // MADE WITH tracks in, FOXBOX lifts into place, then a hairline rule draws out from the centre.
+  const at = (from: number, dur: number) => (outro ? easeOut(clamp01((card.t - MADE_WITH_AT_S - from) / dur)) : 0)
+  const lift = at(0, 0.7)
+  const cy = r.y + r.h * 0.46 - fox * 0.14 * lift
   ctx.save()
   ctx.globalAlpha = card.alpha
   ctx.fillStyle = th.bg
   ctx.fillRect(r.x, r.y, r.w, r.h)
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, fox * 1.4)
-  glow.addColorStop(0, 'rgba(255, 75, 43, 0.16)')
+  // A slow breath in the ember glow behind the fox.
+  const breath = 0.14 + 0.04 * Math.sin(card.t * 1.6)
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, fox * 1.5)
+  glow.addColorStop(0, `rgba(255, 75, 43, ${breath.toFixed(3)})`)
   glow.addColorStop(1, 'rgba(255, 75, 43, 0)')
   ctx.fillStyle = glow
   ctx.fillRect(r.x, r.y, r.w, r.h)
-  // The fox starts on its glance, so even a short intro shows it move.
-  const size = paintMark(stamp, fox, markPose(MARK_START_S + card.t), Math.ceil(4 * unit))
+  // The fox starts on its glance, so even a short intro shows it move, and settles in from a touch smaller.
+  const settle = 0.94 + 0.06 * easeOut(clamp01(card.t / 0.8))
+  const size = paintMark(stamp, fox * settle, markPose(MARK_START_S + card.t), Math.ceil(4 * unit))
   if (size) ctx.drawImage(stamp, cx - size.w / 2 - size.pad, cy - size.h / 2 - size.pad)
-  if (card.madeWith > 0) {
-    ctx.globalAlpha = card.alpha * card.madeWith
+  if (outro) {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'
-    const top = cy + fox / 2 + 64 * unit
+    const top = cy + fox / 2 + 72 * unit
+    const made = at(0.1, 0.8)
+    ctx.globalAlpha = card.alpha * made
     ctx.fillStyle = th.dim
-    ctx.font = `500 ${Math.round(32 * unit)}px ${th.mono}`
-    ctx.letterSpacing = `${Math.round(10 * unit)}px`
+    ctx.font = `500 ${Math.round(28 * unit)}px ${th.mono}`
+    ctx.letterSpacing = `${(10 + 14 * (1 - made)) * unit}px`
     ctx.fillText('MADE WITH', cx, top)
+    const word = at(0.3, 0.7)
+    ctx.globalAlpha = card.alpha * word
     ctx.fillStyle = th.ink
-    ctx.font = `${th.displayWeight} ${Math.round(96 * unit)}px ${th.display}`
-    ctx.letterSpacing = `${Math.round(6 * unit)}px`
-    ctx.fillText('FOXBOX', cx, top + 100 * unit)
+    ctx.font = `${th.displayWeight} ${Math.round(104 * unit)}px ${th.display}`
+    ctx.letterSpacing = `${Math.round(8 * unit)}px`
+    ctx.fillText('FOXBOX', cx, top + (108 + 22 * (1 - word)) * unit)
+    const rule = at(0.6, 0.9)
+    if (rule > 0) {
+      ctx.globalAlpha = card.alpha * 0.9
+      ctx.fillStyle = th.accent
+      const half = 90 * unit * rule
+      ctx.fillRect(cx - half, top + 150 * unit, half * 2, Math.max(1, 2 * unit))
+    }
   }
   ctx.restore()
 }
@@ -420,8 +440,8 @@ function drawSubtitle(ctx: CanvasRenderingContext2D, L: Layout, sub: Subtitle): 
   const boxW = Math.max(...lineW) + 2 * padX * size
   const boxH = cap + lead * (lines.length - 1) + 2 * padY * size
   const cx = r.x + r.w / 2
-  // Bottom at the watermark's top (24 px margin, 56 px mark) plus a gap.
-  const bottom = r.y + r.h - (24 + 56 + 28) * k
+  // Bottom at the watermark's top (24 px margin, the mark) plus a gap.
+  const bottom = r.y + r.h - (24 + WATERMARK_PX + 28) * k
   const top = bottom - boxH
   ctx.globalAlpha = sub.alpha
   ctx.fillStyle = 'rgba(11, 11, 12, 0.68)'
@@ -511,7 +531,16 @@ export function drawFrame(
   ctx.fillRect(0, 0, L.w, L.h)
 
   const v = f.video
-  if (v && v.readyState >= 2 && v.videoWidth > 0) {
+  if (f.core) {
+    const crop = coverCrop(f.core.width, f.core.height, L.cam)
+    ctx.drawImage(f.core, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
+    // Once more, added on top: the whole picture is the core, so it glows brighter than the Studio's calm panel.
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = 0.8
+    ctx.drawImage(f.core, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
+    ctx.restore()
+  } else if (v && v.readyState >= 2 && v.videoWidth > 0) {
     const crop = coverCrop(v.videoWidth, v.videoHeight, L.cam)
     ctx.drawImage(v, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
     if (f.wholeFrame) {
@@ -545,8 +574,4 @@ export function drawFrame(
   ctx.fillStyle = t.dim
   ctx.font = `500 ${unit}px ${t.mono}`
   ctx.fillText(f.label, L.wave.x + Math.round(L.wave.w * 0.06), L.wave.y + unit * 2.2)
-  ctx.textAlign = 'right'
-  ctx.fillStyle = 'rgba(233,229,218,0.6)'
-  ctx.font = `${t.displayWeight} ${Math.round(unit * 1.6)}px ${t.display}`
-  ctx.fillText('FOXBOX', L.wave.x + L.wave.w - Math.round(L.wave.w * 0.04), L.wave.y + L.wave.h - unit * 1.2)
 }

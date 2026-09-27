@@ -4347,7 +4347,7 @@ components:
         filename_pattern:
           type: string
           title: Filename Pattern
-          default: GUYFVWKS_{preset}_{slug}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}
+          default: '{slug}_{preset}_{bpm}bpm_{bars}bar_{key}_{variant}_v{version:02d}'
         artist:
           type: string
           title: Artist

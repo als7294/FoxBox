@@ -119,7 +119,7 @@ def test_tail_room_follows_the_chain(we_are):
         p = Params(api.resolve(chain, pre.macros, pre.macro_map))
         return tail_room_s(p, 140.0, we_are.info.segments, p.f("edit", "tape_stop_beats") if p.on("edit") else 0.0)
 
-    assert room("signal") == 0.0  # a tape-stop is the ending
+    assert room("signal") >= 0.25  # no tape-stop any more: at least the release
     assert room("raw") == 0.25  # just the release
     assert room("pact") == 4.0  # the thrown last word: six dotted-quarter echoes to -30 dB
     assert room("pact", throw_send=0.0) < 1.0 and room("ghost", throw_send=0.0) >= 2.0  # GHOST's 6 s tail

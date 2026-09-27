@@ -14,9 +14,8 @@ import { renderNow } from '@/state/renderController'
 import { currentDenoise, studio, useStudio, type RecordedTake } from '@/state/studio'
 import { toast } from '@/state/toasts'
 import { clamp, mmss } from '@/visuals/canvas'
-import { drawOrb, drawStrip, type RecInputs } from '@/visuals/draw'
+import { drawStrip, type RecInputs } from '@/visuals/draw'
 import { useFrame } from '@/visuals/frame'
-import { reducedMotion } from '@/visuals/motion'
 import { pushInputLevel, vis } from '@/visuals/state'
 import { theme } from '@/visuals/theme'
 import { CleanupControl } from './CleanupControl'
@@ -75,10 +74,10 @@ function savedDevice(): string {
 }
 
 /**
- * RECORD: input device, the record orb (3-beat count-in at the session BPM, auto-stop at the bar count),
- * the scrolling input strip and meter, and the takes. Any take can be USEd as the source.
- * VOICE + CAMERA puts the camera (faces hidden) in the orb's place: takes film too, and its settings and clips sit
- * under the meters.
+ * RECORD: input device, the clip preview with the REC button (3-beat count-in at the session BPM, auto-stop at the
+ * bar count), the scrolling input strip and meter, and the takes. Any take can be USEd as the source.
+ * The preview is the voice core (VOICE ONLY) or the camera, faces hidden (VOICE + CAMERA: takes film too); either
+ * makes a clip, and its settings sit under the meters.
  */
 export function Recorder() {
   const [state, setState] = useState<RecState>('idle')
@@ -89,7 +88,6 @@ export function Recorder() {
   const rec = useRef<MicRecorder | null>(null)
   const timing = useRef({ countT0: 0, recT0: 0, beatMs: 500 })
   const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const orb = useRef<HTMLCanvasElement>(null)
   const strip = useRef<HTMLCanvasElement>(null)
   const timeEl = useRef<HTMLSpanElement>(null)
   const stateRef = useRef(state)
@@ -253,8 +251,6 @@ export function Recorder() {
       lvl: vis.inLvl,
       pk: vis.inPk,
     }
-    // Reduce Motion: no idle spin on the orb.
-    drawOrb(orb.current, reducedMotion() && s === 'idle' ? { ...o, now: 0 } : o)
     drawStrip(strip.current, o)
   })
 
@@ -304,7 +300,7 @@ export function Recorder() {
       </div>
     </>
   )
-  // Everything around the orb (or the camera): the same in both layouts.
+  // Everything around the preview: the same in both layouts.
   const body = (middle: ReactNode) => (
     <div className={styles.record} data-camera={cameraOn ? 'on' : undefined}>
       <div className={styles.inputRow}>
@@ -389,36 +385,17 @@ export function Recorder() {
       />
     </div>
   )
-  if (!cameraOn) {
-    return body(
-      <>
-        <div className={styles.orbBox}>
-          <canvas ref={orb} className={styles.canvas} aria-hidden="true" />
-          <button
-            type="button"
-            className={styles.orbBtn}
-            data-state={state}
-            aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording'}
-            aria-keyshortcuts="R"
-            disabled={busy}
-            onClick={toggle}
-          >
-            <span className={styles.orbBig}>{state === 'count' ? '' : state === 'rec' ? 'STOP' : 'REC'}</span>
-            <span className={styles.orbHint}>{state === 'idle' ? 'CLICK · R' : ''}</span>
-          </button>
-        </div>
-        {info}
-      </>,
-    )
-  }
   return (
+    // VOICE + CAMERA films the takes and puts the camera (faces hidden) in the clip; VOICE ONLY puts the voice core there.
     <CameraRig
+      key={cameraOn ? 'camera' : 'core'}
+      source={cameraOn ? 'camera' : 'core'}
       recButton={
         <button
           type="button"
           className={styles.camRec}
           data-state={state}
-          aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : 'Start recording (films too)'}
+          aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : cameraOn ? 'Start recording (films too)' : 'Start recording'}
           aria-keyshortcuts="R"
           disabled={busy}
           onClick={toggle}

@@ -24,8 +24,9 @@ import { useStudio } from '@/state/studio'
 import { useViewPrefs } from '@/state/viewPrefs'
 import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 import { camera, takeFilm, useCamera, type CameraSettings } from './cameraStore'
-import { clipCard, clipLength, drawFrame, frozenAt, layout, type ClipVoice, type MaskStyle, type Wave } from './compose'
+import { clipCard, clipLength, drawFrame, layout, type ClipVoice, type MaskStyle, type Wave } from './compose'
 import { detectFaces, loadFaceDetector } from './faceDetector'
+import { coreSource } from './coreSource'
 import { filmTime, onsetOf, syncFilm, type FilmSync } from './filmSync'
 import { step, type Track } from './faceTrack'
 import { startMix, type Mix, type MixLevels } from './mix'
@@ -118,9 +119,12 @@ function Slider(p: {
  */
 export function CameraRig({
   recButton,
+  source = 'camera',
   children,
 }: {
   recButton: ReactNode
+  /** VOICE ONLY: the voice core is the picture (coreSource.ts); no camera, faces or filmed takes. */
+  source?: 'camera' | 'core'
   children(parts: { preview: ReactNode; settings: ReactNode; overlay: ReactNode }): ReactNode
 }) {
   const render = useStudio((s) => s.render)
@@ -169,8 +173,6 @@ export function CameraRig({
     subtitles: true,
     /** The render's words, for the subtitles. */
     words: [] as SubWord[],
-    /** The live camera is paused for the freeze after the drop (clips without a take). */
-    heldLive: false,
     stopRecording: null as (() => void) | null,
     alive: true,
   })
@@ -230,6 +232,10 @@ export function CameraRig({
 
   // The camera: ask macOS first (a request it never answers otherwise just hangs), then open it. Again on TRY AGAIN.
   useEffect(() => {
+    if (source === 'core') {
+      setCam('live')
+      return
+    }
     const s = st.current
     let stream: MediaStream | null = null
     let alive = true
@@ -287,14 +293,16 @@ export function CameraRig({
   useEffect(() => {
     const s = st.current
     s.alive = true
-    loadFaceDetector().then(
-      (d) => {
-        if (!s.alive) return
-        s.detector = d
-        setDetector('ready')
-      },
-      () => s.alive && setDetector('failed'),
-    )
+    if (source === 'camera') {
+      loadFaceDetector().then(
+        (d) => {
+          if (!s.alive) return
+          s.detector = d
+          setDetector('ready')
+        },
+        () => s.alive && setDetector('failed'),
+      )
+    }
     const ac = new AudioContext()
     s.ac = ac
     return () => {
@@ -332,7 +340,7 @@ export function CameraRig({
 
   // A voice take films too while the camera is live (the picture only; the mic records the voice).
   useEffect(() => {
-    if (cam !== 'live') return
+    if (cam !== 'live' || source === 'core') return
     const s = st.current
     let rec: MediaRecorder | null = null
     let chunks: Blob[] = []
@@ -380,6 +388,7 @@ export function CameraRig({
     const scratch = document.createElement('canvas')
     const stamp = document.createElement('canvas')
     const cardStamp = document.createElement('canvas')
+    const drawCoreAt = source === 'core' ? coreSource() : null
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const s = st.current
@@ -398,21 +407,13 @@ export function CameraRig({
         const t = s.playback ? player.currentTime : s.mix && s.plan && s.ac ? s.ac.currentTime - s.mix.at - s.plan.dropAt : null
         if (t != null && syncFilm(s.film, filmTime(s.sync, t), s.sync.ratio)) s.settleUntil = now + SETTLE_MS
       }
-      // A clip (made or listened to) with the watermark on: the fox before the first word, a freeze after the last,
-      // then the fox with MADE WITH FOXBOX.
+      // A clip (made or listened to) with the watermark on: the fox before the first word, and after the last with
+      // MADE WITH FOXBOX.
       const clipT = s.mix && s.ac ? s.ac.currentTime - s.mix.at : null
       const voice: ClipVoice | null =
         clipT != null && s.plan && s.watermark ? { from: s.plan.dropAt + (s.sync?.renderOnset ?? 0), end: s.plan.dropEnd } : null
       // The subtitles follow the drop on its own timeline: the player while a take plays back, else the clip's clock.
       const dropT = s.playback ? player.currentTime : clipT != null && s.plan ? clipT - s.plan.dropAt : null
-      const hold = Boolean(voice && !s.film && clipT != null && frozenAt(voice, clipT))
-      if (s.video && hold && !s.video.paused) {
-        s.video.pause()
-        s.heldLive = true
-      } else if (s.video && !hold && s.heldLive) {
-        s.heldLive = false
-        void s.video.play().catch(() => {})
-      }
       const v = s.film ?? s.video
       if (s.detector && !s.settings.wholeFrame && v && v.readyState >= 2) {
         try {
@@ -432,6 +433,7 @@ export function CameraRig({
         L,
         {
           video: v,
+          core: drawCoreAt && !s.film ? drawCoreAt(L.cam.w, L.cam.h, now, dropT) : null,
           faces: s.tracks.map((t) => t.box),
           // Until faces can be found (or if the detector fails), the whole picture is hidden.
           wholeFrame: s.settings.wholeFrame || !s.detector || now < s.settleUntil,
@@ -562,7 +564,7 @@ export function CameraRig({
       s.tracks = []
       s.settleUntil = performance.now() + SETTLE_MS
       s.film = film
-    } else {
+    } else if (source === 'camera') {
       setPhase('counting')
       for (const n of [3, 2, 1]) {
         setCount(n)
@@ -602,7 +604,7 @@ export function CameraRig({
       const plain = mime.startsWith('video/mp4') ? defragment(await blob.arrayBuffer()) : null
       if (plain) blob = new Blob([plain], { type: mime })
       if (!s.alive) return
-      setClip({ url: URL.createObjectURL(blob), name: clipName(mime), mime, size: blob.size })
+      setClip({ url: URL.createObjectURL(blob), name: clipName(mime, s.words.map((w) => w.w)), mime, size: blob.size })
       setPhase('done')
     }
     s.stopRecording = () => {
@@ -643,23 +645,29 @@ export function CameraRig({
 
   const busy = phase === 'counting' || phase === 'recording'
   const status =
-    cam === 'asking'
-      ? 'ASKING FOR THE CAMERA'
-      : cam === 'starting'
-        ? 'STARTING THE CAMERA'
-        : cam === 'error'
-          ? 'NO CAMERA'
-          : phase === 'recording'
-            ? '● MAKING THE CLIP'
-            : phase === 'done'
-              ? 'YOUR CLIP'
-              : filming
-                ? '● FILMING THE TAKE'
-                : detector === 'ready'
-                  ? settings.wholeFrame
-                    ? 'LIVE · PICTURE HIDDEN'
-                    : 'LIVE · FACES HIDDEN'
-                  : 'LIVE · PICTURE HIDDEN UNTIL FACES ARE FOUND'
+    source === 'core'
+      ? phase === 'recording'
+        ? '● MAKING THE CLIP'
+        : phase === 'done'
+          ? 'YOUR CLIP'
+          : 'VOICE CORE'
+      : cam === 'asking'
+        ? 'ASKING FOR THE CAMERA'
+        : cam === 'starting'
+          ? 'STARTING THE CAMERA'
+          : cam === 'error'
+            ? 'NO CAMERA'
+            : phase === 'recording'
+              ? '● MAKING THE CLIP'
+              : phase === 'done'
+                ? 'YOUR CLIP'
+                : filming
+                  ? '● FILMING THE TAKE'
+                  : detector === 'ready'
+                    ? settings.wholeFrame
+                      ? 'LIVE · PICTURE HIDDEN'
+                      : 'LIVE · FACES HIDDEN'
+                    : 'LIVE · PICTURE HIDDEN UNTIL FACES ARE FOUND'
   const canClip = Boolean(render && dropTiming) && (Boolean(takeVideo) || cam === 'live')
 
   const preview = (
@@ -701,54 +709,58 @@ export function CameraRig({
       <Row title="SUBTITLES">
         <Switch label="Subtitles" hideLabel checked={subtitles} onChange={(on) => useViewPrefs.getState().setClipSubtitles(on)} />
       </Row>
-      <Row title="HIDE">
-        <Segmented
-          label="Hide"
-          hideLabel
-          size="sm"
-          value={settings.wholeFrame ? 'all' : 'faces'}
-          disabled={busy}
-          options={[
-            { value: 'faces' as const, label: 'FACES' },
-            { value: 'all' as const, label: 'WHOLE PICTURE' },
-          ]}
-          onChange={(v) => camera.set({ wholeFrame: v === 'all' })}
-        />
-      </Row>
-      {!settings.wholeFrame && <p className={styles.hint}>Only your face is hidden. Clothes and the room can still give you away.</p>}
-      <Row title="MASK">
-        <Segmented
-          label="Mask"
-          hideLabel
-          size="sm"
-          value={settings.mask.style}
-          options={[
-            { value: 'mosaic' as MaskStyle, label: 'MOSAIC' },
-            { value: 'blur' as MaskStyle, label: 'BLUR' },
-            { value: 'solid' as MaskStyle, label: 'SOLID' },
-          ]}
-          onChange={(style) => camera.set({ mask: { ...settings.mask, style } })}
-        />
-      </Row>
-      <Slider
-        title="STRENGTH"
-        value={settings.mask.strength}
-        min={1}
-        max={10}
-        show={(v) => String(v)}
-        disabled={settings.mask.style === 'solid'}
-        onChange={(strength) => camera.set({ mask: { ...settings.mask, strength } })}
-      />
-      {!settings.wholeFrame && (
-        <Slider
-          title="COVERAGE"
-          value={settings.coverage}
-          min={10}
-          max={60}
-          step={5}
-          show={(v) => `+${v}%`}
-          onChange={(coverage) => camera.set({ coverage })}
-        />
+      {source === 'camera' && (
+        <>
+          <Row title="HIDE">
+            <Segmented
+              label="Hide"
+              hideLabel
+              size="sm"
+              value={settings.wholeFrame ? 'all' : 'faces'}
+              disabled={busy}
+              options={[
+                { value: 'faces' as const, label: 'FACES' },
+                { value: 'all' as const, label: 'WHOLE PICTURE' },
+              ]}
+              onChange={(v) => camera.set({ wholeFrame: v === 'all' })}
+            />
+          </Row>
+          {!settings.wholeFrame && <p className={styles.hint}>Only your face is hidden. Clothes and the room can still give you away.</p>}
+          <Row title="MASK">
+            <Segmented
+              label="Mask"
+              hideLabel
+              size="sm"
+              value={settings.mask.style}
+              options={[
+                { value: 'mosaic' as MaskStyle, label: 'MOSAIC' },
+                { value: 'blur' as MaskStyle, label: 'BLUR' },
+                { value: 'solid' as MaskStyle, label: 'SOLID' },
+              ]}
+              onChange={(style) => camera.set({ mask: { ...settings.mask, style } })}
+            />
+          </Row>
+          <Slider
+            title="STRENGTH"
+            value={settings.mask.strength}
+            min={1}
+            max={10}
+            show={(v) => String(v)}
+            disabled={settings.mask.style === 'solid'}
+            onChange={(strength) => camera.set({ mask: { ...settings.mask, strength } })}
+          />
+          {!settings.wholeFrame && (
+            <Slider
+              title="COVERAGE"
+              value={settings.coverage}
+              min={10}
+              max={60}
+              step={5}
+              show={(v) => `+${v}%`}
+              onChange={(coverage) => camera.set({ coverage })}
+            />
+          )}
+        </>
       )}
       <Row title="SOUND">
         <Segmented

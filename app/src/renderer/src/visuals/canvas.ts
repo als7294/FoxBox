@@ -33,8 +33,9 @@ export interface Prepared {
 /** Sizes the backing store to the element (2x) and returns a context in CSS pixels, or null if hidden. */
 export function prep(cv: HTMLCanvasElement | null): Prepared | null {
   if (!cv) return null
-  const w = cv.clientWidth
-  const h = cv.clientHeight
+  // A canvas outside the page (the voice core as a clip's picture) keeps the size it was given.
+  const w = cv.isConnected ? cv.clientWidth : cv.width / 2
+  const h = cv.isConnected ? cv.clientHeight : cv.height / 2
   if (!w || !h) return null
   const d = 2
   if (cv.width !== w * d || cv.height !== h * d) {

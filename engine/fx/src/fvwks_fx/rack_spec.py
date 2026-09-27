@@ -133,6 +133,7 @@ MODULES: list[ModuleSpec] = [
     ModuleSpec(id="edit", label="EDIT", description="Stutter, tape-stop, radio squelch.", params=[
         _sel("stutter_div", "STUTTER", "off", ["off", "1/8", "1/16", "1/32"]),
         _num("stutter_repeats", "REPEATS", 4, 1, 8),
+        _k("stutter_words", "STUTTER ALL", 0, 0, 1, "x"),  # share of later words that get a 1/32 lead-in retrigger
         _k("tape_stop_beats", "TAPE STOP", 0, 0, 4, "beats"),
         _sw("squelch", "SQUELCH", False, description="Radio squelch bursts at the start and end of the transmission."),
     ]),

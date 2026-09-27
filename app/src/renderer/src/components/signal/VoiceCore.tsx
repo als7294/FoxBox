@@ -26,7 +26,7 @@ function resolvedParam(s: StudioState, module: string, param: string): number | 
  * A param as the sound has it right now: the value a macro puts there (live, the engine's formula), else the
  * chain's own value, else the last render's resolved value. Undefined when its module is bypassed.
  */
-function liveParam(s: StudioState, module: string, param: string): number | undefined {
+export function liveParam(s: StudioState, module: string, param: string): number | undefined {
   const state = s.chain.modules?.find((m) => m.id === module)
   if (state && state.enabled === false) return undefined
   for (const id of MACRO_IDS) {
@@ -139,8 +139,8 @@ export function VoiceCore() {
   const slots = useRef<WordSlots>({ key: '', front: 0, anims: [] })
   const rmsAt = useRef(0)
   useFrame((now) => {
-    // Closed (× / SETTINGS): no drawing at all.
-    if (!useViewPrefs.getState().showVoiceCore) {
+    // Closed (× / SETTINGS), or folded away in RECORD: no drawing at all.
+    if (!useViewPrefs.getState().showVoiceCore || useStudio.getState().tab === 'record') {
       last.current = 0
       return
     }

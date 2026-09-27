@@ -94,7 +94,7 @@ def test_float_wav_is_refused(tmp_path):
 
 def test_aiff_id3v23_tags_read_back(tmp_path):
     [out] = export_files(tmp_path, meta(), [ExportItem("wet", tone(), SR)])
-    assert out.filename == "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff"
+    assert out.filename == "we-are-guy-fvwks_PACT_140bpm_4bar_Am_wet_v01.aiff"
     raw = out.path.read_bytes()
     assert raw[:4] == b"FORM" and raw[8:12] == b"AIFF"
     id3_at = raw.index(b"ID3 ")
@@ -223,19 +223,19 @@ def test_versions_are_shared_and_incremented(tmp_path):
              ExportItem("stem:Sub", tone(), SR)]
     first = export_files(tmp_path, meta(), items)
     assert [f.filename for f in first] == [
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v01.aiff",
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_alt-LEGION_v01.aiff",
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_stem-sub_v01.aiff",
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_wet_v01.aiff",
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_dry_v01.aiff",
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_alt-LEGION_v01.aiff",
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_stem-sub_v01.aiff",
     ]
     assert [f.title for f in first] == [
         "WE ARE GUY FVWKS EXPECT US (PACT v01)", "WE ARE GUY FVWKS EXPECT US (PACT dry v01)",
         "WE ARE GUY FVWKS EXPECT US (LEGION v01)", "WE ARE GUY FVWKS EXPECT US (PACT stem Sub v01)",
     ]
     second = export_files(tmp_path, meta(), [ExportItem("dry", tone(), SR)], fmt="wav")
-    assert second[0].filename == "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_dry_v02.wav"
+    assert second[0].filename == "we-are-guy-fvwks_PACT_140bpm_4bar_Am_dry_v02.wav"
     other = export_files(tmp_path, meta(bpm=128.5, bars=None, key=None), [ExportItem("wet", tone(), SR)])
-    assert other[0].filename == "GUYFVWKS_PACT_we-are-guy-fvwks_128.5bpm_free_wet_v01.aiff"
+    assert other[0].filename == "we-are-guy-fvwks_PACT_128.5bpm_free_wet_v01.aiff"
     assert not list(tmp_path.glob(".*"))  # no staging leftovers
 
 
@@ -251,7 +251,7 @@ def test_failed_export_leaves_nothing_behind(tmp_path):
 
 def test_name_overrides_slug_and_title(tmp_path):
     [out] = export_files(tmp_path, meta(name="Intro Drop #1"), [ExportItem("wet", tone(4410), SR)])
-    assert out.filename.startswith("GUYFVWKS_PACT_intro-drop-1_140bpm")
+    assert out.filename.startswith("intro-drop-1_PACT_140bpm")
     assert out.title == "Intro Drop #1 (PACT v01)"
 
 
@@ -261,7 +261,7 @@ def test_text_helpers():
     assert slugify("|||") == "untitled"
     assert variant_token("alt:legion") == "alt-LEGION" and variant_token("stem:Sub") == "stem-sub"
     assert FileNaming("my preset", "x", 174, 8, "Gb major").filename("stem:sub", 3, "wav") == \
-        "GUYFVWKS_MY-PRESET_x_174bpm_8bar_F#_stem-sub_v03.wav"
+        "x_MY-PRESET_174bpm_8bar_F#_stem-sub_v03.wav"
     assert folder_name("../../etc") == "etc" and folder_name("  ") == "Setlist"
     assert folder_name("Friday: Warehouse/Set") == "Friday- Warehouse-Set"
 
@@ -281,7 +281,7 @@ def test_custom_filename_patterns(tmp_path):
     (tmp_path / "GUYFVWKS we-are [RAW] wet #40.wav").touch()  # another export: not counted
     assert next_version(tmp_path, naming) == 13
     free = FileNaming("PACT", "x", 140, None, None)  # FREE bars, no key: no "freebar", no doubled "_"
-    assert free.filename("wet", 1, "wav") == "GUYFVWKS_PACT_x_140bpm_free_wet_v01.wav"
+    assert free.filename("wet", 1, "wav") == "x_PACT_140bpm_free_wet_v01.wav"
     assert FileNaming("P", "a/b", pattern="../{slug}:{variant}_{version}").filename("wet", 1, "wav") == \
         "a-b-wet_1.wav"  # separators become "-", leading dots are stripped
     assert validate_pattern(DEFAULT_PATTERN) == DEFAULT_PATTERN
@@ -316,8 +316,8 @@ def test_concurrent_exports_reserve_versions_without_blocking(tmp_path, monkeypa
     slow.join(5)
     assert (results["slow"][0].version, fast[0].version) == (1, 2)
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff",
-        "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v02.aiff"]
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_wet_v01.aiff",
+        "we-are-guy-fvwks_PACT_140bpm_4bar_Am_wet_v02.aiff"]
 
 
 def test_failed_export_releases_its_version(tmp_path):

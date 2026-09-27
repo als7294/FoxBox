@@ -149,7 +149,7 @@ def test_full_flow_tts_render_export_rekordbox(client, tmp_path):
     r = render(client, src["id"], quality="final")
     assert r["n_samples"] == 302_400 and r["sample_rate"] == 44100 and r["bars"] == 4
     auto = r["export"]
-    assert auto["filename"] == "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_wet_v01.aiff"
+    assert auto["filename"] == "we-are-guy-fvwks_PACT_140bpm_4bar_Am_wet_v01.aiff"
     assert inside(auto["path"], export_root) and auto["n_samples"] == 302_400
 
     # AIFF: 24-bit 44.1 kHz stereo, exact length, ID3v2.3 tags read back.
@@ -168,7 +168,7 @@ def test_full_flow_tts_render_export_rekordbox(client, tmp_path):
                                                  "variants": ["wet", "dry", "alt:legion"]}))["files"]
     assert [f["variant"] for f in files] == ["wet", "dry", "alt:legion"]
     assert {f["filename"][-8:] for f in files} == {"_v02.wav"}  # one shared version per export
-    assert files[2]["filename"] == "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_4bar_Am_alt-LEGION_v02.wav"
+    assert files[2]["filename"] == "we-are-guy-fvwks_PACT_140bpm_4bar_Am_alt-LEGION_v02.wav"
     for f in files:
         assert inside(f["path"], export_root)
         raw = Path(f["path"]).read_bytes()
@@ -470,7 +470,7 @@ def test_export_variants_errors_and_stems(client):
     result = ok(client.post("/api/exports", json={"render_ids": [r["id"]], "variants": ["wet"], "stems": True,
                                                   "title": "Intro Drop"}))
     files = result["files"]
-    assert files[0]["variant"] == "wet" and files[0]["filename"].startswith("GUYFVWKS_PACT_intro-drop_")
+    assert files[0]["variant"] == "wet" and files[0]["filename"].startswith("intro-drop_PACT_")
     assert files[0]["title"].startswith("Intro Drop")
     stems = files[1:]
     if stems:  # the real rack renders stems on request (stem:voice, stem:layers, stem:fx, stem:dry)
@@ -602,7 +602,7 @@ def test_presets_crud(client):
     assert client.post("/api/presets", json=broken).json()["error"]["code"] == "invalid_preset"
     src = tts(client)
     user_render = render(client, src["id"], preset_id="my-pact", quality="final")
-    assert user_render["export"]["filename"].startswith("GUYFVWKS_PACT-2_")
+    assert "_PACT-2_" in user_render["export"]["filename"]
     ok(client.delete("/api/presets/my-pact"), 204)
     assert client.delete("/api/presets/my-pact").status_code == 404
 
@@ -1101,11 +1101,11 @@ def test_startup_sweeps_stale_temp_files_only(client, tmp_path):
     service = client.app.state.service
     export_root = Path(ok(client.get("/api/settings"))["export_dir"])
     old = time.time() - 7200
-    stale = [export_root / ".GUYFVWKS_PACT_x_wet_v01.aiff.0123abcd.part",
+    stale = [export_root / ".x_PACT_wet_v01.aiff.0123abcd.part",
              export_root / "Warehouse" / ".warehouse_rekordbox.xml.89abcdef.part",
              service.audio.dir / ".rnd_000000000001.wav.fedcba98.part",
              service.config.cache_dir / "stack" / "ab" / ".abcd.npz.00000000.part"]
-    fresh = export_root / ".GUYFVWKS_PACT_x_dry_v01.aiff.11112222.part"  # maybe being written right now
+    fresh = export_root / ".x_PACT_dry_v01.aiff.11112222.part"  # maybe being written right now
     user_files = [export_root / ".DS_Store", export_root / "notes.part", export_root / "mix.aiff"]
     for path in [*stale, fresh, *user_files]:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1492,7 +1492,7 @@ def test_v02_auto_bars_resolve_in_files_takes_tags_and_variants(client, monkeypa
                                             "arrange": {"bpm": 140, "key": "Am"}}))  # bars unset: Settings' "auto"
     assert asked == ["auto"] and r["bars"] == 8 and r["n_samples"] == round(8 * BAR)
     auto = r["export"]
-    assert auto["bars"] == 8 and auto["filename"] == "GUYFVWKS_PACT_we-are-guy-fvwks_140bpm_8bar_Am_wet_v01.aiff"
+    assert auto["bars"] == 8 and auto["filename"] == "we-are-guy-fvwks_PACT_140bpm_8bar_Am_wet_v01.aiff"
     params = json.loads(AIFF(auto["path"]).tags["TXXX:FVWKS_RENDER"].text[0])
     assert params["render"]["request"]["arrange"]["bars"] == "auto" and params["render"]["bars"] == 8  # reproducible
     take = ok(client.get("/api/library"))["items"][0]
@@ -1563,7 +1563,7 @@ def test_v02_batch_lines_with_auto_bars(client, monkeypatch):
     done = wait_job(client, job["id"], timeout=60)
     assert done["state"] == "done" and asked == ["auto", 8, "auto"]
     parsed = parse_rekordbox_xml(Path(done["message"]).read_bytes())
-    assert [Path(t["path"]).name.split("_")[4] for t in parsed["tracks"]] == ["2bar", "8bar", "2bar"]
+    assert [Path(t["path"]).name.split("_")[3] for t in parsed["tracks"]] == ["2bar", "8bar", "2bar"]
     job = ok(client.post("/api/batch", json={"lines": [{"script": "ONE MORE TIME"}],
                                              "arrange": {"bpm": 140, "bars": "auto"}}))
     assert wait_job(client, job["id"], timeout=60)["state"] == "done" and asked[-1] == "auto"

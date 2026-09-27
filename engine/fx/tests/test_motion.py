@@ -53,7 +53,7 @@ def test_tracks_are_levels_and_midi_pitch(we_are):
     assert pitch[-1] == 0  # past the phrase: unvoiced
 
 
-@pytest.mark.parametrize("preset_id,kinds,pitched", [("signal", {"stutter", "tape_stop"}, True),
+@pytest.mark.parametrize("preset_id,kinds,pitched", [("signal", {"stutter"}, True),
                                                      ("pact", {"throw_echo"}, True),
                                                      ("ghost", {"swell", "throw_echo"}, False)])  # a full whisper
 def test_pipeline_attaches_motion(we_are, preset_id, kinds, pitched):

@@ -91,6 +91,8 @@ export interface CoreInputs {
   reduced: boolean
   /** RenderInfo.motion (v0.5) at the playhead while the wet side plays; null = chain-driven motion only. */
   track?: MotionSample | null
+  /** Brightness over the calm default (a camera clip's picture wants more than the Studio panel). Default 1. */
+  gain?: number
 }
 
 type RGB = [number, number, number]
@@ -255,7 +257,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const cMi = tint(HX(th.amber))
   const cHi = tint(M.ember > 0.5 ? HX(th.amber) : ink)
   // A calm instrument readout (user feedback: "too bright"): ~60% of the old intensity, flaring only on strong words.
-  const alphaK = CALM * (1 - M.darkness * 0.4) * (1 - M.pale * 0.4) * (1 - o.stMix * 0.5)
+  const alphaK = Math.min(1, CALM * (o.gain ?? 1)) * (1 - M.darkness * 0.4) * (1 - M.pale * 0.4) * (1 - o.stMix * 0.5)
 
   const layer = layerFor(cv, w, h)
   if (!layer) return null

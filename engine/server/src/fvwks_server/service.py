@@ -498,6 +498,8 @@ class EngineService:
                 if stored:
                     try:
                         loaded = Settings.model_validate(stored)
+                        if loaded.filename_pattern == writer.OLD_DEFAULT_PATTERN:  # 1.2.2: the words lead now
+                            loaded.filename_pattern = writer.DEFAULT_PATTERN
                     except ValidationError:
                         log.warning("stored settings no longer validate; using defaults")
                 self._settings = loaded
@@ -1307,7 +1309,7 @@ class EngineService:
             timings_ms=timings, warnings=[*out.warnings, *warnings],
             motion=getattr(out, "motion", None),  # v0.5: voice-core motion data, when fx provides it
         )
-        meta = {"script": source.info.script, "source_name": source.info.name, "source_kind": source.info.kind,
+        meta = {"script": source.info.script or " ".join(g.text for g in source.info.segments if g.text) or None, "source_name": source.info.name, "source_kind": source.info.kind,
                 "voice_id": source.info.voice_id, "preset_name": preset.name if preset else None}
         self.library.insert("renders", id=info.id, source_id=source.info.id, created_at=info.created_at,
                             quality=info.quality, request_hash=key, request=filled.model_dump(mode="json"),

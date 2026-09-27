@@ -20,8 +20,17 @@ export function pickFilmType(supported: (type: string) => boolean = (t) => Media
 
 export const extensionOf = (mime: string): 'mp4' | 'webm' => (mime.startsWith('video/mp4') ? 'mp4' : 'webm')
 
-/** FoxBox-clip-2026-09-27-0231.mp4 */
-export function clipName(mime: string, at = new Date()): string {
+/**
+ * The clip's file name from its first words, like the exports: "what-the-fuck-is_clip.mp4" (up to 4 words, as the exports of the
+ * script or transcript); FoxBox-clip-2026-09-27-0231.mp4 when there are none.
+ */
+export function clipName(mime: string, words: readonly string[] = [], at = new Date()): string {
+  const slug = words
+    .map((w) => w.toLowerCase().replace(/[^a-z0-9]+/g, ''))
+    .filter(Boolean)
+    .slice(0, 4)
+    .join('-')
+  if (slug) return `${slug}_clip.${extensionOf(mime)}`
   const p = (n: number) => String(n).padStart(2, '0')
   const stamp = `${at.getFullYear()}-${p(at.getMonth() + 1)}-${p(at.getDate())}-${p(at.getHours())}${p(at.getMinutes())}`
   return `FoxBox-clip-${stamp}.${extensionOf(mime)}`

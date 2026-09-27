@@ -45,7 +45,10 @@ export function SignalView() {
   const customLufs = useStudio((s) => s.customLufs)
   const bpm = useStudio((s) => s.bpm)
   const bars = useStudio((s) => s.bars)
-  const showCore = useViewPrefs((s) => s.showVoiceCore)
+  // In RECORD the voice core lives in the clip preview, so here it folds away and the waveform takes the room.
+  const coreOn = useViewPrefs((s) => s.showVoiceCore)
+  const recording = useStudio((s) => s.tab) === 'record'
+  const showCore = coreOn && !recording
   const source = useStudio((s) => s.source)
   const master = useSettings().data?.master
   const live = useLiveSource(source).data
