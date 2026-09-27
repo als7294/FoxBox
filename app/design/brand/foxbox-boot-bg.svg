@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <!--
+    FoxBox boot background (motion graphic). Designed at full strength: place it behind the boot screen at
+    opacity .2 (the app sets the opacity). All loops are seamless; only transforms, masks and dash offsets animate.
+      1. A hairline grid drifting diagonally.
+      2. A lattice of tiny fox glyphs drifting the other way; a soft scan band sweeps across and lights them.
+      3. A large fox outline, dashed, with a light tracing its edge.
+    prefers-reduced-motion: everything holds still.
+  -->
+  <style>
+    .g-drift  { animation: g-drift 14s linear infinite; }
+    .f-drift  { animation: f-drift 28s linear infinite; }
+    .scan     { animation: scan 7s cubic-bezier(.45,0,.55,1) infinite; }
+    .dash     { animation: dash 40s linear infinite; }
+    .tracer   { animation: trace 9s cubic-bezier(.45,0,.55,1) infinite; }
+    .tracer2  { animation: trace 9s -4.5s cubic-bezier(.45,0,.55,1) infinite; }
+    .big      { animation: breathe 9s ease-in-out infinite; transform-box: view-box; transform-origin: 1110px 520px; }
+    @keyframes g-drift { to { transform: translate(-48px, -48px); } }
+    @keyframes f-drift { to { transform: translate(128px, 112px); } }
+    @keyframes scan    { from { transform: translateX(-700px); } to { transform: translateX(2300px); } }
+    @keyframes dash    { to { stroke-dashoffset: -1000; } }
+    @keyframes trace   { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
+    @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.015); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      .g-drift, .f-drift, .scan, .dash, .tracer, .tracer2, .big { animation: none; }
+    }
+  </style>
+  <defs>
+    <!-- one fox glyph, outline only (the FoxBox mark at ~7%) -->
+    <g id="glyph" fill="none" stroke-linejoin="miter" transform="scale(.07)">
+      <path d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+      <path d="M56 298 L256 410 L456 298"/>
+      <path d="M140 250 L248 290 L226 330 L176 306 Z"/>
+      <path d="M372 250 L264 290 L286 330 L336 306 Z"/>
+    </g>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0 H0 V48" fill="none" stroke="#e9e5da" stroke-opacity=".22" stroke-width="1"/>
+      <circle cx="0" cy="0" r="1.2" fill="#e9e5da" fill-opacity=".45"/>
+    </pattern>
+    <pattern id="foxes" width="128" height="112" patternUnits="userSpaceOnUse">
+      <use href="#glyph" x="14" y="12" stroke="#ff4b2b" stroke-opacity=".13" stroke-width="16"/>
+      <use href="#glyph" x="78" y="68" stroke="#ff4b2b" stroke-opacity=".13" stroke-width="16"/>
+    </pattern>
+    <pattern id="foxes-lit" width="128" height="112" patternUnits="userSpaceOnUse">
+      <use href="#glyph" x="14" y="12" stroke="#ffb23e" stroke-opacity=".38" stroke-width="18"/>
+      <use href="#glyph" x="78" y="68" stroke="#ffb23e" stroke-opacity=".38" stroke-width="18"/>
+    </pattern>
+    <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="scan-mask" maskUnits="userSpaceOnUse" x="-400" y="-400" width="2400" height="1800">
+      <g transform="rotate(-24 800 500)">
+        <rect class="scan" x="0" y="-600" width="420" height="2200" fill="url(#band)"/>
+      </g>
+    </mask>
+    <radialGradient id="vig" cx="50%" cy="50%" r="75%">
+      <stop offset=".55" stop-color="#0b0b0c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0b0b0c" stop-opacity=".85"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#0b0b0c"/>
+
+  <!-- 1. grid -->
+  <g class="g-drift"><rect x="-48" y="-48" width="1744" height="1144" fill="url(#grid)"/></g>
+
+  <!-- 2. fox lattice + the scan band that lights it -->
+  <g class="f-drift"><rect x="-256" y="-224" width="2112" height="1448" fill="url(#foxes)"/></g>
+  <g mask="url(#scan-mask)">
+    <g class="f-drift"><rect x="-256" y="-224" width="2112" height="1448" fill="url(#foxes-lit)"/></g>
+  </g>
+
+  <!-- 3. big traced fox outline -->
+  <g class="big">
+    <g transform="translate(790 170) scale(1.25)" fill="none" stroke-linejoin="miter">
+      <path class="dash" pathLength="1000" stroke="#ff4b2b" stroke-opacity=".95" stroke-width="2.2" stroke-dasharray="3 9"
+            d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+      <path class="dash" pathLength="1000" stroke="#ff4b2b" stroke-opacity=".8" stroke-width="2.2" stroke-dasharray="3 9"
+            d="M56 298 L256 410 L456 298"/>
+      <path class="tracer" pathLength="1000" stroke="#ffb23e" stroke-width="4" stroke-linecap="round" stroke-dasharray="60 940"
+            d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+      <path class="tracer2" pathLength="1000" stroke="#ffb23e" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="40 960"
+            d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+    </g>
+  </g>
+
+  <rect width="1600" height="1000" fill="url(#vig)"/>
+</svg>
