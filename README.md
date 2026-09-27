@@ -80,6 +80,22 @@ and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW. It 
 </tr>
 </table>
 
+## 🔊 Hear it
+
+One line, typed once: **`ARE YOU READY TO *HEADBANG*`**, rendered by FoxBox at 140 BPM into 4 bars, with the last word on the beat
+and an echo throw on *HEADBANG*. Click to play; these are straight exports, unedited.
+
+| | Voice | Listen |
+|:-:|---|---|
+| ◌ | **Dry** (Kokoro TTS, before masking) | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-dry.mp3) |
+| ⚡ | **SIGNAL** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-signal.mp3) |
+| 🜂 | **PACT** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-pact.mp3) |
+| 📡 | **LEGION** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-legion.mp3) |
+| 🕳 | **ABYSS** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-abyss.mp3) |
+| 🤖 | **UNIT** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-unit.mp3) |
+| 👻 | **GHOST** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-ghost.mp3) |
+| ◯ | **RAW** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/headbang-raw.mp3) |
+
 ## Presets
 
 | | Preset | What it does |
@@ -118,10 +134,6 @@ filmed take and saves a **9:16 or 16:9 MP4** (H.264 + AAC) for Reels, TikTok and
 <td><img src="app/docs/screens/readme/07-voices-models.png" alt="Voices and models"/><br/><sub><b>VOICES:</b> auditions, the persona designer, the lexicon, and optional model downloads.</sub></td>
 </tr>
 </table>
-
-<div align="center">
-<img src="app/docs/screens/readme/studio.gif" alt="The voice core playing a PACT drop" width="80%"/>
-</div>
 
 ## Script markup
 
