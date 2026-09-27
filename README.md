@@ -134,8 +134,10 @@ REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES | WE DO NOT FORGIVE | *EXPECT US*
 
 > **Needs:** a Mac with Apple Silicon (M1 or newer), **macOS 14+**, about 2 GB free, and internet for the first launch.
 
-1. Download **`FoxBox.dmg`** from [**Releases**](https://github.com/als7294/FoxBox/releases/latest) and drag **FoxBox** into Applications.
-2. **First open only:** right-click FoxBox → **Open** → **Open**. The app isn't notarized by Apple yet.
+1. Download the **`.dmg`** from [**Releases**](https://github.com/als7294/FoxBox/releases/latest) and drag **FoxBox** into **Applications**. Open it from Applications, not from the disk image.
+2. **First open only.** The app isn't notarized by Apple yet, so macOS asks once:
+   - **macOS 14:** right-click FoxBox → **Open** → **Open**.
+   - **macOS 15+:** open FoxBox once and click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to FoxBox.
 3. **Setup** downloads the voices and the denoiser (about 350 MB) with live progress. The persona designer (about 9 GB) and transcripts (about 2.9 GB) are optional, now or later.
 4. **Updates** arrive inside the app: FoxBox checks Releases, verifies the download and restarts into the new version.
 

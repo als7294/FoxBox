@@ -54,7 +54,7 @@
         "enabled": true,
         "params": {
           "mode": "tube",
-          "tone": 0.35,
+          "tone": 0.4,
           "mix": 0.9,
           "oversample": "4",
           "color": "tube",
@@ -147,8 +147,8 @@
       {
         "module": "drive",
         "param": "drive_db",
-        "min": 6.0,
-        "max": 20.0,
+        "min": 8.0,
+        "max": 22.0,
         "curve": "lin"
       },
       {

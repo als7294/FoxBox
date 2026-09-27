@@ -1,7 +1,7 @@
 {
   "id": "ghost",
   "name": "GHOST",
-  "description": "Whisper transmission: breathy, slightly lowered, sub shadow, reverse-reverb swell into a long Galactic tail, dotted-1/4 ping-pong.",
+  "description": "Whisper transmission: breathy, a touch of tube→clip crunch, slightly lowered, sub shadow, reverse-reverb swell into a long Galactic tail, dotted-1/4 ping-pong.",
   "factory": true,
   "tags": [
     "whisper",
@@ -45,8 +45,8 @@
         "id": "drive",
         "enabled": true,
         "params": {
-          "mode": "tanh",
-          "tone": 0.5,
+          "mode": "tube>hard",
+          "tone": 0.6,
           "mix": 0.3,
           "oversample": "2"
         }
@@ -122,8 +122,8 @@
       {
         "module": "drive",
         "param": "drive_db",
-        "min": 0.0,
-        "max": 16.0,
+        "min": 2.0,
+        "max": 18.0,
         "curve": "lin"
       }
     ],

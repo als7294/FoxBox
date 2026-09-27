@@ -15,9 +15,15 @@ Updated 2026-09-27. Branch `session/s1-voice`, on main (contracts v0.6). Owner o
   The test now names the word when it fails.
 - **"TTS is cut off at the end sometimes."** Each chunk used to end at -50 dB below its loudest frame plus 60 ms,
   faded over 10 ms. The loudest thing dropped was a breathy release at -56 dB (af_heart's "Expect us."); the mask's
-  compression and drive can lift that into hearing. A chunk now ends where its release falls below -65 dB, at most
-  300 ms later, with a 30 ms fade. The start trim is unchanged, so onsets stay exact. The worst dropped tail is now
-  -63 dB. ENGINE_VERSION is `s1.6`, so the server's TTS and STACK caches start over.
+  compression and drive can lift that into hearing. A chunk now ends where its release falls below -70 dB, at most
+  600 ms later, with a 30 ms fade. The start trim is unchanged, so onsets stay exact.
+  - These values come from a sweep of all 28 voices x 4 lines (224 chunks). With -65 dB and 300 ms, 13 chunks from
+    5 female voices still dropped tail peaks above -63 dB, because af_alloy and af_nova breathe out for ~0.5 s at
+    -52 dB. Now the worst dropped tail is -65.3 dB. The release adds 10 ms at the median, 239 ms at p90, 527 ms at
+    most. There are no leading clicks (the first 5 ms stay at -54 dB or lower). LEGION's and PACT's stack voices
+    get identical segments.
+  - ENGINE_VERSION is `s1.7`, so the server's TTS and STACK caches start over. Each segment's last word now ends
+    exactly at the segment's end (they used to differ by 1 µs of rounding).
   - Every path (TTS, STACK voices, personas) goes through `render_script`. The chunk's closing period is added
     there, and the last word's end is the clip end.
 

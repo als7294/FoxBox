@@ -78,7 +78,7 @@ def _dist(name: str) -> str:
 
 
 ENGINE_NAME = "kokoro-mlx"
-_BUILD = "s1.6"  # bump whenever synthesis output changes: ENGINE_VERSION salts the server's TTS and STACK caches
+_BUILD = "s1.7"  # bump whenever synthesis output changes: ENGINE_VERSION salts the server's TTS and STACK caches
 
 
 def _engine_version() -> str:
@@ -196,13 +196,15 @@ def _flags(chunk) -> SegmentFlags:
 
 
 def _segments(vr: VoiceRender) -> list[Segment]:
-    return [
-        Segment(index=c.chunk.index, text=c.chunk.text, start_s=round(c.start_s, 6), end_s=round(c.end_s, 6),
-                flags=_flags(c.chunk),
-                words=[Word(text=w.text, start_s=round(w.start_s, 6), end_s=round(w.end_s, 6), throw=w.throw)
-                       for w in c.words])
-        for c in vr.chunks
-    ]
+    out = []
+    for c in vr.chunks:
+        end = round(c.end_s, 6)
+        words = [Word(text=w.text, start_s=round(w.start_s, 6), end_s=round(w.end_s, 6), throw=w.throw) for w in c.words]
+        if words:  # the last word holds the release, so it ends exactly with its segment (not 1 µs off by rounding)
+            words[-1] = words[-1].model_copy(update={"end_s": end})
+        out.append(Segment(index=c.chunk.index, text=c.chunk.text, start_s=round(c.start_s, 6), end_s=end,
+                           flags=_flags(c.chunk), words=words))
+    return out
 
 
 def _default_name(text: str) -> str:

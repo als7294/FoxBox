@@ -33,9 +33,11 @@ PAD_START_S = 0.01
 PAD_END_S = 0.06
 # The release: a chunk ends where its decay falls below RELEASE_REL_DB of the loudest frame (at most RELEASE_MAX_S
 # past the speech), then fades out over RELEASE_FADE_S. The mask's compression and drive bring a quiet tail up, so
-# a breathy "us." cut at -50 dB could be heard as the voice being cut off.
-RELEASE_REL_DB = -65.0
-RELEASE_MAX_S = 0.3
+# a breathy "us." cut at -50 dB could be heard as the voice being cut off. The pre-release sweep (28 voices) set
+# these: some voices breathe out for ~0.5 s at -52 dB (af_alloy, af_nova), and a noisy tail's peaks sit a few dB
+# over its RMS; every voice ends in digital silence after that.
+RELEASE_REL_DB = -70.0
+RELEASE_MAX_S = 0.6
 RELEASE_FADE_S = 0.03
 _MIN_CLIP_S = 0.02
 _SPAN_JOIN_S = 0.05
