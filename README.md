@@ -4,9 +4,9 @@
 
 <br/>
 
-### The voice-mask studio for bass music.
+### Stay stealthy.
 
-Type a line or record your own. FoxBox masks it into a deep, distorted, anonymous voice, locks it to your grid,
+The voice-mask studio for bass music. Type a line or record your own. FoxBox masks it into a deep, distorted, anonymous voice, locks it to your grid,
 and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW. It runs entirely on your Mac.
 
 <br/>
