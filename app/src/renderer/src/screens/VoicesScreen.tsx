@@ -213,7 +213,7 @@ function VoiceCard({
 
 type RowMode = 'picks' | 'all'
 
-/** The design's row of 5 operatives (recommended voices first); ALL pages through every installed voice. */
+/** The design's row of 5 voices (recommended voices first); ALL pages through every installed voice. */
 function VoiceRow({ all, mode, loading, audition }: { all: readonly Voice[]; mode: RowMode; loading: boolean; audition: Audition }) {
   const voiceId = useStudio((s) => s.voiceId)
   // The Studio's voice joins the picks (as the 5th card) when it isn't one of them. Decided once per visit so
@@ -285,7 +285,7 @@ export function VoicesScreen() {
   const [mode, setMode] = useState<RowMode>('picks')
   return (
     <Screen>
-      <ScreenHeader code="04" kicker="OPERATIVES" title="VOICES">
+      <ScreenHeader code="04" kicker="VOICES & MODELS" title="VOICES">
         {all.length > PICKS && (
           <div className={styles.headTools}>
             <Segmented

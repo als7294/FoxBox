@@ -182,16 +182,22 @@ old-brand after/ set) were removed with the rename; the after/ set is retaken wi
   - After "Restart to update" it swapped in and relaunched as 1.1.0 with What's New. The signature was intact and the rollback was cleaned up.
   - Caveat: a packaged FoxBox always uses `~/Library/Application Support/FoxBox` and runs as a single instance, so a test copy shares the user's data folder. Run such tests only while the user's FoxBox is closed, and move the data folder aside afterwards.
 
-### Release 1.1.1 (in progress)
-- The Studio SONG strip and drawer (`state/song.ts`, `components/song/`):
-  - import a song; the engine reads its BPM, key and bar 1;
-  - the drop auto-lands its last word on the song's first beat drop and can be dragged to any bar;
-  - preview it locally or in HQ through `/api/mix`;
-  - USE SONG TEMPO & KEY;
-  - ALSO BAKE INTO SONG on export.
-- S1's filmed-take playback (e77fc41) is merged.
-- The camera is moving onto the shared song store (S1).
-
+### Release 1.1.1 (2026-09-27)
+- **Build:** bea3492, built from a clean export.
+  - DMG sha256 1bfc16d7…f568.
+  - zip sha256 5fb662da…9d91.
+  - The files are in `app/release/1.1.1/`.
+- **Contents:**
+  - the Studio SONG strip and drawer (import; auto-land on the beat drop; drag to a bar; local or HQ preview; USE SONG TEMPO & KEY; ALSO BAKE INTO SONG);
+  - S1's filmed-take playback and the camera on the shared song store (`state/song.ts`);
+  - the looping watermark fox;
+  - S1's model reuse, plus a first run that skips Setup when the engine reports no required model missing. The engine starts before any window, with a wait of up to 20 s.
+- **Quick launch from the DMG: PASS.** Setup was skipped, the Studio opened at 5.3 s and a preview rendered at 15.8 s.
+- **Test-launch rule:**
+  - Test launches of a packaged FoxBox use a copy with the bundle id `com.smittytech.foxbox.test` and a temp `HOME`/`CFFIXED_USER_HOME`, with `~/.cache/huggingface` symlinked in. This keeps them away from the user's data folder and camera/mic privacy records.
+  - The update proof is the exception, because the updater checks the real bundle id.
+- **README images** retaken for 1.1 (d0fab31). 10-camera uses Chromium's fake camera with a public-domain portrait clip (`FVWKS_README_CAMERA`).
+- **Next (1.1.2):** blocked camera/mic copy with the "Not listed there?" `tccutil reset` hint (PrivacyHelp).
 
 ### Verification (2026-09-26)
 - **Typecheck:** `npm run typecheck` is clean across all four configs (node, web, test, e2e).

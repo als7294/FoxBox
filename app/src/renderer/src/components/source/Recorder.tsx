@@ -7,6 +7,7 @@ import { durationOf, encodeWav, type PcmAudio } from '@/audio/wav'
 import { camera, takeFilm, useCamera } from '@/components/camera/cameraStore'
 import { CameraRig } from '@/components/camera/CameraRig'
 import { Button } from '@/components/common/Button'
+import { PrivacyHelp } from '@/components/common/PrivacyHelp'
 import { Segmented } from '@/components/rack/Segmented'
 import { bridge } from '@/env'
 import { renderNow } from '@/state/renderController'
@@ -264,8 +265,8 @@ export function Recorder() {
         <div className={styles.deniedMark} aria-hidden="true">
           ✕
         </div>
-        <span className={styles.deniedTitle}>MIC ACCESS DENIED</span>
-        <span className={styles.deniedBody}>macOS blocked FoxBox from the microphone. TYPE and IMPORT still work.</span>
+        <span className={styles.deniedTitle}>MIC ACCESS IS OFF</span>
+        <PrivacyHelp kind="mic" also="TYPE and IMPORT still work." />
         {b && (
           <Button variant="ink" onClick={() => void b.openMicSettings()}>
             OPEN PRIVACY SETTINGS

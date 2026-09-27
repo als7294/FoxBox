@@ -114,3 +114,6 @@ export function compareVersions(a: string, b: string): number {
   }
   return comparePre(x.pre, y.pre)
 }
+
+/** The app's bundle id: the updater verifies it, and the privacy help's `tccutil reset` names it. */
+export const APP_BUNDLE_ID = 'com.smittytech.foxbox'

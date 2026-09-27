@@ -53,7 +53,7 @@ export function SetupReady({
       <FoxMark size={48} className={styles.bigMark} />
       <div>
         <div className={styles.kicker}>04 / Ready</div>
-        <h1 className={styles.title}>Transmission ready</h1>
+        <h1 className={styles.title}>FoxBox is ready</h1>
       </div>
       <ul className={styles.summary} aria-label="Installed components">
         <li>

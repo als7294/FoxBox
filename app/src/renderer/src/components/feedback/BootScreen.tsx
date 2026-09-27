@@ -147,14 +147,6 @@ function Boot() {
   const facts = useFacts()
   const factsRef = useRef(facts)
   factsRef.current = facts
-  const session = useMemo(
-    () =>
-      `${Math.floor(Math.random() * 0xffff)
-        .toString(16)
-        .toUpperCase()
-        .padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-    [],
-  )
   const defs = useMemo(() => lines(), [])
   const [shown, setShown] = useState<Shown[]>([])
   const [cursorLine, setCursorLine] = useState(0)
@@ -313,7 +305,7 @@ function Boot() {
       el.textContent = o
     }
     scramble(titleRef.current, 'FOXBOX', 180, 1150)
-    scramble(subRef.current, 'VOICE MASK', 760, 900)
+    scramble(subRef.current, 'STAY STEALTHY', 760, 900)
     if (clockRef.current) clockRef.current.textContent = `T+${mmss(e0 / 1000)}`
     if (barRef.current) barRef.current.style.transform = `scaleX(${clamp(progress.current)})`
     drawBoot(cvRef.current, theme(), now / 1000, progress.current)
@@ -343,7 +335,6 @@ function Boot() {
           {arch().toUpperCase()} · COREAUDIO {sampleKhz()}K
         </span>
         <span className={styles.bootRule} />
-        <span>SESSION {session}</span>
       </div>
       <div className={styles.bootEdge} data-edge="bottom" aria-hidden="true">
         <span>PID {f.pid ?? '----'}</span>
@@ -351,7 +342,6 @@ function Boot() {
         <span ref={clockRef} className={styles.bootClock}>
           T+00:00.00
         </span>
-        <span>REMEMBER, REMEMBER</span>
       </div>
 
       {/* The hero: the fox, then the wordmark and the kicker, then the real progress. */}
@@ -361,7 +351,7 @@ function Boot() {
           FOXBOX
         </span>
         <span ref={subRef} className={styles.bootKicker}>
-          VOICE MASK
+          STAY STEALTHY
         </span>
         {failure ? (
           <div className={styles.bootError} role="alert" onPointerDown={(e) => e.stopPropagation()}>

@@ -364,7 +364,7 @@ export function VaultScreen() {
       : total === 0
         ? { title: 'THE VAULT IS EMPTY', body: 'Final renders land here. Press ⌘↩ in the Studio.' }
         : rows.length === 0
-          ? { title: 'NO TRANSMISSIONS MATCH', body: 'Clear the filter or search.' }
+          ? { title: 'NO DROPS MATCH', body: 'Clear the filter or search.' }
           : null
 
   const chip = (key: string, label: string, pressed: boolean, next: Filter) => (
@@ -377,7 +377,7 @@ export function VaultScreen() {
     <Screen>
       <ScreenHeader code="02" kicker="LIBRARY" title="VAULT">
         <span className={v.count} aria-live="polite">
-          {lib.data ? rows.length : '—'} OF {total ?? '—'} TRANSMISSIONS
+          {lib.data ? rows.length : '—'} OF {total ?? '—'} DROPS
         </span>
         <div className={v.spacer} />
         <div className={v.chips} role="group" aria-label="Filter">

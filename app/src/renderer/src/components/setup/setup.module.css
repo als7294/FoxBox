@@ -164,6 +164,13 @@
   font: var(--vb-display-weight) var(--hero) / 0.9 var(--vb-font-display);
   letter-spacing: 0.08em;
 }
+.tagline {
+  margin-top: var(--space-2);
+  font: 500 12px/1 var(--vb-font-mono);
+  letter-spacing: 0.24em;
+  color: var(--vb-accent);
+  text-transform: uppercase;
+}
 .notice {
   display: flex;
   flex-direction: column;

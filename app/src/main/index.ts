@@ -787,7 +787,7 @@ if (!app.requestSingleInstanceLock()) {
       applicationName: 'FoxBox',
       applicationVersion: app.getVersion(),
       copyright: 'GUY FVWKS',
-      credits: CREDIT,
+      credits: `Stay stealthy.\n\n${CREDIT}`,
     })
     Menu.setApplicationMenu(
       buildMenu(

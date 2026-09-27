@@ -27,6 +27,7 @@ export function SetupWelcome({
       <div>
         <div className={styles.kicker}>01 / Welcome</div>
         <h1 className={styles.welcomeTitle}>FOXBOX</h1>
+        <p className={styles.tagline}>Stay stealthy.</p>
       </div>
       {translocated && (
         <div className={styles.notice} role="alert">
@@ -35,7 +36,7 @@ export function SetupWelcome({
         </div>
       )}
       <p className={styles.lede}>
-        {resume ? 'Picking up where the last install stopped. What is already downloaded stays.' : 'Installing the transmission engine.'} The voices
+        {resume ? 'Picking up where the last install stopped. What is already downloaded stays.' : 'Installing the sound engine.'} The voices
         download once; after that everything runs on this Mac.
       </p>
       <p className={styles.note}>Requires macOS 14 or later on Apple silicon, and an internet connection for the first download.</p>

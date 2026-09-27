@@ -122,7 +122,7 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
             <div ref={exp} className={styles.expFill} />
           </div>
           <div className={styles.filename} data-testid="cartridge-filename" data-muted={!file || undefined}>
-            {file ? file.filename : render ? 'PREVIEW ONLY · ⌘↩ PRINTS THE FILE' : 'NO TRANSMISSION YET'}
+            {file ? file.filename : render ? 'PREVIEW ONLY · ⌘↩ PRINTS THE FILE' : 'NO DROP YET'}
           </div>
           <dl className={styles.facts}>
             <div>

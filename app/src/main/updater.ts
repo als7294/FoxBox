@@ -43,10 +43,10 @@ import { Readable, Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import type { UpdateFailure, UpdatePhase, UpdateState, UpdateTransfer, WhatsNewInfo } from '../shared/bridge'
-import { compareVersions, DEFAULT_FEED_URL, feedUrlProblem, githubRepoOf, parseVersion, RELEASE_MANIFEST, tokenProblem } from '../shared/updates'
+import { APP_BUNDLE_ID, compareVersions, DEFAULT_FEED_URL, feedUrlProblem, githubRepoOf, parseVersion, RELEASE_MANIFEST, tokenProblem } from '../shared/updates'
 
 /** CFBundleIdentifier every update must carry (electron-builder appId). */
-export const BUNDLE_ID = 'com.smittytech.foxbox'
+export const BUNDLE_ID = APP_BUNDLE_ID
 /** Sanity cap on an update archive (the app with its bundled engine is well under 1 GB). */
 export const MAX_UPDATE_BYTES = 2_000_000_000
 const FEED_MAX_BYTES = 256 * 1024

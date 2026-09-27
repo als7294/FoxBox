@@ -336,3 +336,42 @@ textarea.input {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* ---------------------------------------------------------------- privacy help (blocked camera / mic) */
+.privacy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 300px;
+  text-align: center;
+}
+.privacyBody {
+  font: 400 11px/1.6 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.privacyMore {
+  font: 400 10px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.privacyMore summary {
+  cursor: pointer;
+  color: var(--vb-ink);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.privacyMore[open] summary {
+  margin-bottom: 4px;
+}
+.privacyCode {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 10.5px var(--vb-font-mono);
+  user-select: all;
+  word-break: break-all;
+}

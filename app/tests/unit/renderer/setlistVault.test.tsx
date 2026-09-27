@@ -128,7 +128,7 @@ describe('VaultScreen', () => {
     const table = screen.getByRole('table', { name: 'Vault' })
     await waitFor(() => expect(within(table).getAllByRole('row').length).toBeGreaterThan(3))
     const takes = within(table).getAllByRole('row').length - 1
-    expect(screen.getByText(`${takes} OF ${takes} TRANSMISSIONS`)).toBeInTheDocument()
+    expect(screen.getByText(`${takes} OF ${takes} DROPS`)).toBeInTheDocument()
 
     // Play / stop a row.
     fireEvent.click(within(table).getAllByRole('button', { name: /^Play / })[0]!)
@@ -138,9 +138,9 @@ describe('VaultScreen', () => {
 
     // Search narrows the rows (debounced, server-side).
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search scripts' }), { target: { value: 'never dies' } })
-    await waitFor(() => expect(screen.getByText(`1 OF ${takes} TRANSMISSIONS`)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(`1 OF ${takes} DROPS`)).toBeInTheDocument())
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search scripts' }), { target: { value: 'zzz-nothing' } })
-    expect(await screen.findByText('NO TRANSMISSIONS MATCH')).toBeInTheDocument()
+    expect(await screen.findByText('NO DROPS MATCH')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search scripts' }), { target: { value: '' } })
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(takes + 1))
 

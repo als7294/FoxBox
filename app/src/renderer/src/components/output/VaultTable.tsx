@@ -80,7 +80,7 @@ export function VaultTable(p: VaultTableProps) {
           <span role="columnheader">
             <span className="sr-only">Play</span>
           </span>
-          <span role="columnheader">SCRIPT · HOVER TO DECLASSIFY</span>
+          <span role="columnheader">SCRIPT · HOVER TO REVEAL</span>
           <span role="columnheader">PRESET</span>
           <span role="columnheader">VOICE</span>
           <span role="columnheader">BPM · KEY · BARS</span>

@@ -78,8 +78,8 @@ export function SetlistScreen() {
 
   const [pasteOpen, setPasteOpen] = useState(() => useSetlist.getState().lines.length === 0)
   const [pasteText, setPasteText] = useState('')
-  // One line per transmission, e.g. three from the Studio's starting lines.
-  const pastePlaceholder = useMemo(() => `One line per transmission, e.g.\n${sampleLines(3).join('\n')}`, [])
+  // One line per drop, e.g. three from the Studio's starting lines.
+  const pastePlaceholder = useMemo(() => `One line per drop, e.g.\n${sampleLines(3).join('\n')}`, [])
   const [armClear, setArmClear] = useState(false)
   const pastePanel = useRef<HTMLDivElement>(null)
   const pasteArea = useRef<HTMLTextAreaElement>(null)
@@ -252,7 +252,7 @@ export function SetlistScreen() {
           : 'NO CUES · SETTINGS → REKORDBOX'
 
   const empty: TableEmpty | null =
-    lines.length === 0 ? { title: 'NO LINES YET', body: 'Paste one line per transmission above, or use + SETLIST on a Studio cartridge.' } : null
+    lines.length === 0 ? { title: 'NO LINES YET', body: 'Paste one line per drop above, or use + SETLIST on a Studio cartridge.' } : null
 
   return (
     <Screen>

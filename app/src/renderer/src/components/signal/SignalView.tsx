@@ -33,7 +33,7 @@ function useEmptyText(): string | null {
   if (hasRender || phase !== 'idle') return null
   if (tab === 'record') return hasSource ? 'PAUSE TO PREVIEW · ⌘↩ RENDERS FINAL' : 'RECORD A TAKE TO MASK'
   if (tab === 'import') return hasSource ? 'PAUSE TO PREVIEW · ⌘↩ RENDERS FINAL' : 'DROP A FILE TO MASK'
-  return script.trim() ? 'PAUSE TYPING TO PREVIEW · ⌘↩ RENDERS FINAL' : 'TYPE A LINE TO TRANSMIT'
+  return script.trim() ? 'PAUSE TYPING TO PREVIEW · ⌘↩ RENDERS FINAL' : 'TYPE A LINE TO PREVIEW'
 }
 
 /** SIGNAL: transport, the voice core, the band-coloured waveform on the bar grid, and FIT · LOUDNESS · MASK. */

@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { audioUrl } from '@/api/client'
 import { player } from '@/audio/playerInstance'
 import { Button } from '@/components/common/Button'
+import { PrivacyHelp } from '@/components/common/PrivacyHelp'
 import common from '@/components/common/common.module.css'
 import { Segmented } from '@/components/rack/Segmented'
 import { bridge } from '@/env'
@@ -591,7 +592,7 @@ export function CameraRig({
       preview: (
         <div className={styles.denied} role="alert" data-testid="camera-panel" data-phase="denied">
           <span className={styles.deniedTitle}>CAMERA ACCESS IS OFF</span>
-          <span className={styles.deniedBody}>macOS blocked FoxBox from the camera. Voice takes still work: switch to VOICE ONLY.</span>
+          <PrivacyHelp kind="camera" also="Voice takes still work: switch to VOICE ONLY." />
           <div className={styles.buttons}>
             {b && (
               <Button variant="ink" onClick={() => void b.openCameraSettings()}>
