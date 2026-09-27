@@ -35,9 +35,9 @@ def events(plan: PlacementPlan, *, bpm: float, tape_beats: float = 0.0, swell_be
     ``bed``, the CRUSH bed's span as the pipeline placed it; by default where an untightened bed would sit)."""
     beat = 60.0 / bpm
     ev: list[tuple[str, float, float]] = []
-    for c, st in zip(plan.chunks, plan.starts_s):
-        if c.lock:
-            ev.append(("beat_lock", st, (c.speech_end - c.src0) / plan.sr / plan.factor))
+    for i, (c, st) in enumerate(zip(plan.chunks, plan.starts_s)):
+        if c.lock:  # Beat-Locked chunks, and every v0.8 chop piece
+            ev.append(("beat_lock", st, (c.speech_end - c.src0) / plan.sr / plan.chunk_factor(i)))
     if plan.stutter:
         at, sl, n = plan.stutter
         ev += [("stutter", at + i * sl, sl) for i in range(n)]
@@ -94,10 +94,11 @@ def pitch_track(plan: PlacementPlan, f0: np.ndarray, frame_period_ms: float, fra
         head = at + sl * (n - 1)  # the phrase itself starts here; the slices in front repeat its first slice
         t = np.where((t >= at) & (t < head), head + np.mod(t - at, sl), t)
     src = np.full(frames, -1.0)
-    for c, st in zip(plan.chunks, plan.starts_s):
-        dur = (c.src1 - c.src0) / plan.sr / plan.factor
+    for i, (c, st) in enumerate(zip(plan.chunks, plan.starts_s)):
+        f = plan.chunk_factor(i)
+        dur = (c.src1 - c.src0) / plan.sr / f
         m = (t >= st) & (t < st + dur)
-        src[m] = c.src0 / plan.sr + (t[m] - st) * plan.factor
+        src[m] = c.src0 / plan.sr + (t[m] - st) * f
     hz = np.zeros(frames)
     ok = src >= 0
     if np.any(ok) and f0.size:

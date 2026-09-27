@@ -240,6 +240,14 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - S4's updater swaps components in a re-signed staged copy of the app (never inside the running app), so the seal stays valid.
 
 
+- **1.2.4 ARRANGE chop (v0.8)** (fx arrange by coordinator ruling, this commit):
+  - `plan_placement(..., chop, chop_unit, chop_slots)`: with chop on, the line is cut per word (a segment without word timings counts as one piece) or per '|' chunk.
+    - Each piece's onset (the engine's onset convention: 1 ms pre-roll) starts exactly on its slot: every beat, every 2 beats or every bar from 0 (consecutive), or at custom beats. A custom piece without a slot follows the previous one at the natural spacing.
+    - A piece is squeezed (R3, per piece, within max_stretch; none in pad mode) only when its speech would run into the next slot. Past that, the next slot slides to the next free grid step (a beat for custom). Speech is never cut.
+    - Pieces get 5 ms fades and keep up to 150 ms of natural release, cut at the next slot.
+  - Length: the bars that hold every piece + auto_tail + tail beats. AUTO picks the next standard count; a numeric count too short is extended (never cut); FREE is whole beats.
+  - `RenderOutput.chop` → `RenderInfo.chop` (index, landed beat). Each piece is a `beat_lock` motion event. The chop fields are in fx's plan cache key and the server's render key (the whole arrange block).
+
 ## Handover (S3 stopped here)
 - Branch `session/s3-engine`, latest `99f1b88`. Everything above is committed; main was merged at 55d9b2b (v0.7 contracts).
 - Build the bundle: `engine/server/scripts/bundle_engine.sh <out>`. It fails on any file naming the build machine and prints the component hashes. Tests: `uv run --all-packages pytest server/tests contracts/tests` from `engine/`; the bundle tests are opt-in with `FVWKS_TEST_BUNDLE=1` (~2.5 min, two builds).

@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.7 contracts: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v0.8 contracts: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -327,6 +327,20 @@ class Arrange(Model):
     auto_tail: bool = Field(default=True, description="Reserve room after the last word for its natural release and the chain's FX tail (reverb/delay/throws) when fitting; speech is never truncated (v0.4).")
     fade_in_ms: float = Field(default=2.0, ge=0)
     fade_out_ms: float = Field(default=30.0, ge=0)
+    chop: Literal["off", "beat", "2beats", "bar", "custom"] = Field(default="off", description=(
+        "v0.8 ARRANGE: 'off' = today's fit. Otherwise the line is chopped at word boundaries and each piece starts on "
+        "the grid: every beat, every 2 beats, every bar, or at chop_slots ('custom'). A piece only stretches (R3, "
+        "within max_stretch) or squeezes when it would overlap the next; speech is never cut."))
+    chop_unit: Literal["word", "chunk"] = Field(default="word", description="v0.8: chop per word, or per '|' chunk.")
+    chop_slots: list["ChopSlot"] | None = Field(default=None, description="v0.8: custom placements (chop='custom').")
+
+
+class ChopSlot(Model):
+    """v0.8: one chopped piece and where it starts. `index` counts words (or '|' chunks) across the whole line, in
+    order, from 0; `beat` is the start in beats from the file's first downbeat."""
+
+    index: int = Field(ge=0)
+    beat: float = Field(ge=0)
 
 
 class Master(Model):
@@ -475,6 +489,7 @@ class RenderInfo(Model):
     timings_ms: dict[str, float] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     motion: Motion | None = Field(default=None, description="Voice-core motion data (v0.5); None when fx doesn't provide it.")
+    chop: list[ChopSlot] | None = Field(default=None, description="v0.8: where each chopped piece landed (None when chop is off).")
 
 
 # --------------------------------------------------------------------------- exports
@@ -747,3 +762,4 @@ class MixInfo(Model):
 
 
 ExportRequest.model_rebuild()  # v0.7: ExportRequest.bake refers to SongPlacement, defined above
+Arrange.model_rebuild()  # v0.8: Arrange.chop_slots refers to ChopSlot, defined after it

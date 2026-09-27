@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '@/api/queries'
 import type { ExportedFile, RenderInfo } from '@/api/types'
 import { MiniWaveform } from '@/components/signal/MiniWaveform'
@@ -25,8 +25,10 @@ export interface CartridgeProps {
 const version = (f: ExportedFile) => /_v(\d+)\.[a-z0-9]+$/i.exec(f.filename)?.[1]?.padStart(2, '0') ?? '01'
 
 /**
- * OUTPUT: the drop as a cartridge. Once the final file exists, dragging it starts a native file drag
- * (Finder, Rekordbox, Ableton, GarageBand). EXPORT (⌘⇧E) hands the file over; ▾ opens the export options.
+ * OUTPUT: the drop as a cartridge, led by its words, then its file, waveform and DUR / BPM / KEY / LUFS. Once the final
+ * file exists, dragging the card starts a native file drag (Finder, Rekordbox, Ableton, GarageBand). EXPORT (⌘⇧E) is
+ * the one primary action; ▾ opens the export options; REVEAL and + SETLIST are secondary.
+ * States: empty · preview (no file yet) · final (ready to drag) · stale (the inputs changed) · exporting · exported.
  */
 export function Cartridge({ render, file, stale }: CartridgeProps) {
   const tile = useRef<HTMLDivElement>(null)
@@ -39,6 +41,8 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
   const b = bridge()
   const draggable = Boolean(file && b && !stale)
   const state = !render ? 'empty' : file ? (stale ? 'stale' : 'ready') : 'preview'
+  // EXPORT succeeded for this render (the file went to the export folder).
+  const [exportedFor, setExportedFor] = useState<string | null>(null)
 
   // The design's eject when a new final file lands.
   const fileId = file?.id
@@ -67,7 +71,10 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
 
   const exporting = phase === 'exporting'
   const busy = phase !== 'idle'
-  const onExport = () => void exportNow(settings?.format ?? 'aiff', (settings?.bit_depth ?? 24) as 16 | 24)
+  const onExport = async () => {
+    const f = await exportNow(settings?.format ?? 'aiff', (settings?.bit_depth ?? 24) as 16 | 24)
+    if (f) setExportedFor(f.render_id)
+  }
   const onReveal = async () => {
     if (!b) return
     const target = file?.path ?? engineHealth(status)?.export_dir
@@ -91,20 +98,49 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
     })
   }
 
-  const tag = file ? `FINAL v${version(file)}${stale ? ' · STALE' : ''}` : 'PREVIEW'
+  const exported = Boolean(render && file && !stale && exportedFor === render.id)
+  const look = exporting ? 'exporting' : exported ? 'exported' : state
+  const badge = {
+    empty: 'EMPTY',
+    preview: 'PREVIEW',
+    ready: file ? `FINAL v${version(file)}` : 'FINAL',
+    stale: 'STALE',
+    exporting: 'EXPORTING…',
+    exported: '✓ EXPORTED',
+  }[look]
+  const words = render
+    ? render.segments
+        .map((x) => (x.text ?? '').replace(/[*_[\]]/g, '').trim())
+        .filter(Boolean)
+        .join(' · ')
+    : ''
   const lufs = render ? (render.loudness.short_term_max_lufs ?? render.loudness.integrated_lufs) : null
+  const readouts: [string, string][] = [
+    ['DUR', render ? `${f2(render.duration_s)}s` : '—'],
+    ['BPM', render ? String(Math.round(render.bpm)) : '—'],
+    ['KEY', render ? `${render.key}·${camelot(render.key)}` : '—'],
+    ['LUFS', lufs != null ? lufs.toFixed(1).replace('-', '−') : '—'],
+  ]
+  const hint = draggable
+    ? 'DRAG TO REKORDBOX / DAW'
+    : stale
+      ? 'CHANGED · ⌘↩ PRINTS IT AGAIN'
+      : render
+        ? 'PREVIEW ONLY · ⌘↩ PRINTS THE FILE'
+        : 'TYPE OR RECORD A LINE, THEN RENDER'
   return (
     <section className={styles.output} aria-label="Output" data-reveal="5">
       <div className={styles.head}>
         <span className={styles.title}>OUTPUT</span>
-        <span className={styles.tag} data-final={(file && !stale) || undefined} data-stale={(file && stale) || undefined}>
-          {render ? tag : 'EMPTY'}
+        <span className={styles.badge} data-look={look}>
+          {badge}
         </span>
       </div>
       <div className={styles.flexCol} data-testid="cartridge" data-state={state}>
         <div
           ref={tile}
           className={styles.cart}
+          data-look={look}
           data-empty={!render || undefined}
           draggable={draggable}
           tabIndex={draggable ? 0 : undefined}
@@ -117,33 +153,29 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
             b.startDrag(file.path)
           }}
         >
-          <MiniWaveform analysis={render ? vis.wet : null} />
+          <div className={styles.words} data-muted={!words || undefined}>
+            {words || 'NO DROP YET'}
+          </div>
+          <div className={styles.filename} data-testid="cartridge-filename" data-muted={!file || undefined} title={file?.filename}>
+            {file ? file.filename : render ? 'not printed yet' : '—'}
+          </div>
+          <div className={styles.wave}>
+            <MiniWaveform analysis={render ? vis.wet : null} />
+          </div>
           <div className={styles.expTrack} aria-hidden="true">
             <div ref={exp} className={styles.expFill} />
           </div>
-          <div className={styles.filename} data-testid="cartridge-filename" data-muted={!file || undefined}>
-            {file ? file.filename : render ? 'PREVIEW ONLY · ⌘↩ PRINTS THE FILE' : 'NO DROP YET'}
-          </div>
-          <dl className={styles.facts}>
-            <div>
-              <dt>DUR</dt>
-              <dd>{render ? `${f2(render.duration_s)} s` : '—'}</dd>
-            </div>
-            <div>
-              <dt>BPM</dt>
-              <dd>{render ? Math.round(render.bpm) : '—'}</dd>
-            </div>
-            <div>
-              <dt>KEY</dt>
-              <dd>{render ? `${render.key} · ${camelot(render.key)}` : '—'}</dd>
-            </div>
-            <div>
-              <dt>LUFS</dt>
-              <dd>{lufs != null ? lufs.toFixed(1).replace('-', '−') : '—'}</dd>
-            </div>
+          <dl className={styles.readouts}>
+            {readouts.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
           </dl>
-          <div className={styles.dragHint} aria-hidden="true">
-            {draggable ? '⠿ DRAG → REKORDBOX / ABLETON' : render ? '⌘↩ FINAL RENDER · THEN DRAG' : 'RENDER TO LOAD THE CARTRIDGE'}
+          <div className={styles.dragBar} data-live={draggable || undefined} aria-hidden="true">
+            {draggable && <span className={styles.grip}>⠿</span>}
+            {hint}
           </div>
         </div>
       </div>
@@ -155,9 +187,9 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
           disabled={busy || !render}
           aria-keyshortcuts="Meta+Shift+E"
           data-testid="export-button"
-          onClick={onExport}
+          onClick={() => void onExport()}
         >
-          {exporting ? 'EXPORTING…' : 'EXPORT'} <span className={styles.exportKey}>⌘⇧E</span>
+          {exporting ? 'EXPORTING…' : exported ? 'EXPORT AGAIN' : 'EXPORT'} <span className={styles.exportKey}>⌘⇧E</span>
         </button>
         <button
           type="button"

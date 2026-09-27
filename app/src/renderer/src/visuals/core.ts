@@ -104,7 +104,7 @@ const hash = (v: number) => {
   return s - Math.floor(s)
 }
 
-const N = 520
+const N = 820
 /** Overall particle intensity (the core is a calm readout, not a light show). */
 const CALM = 0.6
 const NB = 48
@@ -165,7 +165,34 @@ const S = {
   /** The pitch ring (RenderInfo.motion f0): its latitude and how visible it is, eased. */
   f0y: 0,
   f0a: 0,
+  /** Reactivity (1.2.3): band envelopes, spectral-flux onsets, a spring-loaded burst, spin kicks, shockwaves. */
+  lowE: 0,
+  midE: 0,
+  highE: 0,
+  fluxAvg: 0,
+  lastOnset: 0,
+  burst: 0,
+  burstV: 0,
+  spinV: 0,
+  waves: [] as { t0: number; k: number }[],
+  /** The last onset's strength (0 when none this frame): SIGNAL glitches on it, UNIT's lattice snaps a step. */
+  hit: 0,
+  /** ABYSS: the latitudes' accumulated twist (a swirl the low end drives). */
+  swirl: 0,
+  /** In and out with the voice: 0 in a gap (the core draws in), 1 on a loud word (it swells out). */
+  swell: 0,
+  /** The last frame's loudness envelope (a sudden drop is a word cutting off: an inward kick). */
+  prevE: 0,
+  /** The in/out scale, eased (so starting or stopping playback never jumps it). */
+  io: 1,
 }
+/** The last frame's raw spectrum (onsets are rises against it). */
+const prevRaw = new Float32Array(NB)
+/** The main shell's projected particles this frame (the plexus lines join neighbours). */
+const projX = new Float32Array(N)
+const projY = new Float32Array(N)
+const projD = new Float32Array(N)
+const projE = new Float32Array(N)
 
 /** Draws a frame; returns the layout it used (the HUD follows it), or null when the canvas isn't showing. */
 export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayout | null {
@@ -186,6 +213,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const sm = o.sm
 
   // Spectrum → 48 smoothed bands (idle: a quiet shimmer).
+  let flux = 0
   for (let k = 0; k < NB; k++) {
     let v: number
     if (pl && o.bins) {
@@ -193,18 +221,61 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
       v = o.bins[b]! / 255
     } else v = 0.045 + 0.012 * nz(k * 0.22 + t * 0.35)
     sm[k]! += (v - sm[k]!) * (v > sm[k]! ? 0.45 : 0.08)
+    if (pl) flux += Math.max(0, v - prevRaw[k]!) * (k < 12 ? 1.4 : 1)
+    prevRaw[k] = v
   }
+  flux /= NB
   let low = 0
   for (let k = 0; k < 8; k++) low += sm[k]!
   low /= 8
+  // Band envelopes: fast attack, slow release (lows swell the core, mids ripple it, highs sparkle it).
+  let mid = 0
+  let high = 0
+  for (let k = 12; k < 30; k++) mid += sm[k]!
+  for (let k = 30; k < NB; k++) high += sm[k]!
+  mid /= 18
+  high /= NB - 30
+  const env = (cur: number, v: number) => cur + (v - cur) * (v > cur ? 0.5 : Math.min(1, dts * 3.2))
+  S.lowE = env(S.lowE, pl ? low : 0)
+  S.midE = env(S.midE, pl ? mid : 0)
+  S.highE = env(S.highE, pl ? high : 0)
+  // Onsets (spectral flux over its running average): a burst, a spin kick and a shockwave per hit.
+  S.fluxAvg += (flux - S.fluxAvg) * 0.06
+  if (!calm && pl && flux > S.fluxAvg * 1.7 + 0.01 && o.now - S.lastOnset > 105) {
+    const k = clamp((flux - S.fluxAvg) * 14)
+    S.lastOnset = o.now
+    S.hit = k
+    S.burstV += 3.2 * k
+    S.spinV += (M.rot >= 0 ? 1 : -1) * 0.9 * k * (1 - clamp(M.step))
+    if (k > 0.18) {
+      S.waves.push({ t0: o.now, k })
+      if (S.waves.length > 6) S.waves.shift()
+    }
+  }
+  else S.hit = 0
+  // In and out: the core swells with the voice (fast in, slower out) and draws in through the gaps; a word
+  // cutting off kicks it inward, so the spring pulls it in past rest before it settles.
+  // The render's own voicing (RenderInfo.motion f0) says word or gap even when a loud master keeps the bands up;
+  // without it, the loudness decides.
+  const loud = pl ? clamp((S.lowE * 0.6 + S.midE * 1.2) * 2.2) : 0
+  const target = !pl ? 0 : tr ? (tr.f0 != null ? 0.6 + 0.4 * loud : 0.05) : loud
+  S.swell += (target - S.swell) * (target > S.swell ? Math.min(1, dts * 16) : Math.min(1, dts * 5))
+  if (!calm && pl && S.prevE - target > 0.3) S.burstV -= 1.4 * (S.prevE - target)
+  S.prevE = target
+  // The burst is a damped spring: out on the hit, back with a little overshoot.
+  S.burstV += (-95 * S.burst - 12 * S.burstV) * dts
+  S.burst += S.burstV * dts
+  if (calm || !pl) S.burst *= 0.9
+  S.spinV *= Math.exp(-dts * 3)
 
   // Integrated motion: rotation, drift, cluster orbits (all stop under Reduce Motion).
   // Tape-stop (RenderInfo.motion): the rotation brakes to a standstill with the tape.
   const brake = tr?.tapeStop != null ? 1 - tr.tapeStop : 1
   if (!calm) {
-    S.rot += M.rot * dts * brake
+    S.rot += (M.rot + S.spinV) * dts * brake
     S.drift += M.drift * 0.05 * dts
     S.cluster += (0.45 + 0.2 * (1 - M.mass)) * dts
+    S.swirl += M.drift * (0.25 + S.lowE * 2.6 + clamp(S.burst) * 1.5) * dts
   }
   // MACHINE / UNIT: rotation that steps on the beat (every 0.8 s when stopped), snapping in ~90 ms.
   const stepA = Math.PI / 8
@@ -217,6 +288,12 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
     S.stepT0 = o.now
     S.lastStep = stepIndex
   }
+  // UNIT: a hit snaps the lattice another step (two on a strong one), between the beats too.
+  if (S.hit > 0 && M.lattice > 0.45) {
+    S.stepFrom = S.stepFrom + (S.stepTo - S.stepFrom) * easeOut((o.now - S.stepT0) / 90)
+    S.stepTo += stepA * (S.hit > 0.45 ? 2 : 1)
+    S.stepT0 = o.now
+  }
   const stepRot = S.stepFrom + (S.stepTo - S.stepFrom) * easeOut((o.now - S.stepT0) / 90)
   // Beat lock (MACHINE, or the arrange plan's beat_lock event): the rotation steps on the beat.
   const stepMix = Math.max(clamp(M.step), tr?.beatLock ? 1 : 0)
@@ -225,17 +302,21 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   // SIGNAL: a transient (a jump in level) starts a short glitch: stutter, displaced slices, RGB split.
   const jump = lv - S.prevLvl
   S.prevLvl = lv
-  if (!calm && pl && M.glitch > 0.2 && jump > 0.05 && o.now > S.glitchUntil + 90) {
-    S.glitchUntil = o.now + 110 + 90 * M.glitch
+  if (!calm && pl && M.glitch > 0.2 && (jump > 0.05 || S.hit > 0.12) && o.now > S.glitchUntil + 70) {
+    S.glitchUntil = o.now + 90 + (90 + 120 * S.hit) * M.glitch
     S.glitchSeed = Math.random() * 1000
   }
-  const glitching = !calm && M.glitch > 0.2 && o.now < S.glitchUntil
+  // The arrange plan's stutter glitches SIGNAL for as long as it repeats.
+  const glitching = !calm && M.glitch > 0.2 && (o.now < S.glitchUntil || Boolean(tr?.stutter))
   S.frame++
 
   // Global scale: breathing (RAW), sub pulses (PACT, DEPTH), and the tremor that growl drives (ABYSS).
   const breathe = calm ? 0 : M.breathing * 0.03 * Math.sin(t * 1.2)
   const pulse = M.subPulse * (low * 0.22 + o.beatPulse * 0.05)
-  const scale0 = (1 + breathe) * (1 + pulse) * (1 + M.spread * 0.06)
+  // Playing, the core breathes with the voice: drawn in to 0.84 in the gaps, out to 1.1 on loud words, plus the hits.
+  S.io += ((calm || !pl ? 1 : 0.84 + 0.26 * S.swell) - S.io) * Math.min(1, dts * 12)
+  const inOut = S.io
+  const scale0 = (1 + breathe) * (1 + pulse) * (1 + M.spread * 0.06) * inOut * (1 + clamp(S.burst, -0.4, 1) * 0.1)
   const shake = !calm && pl ? M.tremor * (0.35 + lv) * R0 * 0.045 : 0
   const ox = shake ? (Math.random() - 0.5) * shake : 0
   // Tape-stop: the core sags as it slows.
@@ -271,7 +352,8 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   // The returns envelope (reverb, delay and throws ringing on) lengthens the trails once the voice stops (unvoiced),
   // so the core dissolves into its tail after the last word without smearing the words themselves.
   const tailing = tr && tr.f0 == null ? tr.returns : 0
-  const keep60 = calm ? 0 : clamp(M.trails + tailing * 0.45 * (1 - M.trails)) * 0.9
+  // GHOST: a hit smears the trails out further.
+  const keep60 = calm ? 0 : clamp(M.trails + tailing * 0.45 * (1 - M.trails) + clamp(S.burst) * 0.35 * M.trails) * 0.9
   const keep = keep60 > 0 ? Math.pow(keep60, clamp(o.dt / 16.7, 0.25, 3)) : 0
   const gain = keep > 0 ? (1 + 0.6 * keep60) * (1 - keep) : 1
   if (!stutter) {
@@ -290,7 +372,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
     const az = Math.round(48 - 36 * clamp(M.lattice))
     const snap = clamp(M.lattice * 1.6)
     const K = 3
-    const split = glitching ? 2.5 * M.rgb : 0
+    const split = glitching ? (2.5 + 5 * clamp(S.burst)) * M.rgb : 0
     const sharp = M.sharp >= 0.5
     const soft = 1 - clamp(M.sharp * 2)
 
@@ -348,6 +430,8 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
         const s4 = seeds![i4 + 3]!
         // ABYSS: particles sink slowly through the sphere and come back in at the top.
         if (M.drift > 0.01) py = ((((py + 1 - S.drift * (0.6 + s4 * 0.8)) % 2) + 2) % 2) - 1
+        // ABYSS: the latitudes twist against each other, a slow swirl the low end winds up.
+        if (M.drift > 0.01) ph += S.swirl * py * 2.2
         // MACHINE / UNIT: latitude rings and azimuth steps.
         if (rings) {
           py += (Math.round(py * rings) / rings - py) * snap
@@ -359,12 +443,19 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
         const band = Math.min(NB - 1, Math.floor(((py + 1) / 2) * NB))
         const e = sm[band]!
         // DEPTH pulls inward on low-end energy; GRIT turbulence; the spectrum pushes out.
+        // Loud masters keep the bands high, so the spectrum's push is compressed: the sphere holds its shape and
+        // the hits (burst, below) are what throw it out.
         let d =
-          e * (0.5 - 0.22 * M.gravity) -
+          Math.sqrt(e) * 0.2 * (1 - 0.4 * M.gravity) -
           M.gravity * low * (py < 0 ? 0.45 : 0.2) +
           0.014 * nz(px * 2.2 + py * 1.7 + t * 0.4) +
           M.turbulence * 0.05 * nz(px * 3.3 + py * 2.1 + t * 1.9 + s3 * 7)
         if (pl && M.turbulence > 0.05 && !calm) d += (Math.random() - 0.5) * M.turbulence * 0.12 * e
+        if (!calm) {
+          // Mids ripple across the surface; hits throw the particles out (each by its own amount) and back.
+          d += S.midE * 0.13 * Math.sin(py * 9 - t * 7 + s3 * 6) * (1 - 0.7 * clamp(M.lattice))
+          d += S.burst * 0.28 * (0.5 + s1)
+        }
         const rr = scale * (1 + d)
         let X = px * rr
         let Y = py * rr * (1 - M.mass * 0.08)
@@ -382,8 +473,19 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
         }
         const [sx, sy, depth] = project(X, Y, Z, R)
         // Smaller, softer particles; energy squared, so only strong words flare.
-        const size = (0.6 + depth * 1.2) * (1 + e * e * 0.9) * M.size * (0.85 + s1 * 0.3)
-        const alpha = (0.1 + depth * 0.5 + e * e * 0.8) * alphaMul * alphaK
+        let size = (0.6 + depth * 1.2) * (1 + e * e * 0.45) * M.size * (0.85 + s1 * 0.3)
+        let alpha = (0.1 + depth * 0.5 + e * e * 0.45) * alphaMul * alphaK
+        // Highs: a few particles sparkle (a different few every ~50 ms).
+        if (!calm && S.highE > 0.04 && hash(n * 1.7 + Math.floor(t * 20)) < S.highE * 0.25) {
+          size *= 1.4
+          alpha *= 2
+        }
+        if (scale === 1 && alphaMul === 1) {
+          projX[n] = sx
+          projY[n] = sy
+          projD[n] = depth
+          projE[n] = e
+        }
         dot(sx, sy, size, alpha, py < -0.34 ? cLo : py < 0.34 ? cMi : cHi)
       }
     }
@@ -393,6 +495,37 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
     // Reverse swell (RenderInfo.motion): the halo inhales toward the core until the first word.
     if (tr?.swell != null && !calm) shell(1.62 - 0.55 * tr.swell, 0.1 + 0.3 * tr.swell, 2)
     shell(1, 1, 1)
+
+    // Plexus: when the voice pushes, near neighbours on the sphere link up (Fibonacci offsets are neighbours).
+    const push = clamp((S.midE + S.lowE) * 1.6 + clamp(S.burst) * 0.6 - 0.12)
+    if (!calm && push > 0.02 && M.clusters < 0.5) {
+      // Batched: each link goes into one of four alpha buckets, stroked once each (a stroke per line costs 60 fps).
+      const buckets: Path2D[] = [new Path2D(), new Path2D(), new Path2D(), new Path2D()]
+      const maxD = R0 * 0.32
+      for (let n = 0; n < N; n++) {
+        for (const off of [21, 34]) {
+          const m = n + off
+          if (m >= N) continue
+          const dz = Math.min(projD[n]!, projD[m]!)
+          if (dz < 0.4) continue
+          const dx = projX[n]! - projX[m]!
+          const dy = projY[n]! - projY[m]!
+          const dd = dx * dx + dy * dy
+          if (dd > maxD * maxD || dd < 1) continue
+          const a = push * (projE[n]! + projE[m]!) * 0.5 * dz
+          if (a < 0.02) continue
+          const b = buckets[Math.min(3, Math.floor(a * 8))]!
+          b.moveTo(projX[n]!, projY[n]!)
+          b.lineTo(projX[m]!, projY[m]!)
+        }
+      }
+      T.lineWidth = 0.6
+      T.strokeStyle = cMi
+      buckets.forEach((b, i) => {
+        T.globalAlpha = Math.min(1, ((i + 0.5) / 8) * 0.55 * alphaK * gain)
+        T.stroke(b)
+      })
+    }
 
     // PACT: stack voices as faint satellite shells.
     const sats = M.satellites > 0.05 ? Math.min(3, o.stackCount) : 0
@@ -469,7 +602,7 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   const gl = x.createRadialGradient(cx, cy, 0, cx, cy, R0 * (1.5 + ret * 0.35))
   const warm = blend(HX(th.amber), blend(HX(th.ice), ink, 0.5), M.pale)
   // Less bloom: a faint glow that lifts a little on loud passages.
-  gl.addColorStop(0, css(warm, (0.025 + lv * 0.12 + ret * 0.07 + (tr?.squelch ? 0.06 : 0)) * glowA))
+  gl.addColorStop(0, css(warm, (0.025 + lv * 0.12 + clamp(S.burst) * 0.1 + ret * 0.07 + (tr?.squelch ? 0.06 : 0)) * glowA))
   gl.addColorStop(0.6, css(HX(th.accent), (0.01 + lv * 0.04) * glowA))
   gl.addColorStop(1, css(HX(th.accent), 0))
   x.fillStyle = gl
@@ -496,6 +629,28 @@ export function drawCore(cv: HTMLCanvasElement | null, o: CoreInputs): CoreLayou
   if (S.f0a > 0.02) ring(S.f0y, 1, CALM * S.f0a * (0.06 + 0.2 * (0.4 + lv)), tint(ink))
   // Throw echoes: a ring that flashes and widens as each echo sounds.
   if (tr && tr.echo > 0.01 && !calm) ring(0, 1.06 + (1 - tr.echo) * 0.45, tr.echo * 0.45, cMi)
+  // Shockwaves: each hit sends an equatorial ring out from the core that fades as it widens.
+  if (!calm) {
+    S.waves = S.waves.filter((wv) => o.now - wv.t0 < 700)
+    for (const wv of S.waves) {
+      const age = (o.now - wv.t0) / 700
+      const a = (1 - age) * (1 - age) * wv.k * 0.55 * Math.min(1, CALM * (o.gain ?? 1) * 1.4)
+      ring(0, 1.02 + easeOut(age) * 0.95, a, age < 0.25 ? tint(ink) : cMi)
+    }
+  }
+
+  // LEGION: radio scanlines rolling down the panel, flaring on hits and hiss.
+  if (M.scan > 0.05 && !calm) {
+    x.fillStyle = cMi
+    for (let i = 0; i < 3; i++) {
+      const yy = ((t * 0.18 + i / 3) % 1) * h
+      x.globalAlpha = Math.min(1, M.scan * (0.05 + S.highE * 0.5 + clamp(S.burst) * 0.35) * alphaK * 2)
+      x.fillRect(0, Math.round(yy), w, 1)
+    }
+    x.globalAlpha = Math.min(1, 0.035 * M.scan)
+    for (let yy = 0; yy < h; yy += 3) x.fillRect(0, yy, w, 1)
+    x.globalAlpha = 1
+  }
 
   // LEGION: static speckle over the core (still under Reduce Motion); the plan's squelch bursts it.
   const specks = Math.round(90 * M.speckle) + (tr?.squelch ? 110 : 0)

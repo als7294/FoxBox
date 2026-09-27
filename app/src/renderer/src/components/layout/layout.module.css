@@ -508,3 +508,64 @@
 .shell:has(> [data-update-bar]) > .main {
   grid-row: 3;
 }
+
+/* ---------------------------------------------------------------- 1.2.3 glass (tokens.css): top-bar controls */
+.engine,
+.tempo,
+.keyBox,
+.bars,
+.chip {
+  background: var(--vb-glass-fill);
+  backdrop-filter: var(--vb-glass-blur);
+  border: 1px solid var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+  box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+}
+.tempo {
+  overflow: hidden; /* TAP's hover fill follows the rounded corner */
+}
+.chip:hover,
+.tap:hover {
+  background: var(--vb-glass-fill-hi);
+}
+.barBtn {
+  border-radius: calc(var(--vb-glass-radius) - 3px);
+  corner-shape: var(--vb-glass-corner);
+}
+.barBtn[aria-checked='true'] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 4px rgba(var(--vb-shadow-rgb), 0.45);
+}
+.loud {
+  background: linear-gradient(180deg, rgba(var(--vb-amber-rgb), 0.14), rgba(var(--vb-amber-rgb), 0.04));
+  backdrop-filter: var(--vb-glass-blur);
+  border-color: rgba(var(--vb-amber-rgb), 0.35);
+  border-top-color: rgba(var(--vb-amber-rgb), 0.62);
+  box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+}
+/* RENDER: the one glossy accent in the bar (dark label on ember stays AA) */
+.render {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vb-accent) 80%, #fff) 0%,
+    var(--vb-accent) 48%,
+    color-mix(in srgb, var(--vb-accent) 88%, #000) 100%
+  );
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+  box-shadow:
+    var(--vb-accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 6px rgba(var(--vb-shadow-rgb), 0.22);
+}
+.render:hover {
+  box-shadow:
+    0 0 30px rgba(var(--vb-accent-rgb), calc(0.5 * var(--vb-glow))),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 6px rgba(var(--vb-shadow-rgb), 0.22);
+}

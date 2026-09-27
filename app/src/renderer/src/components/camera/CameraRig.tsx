@@ -66,6 +66,19 @@ function cameraError(err: unknown): string {
   return `The camera didn't start: ${(err as Error)?.message ?? String(err)}`
 }
 
+/** A group of settings rows: a titled glass card. */
+function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className={styles.section} aria-label={title}>
+      <header className={styles.sectionHead}>
+        <h3 className={styles.sectionTitle}>{title}</h3>
+        {aside && <span className={styles.sectionAside}>{aside}</span>}
+      </header>
+      {children}
+    </section>
+  )
+}
+
 /** A settings row in RECORD's style: the label, then the control. */
 function Row({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -433,7 +446,7 @@ export function CameraRig({
         L,
         {
           video: v,
-          core: drawCoreAt && !s.film ? drawCoreAt(L.cam.w, L.cam.h, now, dropT) : null,
+          core: drawCoreAt && !s.film ? drawCoreAt(L.cam.w, L.cam.h, now, dropT, s.drop) : null,
           faces: s.tracks.map((t) => t.box),
           // Until faces can be found (or if the detector fails), the whole picture is hidden.
           wholeFrame: s.settings.wholeFrame || !s.detector || now < s.settleUntil,
@@ -604,7 +617,15 @@ export function CameraRig({
       const plain = mime.startsWith('video/mp4') ? defragment(await blob.arrayBuffer()) : null
       if (plain) blob = new Blob([plain], { type: mime })
       if (!s.alive) return
-      setClip({ url: URL.createObjectURL(blob), name: clipName(mime, s.words.map((w) => w.w)), mime, size: blob.size })
+      setClip({
+        url: URL.createObjectURL(blob),
+        name: clipName(
+          mime,
+          s.words.map((w) => w.w),
+        ),
+        mime,
+        size: blob.size,
+      })
       setPhase('done')
     }
     s.stopRecording = () => {
@@ -684,7 +705,7 @@ export function CameraRig({
           </div>
         )}
         {cam === 'error' && <p className={styles.error}>{error}</p>}
-        {phase === 'idle' && <div className={styles.recSpot}>{recButton}</div>}
+        {phase === 'idle' && recButton && <div className={styles.recSpot}>{recButton}</div>}
       </div>
     </div>
   )
@@ -692,25 +713,8 @@ export function CameraRig({
   const settingsRows = (
     <div className={styles.settings}>
       {error && cam !== 'error' && <p className={styles.error}>{error}</p>}
-      <Row title="FORMAT">
-        <Segmented
-          label="Format"
-          hideLabel
-          size="sm"
-          value={settings.format}
-          disabled={busy}
-          options={[
-            { value: 'vertical' as const, label: '9:16 VERTICAL' },
-            { value: 'horizontal' as const, label: '16:9 WIDE' },
-          ]}
-          onChange={(format) => camera.set({ format })}
-        />
-      </Row>
-      <Row title="SUBTITLES">
-        <Switch label="Subtitles" hideLabel checked={subtitles} onChange={(on) => useViewPrefs.getState().setClipSubtitles(on)} />
-      </Row>
       {source === 'camera' && (
-        <>
+        <Section title="MASK" aside="ON THIS MAC">
           <Row title="HIDE">
             <Segmented
               label="Hide"
@@ -760,149 +764,170 @@ export function CameraRig({
               onChange={(coverage) => camera.set({ coverage })}
             />
           )}
-        </>
+        </Section>
       )}
-      <Row title="SOUND">
-        <Segmented
-          label="Clip sound"
-          hideLabel
-          size="sm"
-          value={settings.sound}
-          disabled={busy}
-          options={[
-            { value: 'drop' as const, label: 'DROP ONLY' },
-            { value: 'song' as const, label: 'DROP + SONG' },
-          ]}
-          onChange={(sound) => camera.set({ sound })}
-        />
-      </Row>
-      {settings.sound === 'song' &&
-        (song && songBuffer ? (
-          <>
-            <Row title="SONG">
-              <div className={styles.song}>
-                <span title={song.name}>♪ {song.name}</span>
-                <button type="button" aria-label="Remove the song" onClick={() => songs.clear()} disabled={busy}>
-                  ×
-                </button>
-              </div>
-            </Row>
-            <Slider
-              title="DROP LVL"
-              value={placement.dropGainDb}
-              min={-24}
-              max={6}
-              step={0.5}
-              show={dbText}
-              onChange={(dropGainDb) => songs.setPlacement({ dropGainDb })}
-            />
-            <Slider
-              title="SONG LVL"
-              value={placement.songGainDb}
-              min={-24}
-              max={6}
-              step={0.5}
-              show={dbText}
-              onChange={(songGainDb) => songs.setPlacement({ songGainDb })}
-            />
-            {grid && (
+      <Section
+        title="CLIP"
+        aside={dropTiming ? `${(watermark ? clipLength(plan.length, plan.dropEnd) : plan.length).toFixed(1)} S` : undefined}
+      >
+        <Row title="FORMAT">
+          <Segmented
+            label="Format"
+            hideLabel
+            size="sm"
+            value={settings.format}
+            disabled={busy}
+            options={[
+              { value: 'vertical' as const, label: '9:16 VERTICAL' },
+              { value: 'horizontal' as const, label: '16:9 WIDE' },
+            ]}
+            onChange={(format) => camera.set({ format })}
+          />
+        </Row>
+        <Row title="SUBTITLES">
+          <Switch label="Subtitles" hideLabel checked={subtitles} onChange={(on) => useViewPrefs.getState().setClipSubtitles(on)} />
+        </Row>
+        <Row title="SOUND">
+          <Segmented
+            label="Clip sound"
+            hideLabel
+            size="sm"
+            value={settings.sound}
+            disabled={busy}
+            options={[
+              { value: 'drop' as const, label: 'DROP ONLY' },
+              { value: 'song' as const, label: 'DROP + SONG' },
+            ]}
+            onChange={(sound) => camera.set({ sound })}
+          />
+        </Row>
+        {settings.sound === 'song' &&
+          (song && songBuffer ? (
+            <>
+              <Row title="SONG">
+                <div className={styles.song}>
+                  <span title={song.name}>♪ {song.name}</span>
+                  <button type="button" aria-label="Remove the song" onClick={() => songs.clear()} disabled={busy}>
+                    ×
+                  </button>
+                </div>
+              </Row>
               <Slider
-                title="DROP AT"
-                value={placement.atBar}
-                min={1}
-                max={lastBar(grid, song.duration_s)}
-                show={(v) => `BAR ${v}`}
-                disabled={busy || previewing}
-                onChange={(atBar) => songs.setPlacement({ atBar })}
+                title="DROP LVL"
+                value={placement.dropGainDb}
+                min={-24}
+                max={6}
+                step={0.5}
+                show={dbText}
+                onChange={(dropGainDb) => songs.setPlacement({ dropGainDb })}
               />
-            )}
-            <p className={styles.hint} data-testid="camera-beat-drop">
-              {!grid ? (
-                song.analysis_state === 'error' ? (
-                  found != null ? (
-                    `Your drop's last word lands on the song's first big beat drop (${mmss(found)}).`
-                  ) : (
-                    'No big beat drop found: the drop starts with the song.'
-                  )
-                ) : (
-                  "Reading the song's bars…"
-                )
-              ) : placement.auto ? (
-                `Auto: your drop's last word lands on the song's first big beat drop. Same placement as the Studio's SONG strip.`
-              ) : (
-                <button type="button" onClick={() => songs.autoPlace()} disabled={busy || previewing}>
-                  ↺ Back to auto (the first big beat drop)
-                </button>
+              <Slider
+                title="SONG LVL"
+                value={placement.songGainDb}
+                min={-24}
+                max={6}
+                step={0.5}
+                show={dbText}
+                onChange={(songGainDb) => songs.setPlacement({ songGainDb })}
+              />
+              {grid && (
+                <Slider
+                  title="DROP AT"
+                  value={placement.atBar}
+                  min={1}
+                  max={lastBar(grid, song.duration_s)}
+                  show={(v) => `BAR ${v}`}
+                  disabled={busy || previewing}
+                  onChange={(atBar) => songs.setPlacement({ atBar })}
+                />
               )}
-            </p>
-          </>
+              <p className={styles.hint} data-testid="camera-beat-drop">
+                {!grid ? (
+                  song.analysis_state === 'error' ? (
+                    found != null ? (
+                      `Your drop's last word lands on the song's first big beat drop (${mmss(found)}).`
+                    ) : (
+                      'No big beat drop found: the drop starts with the song.'
+                    )
+                  ) : (
+                    "Reading the song's bars…"
+                  )
+                ) : placement.auto ? (
+                  `Auto: your drop's last word lands on the song's first big beat drop. Same placement as the Studio's SONG strip.`
+                ) : (
+                  <button type="button" onClick={() => songs.autoPlace()} disabled={busy || previewing}>
+                    ↺ Back to auto (the first big beat drop)
+                  </button>
+                )}
+              </p>
+            </>
+          ) : (
+            <Row title="SONG">
+              {songBusy ? (
+                <span className={styles.value}>{songBusy}</span>
+              ) : (
+                <Button size="sm" onClick={() => songInput.current?.click()} disabled={busy} data-testid="camera-add-song">
+                  + ADD A SONG
+                </Button>
+              )}
+            </Row>
+          ))}
+        {settings.sound === 'song' && songError && <p className={styles.error}>{songError}</p>}
+        <input
+          ref={songInput}
+          type="file"
+          accept="audio/*,.aif,.aiff,.aifc"
+          hidden
+          data-testid="camera-song-file"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void addSong(f)
+          }}
+        />
+
+        {phase === 'done' && clip ? (
+          <div className={styles.clipActions}>
+            <a
+              className={common.button}
+              data-variant="ink"
+              href={clip.url}
+              download={clip.name}
+              draggable
+              data-testid="camera-save"
+              onDragStart={(e) => e.dataTransfer.setData('DownloadURL', `${clip.mime.split(';')[0]}:${clip.name}:${clip.url}`)}
+              title={`Save ${clip.name} (${(clip.size / 1e6).toFixed(1)} MB), or drag it out`}
+            >
+              SAVE CLIP · {(clip.size / 1e6).toFixed(1)} MB
+            </a>
+            <Button onClick={() => setPhase('idle')} data-testid="camera-again">
+              BACK TO CAMERA
+            </Button>
+          </div>
         ) : (
-          <Row title="SONG">
-            {songBusy ? (
-              <span className={styles.value}>{songBusy}</span>
+          <div className={styles.clipActions}>
+            <Button onClick={() => void listen()} disabled={!dropTiming || busy} data-testid="camera-preview">
+              {previewing ? '■ STOP' : '▶ LISTEN'}
+            </Button>
+            {busy ? (
+              <Button variant="danger" size="lg" onClick={() => st.current.stopRecording?.()} disabled={phase === 'counting'}>
+                ■ STOP CLIP
+              </Button>
             ) : (
-              <Button size="sm" onClick={() => songInput.current?.click()} disabled={busy} data-testid="camera-add-song">
-                + ADD A SONG
+              <Button variant="ink" size="lg" disabled={!canClip} onClick={() => void makeClip()} data-testid="camera-record">
+                {takeVideo ? 'MAKE CLIP' : source === 'camera' ? '● RECORD CLIP' : 'MAKE CLIP'}
               </Button>
             )}
-          </Row>
-        ))}
-      {settings.sound === 'song' && songError && <p className={styles.error}>{songError}</p>}
-      <input
-        ref={songInput}
-        type="file"
-        accept="audio/*,.aif,.aiff,.aifc"
-        hidden
-        data-testid="camera-song-file"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          e.target.value = ''
-          if (f) void addSong(f)
-        }}
-      />
-
-      {phase === 'done' && clip ? (
-        <div className={styles.buttons}>
-          <a
-            className={common.button}
-            data-variant="ink"
-            href={clip.url}
-            download={clip.name}
-            draggable
-            data-testid="camera-save"
-            onDragStart={(e) => e.dataTransfer.setData('DownloadURL', `${clip.mime.split(';')[0]}:${clip.name}:${clip.url}`)}
-            title={`Save ${clip.name} (${(clip.size / 1e6).toFixed(1)} MB), or drag it out`}
-          >
-            SAVE CLIP · {(clip.size / 1e6).toFixed(1)} MB
-          </a>
-          <Button onClick={() => setPhase('idle')} data-testid="camera-again">
-            BACK TO CAMERA
-          </Button>
-        </div>
-      ) : (
-        <div className={styles.buttons}>
-          <Button onClick={() => void listen()} disabled={!dropTiming || busy} data-testid="camera-preview">
-            {previewing ? '■ STOP' : '▶ LISTEN'}
-          </Button>
-          {busy ? (
-            <Button variant="danger" onClick={() => st.current.stopRecording?.()} disabled={phase === 'counting'}>
-              ■ STOP CLIP
-            </Button>
-          ) : (
-            <Button variant="ink" disabled={!canClip} onClick={() => void makeClip()} data-testid="camera-record">
-              {takeVideo ? 'MAKE CLIP' : '● RECORD CLIP'}
-              {dropTiming ? ` · ${(watermark ? clipLength(plan.length, plan.dropEnd) : plan.length).toFixed(1)} S` : ''}
-            </Button>
-          )}
-        </div>
-      )}
-      <p className={styles.hint}>
-        {!render
-          ? 'Record a take (the camera films it too), or type a line and render it. Then make the clip.'
-          : takeVideo
-            ? `MAKE CLIP: ${take?.name ?? 'the take'}'s video, faces hidden, over the drop${withSong ? ' and the song' : ''}.`
-            : `RECORD CLIP films the camera over the drop${withSong ? ' and the song' : ''}. The sound is never the microphone.`}
-      </p>
+          </div>
+        )}
+        <p className={styles.hint}>
+          {!render
+            ? 'Record a take (the camera films it too), or type a line and render it. Then make the clip.'
+            : takeVideo
+              ? `MAKE CLIP: ${take?.name ?? 'the take'}'s video, faces hidden, over the drop${withSong ? ' and the song' : ''}.`
+              : `RECORD CLIP films the camera over the drop${withSong ? ' and the song' : ''}. The sound is never the microphone.`}
+        </p>
+      </Section>
     </div>
   )
 

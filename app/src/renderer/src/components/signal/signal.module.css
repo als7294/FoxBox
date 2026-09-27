@@ -841,3 +841,42 @@
     opacity: 0.6;
   }
 }
+
+/* ---------------------------------------------------------------- 1.2.3 glass (tokens.css): strip controls */
+.play,
+.ab,
+.loop,
+.metro,
+.chip {
+  backdrop-filter: var(--vb-glass-blur);
+  box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+}
+.ab,
+.metro {
+  background: var(--vb-glass-fill);
+  border-color: var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+}
+.metro[data-on] {
+  border-color: var(--vb-amber-line);
+}
+.play:not([aria-pressed='true']) {
+  background: linear-gradient(180deg, rgba(var(--vb-accent-rgb), 0.13), rgba(var(--vb-accent-rgb), 0.03));
+}
+.play[aria-pressed='true'] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vb-accent) 80%, #fff), var(--vb-accent) 55%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), var(--vb-glass-shadow);
+}
+.loop:not([aria-pressed='true']) {
+  background: linear-gradient(180deg, rgba(var(--vb-amber-rgb), 0.1), rgba(var(--vb-amber-rgb), 0.02));
+}
+.ab button,
+.metroToggle {
+  border-radius: calc(var(--vb-glass-radius) - 3px);
+  corner-shape: var(--vb-glass-corner);
+}
+.ab button[aria-pressed='true'] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}

@@ -19,7 +19,7 @@ function isActive(m: ModuleSpec, enabled: Map<string, boolean>): boolean {
   return m.available !== false && (enabled.get(m.id) ?? false)
 }
 
-/** RACK panel: preset strip (+ SAVE), the four macro knobs with their map rings, and OPEN RACK. */
+/** RACK panel: OPEN RACK on top, then the preset strip (+ SAVE) and the four macro knobs with their map rings. */
 export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: readonly Preset[] }) {
   const macros = useStudio((s) => s.macros)
   const macroMap = useStudio((s) => s.macroMap)
@@ -33,6 +33,28 @@ export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: re
   const save = () => useUi.getState().setSavePresetOpen(true)
   return (
     <section className={styles.rack} aria-label="Rack" data-reveal="4">
+      <button
+        type="button"
+        className={styles.openRack}
+        aria-label="Open rack"
+        aria-expanded={open}
+        aria-controls={DRAWER_ID}
+        onClick={() => studio.setRackOpen(true)}
+      >
+        <span className={styles.leds} aria-hidden="true">
+          {rack.modules.slice(0, 10).map((m) => (
+            <span key={m.id} data-on={isActive(m, enabled) || undefined} />
+          ))}
+        </span>
+        <span className={styles.openLabel}>OPEN RACK</span>
+        <span className={styles.openMeta}>
+          {rack.modules.length} MODULES · {active} ACTIVE
+        </span>
+        <span className={styles.flex} />
+        <span className={styles.openArrow} aria-hidden="true">
+          ↑
+        </span>
+      </button>
       <div className={styles.rackHead}>
         <div className={styles.rackTitle}>
           <span className={styles.panelTitle}>RACK</span>
@@ -59,28 +81,6 @@ export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: re
           )
         })}
       </div>
-      <button
-        type="button"
-        className={styles.openRack}
-        aria-label="Open rack"
-        aria-expanded={open}
-        aria-controls={DRAWER_ID}
-        onClick={() => studio.setRackOpen(true)}
-      >
-        <span className={styles.leds} aria-hidden="true">
-          {rack.modules.slice(0, 10).map((m) => (
-            <span key={m.id} data-on={isActive(m, enabled) || undefined} />
-          ))}
-        </span>
-        <span className={styles.openLabel}>OPEN RACK</span>
-        <span className={styles.openMeta}>
-          {rack.modules.length} MODULES · {active} ACTIVE
-        </span>
-        <span className={styles.flex} />
-        <span className={styles.openArrow} aria-hidden="true">
-          ↑
-        </span>
-      </button>
     </section>
   )
 }

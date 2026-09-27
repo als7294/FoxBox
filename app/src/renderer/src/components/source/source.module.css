@@ -215,10 +215,103 @@
 .record {
   flex: 1;
   min-height: 0;
-  padding: 14px 16px 16px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
+}
+/* INPUT, CLEAN-UP, CAMERA: one tight block, labels in one column. */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.setup > * {
+  gap: var(--space-3);
+}
+.setup .kicker {
+  flex: none;
+  width: 72px;
+}
+/* Under the preview: time + state on the left, REC (the tab's hero) on the right. */
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.transport .recInfo {
+  align-items: flex-start;
+  min-width: 0;
+}
+.transport .recLabel {
+  text-align: left;
+}
+.recHero {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 52px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: 999px;
+  background: var(--vb-accent);
+  color: var(--vb-bg);
+  font: var(--vb-display-weight) 20px/1 var(--vb-font-display);
+  letter-spacing: 0.16em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    var(--vb-accent-glow);
+  transition:
+    transform var(--vb-fast),
+    background var(--vb-fast);
+}
+.recHero:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.recHero:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.recHero:disabled {
+  opacity: 0.5;
+}
+.recHero[data-state='count'] {
+  background: none;
+  color: var(--vb-amber);
+  box-shadow: inset 0 0 0 2px var(--vb-amber);
+}
+.recHero[data-state='rec'] {
+  animation: recPulse 1.2s ease-in-out infinite;
+}
+@keyframes recPulse {
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 0 0 6px rgba(var(--vb-accent-rgb), 0.18),
+      var(--vb-accent-glow);
+  }
+}
+.recDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.recHero[data-state='rec'] .recDot {
+  border-radius: 2px;
+}
+.recKey {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(var(--vb-shadow-rgb), 0.25);
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .recHero[data-state='rec'] {
+    animation: none;
+  }
 }
 .inputRow {
   display: flex;
@@ -595,11 +688,11 @@
   display: flex;
   flex-direction: column;
 }
-/* With the camera on, RECORD is taller than the panel: it scrolls, everything at its own height. */
-.record[data-camera='on'] {
+/* RECORD is taller than the panel (both modes carry the clip preview): it scrolls, everything at its own height. */
+.recordWrap .record {
   overflow-y: auto;
 }
-.record[data-camera='on'] > * {
+.recordWrap .record > * {
   flex-shrink: 0;
 }
 /* VOICE ONLY / VOICE + CAMERA: the same row as CLEAN-UP. */
@@ -618,29 +711,6 @@
   color: var(--vb-amber);
   font: 700 9px var(--vb-font-mono);
   letter-spacing: 0.1em;
-}
-/* The take's REC button on the camera preview: the orb's colours, pocket-sized. */
-.camRec {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  border: 2px solid var(--vb-accent);
-  background: rgba(var(--vb-shadow-rgb), 0.55);
-  color: var(--vb-accent);
-  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
-  letter-spacing: 0.12em;
-  box-shadow: var(--vb-accent-glow);
-}
-.camRec[data-state='rec'] {
-  background: var(--vb-accent);
-  color: var(--vb-bg);
-}
-.camRec[data-state='count'] {
-  color: var(--vb-amber);
-  border-color: var(--vb-amber);
-}
-.camRec:focus-visible {
-  outline-offset: 4px;
 }
 .cleanupSeg {
   flex: 1;

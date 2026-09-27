@@ -2538,6 +2538,35 @@ components:
           minimum: 0.0
           title: Fade Out Ms
           default: 30.0
+        chop:
+          type: string
+          enum:
+          - 'off'
+          - beat
+          - 2beats
+          - bar
+          - custom
+          title: Chop
+          description: 'v0.8 ARRANGE: ''off'' = today''s fit. Otherwise the line is chopped at word boundaries and each piece
+            starts on the grid: every beat, every 2 beats, every bar, or at chop_slots (''custom''). A piece only stretches
+            (R3, within max_stretch) or squeezes when it would overlap the next; speech is never cut.'
+          default: 'off'
+        chop_unit:
+          type: string
+          enum:
+          - word
+          - chunk
+          title: Chop Unit
+          description: 'v0.8: chop per word, or per ''|'' chunk.'
+          default: word
+        chop_slots:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ChopSlot'
+            type: array
+          - type: 'null'
+          title: Chop Slots
+          description: 'v0.8: custom placements (chop=''custom'').'
       additionalProperties: false
       type: object
       title: Arrange
@@ -2716,6 +2745,26 @@ components:
       additionalProperties: false
       type: object
       title: Chain
+    ChopSlot:
+      properties:
+        index:
+          type: integer
+          minimum: 0.0
+          title: Index
+        beat:
+          type: number
+          minimum: 0.0
+          title: Beat
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - beat
+      title: ChopSlot
+      description: 'v0.8: one chopped piece and where it starts. `index` counts words (or ''|'' chunks) across the whole line,
+        in
+
+        order, from 0; `beat` is the start in beats from the file''s first downbeat.'
     ErrorEnvelope:
       properties:
         error:
@@ -4128,6 +4177,14 @@ components:
           - $ref: '#/components/schemas/Motion'
           - type: 'null'
           description: Voice-core motion data (v0.5); None when fx doesn't provide it.
+        chop:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ChopSlot'
+            type: array
+          - type: 'null'
+          title: Chop
+          description: 'v0.8: where each chopped piece landed (None when chop is off).'
       additionalProperties: false
       type: object
       required:

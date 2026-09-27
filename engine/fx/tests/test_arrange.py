@@ -317,3 +317,52 @@ def test_snap_end_with_beat_lock(remember):
     far = A.plan_placement(remember.audio, SR, remember.info.segments, bpm=120, bars=8, beat_lock=True, snap_end="beat")
     assert far.factor == 1.0 and "out of stretch reach" in far.fit.message
 
+
+
+# --------------------------------------------------------------------------- v0.8 chop
+
+
+def _four_words(lengths=(0.2, 0.2, 0.2, 0.2), gap=0.05):
+    """Four tone bursts ("words") with word timings, as one segment."""
+    t, words, x = 0.1, [], np.zeros((1, int(SR * (0.2 + sum(lengths) + gap * 4))), np.float32)
+    for i, ln in enumerate(lengths):
+        a, b = int(t * SR), int((t + ln) * SR)
+        x[0, a:b] = 0.5 * np.sin(2 * np.pi * 220 * np.arange(b - a) / SR)
+        words.append({"text": f"W{i}", "start_s": t, "end_s": t + ln})
+        t += ln + gap
+    return x, [{"index": 0, "text": "W0 W1 W2 W3", "start_s": words[0]["start_s"], "end_s": words[-1]["end_s"],
+                "flags": {}, "words": words}]
+
+
+def test_chop_beat_puts_each_word_on_its_beat():
+    x, segs = _four_words()
+    plan = A.plan_placement(x, SR, segs, bpm=120, bars="auto", chop="beat")
+    beat = beat_seconds(120)
+    assert plan.chop == [(0, 0.0), (1, 1.0), (2, 2.0), (3, 3.0)] and plan.fit.bars == 1
+    assert [round(st * SR) for st in plan.starts_s] == [round(k * beat * SR) for k in range(4)]  # exact samples
+    out = A.apply_placement(plan, x)
+    for k in range(4):  # each word sounds from its beat (the 1 ms pre-roll of the onset, then the 5 ms fade)
+        slot = int(round(k * beat * SR))
+        a = max(0, slot - int(0.002 * SR))
+        assert 0 <= (a + _onset(out[:, a: slot + int(0.2 * SR)])) - slot <= int(0.004 * SR)
+    assert [w.start_s for w in plan.placed[0].words] == pytest.approx([0, beat, 2 * beat, 3 * beat], abs=0.002)
+
+
+def test_chop_custom_slots_squeeze_then_slide_never_cut():
+    x, segs = _four_words(lengths=(0.2, 0.2, 0.26, 0.2))
+    beat = beat_seconds(120)
+    slots = [{"index": 0, "beat": 0}, {"index": 1, "beat": 2}, {"index": 2, "beat": 2.5}, {"index": 3, "beat": 3}]
+    plan = A.plan_placement(x, SR, segs, bpm=120, bars=2, chop="custom", chop_slots=slots)
+    assert plan.chop == [(0, 0.0), (1, 2.0), (2, 2.5), (3, 3.0)]  # honoured
+    assert 1.0 < plan.factors[2] <= 1.08 and plan.fit.status == "stretched"  # squeezed into its half beat
+    speech = [(c.speech_end - c.src0) / SR for c in plan.chunks]
+    assert plan.starts_s[2] + speech[2] / plan.factors[2] <= plan.starts_s[3] + 1e-9
+
+    x, segs = _four_words(lengths=(0.2, 0.2, 0.45, 0.2))  # too long for R3's 8 %: the next slot moves, no cut
+    plan = A.plan_placement(x, SR, segs, bpm=120, bars=2, chop="custom", chop_slots=slots)
+    assert plan.chop[:3] == [(0, 0.0), (1, 2.0), (2, 2.5)] and plan.chop[3][1] == 4.0  # next beat after it ends
+    speech = [(c.speech_end - c.src0) / SR for c in plan.chunks]
+    assert plan.starts_s[2] + speech[2] / plan.factors[2] <= plan.starts_s[3] + 1e-9
+    out = A.apply_placement(plan, x)
+    word2 = out[:, int(2.5 * beat * SR): int(4.0 * beat * SR)]
+    assert np.sum(np.abs(word2) > 0.05) / SR >= 0.4  # the whole 0.45 s word is in the render

@@ -7,6 +7,7 @@ import { motionTarget } from '@/visuals/motionProfile'
 import { decodeMotion, motionAt, type MotionTrack } from '@/visuals/motionTrack'
 import { vis } from '@/visuals/state'
 import { theme } from '@/visuals/theme'
+import { DropSpectrum } from './spectrum'
 
 /**
  * VOICE ONLY: the voice core as a clip's picture. Drawn off-screen at the picture's size and driven by the render
@@ -14,7 +15,7 @@ import { theme } from '@/visuals/theme'
  * mix rather than the Studio's player; between drops it follows the mic. Brighter than the Studio's calm panel, since
  * it is the whole picture. Returns the canvas to draw from.
  */
-export function coreSource(): (w: number, h: number, now: number, dropT: number | null) => HTMLCanvasElement {
+export function coreSource(): (w: number, h: number, now: number, dropT: number | null, drop?: AudioBuffer | null) => HTMLCanvasElement {
   const cv = document.createElement('canvas')
   const sm = new Float32Array(64)
   let decoded: { render: RenderInfo | null; track: MotionTrack | null } = {
@@ -22,7 +23,8 @@ export function coreSource(): (w: number, h: number, now: number, dropT: number 
     track: null,
   }
   let last = 0
-  return (w, h, now, dropT) => {
+  const spectrum = new DropSpectrum()
+  return (w, h, now, dropT, drop) => {
     if (cv.width !== Math.round(w) || cv.height !== Math.round(h)) {
       cv.width = Math.round(w)
       cv.height = Math.round(h)
@@ -46,8 +48,9 @@ export function coreSource(): (w: number, h: number, now: number, dropT: number 
       playing,
       // The drop's loudness while it plays; otherwise the mic, so the core answers a take being recorded.
       lvl: playing ? level : Math.min(1, vis.inLvl * 1.5),
-      bins: null,
-      sampleRate: 48_000,
+      // The drop's own spectrum at the playhead, so hits drive the core as in the Studio.
+      bins: playing && drop ? spectrum.at(drop, dropT!) : null,
+      sampleRate: drop?.sampleRate ?? 48_000,
       beatPulse: playing ? Math.exp(-((dropT! / beatS) % 1) * 5) : 0,
       beat,
       stMix: 0,

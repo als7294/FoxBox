@@ -1308,6 +1308,7 @@ class EngineService:
             macros=filled.macros or Macros(), stems=[StemInfo(name=k, audio_id=v) for k, v in stems.items()],
             timings_ms=timings, warnings=[*out.warnings, *warnings],
             motion=getattr(out, "motion", None),  # v0.5: voice-core motion data, when fx provides it
+            chop=getattr(out, "chop", None),  # v0.8: where each chopped piece landed
         )
         meta = {"script": source.info.script or " ".join(g.text for g in source.info.segments if g.text) or None, "source_name": source.info.name, "source_kind": source.info.kind,
                 "voice_id": source.info.voice_id, "preset_name": preset.name if preset else None}

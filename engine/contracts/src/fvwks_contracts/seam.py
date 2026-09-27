@@ -81,6 +81,7 @@ class RenderOutput:
     tail_s: float | None = None  # end of the last word on the output timeline (memory cue 'VOICE OUT'); None only without speech
     bars: int | None = None  # v0.2: bar count actually used (Arrange.bars 'auto' resolved); None = FREE
     motion: "Motion | None" = None  # v0.5: voice-core motion data (events, returns envelope, f0 track)
+    chop: "list | None" = None  # v0.8: list[ChopSlot] where each chopped piece landed (None when chop is off)
     stems: dict[str, np.ndarray] = field(default_factory=dict)  # 'dry' | 'voice' | 'layers' | 'fx'
     timings_ms: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)

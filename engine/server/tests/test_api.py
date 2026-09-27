@@ -2477,3 +2477,15 @@ def test_baked_export_is_the_song_with_the_drop(client, song_fx):
     exported = client.app.state.service.library.count("exports")
     bad = client.post("/api/exports", json={"render_ids": [r["id"]], "bake": {"song_id": song["id"], "at_bar": 99}})
     assert bad.status_code == 422 and client.app.state.service.library.count("exports") == exported  # nothing written
+
+
+def test_chop_lands_every_word_on_a_beat(client):
+    """v0.8 ARRANGE chop through the real render: RenderInfo.chop reports each word's beat; chop is in the cache key."""
+    src = tts(client)
+    n_words = sum(len(s["words"]) for s in src["segments"])
+    chopped = render(client, src["id"], arrange={"bpm": 140, "bars": "auto", "key": "Am", "chop": "beat"})
+    beats = [c["beat"] for c in chopped["chop"]]
+    assert [c["index"] for c in chopped["chop"]] == list(range(n_words)) and beats[0] == 0
+    assert all(b == int(b) for b in beats) and beats == sorted(set(beats))  # whole beats, in order
+    plain = render(client, src["id"], arrange={"bpm": 140, "bars": "auto", "key": "Am"})
+    assert plain["chop"] is None and plain["id"] != chopped["id"]

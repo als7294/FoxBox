@@ -282,15 +282,43 @@ export function Recorder() {
         ? 'GET READY'
         : 'RECORDING · CLICK TO STOP'
   const rate = rec.current?.sampleRate ?? audioContext().sampleRate
+  // Under the preview: the time and what's happening, and REC, the tab's one hero action; then the input meters.
   const info = (
     <>
-      <div className={styles.recInfo}>
-        <span ref={timeEl} className={styles.recTime} aria-hidden="true">
-          00:00.00
-        </span>
-        <span className={styles.recLabel} data-state={state} role="status">
-          {label}
-        </span>
+      <div className={styles.transport}>
+        <div className={styles.recInfo}>
+          <span ref={timeEl} className={styles.recTime} aria-hidden="true">
+            00:00.00
+          </span>
+          <span className={styles.recLabel} data-state={state} role="status">
+            {label}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={styles.recHero}
+          data-state={state}
+          aria-label={
+            state === 'rec'
+              ? 'Stop recording'
+              : state === 'count'
+                ? 'Cancel count-in'
+                : cameraOn
+                  ? 'Start recording (films too)'
+                  : 'Start recording'
+          }
+          aria-keyshortcuts="R"
+          disabled={busy}
+          onClick={toggle}
+        >
+          <span className={styles.recDot} aria-hidden="true" />
+          {state === 'count' ? 'READY' : state === 'rec' ? 'STOP' : 'REC'}
+          {state === 'idle' && (
+            <kbd className={styles.recKey} aria-hidden="true">
+              R
+            </kbd>
+          )}
+        </button>
       </div>
       <div className={styles.meters}>
         <div className={styles.strip}>
@@ -303,55 +331,57 @@ export function Recorder() {
   // Everything around the preview: the same in both layouts.
   const body = (middle: ReactNode) => (
     <div className={styles.record} data-camera={cameraOn ? 'on' : undefined}>
-      <div className={styles.inputRow}>
-        <span className={styles.kicker}>INPUT</span>
-        <select
-          className={styles.device}
-          aria-label="Input device"
-          value={deviceId}
-          disabled={state !== 'idle' || busy}
-          onChange={(e) => {
-            const id = e.target.value
-            setDeviceId(id)
-            try {
-              window.localStorage.setItem(DEVICE_KEY, id)
-            } catch {
-              // private mode: remembered for the session only
-            }
-            // Reopen on the chosen device next time.
-            rec.current?.close()
-            rec.current = null
-          }}
-        >
-          <option value="">DEFAULT INPUT</option>
-          {devices.map((d, i) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `MICROPHONE ${i + 1}`}
-            </option>
-          ))}
-        </select>
-        <span className={styles.rate}>{Math.round(rate / 1000)}k · MONO</span>
-      </div>
-      <CleanupControl />
-      <div className={styles.cameraRow}>
-        <span className={styles.kicker}>CAMERA</span>
-        <div className={styles.cleanupSeg}>
-          <Segmented
-            label="Camera"
-            hideLabel
-            size="sm"
-            value={cameraOn ? 'on' : 'off'}
+      <div className={styles.setup}>
+        <div className={styles.inputRow}>
+          <span className={styles.kicker}>INPUT</span>
+          <select
+            className={styles.device}
+            aria-label="Input device"
+            value={deviceId}
             disabled={state !== 'idle' || busy}
-            options={[
-              { value: 'off' as const, label: 'VOICE ONLY' },
-              { value: 'on' as const, label: 'VOICE + CAMERA' },
-            ]}
-            onChange={(v) => camera.setOn(v === 'on')}
-          />
+            onChange={(e) => {
+              const id = e.target.value
+              setDeviceId(id)
+              try {
+                window.localStorage.setItem(DEVICE_KEY, id)
+              } catch {
+                // private mode: remembered for the session only
+              }
+              // Reopen on the chosen device next time.
+              rec.current?.close()
+              rec.current = null
+            }}
+          >
+            <option value="">DEFAULT INPUT</option>
+            {devices.map((d, i) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label || `MICROPHONE ${i + 1}`}
+              </option>
+            ))}
+          </select>
+          <span className={styles.rate}>{Math.round(rate / 1000)}k · MONO</span>
         </div>
-        <span className={styles.beta} title="The camera is new: tell us how it goes">
-          BETA
-        </span>
+        <CleanupControl />
+        <div className={styles.cameraRow}>
+          <span className={styles.kicker}>CAMERA</span>
+          <div className={styles.cleanupSeg}>
+            <Segmented
+              label="Camera"
+              hideLabel
+              size="sm"
+              value={cameraOn ? 'on' : 'off'}
+              disabled={state !== 'idle' || busy}
+              options={[
+                { value: 'off' as const, label: 'VOICE ONLY' },
+                { value: 'on' as const, label: 'VOICE + CAMERA' },
+              ]}
+              onChange={(v) => camera.setOn(v === 'on')}
+            />
+          </div>
+          <span className={styles.beta} title="The camera is new: tell us how it goes">
+            BETA
+          </span>
+        </div>
       </div>
       {middle}
       <TranscriptEditor />
@@ -387,23 +417,7 @@ export function Recorder() {
   )
   return (
     // VOICE + CAMERA films the takes and puts the camera (faces hidden) in the clip; VOICE ONLY puts the voice core there.
-    <CameraRig
-      key={cameraOn ? 'camera' : 'core'}
-      source={cameraOn ? 'camera' : 'core'}
-      recButton={
-        <button
-          type="button"
-          className={styles.camRec}
-          data-state={state}
-          aria-label={state === 'rec' ? 'Stop recording' : state === 'count' ? 'Cancel count-in' : cameraOn ? 'Start recording (films too)' : 'Start recording'}
-          aria-keyshortcuts="R"
-          disabled={busy}
-          onClick={toggle}
-        >
-          {state === 'count' ? '•••' : state === 'rec' ? 'STOP' : 'REC'}
-        </button>
-      }
-    >
+    <CameraRig key={cameraOn ? 'camera' : 'core'} source={cameraOn ? 'camera' : 'core'} recButton={null}>
       {({ preview, settings, overlay }) => (
         // The overlay (a filmed take playing back) covers the whole tab, over the scrolling body.
         <div className={styles.recordWrap}>

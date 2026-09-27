@@ -25,58 +25,108 @@
   letter-spacing: 0.22em;
   color: var(--vb-dim);
 }
-.tag {
+/* The state, at a glance: EMPTY · PREVIEW · FINAL vNN · STALE · EXPORTING… · ✓ EXPORTED */
+.badge {
   font: 700 9.5px var(--vb-font-mono);
   letter-spacing: 0.14em;
-  padding: 4px 7px;
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
-  border-radius: var(--vb-r1);
+  padding: 4px 8px;
+  border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
+  border-radius: 999px;
   color: var(--vb-dim);
   white-space: nowrap;
 }
-.tag[data-final] {
+.badge[data-look='preview'] {
+  color: var(--vb-ink);
+}
+.badge[data-look='ready'] {
   background: var(--vb-accent);
   border-color: var(--vb-accent);
   color: var(--vb-bg);
 }
-.tag[data-stale] {
-  background: none;
-  border-color: rgba(var(--vb-amber-rgb), 0.45);
+.badge[data-look='stale'],
+.badge[data-look='exporting'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.5);
   color: var(--vb-amber);
 }
+.badge[data-look='exported'] {
+  border-color: var(--vb-ok);
+  color: var(--vb-ok);
+}
 
-/* the cartridge */
+/* the cartridge: a glass card */
 .flexCol {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 .cart {
-  background: linear-gradient(180deg, #151518, #0e0e10);
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.3);
-  border-radius: var(--vb-r3);
-  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+  padding: var(--space-3);
+  min-width: 0;
+  background: var(--vb-glass-fill, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.075), rgba(var(--vb-ink-rgb), 0.025)));
+  border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
+  border-top-color: var(--vb-glass-edge-top, rgba(var(--vb-ink-rgb), 0.26));
+  border-radius: var(--vb-glass-radius-lg, 12px);
+  corner-shape: var(--vb-glass-corner, squircle);
   box-shadow:
-    0 1px 0 rgba(var(--vb-ink-rgb), 0.06) inset,
-    0 14px 30px rgba(0, 0, 0, 0.55);
+    var(--vb-glass-inner, inset 0 1px 0 rgba(255, 255, 255, 0.08)),
+    var(--vb-glass-shadow, 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35));
   transition:
     border-color var(--vb-fast),
+    box-shadow var(--vb-fast),
     opacity var(--vb-fast);
-  min-width: 0;
+}
+.cart[data-look='ready'],
+.cart[data-look='exported'] {
+  border-color: rgba(var(--vb-accent-rgb), 0.45);
 }
 .cart[draggable='true'] {
   cursor: grab;
 }
 .cart[draggable='true']:hover,
 .cart[draggable='true']:focus-visible {
-  border-color: rgba(var(--vb-amber-rgb), 0.7);
+  border-color: rgba(var(--vb-accent-rgb), 0.8);
+  background: var(--vb-glass-fill-hi, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.12), rgba(var(--vb-ink-rgb), 0.045)));
+}
+.cart[draggable='true']:active {
+  cursor: grabbing;
 }
 .cart[data-empty] {
-  opacity: 0.5;
+  opacity: 0.55;
   border-style: dashed;
+  box-shadow: none;
+}
+/* The drop's words lead; the file is under them. */
+.words {
+  font: var(--vb-display-weight) 16px/1.15 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.words[data-muted] {
+  color: var(--vb-dim);
+}
+.filename {
+  font: 500 9.5px/1.4 var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.filename[data-muted] {
+  font-style: italic;
+}
+.wave {
+  margin-top: 2px;
+  padding: var(--space-1) 0;
+  border-radius: var(--vb-r1);
+  background: rgba(var(--vb-shadow-rgb), 0.35);
 }
 .expTrack {
   height: 2px;
@@ -90,45 +140,62 @@
   transform-origin: left;
   transform: scaleX(0);
 }
-.filename {
-  font: 500 10px/1.45 var(--vb-font-mono);
-  word-break: break-all;
-  color: var(--vb-ink);
-  min-height: 29px;
-}
-.filename[data-muted] {
-  color: var(--vb-dim);
-  word-break: normal;
-}
-.facts {
+/* DUR / BPM / KEY / LUFS: label over value, four even cells */
+.readouts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-  font: 500 9.5px var(--vb-font-mono);
-  color: var(--vb-dim);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
+  border-block: 1px solid var(--vb-line);
 }
-.facts div {
+.readouts div {
   display: flex;
-  gap: 5px;
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
   min-width: 0;
 }
-.facts dt {
+.readouts div + div {
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--vb-line);
+}
+.readouts dt {
+  font: 500 8.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
   color: var(--vb-dim);
 }
-.facts dd {
+.readouts dd {
   margin: 0;
+  font: 700 13px/1 var(--vb-font-display);
+  letter-spacing: 0.04em;
   color: var(--vb-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dragHint {
-  font: 500 9px var(--vb-font-mono);
+/* How to take it: a live drag handle once the file is final */
+.dragBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 26px;
+  border-radius: var(--vb-r1);
+  border: 1px dashed rgba(var(--vb-ink-rgb), 0.14);
+  font: 600 9px var(--vb-font-mono);
   letter-spacing: 0.14em;
   color: var(--vb-dim);
-  border-top: 1px dashed rgba(var(--vb-ink-rgb), 0.12);
-  padding-top: 8px;
+  text-align: center;
+}
+.dragBar[data-live] {
+  border-color: rgba(var(--vb-accent-rgb), 0.55);
+  color: var(--vb-ink);
+  background: rgba(var(--vb-accent-rgb), 0.08);
+}
+.grip {
+  color: var(--vb-accent);
+  font-size: 13px;
+  letter-spacing: 0;
 }
 .flex {
   flex: 1;
@@ -288,13 +355,25 @@
   }
   .cart {
     padding: 10px;
-    gap: 7px;
+    gap: 6px;
   }
   .cart canvas {
-    height: 38px;
+    height: 34px;
   }
-  .dragHint {
+  .words {
+    font-size: 14px;
+  }
+  .filename {
     display: none;
+  }
+  .wave {
+    padding: var(--space-1) 0;
+  }
+  .readouts div {
+    padding-block: 6px;
+  }
+  .dragBar {
+    min-height: 24px;
   }
   .exportRow {
     height: 34px;

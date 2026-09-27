@@ -31,6 +31,27 @@
 }
 
 :root {
+  /*
+   * 1.2.3 glass: a little Apple-style liquid glass on the TRANSMISSION dark, for controls, chips, tabs, cards and
+   * popovers only (never whole panels). Blur costs GPU per pixel: use --vb-glass-blur on small surfaces. Text on
+   * glass stays --vb-ink / --vb-dim (AA on these fills). Recipe:
+   *   background: var(--vb-glass-fill);            (hover: --vb-glass-fill-hi)
+   *   backdrop-filter: var(--vb-glass-blur);       (small elements)
+   *   border: 1px solid var(--vb-glass-edge); border-top-color: var(--vb-glass-edge-top);   (top-lit hairline)
+   *   box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);                            (highlight + depth)
+   *   border-radius: var(--vb-glass-radius); corner-shape: var(--vb-glass-corner);        (continuous corners)
+   */
+  --vb-glass-fill: linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.075), rgba(var(--vb-ink-rgb), 0.025));
+  --vb-glass-fill-hi: linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.12), rgba(var(--vb-ink-rgb), 0.045));
+  --vb-glass-blur: blur(12px) saturate(150%);
+  --vb-glass-edge: rgba(var(--vb-ink-rgb), 0.12);
+  --vb-glass-edge-top: rgba(var(--vb-ink-rgb), 0.26);
+  --vb-glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -10px 18px -14px rgba(var(--vb-shadow-rgb), 0.7);
+  --vb-glass-shadow: 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35);
+  --vb-glass-radius: 9px;
+  --vb-glass-radius-lg: 12px;
+  --vb-glass-corner: squircle;
+
   /* derived lines and fills */
   --vb-line: rgba(var(--vb-ink-rgb), 0.08);
   --vb-line-soft: rgba(var(--vb-ink-rgb), 0.05);

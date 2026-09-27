@@ -4,6 +4,10 @@
   fits them into N bars (pad, or Rubber Band R3 stretch of at most ``max_stretch``), applies Beat-Lock
   (a chunk after a ``|`` starts on the next beat), [Nb] pauses at the render tempo, pre-roll
   (``first_word_beat``) and stutter. The first word's onset lands exactly on the pre-roll point.
+- v0.8 CHOP (``Arrange.chop`` not 'off'): the line is cut at word boundaries (or '|' chunks) and each piece's onset
+  lands exactly on its slot: every beat / 2 beats / bar from the first downbeat, or custom beats. A piece is only
+  squeezed (R3, within ``max_stretch``) when its speech would run into the next slot; past that, the next slot slides
+  to the next free grid step. Speech is never cut; a word keeps its natural release where there is room.
 - ``apply_placement`` renders any buffer (wet or dry) with the same plan, so A/B stays sample-aligned.
 - ``tape_stop`` and ``finish`` run after STEREO.
 """
@@ -29,6 +33,9 @@ POST_PAD_S = 0.060
 THROW_LEAD_S = 0.030  # thrown words open this early: TTS word starts can lag the audible onset
 SNAP_NEAR_S = 0.025  # snap_end: when no exact grid landing is in reach, a closest approach this near counts
 TAIL_FLEX = 0.8  # snap_end: the reserved tail may shrink to this share to land on the grid within the bars
+CHOP_STEP_BEATS = {"beat": 1.0, "2beats": 2.0, "bar": 4.0}
+CHOP_FADE_S = 0.005  # chop: fades at every piece edge (cuts fall mid-speech)
+CHOP_RELEASE_S = 0.15  # chop: a word's natural release kept after its end, as far as the next piece allows
 
 
 # --------------------------------------------------------------------------- inputs
@@ -149,6 +156,11 @@ class PlacementPlan:
     fit: Fit
     notes: list[str] = field(default_factory=list)
     word_stutter: tuple[float, int, float] | None = None  # (slice_s, lead-in repeats, share of words)
+    factors: list[float] | None = None  # v0.8 chop: speed factor per chunk (else ``factor`` for all)
+    chop: list[tuple[int, float]] | None = None  # v0.8 chop: (piece index, landed beat) per piece
+
+    def chunk_factor(self, i: int) -> float:
+        return self.factors[i] if self.factors else self.factor
 
 
 # --------------------------------------------------------------------------- helpers
@@ -285,10 +297,17 @@ def plan_placement(
     tail_room_s: float = 0.0,
     snap_end: str = "off",
     stutter_words: float = 0.0,
+    chop: str = "off",
+    chop_unit: str = "word",
+    chop_slots: Sequence[Any] | None = None,
 ) -> PlacementPlan:
     a = as2d(x)
     segs = [seg_from(s, i) for i, s in enumerate(segments or [])]
     segs = sorted([s for s in segs if s.end_s > s.start_s], key=lambda s: s.start_s)
+    if chop != "off" and segs:
+        return _plan_chop(a, sr, segs, bpm=bpm, bars=bars, fit_mode=fit_mode, max_stretch=max_stretch,
+                          tail_beats=tail_beats, tail_room_s=tail_room_s, chop=chop, unit=chop_unit,
+                          slots=chop_slots, stutter_words=stutter_words)
     beat = beat_seconds(bpm)
     first_s = max(0.0, first_word_beat) * beat
     tail_s = max(0.0, tail_beats) * beat
@@ -484,6 +503,124 @@ def plan_placement(
                          word_stut)
 
 
+# --------------------------------------------------------------------------- chop (v0.8)
+
+
+def _chop_spans(segs: list[SegIn], unit: str) -> list[tuple[float, float, list[int]]]:
+    """(source start, source end, segment indices) per piece, in order: one per word (a segment without word
+    timings counts as one piece), or one per '|' chunk."""
+    spans: list[tuple[float, float, list[int]]] = []
+    if unit == "chunk":
+        cur: list[int] = []
+        for i, sg in enumerate(segs):
+            cur.append(i)
+            if sg.beat_break or i == len(segs) - 1:
+                spans.append((segs[cur[0]].start_s, segs[cur[-1]].end_s, cur))
+                cur = []
+        return spans
+    for i, sg in enumerate(segs):
+        words = [w for w in sg.words if w.end_s > w.start_s]
+        spans += [(w.start_s, w.end_s, [i]) for w in words] if words else [(sg.start_s, sg.end_s, [i])]
+    return spans
+
+
+def _plan_chop(x: np.ndarray, sr: int, segs: list[SegIn], *, bpm: float, bars: float | str | None, fit_mode: str,
+               max_stretch: float, tail_beats: float, tail_room_s: float, chop: str, unit: str,
+               slots: Sequence[Any] | None, stutter_words: float) -> PlacementPlan:
+    n = x.shape[1]
+    beat, bar = beat_seconds(bpm), bar_seconds(bpm)
+    spans = _chop_spans(segs, unit)
+    pieces: list[_Chunk] = []
+    for k, (t0, t1, seg_idx) in enumerate(spans):
+        prev_end = spans[k - 1][1] if k else 0.0
+        nxt = spans[k + 1][0] if k + 1 < len(spans) else n / sr
+        lo = int(max(prev_end, t0 - THROW_LEAD_S, 0.0) * sr)  # TTS word starts can lag the audible onset
+        e = max(lo + 1, int(min(n / sr, t1) * sr))
+        src0 = min(lo + onset_sample(x[:, lo:e], sr), e - 1)
+        src1 = max(e, int(min(n / sr, max(t1, min(nxt, t1 + CHOP_RELEASE_S))) * sr))
+        pieces.append(_Chunk(src0, src1, e, seg_idx, True, 0.0, 0.0, 0.0))
+    speech = [(c.speech_end - c.src0) / sr for c in pieces]
+    step = CHOP_STEP_BEATS.get(chop)
+    custom = {}
+    for sl in slots or []:
+        g = _getter(sl)
+        custom[int(g("index", 0))] = max(0.0, float(g("beat", 0.0)))
+    grid = (step or 1.0) * beat  # where a slid slot may land
+    f_max = 1.0 if fit_mode == "pad" else 1.0 + max(0.0, max_stretch)
+    starts: list[float] = []
+    factors: list[float] = []
+    slid = 0
+    for k, c in enumerate(pieces):
+        if step is not None:
+            t = starts[-1] + step * beat if starts else 0.0
+        elif k in custom:
+            t = custom[k] * beat
+        else:  # custom without a slot for this piece: it follows the previous one at the natural spacing
+            t = starts[-1] + (c.src0 - pieces[k - 1].src0) / sr / factors[-1] if starts else 0.0
+        if starts:  # the previous piece's speech must end by t: squeeze it, else slide t to the next grid step
+            gap = t - starts[-1]
+            if gap <= 0 or speech[k - 1] / gap > f_max + 1e-9:
+                t = math.ceil((starts[-1] + speech[k - 1] / f_max) / grid - 1e-9) * grid
+                slid += 1
+            factors[-1] = max(1.0, speech[k - 1] / (t - starts[-1]))
+        starts.append(t)
+        factors.append(1.0)
+    speech_end = max(st + sp / f for st, sp, f in zip(starts, speech, factors))
+    need = speech_end + max(0.0, tail_room_s) + max(0.0, tail_beats) * beat
+    squeezed = max(factors) > 1.0 + 1e-4
+    status, suggestion = ("stretched" if squeezed else "fits"), None
+    if bars is None:
+        length_s = max(1, math.ceil(need / beat - 1e-9)) * beat
+        status = "free"
+    else:
+        whole = max(1, math.ceil(need / bar - 1e-9))
+        if bars == "auto":
+            bars_eff = float(next((b for b in STANDARD_BARS if b >= whole), whole))
+        elif whole > float(bars):  # never cut: grow to the next count that holds every piece
+            bars_eff = float(next((b for b in STANDARD_BARS if b >= whole), whole))
+            status, suggestion = "extended", int(bars_eff)
+        else:
+            bars_eff = float(bars)
+        length_s = bars_eff * bar
+    bars_eff = length_s / bar
+
+    def piece_of(t_src: float, end: bool = False) -> int:
+        at = t_src * sr
+        return max((i for i, c in enumerate(pieces) if (c.src0 < at if end else c.src0 <= at + 1e-6)), default=0)
+
+    def to_tl(t_src: float, end: bool = False, k: int | None = None) -> float:
+        """Source seconds to the output timeline, through the piece that holds them (or piece ``k``)."""
+        k = piece_of(t_src, end) if k is None else k
+        c = pieces[k]
+        at = t_src * sr
+        return starts[k] + min(max(0.0, (at - c.src0) / sr / factors[k]), (c.src1 - c.src0) / sr / factors[k])
+
+    placed = []
+    for i, sg in enumerate(segs):
+        words = [WordIn(w.text, to_tl(w.start_s), to_tl(w.end_s, True), w.throw) for w in sg.words]
+        # a throw span opens a little before its word (THROW_LEAD_S): keep it in that word's piece
+        spans_tl = [(to_tl(p, k=piece_of(q, True)), to_tl(q, True)) for p, q in sg.throw_spans_src()]
+        start = min([w.start_s for w in words], default=to_tl(sg.start_s))
+        placed.append(Placed(sg.index, sg.text, start, max([w.end_s for w in words], default=to_tl(sg.end_s, True)),
+                             sg.throw, sg.raw, words, spans_tl))
+    natural = sum(speech)
+    word = "chunk" if unit == "chunk" else "word"
+    msg = {"fits": f"Chopped: {len(pieces)} {word}s on the grid, {bars_eff:g} bars @ {bpm:g}",
+           "stretched": f"Chopped: {len(pieces)} {word}s on the grid, {sum(f > 1.0 + 1e-4 for f in factors)} squeezed "
+                        f"(max {max(factors):.3f}x), {bars_eff:g} bars @ {bpm:g}",
+           "free": f"Chopped: {len(pieces)} {word}s on the grid, free length {bars_eff:g} bars @ {bpm:g}",
+           "extended": f"Chopped: extended to {bars_eff:g} bars to hold every {word} @ {bpm:g}"}[status]
+    if slid:
+        msg += f" · {slid} slot{'s' if slid > 1 else ''} moved later (too long to squeeze)"
+    fit = Fit(status, bars_eff, float(bpm), natural, length_s, length_s, 1.0 / max(factors), suggestion, msg,
+              max(0.0, tail_room_s))
+    notes = [f"chop {chop} per {word}"]
+    word_stut = (note_seconds("1/32", bpm), 2, min(1.0, stutter_words)) if stutter_words > 0 else None
+    return PlacementPlan(sr, pieces, starts, max(factors), starts[0], None, int(math.ceil(length_s * sr)) + 16,
+                         length_s, speech_end, placed, fit, notes, word_stut, factors,
+                         [(k, round(t / beat, 6)) for k, t in enumerate(starts)])
+
+
 # --------------------------------------------------------------------------- rendering a plan
 
 
@@ -493,15 +630,22 @@ def apply_placement(plan: PlacementPlan, x: np.ndarray, high_quality: bool = Tru
     sr = plan.sr
     out = np.zeros((a.shape[0], plan.n_samples), np.float32)
     fade = int(0.004 * sr)
-    for c, st in zip(plan.chunks, plan.starts_s):
+    for i, (c, st) in enumerate(zip(plan.chunks, plan.starts_s)):
         piece = a[:, c.src0 : c.src1]
         if piece.shape[1] == 0:
             continue
-        if plan.factor != 1.0:
-            piece = stretch(piece, sr, plan.factor, high_quality)
-        # chunks start 1 ms before their onset (see _chunks): a longer fade-in would soften the attack
-        piece = fade_edges(piece, min(int(0.001 * sr), piece.shape[1] // 4), fade)
-        add_at(out, piece, int(round(st * sr)))
+        f = plan.chunk_factor(i)
+        if f != 1.0:
+            piece = stretch(piece, sr, f, high_quality)
+        at = int(round(st * sr))
+        if plan.factors:  # chop: the release only as far as the next piece's slot, 5 ms fades at both cuts
+            if i + 1 < len(plan.starts_s):
+                piece = piece[:, : max(1, int(round(plan.starts_s[i + 1] * sr)) - at)]
+            e = min(int(CHOP_FADE_S * sr), piece.shape[1] // 2)
+            piece = fade_edges(piece, e, e)
+        else:  # chunks start 1 ms before their onset (see _chunks): a longer fade-in would soften the attack
+            piece = fade_edges(piece, min(int(0.001 * sr), piece.shape[1] // 4), fade)
+        add_at(out, piece, at)
     if plan.stutter:
         at_s, slice_s, repeats = plan.stutter
         out = stutter(out, sr, at_s, slice_s, repeats)

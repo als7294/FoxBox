@@ -817,3 +817,54 @@
   background: var(--vb-panel);
 }
 
+
+/* ---------------------------------------------------------------- 1.2.3 glass (tokens.css) */
+/* preset tabs: the sliding highlight is a glass lens over the active tab (the ember underline stays) */
+.presetHi::before {
+  inset: 5px 3px 4px;
+  border: 1px solid var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+  background: linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.08), rgba(var(--vb-accent-rgb), 0.13));
+  box-shadow: var(--vb-glass-inner);
+}
+.preset:hover:not([aria-checked='true']) {
+  background: rgba(var(--vb-ink-rgb), 0.03);
+}
+/* OPEN RACK sits at the top of the panel now */
+.openRack {
+  margin: 10px 10px 0;
+  border-top-color: rgba(var(--vb-amber-rgb), 0.7);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+  backdrop-filter: var(--vb-glass-blur);
+  box-shadow:
+    0 0 calc(18px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    var(--vb-glass-shadow);
+}
+.module {
+  background: var(--vb-glass-fill), var(--vb-card);
+  border: 1px solid var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+  border-radius: var(--vb-glass-radius-lg);
+  corner-shape: var(--vb-glass-corner);
+  box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);
+}
+.module[data-open] {
+  border-color: rgba(var(--vb-amber-rgb), 0.3);
+  border-top-color: rgba(var(--vb-amber-rgb), 0.55);
+}
+.drawerClose {
+  background: var(--vb-glass-fill);
+  backdrop-filter: var(--vb-glass-blur);
+  border: 1px solid var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+  box-shadow: var(--vb-glass-inner);
+  border-radius: var(--vb-glass-radius);
+  corner-shape: var(--vb-glass-corner);
+}
+.drawerClose:hover {
+  background: var(--vb-glass-fill-hi);
+}

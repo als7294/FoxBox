@@ -26,6 +26,7 @@ from scipy import signal
 from fvwks_contracts.models import (
     Arrange,
     Chain,
+    ChopSlot,
     FitReport,
     Loudness,
     Master,
@@ -623,7 +624,8 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
     snap = str(getattr(a, "snap_end", "off"))  # v0.4.1: land the last word on the grid
     arr_key = dict(bpm=a.bpm, bars=a.bars, fit=a.fit, max_stretch=a.max_stretch, beat_lock=a.beat_lock,
                    first_word_beat=a.first_word_beat, tail_beats=a.tail_beats, stut=(stut_div, stut_rep, stut_words), tape=tape_beats,
-                   room=room, snap=snap)
+                   room=room, snap=snap, chop=(a.chop, a.chop_unit,
+                                               [sl.model_dump() for sl in a.chop_slots or []]))
     # the plan (onset, chunks, stretch, beat-lock) comes from the dry voice, so it -- and the dry A/B master --
     # stay cached while MASK/LAYERS/FX knobs move
     dry_src = to_rate(main48 * gain, sr)
@@ -634,7 +636,7 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
             dry_src, sr, main.info.segments, bpm=a.bpm, bars=a.bars, fit_mode=a.fit, max_stretch=a.max_stretch,
             beat_lock=a.beat_lock, first_word_beat=a.first_word_beat, tail_beats=a.tail_beats,
             stutter_div=stut_div, stutter_repeats=stut_rep, tape_stop_beats=tape_beats, tail_room_s=room, snap_end=snap,
-            stutter_words=stut_words,
+            stutter_words=stut_words, chop=a.chop, chop_unit=a.chop_unit, chop_slots=a.chop_slots,
         )
         return plan, arr.apply_placement(plan, dry_src, quality == "final")
 
@@ -736,5 +738,6 @@ def render(main: Source, stack_src: list[Source | None], req: RenderRequest, cha
         sample_rate=sr_out, segments=_segments_out(plan), fit=fit_report, loudness=_loudness(out, sr_out, rep), mask=ms,
         resolved_chain=chain, first_word_s=round(plan.first_word_s, 5), tail_s=_voice_out(plan),
         stems=stems, timings_ms=ctx.timings, warnings=warnings,
-        bars=None if fit.status == "free" else int(round(fit.bars)), **extra,
+        bars=None if fit.status == "free" else int(round(fit.bars)),
+        chop=[ChopSlot(index=i, beat=b) for i, b in plan.chop] if plan.chop is not None else None, **extra,
     )
