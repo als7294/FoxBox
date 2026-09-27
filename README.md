@@ -1,183 +1,172 @@
 <div align="center">
 
-<img src="app/design/brand/foxbox-banner.png" alt="FoxBox: type or say anything, hear it in a new voice" width="100%"/>
+<img src="app/design/brand/foxbox-banner.png" alt="FoxBox: the voice-mask studio for bass music" width="100%"/>
 
 <br/>
 
-**A macOS voice-mask studio for DJs and producers.** Type a line or record your own voice. FoxBox turns it into
-a low, distorted, anonymous transmission, then hands you a **bar-exact, club-loud drop** ready for Rekordbox, CDJs and your DAW.
+### The voice-mask studio for bass music.
 
-[![Download](https://img.shields.io/github/v/release/als7294/FoxBox?style=for-the-badge&label=download&color=ff4b2b&labelColor=0b0b0c)](https://github.com/als7294/FoxBox/releases/latest)
+Type a line or record your own. FoxBox masks it into a deep, distorted, anonymous voice, locks it to your grid,
+and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW. It runs entirely on your Mac.
 
-![macOS](https://img.shields.io/badge/macOS_14+-Apple_Silicon-0b0b0c?style=flat-square&logo=apple&logoColor=e9e5da)
-![Engine](https://img.shields.io/badge/engine-Python_3.12_·_MLX-0b0b0c?style=flat-square&logo=python&logoColor=ffb23e)
-![App](https://img.shields.io/badge/app-Electron_·_React-0b0b0c?style=flat-square&logo=electron&logoColor=ff4b2b)
-![Offline](https://img.shields.io/badge/runs-100%25_on_device-0b0b0c?style=flat-square&logoColor=e9e5da)
+<br/>
+
+[![Download for macOS](https://img.shields.io/github/v/release/als7294/FoxBox?style=for-the-badge&label=download%20for%20macOS&color=ff4b2b&labelColor=0b0b0c)](https://github.com/als7294/FoxBox/releases/latest)
+
+![macOS 14+](https://img.shields.io/badge/macOS_14+-Apple_silicon-0b0b0c?style=flat-square&logo=apple&logoColor=e9e5da)
+![On-device](https://img.shields.io/badge/100%25-on--device-0b0b0c?style=flat-square)
+![Auto-updates](https://img.shields.io/badge/updates-in--app-0b0b0c?style=flat-square)
 ![License](https://img.shields.io/badge/license-GPL--3.0-0b0b0c?style=flat-square)
 
 <br/>
 
-<img src="app/docs/screens/readme/01-studio.png" alt="FoxBox Studio: a rendered drop playing on the PACT preset" width="100%"/>
-
-<sub><b>STUDIO:</b> script on the left, the drop on a bar/beat grid in the middle, the voice core and rack on the right.</sub>
+<img src="app/docs/screens/readme/01-studio.png" alt="The FoxBox Studio, playing a drop on the PACT preset" width="100%"/>
 
 </div>
 
 <br/>
 
-## ⚡ From a typed line to a drop in 30 seconds
+## How it works
 
 ```text
-  TYPE  ─▶  HEAR  ─▶  TWIST  ─▶  EXPORT  ─▶  DRAG
-  script    instant   4 hero     AIFF/WAV    straight into
-  or mic    preview   macros     + XML       Rekordbox / DAW
+  TYPE / RECORD  ─▶  MASK  ─▶  LOCK TO GRID  ─▶  MASTER  ─▶  EXPORT / CLIP
+  Kokoro TTS         12-module   AUTO bars,        −7 LUFS      AIFF + rekordbox.xml,
+  or your own mic    FX rack     last word on      short-term,  or a face-masked
+                                 the beat          −1 dBTP      video
 ```
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 🎙 Voices
-- **28 Kokoro TTS voices** running on the Apple GPU, faster than real time.
-- **Persona designer** (optional): *describe* a voice ("deep gravelly broadcast") and reuse it on every line.
-- **Your own voice:** record or import it. DeepFilterNet3 cleans it up, and Whisper transcribes it **word by word**.
+### 🎙 Source
+- **Kokoro-82M TTS** on the Apple GPU (MLX): 28 voices, faster than real time.
+- **Record or import** your own voice. **DeepFilterNet3** cleans it, and **Whisper + a forced aligner** give word-level timing.
+- **Persona designer** (optional, Qwen3-TTS): describe a voice once and reuse it on every line.
+- **Markup** for timing: `|` beat break · `[0.5]` / `[2b]` pause · `*word*` echo throw.
 
 </td>
 <td width="50%" valign="top">
 
-### 🎛 The rack
-- Four hero macros: **DEPTH · GRIT · MACHINE · SPACE**.
-- 12 modules behind them:
-  - WORLD pitch/formant masking and a **robotic TTS collage**;
-  - vocoder, **LPC talkbox** and ring mod;
-  - **Airwindows** tape and tube, DeRez crush and **Galactic** reverb, plus OTT.
+### 🎛 Mask
+- **WORLD** vocoder resynthesis: pitch and formant moved **independently**, plus monotone and scale-lock.
+- **Layers:** a sub octave, a ghost whisper, and a **stacked-voice robotic collage** aligned word by word.
+- **Machine:** channel vocoder, **LPC talkbox** in key, ring mod, frequency shifter.
+- **Colour:** Airwindows **ToTape9 / Tube2 / DeRez4 / Galactic3**, drive, crush, 3-band OTT.
+- **Four macros:** DEPTH · GRIT · MACHINE · SPACE.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-### 📐 Locked to the grid
-- **AUTO bars** picks the length that fits.
-- The phrase is **warped** so it starts on the downbeat and **lands on the beat**.
-- Echo and reverb tails are **never cut**.
-- A **CLICK** metronome to check the drop against the beat.
+### 📐 Grid
+- **Exact length:** 4 bars at 140 BPM is exactly 302,400 samples at 44.1 kHz.
+- **AUTO bars** picks the length that fits the phrase and its FX tail.
+- **END → BEAT / BAR:** the last word is warped onto the grid (Rubber Band R3, ≤ 8%).
+- **Beat-Lock** puts every `|` chunk on a beat. Speech and tails are never cut.
 
 </td>
 <td valign="top">
 
-### 💿 Club-ready export
-- **AIFF 44.1/24** with BPM and key tags.
-- **CDJ-safe WAV**.
-- Dry/wet variants and stems.
-- A **rekordbox.xml** with beatgrid, **hot cue A on the first word** and a memory cue at voice-out.
+### 💿 Master + export
+- **CLUB:** −7 LUFS short-term max, true peak ≤ −1 dBTP. **BAKE-IN:** −6 dBFS peaks, no limiting.
+- **AIFF 24-bit / 44.1 kHz** with ID3 BPM, key and cover art. CDJ-safe **PCM WAV** (format tag 1).
+- Dry and wet variants, and alternate presets in one export.
+- **rekordbox.xml:** beatgrid, **hot cue A on the first word**, a memory cue at voice-out.
+- Drag the output cartridge straight into Rekordbox or your DAW.
 
 </td>
 </tr>
 </table>
+
+## Presets
+
+| | Preset | What it does |
+|:-:|---|---|
+| 🜂 | **PACT** | Deep entity. Pitch −9 st and formant −5 set separately, sub −12 st, a faint robotic stack, tube into hard clip, a dark plate. |
+| 📡 | **LEGION** | An intercepted broadcast. A monotone voice chorus, 60 Hz ring mod, GSM codec, a radio band-pass, squelch. |
+| 🕳 | **ABYSS** | Pit-demon. Growl subharmonics, detuned doubles, heavy tube drive, a 2.5 s dark hall. |
+| 🤖 | **UNIT** | Robot in key. A talkbox on the key root, ring mod, hard clip, a 1/16 slap. |
+| 👻 | **GHOST** | Whisper transmission. Breath resynthesis, a reverse swell into Galactic tails. |
+| ⚡ | **SIGNAL** | Glitch. A 6-bit DeRez crush, a +200 Hz shift, stutter, tape-stop. |
+| ◯ | **RAW** | An anonymizer base for your own voice: formant shift plus McAdams. |
+
+A **mask-strength badge** (SYNTHETIC · WEAK · MEDIUM · STRONG) tells you plainly when a chain is only pitch-shifted, and so reversible.
 
 ## 📹 Camera clips <sup>beta</sup>
 
-Film your take right in **RECORD**. FoxBox finds your face and hides it **on your Mac** (mosaic, blur or solid, with your
-choice of strength and coverage), lays the masked drop underneath, with your own song if you like, and saves a
-**vertical or widescreen MP4** ready for Reels, TikTok and Shorts. Nothing is uploaded anywhere.
+Turn on **VOICE + CAMERA** in RECORD. FoxBox tracks your face with MediaPipe **on the Mac** and hides it live (mosaic, blur
+or solid, with your choice of strength and coverage). **MAKE CLIP** then lays your masked drop, plus a song if you like, under the
+filmed take and saves a **9:16 or 16:9 MP4** (H.264 + AAC) for Reels, TikTok and Shorts. Nothing is uploaded.
 
-<div align="center">
-<img src="app/docs/screens/readme/10-camera.png" alt="The camera in RECORD with the face hidden live" width="100%"/>
-</div>
+<img src="app/docs/screens/readme/10-camera.png" alt="The camera in RECORD, with the face hidden live" width="100%"/>
 
-## 🆕 New in 1.1
-
-- **Camera clips (beta):** VOICE + CAMERA in RECORD, a live masked preview, **MAKE CLIP** for filmed takes and **RECORD CLIP** for typed lines.
-- **Songs under your clips:** drop a track in, and FoxBox lands your last word on its first big beat drop.
-- **A real loading screen:** FoxBox opens straight into a ready Studio.
-- **See it render:** *waiting → synthesizing → rendering* right in SIGNAL.
-- **A calmer voice core** you can hide, and a random hype line (🎲) to start each session.
-
-## 🖼 Tour
+## Tour
 
 <table>
 <tr>
-<td width="50%"><img src="app/docs/screens/readme/02-rack-open.png" alt="The open rack"/><br/><sub><b>OPEN RACK:</b> every module, bypassable, with 3–6 controls each</sub></td>
-<td width="50%"><img src="app/docs/screens/readme/03-presets.png" alt="The voice core on each preset"/><br/><sub><b>VOICE CORE:</b> a different motion for every preset, driven by the audio</sub></td>
+<td width="50%"><img src="app/docs/screens/readme/02-rack-open.png" alt="The open rack"/><br/><sub><b>RACK:</b> 12 modules, each bypassable, with its real parameters.</sub></td>
+<td width="50%"><img src="app/docs/screens/readme/03-presets.png" alt="The voice core"/><br/><sub><b>VOICE CORE:</b> reacts to each render's pitch, words and tails, differently per preset.</sub></td>
 </tr>
 <tr>
-<td><img src="app/docs/screens/readme/04-record.png" alt="Recording your own voice"/><br/><sub><b>RECORD:</b> count-in, auto-clean, a word-level transcript you can edit</sub></td>
-<td><img src="app/docs/screens/readme/05-vault.png" alt="The Vault library"/><br/><sub><b>VAULT:</b> every take, searchable and draggable, exportable as a Rekordbox playlist</sub></td>
+<td><img src="app/docs/screens/readme/04-record.png" alt="Recording"/><br/><sub><b>RECORD:</b> count-in, clean-up, and a word-level transcript you can edit.</sub></td>
+<td><img src="app/docs/screens/readme/05-vault.png" alt="The Vault"/><br/><sub><b>VAULT:</b> every take, searchable and draggable, exportable as a Rekordbox playlist.</sub></td>
 </tr>
 <tr>
-<td><img src="app/docs/screens/readme/06-setlist.png" alt="Setlist batch rendering"/><br/><sub><b>SETLIST:</b> paste many lines, render them all, export a folder plus XML</sub></td>
-<td><img src="app/docs/screens/readme/07-voices-models.png" alt="Voices and models"/><br/><sub><b>VOICES:</b> auditions, the persona designer, a pronunciation lexicon and the models</sub></td>
+<td><img src="app/docs/screens/readme/06-setlist.png" alt="Setlist"/><br/><sub><b>SETLIST:</b> paste many lines, render them all, export a folder plus XML.</sub></td>
+<td><img src="app/docs/screens/readme/07-voices-models.png" alt="Voices and models"/><br/><sub><b>VOICES:</b> auditions, the persona designer, the lexicon, and optional model downloads.</sub></td>
 </tr>
 </table>
 
-## 🔥 The voice core
-
 <div align="center">
-<img src="app/docs/screens/readme/studio.gif" alt="The voice core reacting to a PACT drop" width="80%"/>
-
-<sub>The voice core is driven by the render itself: loudness, pitch and each word's hit. Every preset moves differently.</sub>
+<img src="app/docs/screens/readme/studio.gif" alt="The voice core playing a PACT drop" width="80%"/>
 </div>
 
-## 🦊 Presets
+## Script markup
 
-| | Preset | Character |
-|:-:|---|---|
-| 🜂 | **PACT** | Deep entity: formant-dropped, sub-heavy, tape grit, a faint robotic collage, dark plate |
-| 📡 | **LEGION** | An intercepted broadcast: a monotone chorus of voices, GSM radio, squelch |
-| 🕳 | **ABYSS** | Pit-demon: growl, detuned doubles, tube drive, a huge dark hall |
-| 🤖 | **UNIT** | Robot in key: a talkbox on the key root, ring mod, hard clip |
-| 👻 | **GHOST** | Whisper transmission: a reverse swell into Galactic tails |
-| ⚡ | **SIGNAL** | Glitch: DeRez crush, frequency shift, stutter, tape-stop |
-| ◯ | **RAW** | An anonymizer base for your own voice |
-
-Every preset is a starting point: the macros morph it. A **mask-strength badge** (SYNTHETIC · WEAK · MEDIUM · STRONG)
-says plainly when a chain is only pitch-shifted, and so reversible.
-
-## ✍️ Script markup
-
-Use the insert buttons, or type the markup directly:
-
-| Markup | Does |
+| Markup | Effect |
 |---|---|
 | `\|` | **Beat break:** the next part starts on the next beat |
-| `[0.5]` · `[2b]` | **Pause**, in seconds or beats |
-| `*word*` | **Echo** throw on exactly that word |
+| `[0.5]` · `[2b]` | **Pause** in seconds, or in beats at the session tempo |
+| `*word*` | **Echo throw:** a delay/reverb send on exactly that word |
 
 ```text
-REMEMBER, REMEMBER [0.5] THE SIGNAL NEVER DIES | WE DO NOT FORGIVE | *EXPECT US*
+GUY FVWKS IS IN THE BUILDING | MAKE SOME *NOISE*
 ```
 
-## 📦 Install
+A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep names and acronyms right. 🎲 gives you a new hype line.
 
-> **Needs:** a Mac with Apple Silicon (M1 or newer), **macOS 14+**, about 2 GB free, and internet for the first launch.
+## Install
 
-1. Download the **`.dmg`** from [**Releases**](https://github.com/als7294/FoxBox/releases/latest) and drag **FoxBox** into **Applications**. Open it from Applications, not from the disk image.
-2. **First open only.** The app isn't notarized by Apple yet, so macOS asks once:
+> **Requires:** Apple silicon (M1 or newer) · macOS 14+ · about 2 GB free · internet for the first launch only.
+
+1. Download the **`.dmg`** from [**Releases**](https://github.com/als7294/FoxBox/releases/latest), open it, and drag **FoxBox** into **Applications**.
+2. **First open only:** FoxBox isn't notarized by Apple yet, so macOS asks once.
    - **macOS 14:** right-click FoxBox → **Open** → **Open**.
-   - **macOS 15+:** open FoxBox once and click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to FoxBox.
-3. **Setup** downloads the voices and the denoiser (about 350 MB) with live progress. The persona designer (about 9 GB) and transcripts (about 2.9 GB) are optional, now or later.
-4. **Updates** arrive inside the app: FoxBox checks Releases, verifies the download and restarts into the new version.
+   - **macOS 15+:** open it once and click **Done**, then go to **System Settings → Privacy & Security → Open Anyway**.
+3. **Setup** downloads the voices and the denoiser (about 365 MB) with live progress. The persona designer (9.1 GB) and transcripts (2.9 GB) are optional.
+4. **Updates install in the app:** FoxBox checks GitHub Releases, verifies each download's SHA-256, and restarts into the new version.
+
+**Privacy:** audio, video and text never leave the Mac. The only network use is the model download (Hugging Face) and the update check (GitHub).
 
 <div align="center">
-<img src="app/docs/screens/readme/09-boot.png" alt="FoxBox boot screen" width="80%"/>
+<img src="app/docs/screens/readme/09-boot.png" alt="The FoxBox boot screen" width="80%"/>
 </div>
 
-## 🧠 Under the hood
+## Under the hood
 
 ```
-Electron app (React · TypeScript)      ── IPC proxy · vbx:// audio · drag-out · metronome · updater
-        │   token-authenticated, loopback only
-Python engine (FastAPI)                ── library (SQLite) · jobs · exports · rekordbox.xml
-   ├── fvwks_voice      Kokoro-MLX · Qwen3-TTS persona · DeepFilterNet3 · Whisper + forced aligner
-   ├── fvwks_fx         the rack: WORLD mask · layers · vocoder/talkbox · Airwindows · arrange · master
+Electron app (React · TypeScript)       IPC proxy · vbx:// audio · drag-out · camera · updater
+        │  token-authenticated, loopback only
+Python engine (FastAPI · uv)            library (SQLite) · jobs · exports · rekordbox.xml · songs
+   ├── fvwks_voice      Kokoro-MLX · Qwen3-TTS · DeepFilterNet3 · Whisper + forced aligner
+   ├── fvwks_fx         WORLD mask · layers · vocoder/talkbox · Airwindows · arrange · master · song analysis
    └── fvwks_contracts  the shared models and seams every package agrees on
 ```
 
-Everything runs **on your Mac**. No cloud, no account, and your voice never leaves the machine.
-
 <details>
-<summary><b>Develop</b></summary>
+<summary><b>Build from source</b></summary>
 
 ```bash
 cd engine && uv sync --all-packages      # Python 3.12; compiles the small Airwindows module once
@@ -192,10 +181,9 @@ scripts/dev.sh                           # run the app against the local engine
 
 **Designed by [SmittyTech](https://github.com/als7294)**
 
-Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-**The drops you make are yours.**
+Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). **The drops you make are yours.**
 
 <sub>[GPL-3.0](LICENSE). FoxBox links GPL components (pedalboard, espeak-ng, mutagen), so the app is GPL-3.0 as a whole.
-Model weights are downloaded at runtime under their own licenses.</sub>
+Model weights download at runtime under their own licenses.</sub>
 
 </div>
