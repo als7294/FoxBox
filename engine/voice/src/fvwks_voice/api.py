@@ -78,7 +78,7 @@ def _dist(name: str) -> str:
 
 
 ENGINE_NAME = "kokoro-mlx"
-_BUILD = "s1.5"  # bump whenever synthesis output changes: ENGINE_VERSION salts the server's TTS and STACK caches
+_BUILD = "s1.6"  # bump whenever synthesis output changes: ENGINE_VERSION salts the server's TTS and STACK caches
 
 
 def _engine_version() -> str:

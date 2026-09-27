@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .dsp import SR, fade, find_pauses, normalize_speech, resample, speech_bounds
+from .dsp import SR, fade, find_pauses, frame_db, normalize_speech, resample, speech_bounds
 from .engine import PhraseAudio, TTSEngine, WordTiming
 from .errors import VoiceError
 from .lexicon import Lexicon
@@ -31,6 +31,12 @@ LINE_GAP_S = 0.35
 TRIM_REL_DB = -50.0
 PAD_START_S = 0.01
 PAD_END_S = 0.06
+# The release: a chunk ends where its decay falls below RELEASE_REL_DB of the loudest frame (at most RELEASE_MAX_S
+# past the speech), then fades out over RELEASE_FADE_S. The mask's compression and drive bring a quiet tail up, so
+# a breathy "us." cut at -50 dB could be heard as the voice being cut off.
+RELEASE_REL_DB = -65.0
+RELEASE_MAX_S = 0.3
+RELEASE_FADE_S = 0.03
 _MIN_CLIP_S = 0.02
 _SPAN_JOIN_S = 0.05
 _ALNUM_RE = re.compile(r"[^\W_]")
@@ -88,14 +94,24 @@ def gap_after(chunk: Chunk, bpm: float, last: bool) -> float:
     return BEAT_GAP_S
 
 
+def _release_end(x: np.ndarray, end: int) -> int:
+    """Where the release of the speech that ends near sample `end` has decayed below RELEASE_REL_DB (never before
+    `end`, never more than RELEASE_MAX_S after it)."""
+    db, starts, win = frame_db(x, SR)
+    limit = min(len(x), end + int(RELEASE_MAX_S * SR))
+    above = np.flatnonzero((db > db.max() + RELEASE_REL_DB) & (starts + win <= limit))
+    return max(end, int(starts[above[-1]] + win)) if len(above) else end
+
+
 def _clip(pa: PhraseAudio) -> tuple[np.ndarray, float]:
-    """48 kHz clip trimmed to the speech, and the phrase time (s) where the clip starts."""
+    """48 kHz clip trimmed to the speech (its start exact, its end after the release), and the phrase time (s) where
+    the clip starts."""
     x = resample(pa.audio, pa.sample_rate, SR) if len(pa.audio) else np.zeros(0, np.float32)
     bounds = speech_bounds(x, SR, rel_db=TRIM_REL_DB, pad_start_s=PAD_START_S, pad_end_s=PAD_END_S)
     if bounds is None:
         return np.zeros(int(_MIN_CLIP_S * SR), np.float32), 0.0
     s0, s1 = bounds
-    return fade(x[s0:s1], SR, 0.002, 0.01), s0 / SR
+    return fade(x[s0:_release_end(x, s1)], SR, 0.002, RELEASE_FADE_S), s0 / SR
 
 
 def _snap_words(tokens: list[WordTiming], clip: np.ndarray) -> list[WordTiming]:

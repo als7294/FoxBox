@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="app/design/brand/foxbox-icon-1024.png" alt="FoxBox" width="148"/>
+<img src="app/design/brand/foxbox-banner.png" alt="FoxBox: type or say anything, hear it in a new voice" width="100%"/>
 
-# FoxBox
-
-### Type or say anything. Hear it in a new voice.
+<br/>
 
 **A macOS voice-mask studio for DJs and producers.** Type a line or record your own voice. FoxBox turns it into
 a low, distorted, anonymous transmission, then hands you a **bar-exact, club-loud drop** ready for Rekordbox, CDJs and your DAW.

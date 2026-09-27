@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FoxBox banner</title>
+<style>
+@font-face{font-family:BSD;font-weight:800;src:url(../../../src/renderer/src/assets/fonts/big-shoulders-display-latin-800-normal.woff2)}
+@font-face{font-family:BSD;font-weight:600;src:url(../../../src/renderer/src/assets/fonts/big-shoulders-display-latin-600-normal.woff2)}
+@font-face{font-family:JBM;font-weight:500;src:url(../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-500-normal.woff2)}
+@font-face{font-family:JBM;font-weight:400;src:url(../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-400-normal.woff2)}
+:root{--bg:#0b0b0c;--panel:#111113;--ink:#e9e5da;--dim:#8d8a82;--ember:#ff4b2b;--amber:#ffb23e}
+html,body{margin:0;background:transparent}
+.b{position:relative;width:1280px;height:400px;border-radius:28px;overflow:hidden;background:
+  radial-gradient(120% 140% at 18% 50%, #1a0f0c 0%, #0e0c0c 38%, var(--bg) 70%);
+  box-shadow: inset 0 0 0 1px #1e1e21}
+.b::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px),
+  radial-gradient(90% 120% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%)}
+canvas{position:absolute;inset:0}
+.mark{position:absolute;left:78px;top:92px;width:216px;height:216px;color:var(--ember);filter:drop-shadow(0 0 28px rgba(255,75,43,.35))}
+.word{position:absolute;left:326px;top:78px;font:800 150px/1 BSD;letter-spacing:.02em;color:var(--ink)}
+.word b{color:var(--ember);font-weight:800}
+.tag{position:absolute;left:332px;top:246px;font:500 19px/1.3 JBM;color:var(--ink);letter-spacing:.02em}
+.flow{position:absolute;left:332px;top:292px;font:400 14px/1 JBM;letter-spacing:.24em;color:var(--dim)}
+.flow i{font-style:normal;color:var(--ember);margin:0 .5em}
+.meta{position:absolute;right:40px;top:30px;font:400 13px/1 JBM;letter-spacing:.22em;color:var(--dim);text-align:right}
+.meta span{color:var(--amber)}
+.rec{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ember);margin-right:10px;box-shadow:0 0 10px var(--ember);vertical-align:1px}
+.foot{position:absolute;right:40px;bottom:28px;font:400 12px/1 JBM;letter-spacing:.24em;color:#5d5a54}
+</style></head><body>
+<div class="b" id="b">
+<canvas id="c" width="2560" height="800" style="width:1280px;height:400px"></canvas>
+<svg class="mark" viewBox="0 0 512 512"><defs><mask id="m"><rect width="512" height="512" fill="#fff"/>
+<path d="M112 104 L196 190 L130 222 Z"/><path d="M400 104 L316 190 L382 222 Z"/>
+<path d="M140 250 L248 290 L226 330 L176 306 Z"/><path d="M372 250 L264 290 L286 330 L336 306 Z"/>
+<path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" stroke-width="28" stroke-linejoin="miter"/></mask></defs>
+<path mask="url(#m)" fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/></svg>
+<div class="word">FOX<b>BOX</b></div>
+<div class="tag">Type or say anything. Hear it in a new voice.</div>
+<div class="flow">TYPE<i>→</i>HEAR<i>→</i>TWIST<i>→</i>EXPORT<i>→</i>DRAG</div>
+<div class="meta"><span class="rec"></span>VOICE MASK STUDIO · <span>140 BPM</span> · Am · 8A</div>
+<div class="foot">macOS · APPLE SILICON · REKORDBOX · CDJ</div>
+</div>
+<script>
+document.fonts.load('500 11px JBM').then(()=>document.fonts.load('700 10px JBM')).then(draw);
+function draw(){const c=document.getElementById('c'),g=c.getContext('2d');g.scale(2,2);
+let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;
+// bar grid on the right half
+const x0=935,x1=1240,y=212,bars=4;
+g.font='500 11px JBM';
+for(let i=0;i<=bars*4;i++){const x=x0+(x1-x0)*i/(bars*4);const bar=i%4===0;
+ g.strokeStyle=bar?'rgba(233,229,218,.14)':'rgba(233,229,218,.05)';g.lineWidth=1;g.beginPath();g.moveTo(x+.5,96);g.lineTo(x+.5,330);g.stroke();
+ if(bar&&i<bars*4){g.fillStyle='rgba(141,138,130,.7)';g.fillText(String(i/4+1),x+5,108);}}
+// waveform: words as envelopes
+const words=[[0,.1,.9],[.12,.24,1],[.3,.36,.7],[.37,.49,.95],[.5,.58,.8],[.6,.66,.6],[.68,.8,1],[.84,.9,.75],[.9,.97,.55]];
+function env(t){let v=0;for(const [a,b,h] of words){if(t>=a&&t<=b){const u=(t-a)/(b-a);v=Math.max(v,h*Math.sin(Math.PI*Math.min(1,u*1.4))**.6)}}
+ const tail=t>.97?0:0;return v+tail}
+const grad=g.createLinearGradient(x0,0,x1,0);grad.addColorStop(0,'#ffb23e');grad.addColorStop(.55,'#ff4b2b');grad.addColorStop(1,'rgba(255,75,43,.25)');
+for(let px=x0;px<x1;px+=2){const t=(px-x0)/(x1-x0);let a=env(t*1.02);const tail=Math.max(0,1-(t-.9)/.12)*.12*(t>.9);a=Math.max(a,tail);
+ const h=(a*(.55+.45*r()))*92+1.5;g.fillStyle=grad;g.globalAlpha=.9;g.fillRect(px,y-h,1.4,h*2);}
+g.globalAlpha=1;
+// playhead + hot cue
+const ph=x0+(x1-x0)*.415;g.strokeStyle='#e9e5da';g.lineWidth=1.5;g.beginPath();g.moveTo(ph,92);g.lineTo(ph,330);g.stroke();
+g.fillStyle='#e9e5da';g.beginPath();g.moveTo(ph-5,92);g.lineTo(ph+5,92);g.lineTo(ph,99);g.fill();
+g.fillStyle='#ff4b2b';g.fillRect(x0,318,26,14);g.fillStyle='#0b0b0c';g.font='700 10px JBM';g.fillText('A',x0+9,329);
+// ember particles drifting around the fox
+for(let i=0;i<140;i++){const ang=r()*Math.PI*2,rad=120+r()*120;const x=186+Math.cos(ang)*rad*1.1,yy=200+Math.sin(ang)*rad*.8;
+ const sz=r()*2.4+.6;g.fillStyle=`rgba(255,${120+r()*90|0},60,${.08+r()*.35})`;g.fillRect(x,yy,sz,sz);}
+}
+</script></body></html>

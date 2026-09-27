@@ -36,6 +36,27 @@ def test_capitals_are_normalized_for_the_aligner():
     assert tokens("REMEMBER, REMEMBER") == [("REMEMBER", 0, True), ("REMEMBER", 10, False)]  # words keep the spelling
 
 
+def test_a_short_word_aligned_into_a_pause_snaps_to_its_end():
+    """The aligner ran THE mostly into the pause after "REMEMBER," (1.28-1.52 s; the pause ends at 1.505 s) and the
+    snap used to give up, since THE would have kept only 15 ms. Now THE starts where the pause ends and borrows its
+    minimum from SIGNAL."""
+    from fvwks_voice.asr import MIN_ALIGNED_S, SR as ASR_SR, _snap
+
+    rng = np.random.default_rng(3)
+    t = np.arange(int(2.5 * ASR_SR)) / ASR_SR
+    speech = ((t >= 0.30) & (t < 1.242)) | ((t >= 1.505) & (t < 2.2))
+    x = np.where(speech, rng.standard_normal(t.size) * 0.3, rng.standard_normal(t.size) * 1e-4).astype(np.float32)
+    words = [[0.30, 1.28], [1.28, 1.52], [1.52, 2.2]]
+    _snap(words, [True, False, True], x)
+    assert words[0][1] == pytest.approx(1.242, abs=0.006)
+    assert words[1][0] == pytest.approx(1.505, abs=0.006)
+    assert words[1][1] - words[1][0] == pytest.approx(MIN_ALIGNED_S, abs=1e-6) and words[2][0] == words[1][1]
+    # With no room left for it (the next word ends right there), the aligner's edges stay.
+    words = [[0.30, 1.28], [1.28, 1.52], [1.52, 1.53]]
+    _snap(words, [True, False, True], x)
+    assert words[1] == [1.28, 1.52]
+
+
 def test_repair_prefers_whisper_when_it_has_the_word():
     words = [[2.08, 2.96], [2.96, 2.96]]
     _repair(words, ["OF", "SIGNAL"], [("of", 2.04, 2.2), ("signal", 2.2, 2.8)])
@@ -75,7 +96,8 @@ def test_transcribe_fills_the_transcript_and_words(recording):
     words = [w for s in out.info.segments for w in s.words]
     assert len(words) == len(truth)
     starts = [abs(w.start_s - t[1]) for w, t in zip(words, truth)]
-    assert np.median(starts) < 0.04 and max(starts) < 0.15
+    # Per-word errors in the message: GPU results differ a little between processes, so a failure names its word.
+    assert np.median(starts) < 0.04 and max(starts) < 0.15, [(w.text, round(e, 3)) for w, e in zip(words, starts)]
     for s in out.info.segments:
         assert all(s.start_s <= w.start_s < w.end_s <= s.end_s for w in s.words)
         if s.words:

@@ -2,6 +2,25 @@
 
 Updated 2026-09-27. Branch `session/s1-voice`, on main (contracts v0.6). Owner of `engine/voice/`.
 
+## 2026-09-27 (late): the ASR test flake and the TTS release
+- **ASR flake (the coordinator saw one word's start 222 ms off under load).** It isn't load: MLX on the GPU isn't
+  bit-exact between processes (even with the RNG seeded, Kokoro's audio differs a little per process), and within
+  a process everything repeats exactly. The fragile spot was real, though: a short word right after a comma pause
+  ("REMEMBER, THE"). The aligner ran THE mostly into the pause, and `_snap` refused to move it because THE would
+  have kept only 15 ms. In some processes THE stayed ~200 ms early. `_snap` now starts it where the pause ends and
+  gives it at least 40 ms, taken from the next word. Measured:
+  - realign: THE's start error went from -200 ms (3 of 5 processes) to under 2 ms in all 5;
+  - transcribe: at most 82 ms over 12 seeds and 3 processes.
+
+  The test now names the word when it fails.
+- **"TTS is cut off at the end sometimes."** Each chunk used to end at -50 dB below its loudest frame plus 60 ms,
+  faded over 10 ms. The loudest thing dropped was a breathy release at -56 dB (af_heart's "Expect us."); the mask's
+  compression and drive can lift that into hearing. A chunk now ends where its release falls below -65 dB, at most
+  300 ms later, with a 30 ms fade. The start trim is unchanged, so onsets stay exact. The worst dropped tail is now
+  -63 dB. ENGINE_VERSION is `s1.6`, so the server's TTS and STACK caches start over.
+  - Every path (TTS, STACK voices, personas) goes through `render_script`. The chunk's closing period is added
+    there, and the last word's end is the clip end.
+
 ## 2026-09-27: FoxBox scrub, fresh-Mac Kokoro fix, v0.6 model hooks, S4's editor package
 - **Rename and scrub (the user's request, relayed by the coordinator):** the product is FoxBox. The old name and its
   example line are gone from engine/voice, fixtures, the fixture scripts and this file. The lexicon's user file

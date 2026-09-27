@@ -226,11 +226,16 @@ def _repair(words: list[list[float]], texts: list[str], hint: list[tuple[str, fl
 
 
 def _snap(words: list[list[float]], pause_after: list[bool], x: np.ndarray) -> None:
-    """In place: first start to the audible onset; edges around a pause to the pause edges (+-100 ms)."""
+    """In place: first start to the audible onset; edges around a pause to the pause edges (+-100 ms).
+
+    The aligner can run a short word after a pause mostly into the pause ("REMEMBER, THE" gave THE 1.28-1.52 s for
+    a pause that ends at 1.505 s). Its start still goes to the end of the pause, and it keeps at least MIN_ALIGNED_S,
+    taking that time from the start of the next word, never below that word's own minimum."""
     pauses, onset = find_pauses(x, SR)
     if onset is not None and abs(onset - words[0][0]) <= SNAP_WINDOW_S:
         words[0][0] = min(onset, words[0][1] - MIN_WORD_S)
-    for i in range(len(words) - 1):
+    n = len(words)
+    for i in range(n - 1):
         if not pause_after[i]:
             continue
         lo, hi = words[i][1] - SNAP_WINDOW_S, words[i + 1][0] + SNAP_WINDOW_S
@@ -238,8 +243,14 @@ def _snap(words: list[list[float]], pause_after: list[bool], x: np.ndarray) -> N
         if not found:
             continue
         _, t0, t1 = max(found)
-        if t0 - words[i][0] >= MIN_WORD_S and words[i + 1][1] - t1 >= MIN_WORD_S:
-            words[i][1], words[i + 1][0] = t0, t1
+        if t0 - words[i][0] < MIN_WORD_S:
+            continue
+        end = max(words[i + 1][1], t1 + MIN_ALIGNED_S)
+        if i + 2 < n:
+            if end > words[i + 2][1] - MIN_WORD_S:
+                continue  # no room for the word after the pause: leave the aligner's edges
+            words[i + 2][0] = max(words[i + 2][0], end)
+        words[i][1], words[i + 1][0], words[i + 1][1] = t0, t1, end
 
 
 _transcriber: Transcriber | None = None
