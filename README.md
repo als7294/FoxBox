@@ -82,19 +82,14 @@ and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW. It 
 
 ## 🔊 Hear it
 
-One line, typed once: **`WHAT THE FUCK IS UP *GITHUB*`**, rendered by FoxBox at 140 BPM with the last word on the beat and an echo
-throw on *GITHUB*. Click to play. These are straight exports, with only the silent tail trimmed.
+### [▶ Play the 35-second demo](https://github.com/als7294/FoxBox/raw/main/docs/audio/foxbox-demo.mp3)
 
-| | Voice | Listen |
-|:-:|---|---|
-| ◌ | **Dry** (Kokoro TTS, before masking) | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-dry.mp3) |
-| ⚡ | **SIGNAL** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-signal.mp3) |
-| 🜂 | **PACT** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-pact.mp3) |
-| 📡 | **LEGION** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-legion.mp3) |
-| 🕳 | **ABYSS** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-abyss.mp3) |
-| 🤖 | **UNIT** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-unit.mp3) |
-| 👻 | **GHOST** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-ghost.mp3) |
-| ◯ | **RAW** | [▶ play](https://github.com/als7294/FoxBox/raw/main/docs/audio/github-raw.mp3) |
+One line, typed once: **`WHAT THE FUCK IS UP *GITHUB*`**, rendered by FoxBox at 140 BPM with the last word on the beat and an
+echo throw on *GITHUB*, through each voice in turn:
+
+**0:00** Dry TTS · **0:02** SIGNAL · **0:04** PACT · **0:10** LEGION · **0:15** ABYSS · **0:20** UNIT · **0:25** GHOST · **0:33** RAW
+
+These are straight exports; only the silence between clips was trimmed.
 
 ## Presets
 
