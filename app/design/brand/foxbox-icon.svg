@@ -2,7 +2,7 @@
   <title>FoxBox</title>
   <rect width="1024" height="1024" rx="228" fill="#0b0b0c"/>
   <rect x="24" y="24" width="976" height="976" rx="206" fill="none" stroke="#1e1e21" stroke-width="4"/>
-  <svg x="100" y="84" width="824" height="824" viewBox="0 0 512 512" color="#ff4b2b">
+  <svg x="100" y="112" width="824" height="824" viewBox="0 0 512 512" color="#ff4b2b">
     <defs>
       <mask id="fi-cut">
         <rect width="512" height="512" fill="#fff"/>
@@ -10,9 +10,9 @@
         <path d="M400 104 L316 190 L382 222 Z" fill="#000"/>
         <path d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000"/>
         <path d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/>
-        <path d="M56 298 L256 396 L456 298" fill="none" stroke="#000" stroke-width="24" stroke-linejoin="miter"/>
+        <path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" stroke-width="28" stroke-linejoin="miter"/>
       </mask>
     </defs>
-    <path mask="url(#fi-cut)" fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 508 L60 296 Z"/>
+    <path mask="url(#fi-cut)" fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
   </svg>
 </svg>

@@ -23,15 +23,14 @@ export const FoxMark = forwardRef<SVGSVGElement, { size?: number; className?: st
       <defs>
         <mask id={cut}>
           <rect width="512" height="512" fill="#fff" />
-          <path d="M118 78 L194 170 L132 206 Z" fill="#000" />
-          <path d="M394 78 L318 170 L380 206 Z" fill="#000" />
-          <path d="M148 244 L242 280 L224 312 L178 296 Z" fill="#000" />
-          <path d="M364 244 L270 280 L288 312 L334 296 Z" fill="#000" />
-          <path d="M30 302 L256 368 L482 302" fill="none" stroke="#000" strokeWidth="12" strokeLinejoin="miter" />
-          <path d="M186 444 L256 456 L326 444" fill="none" stroke="#000" strokeWidth="10" strokeLinejoin="miter" />
+          <path d="M112 104 L196 190 L130 222 Z" fill="#000" />
+          <path d="M400 104 L316 190 L382 222 Z" fill="#000" />
+          <path d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000" />
+          <path d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000" />
+          <path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" strokeWidth="28" strokeLinejoin="miter" />
         </mask>
       </defs>
-      <path mask={`url(#${cut})`} fill="currentColor" d="M100 22 L204 166 L308 166 L412 22 L446 246 L488 302 L256 500 L24 302 L66 246 Z" />
+      <path mask={`url(#${cut})`} fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z" />
     </svg>
   )
 })

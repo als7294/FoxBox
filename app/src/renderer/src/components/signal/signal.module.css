@@ -459,3 +459,104 @@
   background: none;
   color: var(--vb-amber);
 }
+
+/* ---------------------------------------------------------------- metronome (transport, preview only) */
+/* CLICK toggle with a beat LED, and its level fader (the rack fader, compact). */
+.metro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 2px 10px 2px 2px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-r1);
+  transition: border-color var(--vb-fast);
+}
+.metro[data-on] {
+  border-color: var(--vb-amber-line);
+}
+.metroToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: var(--vb-dim);
+  font: 700 12px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition:
+    color var(--vb-fast),
+    background var(--vb-fast);
+}
+.metroToggle:hover {
+  color: var(--vb-ink);
+}
+.metroToggle[aria-pressed='true'] {
+  color: var(--vb-ink);
+  background: rgba(var(--vb-amber-rgb), 0.1);
+}
+.metroLed {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.35);
+}
+.metroToggle[aria-pressed='true'] .metroLed {
+  border-color: var(--vb-amber);
+  background: var(--vb-amber);
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.6);
+}
+.metroToggle[aria-pressed='true'] .metroLed[data-down='true'] {
+  border-color: var(--vb-accent);
+  background: var(--vb-accent);
+  box-shadow: 0 0 calc(8px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.7);
+}
+.metroVol {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 24px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.metroVol::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  height: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.1);
+}
+.metroVol:focus-visible {
+  outline-offset: 2px;
+}
+.metroFill {
+  position: absolute;
+  left: 0;
+  top: 11px;
+  height: 2px;
+  background: var(--vb-amber);
+}
+.metro:not([data-on]) .metroFill {
+  background: rgba(var(--vb-ink-rgb), 0.35);
+}
+.metroThumb {
+  position: absolute;
+  top: 6px;
+  width: 4px;
+  height: 12px;
+  margin-left: -2px;
+  background: var(--vb-ink);
+}
+
+/* Compact windows (the 1280 minimum): the band legend gives its room to the status chip and the CLICK toggle. */
+@container vb (max-width: 1419px) {
+  .legend {
+    display: none;
+  }
+}

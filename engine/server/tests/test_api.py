@@ -2104,3 +2104,174 @@ def test_v06_model_not_installed_names_the_model(client, monkeypatch):
     assert res.status_code == 503 and res.json()["error"] == {
         "code": "model_not_installed", "message": "Kokoro 82M isn't installed.",
         "hint": "Install it from VOICES → Models.", "retryable": False, "model_id": "kokoro-82m"}
+
+
+# ------------------------------------------------------------------------------------------ v0.6: uninstall, manifests
+
+
+def voice_error(code, status, message="", hint=None):
+    return type("VoiceError", (Exception,), {"code": code, "status": status, "message": message or code,
+                                             "hint": hint})()
+
+
+def two_model_registry(monkeypatch, **extra):
+    from fvwks_contracts.models import ModelInfo
+
+    state = {"kokoro-82m": True, "asr": True}
+
+    def list_models():
+        return [ModelInfo(id="kokoro-82m", name="Kokoro 82M", engine="kokoro", size_bytes=356_000_000,
+                          installed=state["kokoro-82m"], required=True, license="Apache-2.0", description="",
+                          **extra.get("kokoro-82m", {})),
+                ModelInfo(id="asr", name="Transcripts", engine="asr", size_bytes=2_900_000_000,
+                          installed=state["asr"], required=False, license="MIT", description="",
+                          **extra.get("asr", {}))]
+
+    monkeypatch.setattr(voice_api, "list_models", list_models, raising=False)
+    return state
+
+
+def test_v06_uninstall_models(client, monkeypatch):
+    state = two_model_registry(monkeypatch)
+    removed = []
+    monkeypatch.delattr(voice_api, "uninstall_model", raising=False)
+    assert client.delete("/api/models/asr").status_code == 501
+    monkeypatch.setattr(voice_api, "uninstall_model", lambda model_id: (removed.append(model_id),
+                                                                       state.update({model_id: False})), raising=False)
+    assert client.delete("/api/models/nope").status_code == 404
+    res = client.delete("/api/models/kokoro-82m")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "model_required"
+    assert ok(client.delete("/api/models/asr"))["installed"] is False and removed == ["asr"]
+    assert ok(client.delete("/api/models/asr"))["installed"] is False and removed == ["asr"]  # already gone
+    state["asr"] = True
+
+    def busy(model_id):
+        raise voice_error("model_busy", 409, "Transcripts is transcribing a take.", "Try again when it's done.")
+
+    monkeypatch.setattr(voice_api, "uninstall_model", busy, raising=False)
+    res = client.delete("/api/models/asr")  # the voice package's own refusal passes through
+    assert res.status_code == 409 and res.json()["error"]["hint"] == "Try again when it's done."
+
+
+def test_v06_a_model_still_downloading_cant_be_removed(client, monkeypatch):
+    import threading
+
+    gate = threading.Event()
+    one_model_registry(monkeypatch, installer=lambda progress: gate.wait(10))
+    monkeypatch.setattr(voice_api, "uninstall_model", lambda model_id: None, raising=False)
+    job = ok(client.post("/api/models/asr/install"))
+    res = client.delete("/api/models/asr")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "model_busy"
+    gate.set()
+    wait_job(client, job["id"])
+
+
+def test_v06_an_installed_model_with_an_update_downloads_it(client, monkeypatch):
+    two_model_registry(monkeypatch, asr={"update_available": True, "install_needs_bytes": 5_400_000_000,
+                                         "version": "1.1", "installed_version": "1.0"})
+    fetched = []
+    monkeypatch.setattr(voice_api, "install_model", lambda model_id, progress: fetched.append(model_id),
+                        raising=False)
+    models = {m["id"]: m for m in ok(client.get("/api/models"))}
+    assert models["asr"]["install_needs_bytes"] == 5_400_000_000  # installed, but the update's download counts
+    assert models["kokoro-82m"]["install_needs_bytes"] is None  # current: nothing to download
+    done = wait_job(client, ok(client.post("/api/models/asr/install"))["id"])
+    assert done["state"] == "done" and fetched == ["asr"]
+
+
+@pytest.fixture
+def test_key(monkeypatch):
+    """A throwaway signing key the engine trusts for this test (the real private key never leaves its owner)."""
+    import base64
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    import fvwks_server.manifest as manifest_module
+
+    key = Ed25519PrivateKey.generate()
+    public = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    monkeypatch.setattr(manifest_module, "PUBLIC_KEYS", {"test-1": base64.b64encode(public).decode()})
+    return key
+
+
+def signed_manifest(key, published="2026-10-01", key_id="test-1", schema_version=1, version="1.1"):
+    import base64
+
+    from fvwks_contracts.models import ManifestModel, ManifestRepo, ModelManifest
+
+    from fvwks_server.manifest import canonical
+
+    manifest = ModelManifest(schema_version=schema_version, published=published, models={"asr": ManifestModel(
+        version=version, notes="Faster alignment.", repos=[ManifestRepo(repo_id="mlx-community/whisper",
+                                                                        revision="b" * 40, size_bytes=1_000)])})
+    return {"manifest": manifest.model_dump(mode="json"), "key_id": key_id,
+            "signature": base64.b64encode(key.sign(canonical(manifest))).decode()}
+
+
+def test_v06_signed_manifests(client, monkeypatch, test_key, tmp_path):
+    two_model_registry(monkeypatch)
+    applied = []
+    monkeypatch.setattr(voice_api, "apply_model_manifest", lambda manifest: applied.append(manifest.published),
+                        raising=False)
+    models = ok(client.put("/api/models/manifest", json=signed_manifest(test_key)))
+    assert applied == ["2026-10-01"]
+    assert next(m for m in models if m["id"] == "asr")["version"] == "1.1"  # from the manifest when S1 has none
+
+    tampered = signed_manifest(test_key)
+    tampered["manifest"]["models"]["asr"]["repos"][0]["revision"] = "c" * 40
+    for body in (tampered, {**signed_manifest(test_key), "key_id": "someone-else"},
+                 {**signed_manifest(test_key), "signature": "not base64!"}):
+        res = client.put("/api/models/manifest", json=body)
+        assert res.status_code == 403 and res.json()["error"]["code"] == "manifest_untrusted"
+    res = client.put("/api/models/manifest", json=signed_manifest(test_key, schema_version=2))
+    assert res.status_code == 422 and res.json()["error"]["code"] == "manifest_unsupported"
+    res = client.put("/api/models/manifest", json=signed_manifest(test_key, published="2026-09-01"))
+    assert res.status_code == 409 and res.json()["error"]["code"] == "manifest_outdated"  # no rolling pins back
+    assert ok(client.put("/api/models/manifest", json=signed_manifest(test_key)))  # the same one again is fine
+
+    def rejected(manifest):
+        raise voice_error("manifest_rejected", 422, "whisper may only move to revisions of its own repos.")
+
+    monkeypatch.setattr(voice_api, "apply_model_manifest", rejected, raising=False)
+    res = client.put("/api/models/manifest", json=signed_manifest(test_key, published="2026-11-01"))
+    assert res.status_code == 422 and res.json()["error"]["code"] == "manifest_rejected"
+
+    again = make_client(tmp_path)  # the manifest in use survives a restart, so a replay still can't roll back
+    res = again.put("/api/models/manifest", json=signed_manifest(test_key, published="2026-09-15"))
+    assert res.status_code == 409
+
+
+def test_v06_the_engine_trusts_the_release_key():
+    import base64
+
+    from fvwks_server.manifest import PUBLIC_KEYS
+
+    assert "foxbox-1" in PUBLIC_KEYS and len(base64.b64decode(PUBLIC_KEYS["foxbox-1"], validate=True)) == 32
+
+
+def test_v06_sign_manifest_script(tmp_path, monkeypatch, capsys):
+    import base64
+    import importlib.util
+
+    import fvwks_server.manifest as manifest_module
+
+    spec = importlib.util.spec_from_file_location("sign_manifest",
+                                                  Path(__file__).parents[1] / "scripts" / "sign_manifest.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    key = tmp_path / "keys" / "manifest-signing.key"
+    public = script.generate_key(key, "test-1")
+    assert oct(key.stat().st_mode & 0o777) == "0o600"
+    with pytest.raises(SystemExit, match="already exists"):
+        script.generate_key(key, "test-1")
+    with pytest.raises(SystemExit, match="git work tree"):
+        script.generate_key(Path(__file__).parent / "never-here.key", "test-1")
+    monkeypatch.setattr(manifest_module, "PUBLIC_KEYS", {"test-1": public})
+    source = tmp_path / "models.json"
+    source.write_text(json.dumps({"published": "2026-10-01", "models": {}}))
+    out = tmp_path / "models.signed.json"
+    assert script.main([str(source), "-o", str(out), "--key", str(key), "--key-id", "test-1"]) == 0
+    signed = json.loads(out.read_text())
+    assert signed["key_id"] == "test-1" and len(base64.b64decode(signed["signature"])) == 64
+    assert "PRIVATE" not in out.read_text()

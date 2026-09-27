@@ -5,6 +5,7 @@ export type ShortcutAction =
   | 'export'
   | 'toggle-ab'
   | 'toggle-loop'
+  | 'toggle-metronome'
   | 'save-preset'
   | 'shortcuts'
   | 'record'
@@ -24,6 +25,7 @@ export const SHORTCUTS: ShortcutInfo[] = [
   { keys: '⌘ E', label: 'Echo the word (in the script)' },
   { keys: '\\', label: 'A/B dry · wet' },
   { keys: 'L', label: 'Loop' },
+  { keys: 'M', label: 'Metronome click (preview only)' },
   { keys: '1 – 7', label: 'Presets' },
   { keys: '⌘ S', label: 'Save preset' },
   { keys: 'R', label: 'Record (Record tab)' },
@@ -70,6 +72,7 @@ export function matchShortcut(e: KeyLike, typing: boolean): ShortcutAction | nul
   if (e.key === 'r' || e.key === 'R') return 'record'
   if (e.key === '\\') return 'toggle-ab'
   if (e.key === 'l' || e.key === 'L') return 'toggle-loop'
+  if (e.key === 'm' || e.key === 'M') return 'toggle-metronome'
   if (e.key === '?') return 'shortcuts'
   if (/^[1-7]$/.test(e.key)) return { preset: Number(e.key) }
   return null

@@ -182,6 +182,26 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
     - They found that a missing HF_HOME made every first-run install fail. The engine now creates it.
   - **Proposals:** P7 `ApiError.model_id`; P8 `DELETE /api/models/{id}`; P9 a signed model-update manifest (fetched by the app's updater on opt-in, verified by the engine).
 
+- **v0.6 and shipping** (`9e6f48e`, `5be6728`, `9be80e0`, `5e1e7e5`, and this commit):
+  - **P7:** `model_not_installed` errors name the model (`ApiError.model_id`, passed through from S1's VoiceError).
+  - **P8:** `DELETE /api/models/{id}` goes through S1's `uninstall_model`.
+    - Errors: 404 unknown; 409 `model_required`; 409 `model_busy` while downloading. S1's own refusals pass through.
+    - It holds the model's gate, so work in flight finishes first.
+  - **P9:** `PUT /api/models/manifest` takes a signed manifest.
+    - The signature is ed25519 over the manifest's canonical JSON, checked against the release key embedded in `fvwks_server/manifest.py` (`foxbox-1`).
+    - Refusals: 403 untrusted; 422 newer schema; 409 older than the one in use (no replayed rollback).
+    - S1's hook applies the new pins. An installed model with an update now downloads it.
+    - Release tool: `scripts/sign_manifest.py`. The private key is at `~/.config/foxbox/manifest-signing.key` (0600) and never in git.
+  - **Fresh-Mac first launch, the real one:**
+    - Set-up: the bundle in `FoxBox.app/Contents/Resources/engine`, with an empty HF_HOME and the real network.
+    - It found that Kokoro's loader looked up the unpinned `refs/main`, which a pinned download never writes. Warm-up failed on every fresh Mac.
+    - With S1's fix (a50df21), it's `ready` in 14.5 s after downloading 365 MB.
+    - A no-network regression test pins it down.
+  - **Platform:** the bundle needs macOS 14 on Apple Silicon (mlx, numpy and scipy wheels are macosx_14_0_arm64). It's 822 MB.
+  - **Renamed to FoxBox:**
+    - Data dir `~/Library/Application Support/FoxBox`; default export folder `~/Music/FoxBox`.
+    - rekordbox PRODUCT `FoxBox` / `SmittyTech`; file tags `FoxBox`.
+
 ## Performance (HTTP, real engines, M3 Pro; `uv run --all-packages python server/scripts/bench_http.py`)
 | what | p50 ms | p95 ms |
 |---|---|---|

@@ -1,6 +1,6 @@
-# S4 APP — status
+# S4 APP — status (FoxBox)
 
-Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (Phase 2.2, the QOL build)
+Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (Phase 2.3: FoxBox, endings, metronome, installer)
 
 ## Where things stand
 | Area | State |
@@ -16,7 +16,7 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (Phase 2.2, the
 | Recorder (askForMediaAccess → getUserMedia → AudioWorklet → 24-bit WAV, meter, 3-2-1 count-in, takes) | done; e2e records a synthetic tone through the real pipeline (worklet → WAV → multipart over IPC → engine ingest → render). A real mic is untested. |
 | Import (engine formats as-is; others via decodeAudioData → WAV) | done; e2e covers both paths against the real engine |
 | Re-render on release (150 ms debounce), stale dimming | done |
-| Shortcuts (Space, ⌘↩, ⌘⇧E, `\`, L, 1–7, ⌘S, R, ?, Esc) paused while typing | done. EXPORT moved to ⌘⇧E in 2.1 because ⌘E is ECHO inside the script editor |
+| Shortcuts (Space, ⌘↩, ⌘⇧E, `\`, L, M, 1–7, ⌘S, R, ?, Esc) paused while typing | done. EXPORT moved to ⌘⇧E in 2.1 because ⌘E is ECHO inside the script editor; M toggles the metronome (2.3) |
 | Screens STUDIO / VAULT / SETLIST / VOICES / SETTINGS with the handoff component names | done; styled to the TRANSMISSION design (Phase 2). DOSSIER was dropped in 2.1 (user decision) |
 | Drag-out (`startDrag`) from cartridge, export rows, Vault rows (multi) | done; e2e verifies dragstart → startDrag({file, icon}) with a real PNG icon and refuses unreturned paths. **The drop into Finder/GarageBand needs a manual check (computer-use access was declined).** |
 | Contracts | on **v0.1** (merged `main` incl. S3's integrated server): partial arrange/master (hint rule), word ticks + now-speaking, script preview (SAYS line + warnings), analysis_state chip, persona candidates, `Take.source_id`, export warnings |
@@ -29,20 +29,9 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (Phase 2.2, the
 
 ## Phase 2: the TRANSMISSION design (Claude Design handoff in `app/design/`)
 Status: implemented across STUDIO, VAULT, SETLIST, VOICES and SETTINGS, plus the states from the brief and the addendum.
-Screenshots are in `app/docs/screens/`:
-- `design/` has the prototype, the reference.
-- `before/` has Phase 1.
-- `after/1512x982` and `after/1280x800` have this build against the real engine. Capture them with `FVWKS_SHOTS=docs/screens/after npx playwright test shots`.
-
-| | Before (Phase 1) | After (Phase 2) |
-|---|---|---|
-| Studio | ![](../../app/docs/screens/before/02-studio-preview.png) | ![](../../app/docs/screens/after/1512x982/02-studio-preview.png) |
-| Rack | ![](../../app/docs/screens/before/03-studio-rack-open.png) | ![](../../app/docs/screens/after/1512x982/04-rack-open.png) |
-| Final render | ![](../../app/docs/screens/before/04-studio-final.png) | ![](../../app/docs/screens/after/1512x982/05-studio-final.png) |
-| Vault | ![](../../app/docs/screens/before/06-vault.png) | ![](../../app/docs/screens/after/1512x982/08-vault.png) |
-| Setlist | ![](../../app/docs/screens/before/06-setlist.png) | ![](../../app/docs/screens/after/1512x982/09-setlist.png) |
-| Voices | ![](../../app/docs/screens/before/06-voices.png) | ![](../../app/docs/screens/after/1512x982/10-voices.png) |
-| Settings | ![](../../app/docs/screens/before/06-settings.png) | ![](../../app/docs/screens/after/1512x982/11-settings.png) |
+Screenshots live in `app/docs/screens/after/1512x982` and `after/1280x800`, captured against the real engine with
+`FVWKS_SHOTS=docs/screens/after npx playwright test shots`. The pre-FoxBox sets (Phase 1, the prototype, and the
+old-brand after/ set) were removed with the rename; the after/ set is retaken with the FoxBox brand.
 
 ### What was ported
 - **Tokens and themes.** Every value lives in `styles/tokens.css` (`--vb-bg`, `--vb-panel`, `--vb-ink`, `--vb-dim`, `--vb-accent`, `--vb-amber`, `--vb-font-mono`, `--vb-font-display` and the rest).
@@ -128,6 +117,32 @@ Screenshots are in `app/docs/screens/`:
   - `FVWKS_DATA_DIR`, `FVWKS_EXPORT_DIR` and `FVWKS_USER_DATA_DIR`.
   - Also: `window.open` reaches only an allow-list of hosts, and `vbx://` ids no longer admit `.` or `:`.
 - **Mock engine:** a short transcript job could end in "running" (its timers raced). That was the flaky v0.3 unit test.
+
+### Phase 2.3 (2026-09-27): FoxBox, endings, metronome, credit, installer
+- **FoxBox identity** (user decision):
+  - appId `com.smittytech.foxbox`, `FoxBox.app`; data in `~/Library/Application Support/FoxBox`, exports default to `~/Music/FoxBox`.
+  - Brand text FOXBOX, and the fox mark (`components/common/FoxMark.tsx`, from `design/brand/foxbox-mark.svg`) in the TopBar and on the boot screen.
+  - The app icon is `build-resources/icon.icns`, built with iconutil from `design/brand/foxbox-icon-1024.png`.
+  - `LSMinimumSystemVersion` is 14.0, because the bundled engine's wheels are macOS 14 arm64.
+- **Endings never cut** (v0.4, contracts v0.5 types):
+  - FIT reads "EXTENDED 2 → 4 BARS" with the engine's message and a KEEP fix, and shows the reserved tail after the speech (`FitReport.reserved_tail_s`). 'overflow' remains only for older engines.
+  - END (`Arrange.snap_end`, BEAT → BAR → OFF) is a chip in the FIT readout, because the top bar has no room at 1280 or 1512. It's sent only once chosen.
+- **Metronome** (M, CLICK in the transport): synthesized clicks with an accented downbeat on a lookahead scheduler. They stay locked to the render's bar grid through play, pause, seek, the gapless loop, A/B and new renders.
+  - The clicks go out on a monitor bus beside the master, never into a render, an export or the meters.
+- **Credit:** "Designed by SmittyTech" appears in the About panel, on the boot screen, in the SETTINGS footer and in the ? overlay.
+  - The contact address is injected at build time (`__CREDIT_EMAIL__`) from `FVWKS_CREDIT_EMAIL` or the gitignored `app/credit.local.json`, so it's never in git.
+  - Without it, the credit is plain text. main opens only that mailto address.
+- **Voice core:** follows `RenderInfo.motion` (v0.5) when a render carries it:
+  - beat lock, stutter holds, tape-stop brake and sag, the swell halo, throw-echo rings, squelch;
+  - returns-driven tails, and a pitch ring from f0.
+
+  Without it, the chain-driven motion runs alone.
+- **S1's script editor** (help/s1-script) is merged:
+  - The insert buttons and chips use ECHO wording.
+  - The transcript editor is in RECORD and IMPORT, and its 503 notice deep-links to the whisper-aligner model.
+  - A transcript edit re-keys the render.
+- **Packaging:** electron-builder 26 rewrote the source package.json during packaging; package.mjs now restores it.
+- **Installer and updater:** in progress (see the next update).
 
 ### Verification (2026-09-26)
 - **Typecheck:** `npm run typecheck` is clean across all four configs (node, web, test, e2e).

@@ -29,7 +29,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Literal
@@ -53,6 +53,8 @@ from fvwks_contracts.models import (
     Macros,
     Master,
     ModelInfo,
+    ModelManifest,
+    SignedModelManifest,
     PersonaCandidate,
     PersonaDesignRequest,
     PersonaSaveRequest,
@@ -79,6 +81,7 @@ from fvwks_contracts.seam import RenderOutput, Source
 from fvwks_fx import api as fx
 from fvwks_voice import api as voice
 
+from . import manifest as model_manifest
 from . import writer
 from .audio_io import AudioStore, as_channels_first, peaks, sweep_partials
 from .config import VERSION, Config
@@ -94,6 +97,7 @@ STEM_NAMES = ("dry", "voice", "layers", "fx")
 MAX_UPLOAD_BYTES = 200 << 20
 DISK_RESERVE = 5_000_000_000  # free space that must remain after a model download
 TRANSCRIBE_MODEL = "whisper-aligner"  # the voice package's model behind transcribe()/realign() (v0.3)
+GATE_FOR_ENGINE = {"kokoro": "kokoro", "qwen3": "persona", "asr": "aligner", "denoise": "ingest"}  # ModelInfo.engine
 _SYSTEM_DIRS = tuple(Path(p) for p in ("/System", "/usr", "/bin", "/sbin", "/etc", "/dev", "/private/etc",
                                        "/Library", "/Applications", "/cores"))
 FALLBACK_MODELS = [
@@ -279,6 +283,8 @@ class EngineService:
         self._closing = threading.Event()
         self._starter: threading.Thread | None = None
         self._models_seen: tuple[float, list[ModelInfo]] | None = None  # health's cached list of missing models
+        self._manifest: ModelManifest | None = None
+        self._manifest = self._load_manifest()  # the last signed model-update manifest (P9)
         # fx keeps its WORLD analyses in memory, so none survive a restart (and a job killed mid-way left its row
         # "queued"/"running"): start every source at "none" and analyse again on first use.
         self.library.reset_analysis_states()
@@ -576,9 +582,14 @@ class EngineService:
         hook = getattr(voice, "list_models", None)
         models = list(hook()) if callable(hook) else [m.model_copy() for m in FALLBACK_MODELS]
         running = {j.meta.get("model_id"): j.id for j in self.jobs.list(kind="model_install", active_only=True)}
+        with self._lock:
+            published = self._manifest.models if self._manifest is not None else {}
         return [m.model_copy(update={
             "install_job_id": running.get(m.id),
-            "install_needs_bytes": None if m.installed else (m.install_needs_bytes or m.size_bytes + DISK_RESERVE),
+            # installed: the voice package's own figure (None when current, an update's download otherwise)
+            "install_needs_bytes": m.install_needs_bytes if m.installed
+            else (m.install_needs_bytes or m.size_bytes + DISK_RESERVE),
+            "version": m.version or (published[m.id].version if m.id in published else None),
         }) for m in models]
 
     def install_model(self, model_id: str) -> Job:
@@ -586,7 +597,7 @@ class EngineService:
         if model is None:
             raise NotFound("model", model_id)
         meta = {"model_id": model_id}
-        if model.installed:
+        if model.installed and not model.update_available:
             job = self.jobs.new_job("model_install", lane="install", meta=meta)
             if model_id == TRANSCRIBE_MODEL:
                 self._queue_pending_transcripts()
@@ -634,6 +645,76 @@ class EngineService:
 
         return _job(self.jobs.submit("model_install", run, lane="install", dedupe_key=f"install:{model_id}",
                                      meta=meta))
+
+    def uninstall_model(self, model_id: str) -> ModelInfo:
+        """v0.6 (P8): free the disk a model takes. Required models stay; a model still downloading is busy."""
+        model = next((m for m in self.list_models() if m.id == model_id), None)
+        if model is None:
+            raise NotFound("model", model_id)
+        if model.required:
+            raise ApiException(409, "model_required", f"{model.name} is required, so it can't be removed.",
+                               hint="Only optional models can be removed.")
+        if model.install_job_id:
+            raise ApiException(409, "model_busy", f"{model.name} is still downloading.",
+                               hint="Cancel the download first.")
+        if not model.installed:
+            return model
+        hook = getattr(voice, "uninstall_model", None)
+        if not callable(hook):
+            raise ApiException(501, "not_implemented", "Removing models isn't available in this build yet.")
+        gate = self._voice_gates.get(GATE_FOR_ENGINE.get(model.engine, ""))
+        try:  # holding the model's gate lets a line or design that uses it finish first
+            with gate.hold(background=False) if gate is not None else nullcontext():
+                hook(model_id)
+        except Exception as exc:
+            raise _passthrough(exc, 500, "uninstall_failed", f"Couldn't remove {model.name}") from exc
+        with self._lock:
+            self._models_seen = None
+        return next((m for m in self.list_models() if m.id == model_id), model)
+
+    def apply_model_manifest(self, signed: SignedModelManifest) -> list[ModelInfo]:
+        """v0.6 (P9): a model-update manifest from the app's updater. Accepted only with a trusted signature and never
+        older than the one in use (a replay can't roll pins back); the voice package applies the new pins."""
+        try:
+            key_id = model_manifest.verify(signed)
+        except ValueError as exc:
+            raise ApiException(403, "manifest_untrusted", str(exc),
+                               hint="Only manifests signed with FoxBox's release key are accepted.") from None
+        new = signed.manifest
+        if new.schema_version != 1:
+            raise ApiException(422, "manifest_unsupported",
+                               f"Manifest schema {new.schema_version} is newer than this engine understands.",
+                               hint="Update the app, then check for model updates again.")
+        with self._lock:
+            current = self._manifest
+        if current is not None and new.published < current.published:
+            raise ApiException(409, "manifest_outdated",
+                               f"This manifest ({new.published}) is older than the one in use ({current.published}).")
+        hook = getattr(voice, "apply_model_manifest", None)
+        if callable(hook):
+            try:
+                hook(new)
+            except Exception as exc:
+                raise _passthrough(exc, 422, "manifest_rejected", "The voice engine rejected the manifest") from exc
+        self.library.set_setting("model_manifest", signed.model_dump(mode="json"))
+        with self._lock:
+            self._manifest = new
+            self._models_seen = None
+        log.info("model manifest %s applied (key %s)", new.published, key_id)
+        return self.list_models()
+
+    def _load_manifest(self) -> ModelManifest | None:
+        """The stored manifest, if its signature still verifies (a rotated-out key drops it)."""
+        stored = self.library.get_setting("model_manifest")
+        if not stored:
+            return None
+        try:
+            signed = SignedModelManifest.model_validate(stored)
+            model_manifest.verify(signed)
+        except (ValidationError, ValueError):
+            log.warning("the stored model manifest no longer verifies; ignoring it")
+            return None
+        return signed.manifest
 
     # ------------------------------------------------------------------------------------------ personas
 

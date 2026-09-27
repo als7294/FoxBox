@@ -129,7 +129,7 @@
 }
 .audition {
   height: 30px;
-  width: 52px;
+  width: 58px;
   flex: none;
   border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
   border-radius: var(--vb-r1);

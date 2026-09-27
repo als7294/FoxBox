@@ -15,6 +15,24 @@ export interface PlayerSnapshot {
   hasWet: boolean
 }
 
+/**
+ * Where the file is on the AudioContext clock, for overlays locked to playback (the metronome). While playing,
+ * the file position at context time t is `offset + (t - startedAt)`, wrapping from loop[1] back to loop[0] when
+ * looping: the same maths as `currentTime`.
+ */
+export interface PlayerTimeline {
+  /** Changes whenever the sources (re)start or stop: play, pause, stop, seek, loop change, new buffers. */
+  epoch: number
+  playing: boolean
+  /** AudioContext time at which the sources started (the file was at `offset` then). */
+  startedAt: number
+  /** File position (s) the sources started from; the paused position while stopped. */
+  offset: number
+  duration: number
+  /** The loop region [start, end) in seconds while looping, else null. */
+  loop: [number, number] | null
+}
+
 type Listener = (snapshot: PlayerSnapshot) => void
 
 let sharedContext: AudioContext | null = null
@@ -63,6 +81,8 @@ export class DualPlayer {
   private buffers: Record<Side, AudioBuffer | null> = { dry: null, wet: null }
   private gains: Record<Side, GainNode> | null = null
   private master: GainNode | null = null
+  /** Preview-only sounds (the metronome): straight to the output, beside the master (see monitorBus). */
+  private monitor: GainNode | null = null
   private analyser: AnalyserNode | null = null
   private sources: AudioBufferSourceNode[] = []
   private generation = 0
@@ -98,6 +118,27 @@ export class DualPlayer {
 
   get isPlaying(): boolean {
     return this.playing
+  }
+
+  timeline(): PlayerTimeline {
+    return {
+      epoch: this.generation,
+      playing: this.playing,
+      startedAt: this.startedAt,
+      offset: this.offset,
+      duration: this.duration,
+      loop: this.looping ? this.effectiveLoop() : null,
+    }
+  }
+
+  /**
+   * The bus for preview-only sounds layered over playback (the metronome): the same AudioContext and output
+   * device, at the master volume, but not through the analyser, so the meters and the voice core show the voice
+   * alone. Nothing on it reaches a render or an export. Null until playback has created the context.
+   */
+  monitorBus(): { ctx: AudioContext; input: AudioNode } | null {
+    if (!this.ctx || this.ctx.state === 'closed' || !this.monitor) return null
+    return { ctx: this.ctx, input: this.monitor }
   }
 
   /** Current position in seconds, following loops. */
@@ -210,6 +251,7 @@ export class DualPlayer {
   setVolume(volume: number): void {
     this.volume = volume
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.01)
+    if (this.monitor && this.ctx) this.monitor.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.01)
   }
 
   /** Route playback (and auditions, via routeToOutput) to another output device, and remember it. */
@@ -255,6 +297,9 @@ export class DualPlayer {
     this.master = ctx.createGain()
     this.master.gain.value = this.volume
     this.master.connect(ctx.destination)
+    this.monitor = ctx.createGain()
+    this.monitor.gain.value = this.volume
+    this.monitor.connect(ctx.destination)
     // Visuals only (voice core, meters): tapped after the master gain, not in the audio path.
     this.analyser = ctx.createAnalyser()
     this.analyser.fftSize = 1024
@@ -290,11 +335,14 @@ export class DualPlayer {
     return [s, e]
   }
 
-  private startSources(at: number): void {
+  private startSources(from: number): void {
     const ctx = this.context()
     const gen = ++this.generation
     const when = ctx.currentTime + 0.01
     const [loopStart, loopEnd] = this.effectiveLoop()
+    // A looping source started at or past its loop end jumps straight to the loop start; fold the offset into
+    // the loop first so the audio, currentTime and the metronome all agree on where playback is.
+    const at = this.looping && from >= loopEnd ? loopStart + ((from - loopEnd) % (loopEnd - loopStart)) : from
     this.sources = []
     for (const side of ['dry', 'wet'] as const) {
       const buffer = this.buffers[side]

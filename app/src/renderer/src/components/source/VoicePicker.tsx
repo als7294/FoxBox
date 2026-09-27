@@ -96,7 +96,7 @@ export function VoiceCard({
         disabled={!voice.installed}
         onClick={() => void toggle()}
       >
-        {state === 'playing' ? '■' : state === 'loading' ? '…' : '▶'} 2S
+        {state === 'playing' ? '■ STOP' : state === 'loading' ? '…' : '▶ PLAY'}
       </button>
     </div>
   )
