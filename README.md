@@ -76,6 +76,24 @@ a low, distorted, anonymous transmission, then hands you a **bar-exact, club-lou
 </tr>
 </table>
 
+## 📹 Camera clips <sup>beta</sup>
+
+Film your take right in **RECORD**. FoxBox finds your face and hides it **on your Mac** (mosaic, blur or solid, with your
+choice of strength and coverage), lays the masked drop underneath, with your own song if you like, and saves a
+**vertical or widescreen MP4** ready for Reels, TikTok and Shorts. Nothing is uploaded anywhere.
+
+<div align="center">
+<img src="app/docs/screens/readme/10-camera.png" alt="The camera in RECORD with the face hidden live" width="100%"/>
+</div>
+
+## 🆕 New in 1.1
+
+- **Camera clips (beta):** VOICE + CAMERA in RECORD, a live masked preview, **MAKE CLIP** for filmed takes and **RECORD CLIP** for typed lines.
+- **Songs under your clips:** drop a track in, and FoxBox lands your last word on its first big beat drop.
+- **A real loading screen:** FoxBox opens straight into a ready Studio.
+- **See it render:** *waiting → synthesizing → rendering* right in SIGNAL.
+- **A calmer voice core** you can hide, and a random hype line (🎲) to start each session.
+
 ## 🖼 Tour
 
 <table>
