@@ -5,6 +5,7 @@ import { Button } from '@/components/common/Button'
 import { PrivacyHelp } from '@/components/common/PrivacyHelp'
 import common from '@/components/common/common.module.css'
 import { Segmented } from '@/components/rack/Segmented'
+import { Switch } from '@/components/rack/Switch'
 import { bridge } from '@/env'
 import {
   barTime,
@@ -23,13 +24,14 @@ import { useStudio } from '@/state/studio'
 import { useViewPrefs } from '@/state/viewPrefs'
 import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 import { camera, takeFilm, useCamera, type CameraSettings } from './cameraStore'
-import { drawFrame, layout, type MaskStyle, type Wave } from './compose'
+import { clipCard, clipLength, drawFrame, frozenAt, layout, type ClipVoice, type MaskStyle, type Wave } from './compose'
 import { detectFaces, loadFaceDetector } from './faceDetector'
 import { filmTime, onsetOf, syncFilm, type FilmSync } from './filmSync'
 import { step, type Track } from './faceTrack'
 import { startMix, type Mix, type MixLevels } from './mix'
 import { clipName, pickFilmType, pickMimeType } from './recording'
 import { defragment } from './remux'
+import { subtitleWords, type SubWord } from './subtitles'
 import styles from './camera.module.css'
 
 type CameraPhase = 'asking' | 'denied' | 'starting' | 'live' | 'error'
@@ -164,11 +166,20 @@ export function CameraRig({
     wave: null as Wave | null,
     label: '',
     watermark: true,
+    subtitles: true,
+    /** The render's words, for the subtitles. */
+    words: [] as SubWord[],
+    /** The live camera is paused for the freeze after the drop (clips without a take). */
+    heldLive: false,
     stopRecording: null as (() => void) | null,
     alive: true,
   })
   st.current.settings = settings
-  st.current.watermark = useViewPrefs((v) => v.clipWatermark)
+  const watermark = useViewPrefs((v) => v.clipWatermark)
+  st.current.watermark = watermark
+  const subtitles = useViewPrefs((v) => v.clipSubtitles)
+  st.current.subtitles = subtitles
+  st.current.words = subtitleWords(render)
   const presetName = useStudio((s) => s.presetName)
   st.current.label = render
     ? `${presetName ?? 'CUSTOM'} · ${Math.round(render.bpm)} BPM${render.bars ? ` · ${render.bars} BARS` : ''}`
@@ -368,6 +379,7 @@ export function CameraRig({
     let raf = 0
     const scratch = document.createElement('canvas')
     const stamp = document.createElement('canvas')
+    const cardStamp = document.createElement('canvas')
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const s = st.current
@@ -385,6 +397,21 @@ export function CameraRig({
       if (s.film && s.sync) {
         const t = s.playback ? player.currentTime : s.mix && s.plan && s.ac ? s.ac.currentTime - s.mix.at - s.plan.dropAt : null
         if (t != null && syncFilm(s.film, filmTime(s.sync, t), s.sync.ratio)) s.settleUntil = now + SETTLE_MS
+      }
+      // A clip (made or listened to) with the watermark on: the fox before the first word, a freeze after the last,
+      // then the fox with MADE WITH FOXBOX.
+      const clipT = s.mix && s.ac ? s.ac.currentTime - s.mix.at : null
+      const voice: ClipVoice | null =
+        clipT != null && s.plan && s.watermark ? { from: s.plan.dropAt + (s.sync?.renderOnset ?? 0), end: s.plan.dropEnd } : null
+      // The subtitles follow the drop on its own timeline: the player while a take plays back, else the clip's clock.
+      const dropT = s.playback ? player.currentTime : clipT != null && s.plan ? clipT - s.plan.dropAt : null
+      const hold = Boolean(voice && !s.film && clipT != null && frozenAt(voice, clipT))
+      if (s.video && hold && !s.video.paused) {
+        s.video.pause()
+        s.heldLive = true
+      } else if (s.video && !hold && s.heldLive) {
+        s.heldLive = false
+        void s.video.play().catch(() => {})
       }
       const v = s.film ?? s.video
       if (s.detector && !s.settings.wholeFrame && v && v.readyState >= 2) {
@@ -418,9 +445,12 @@ export function CameraRig({
           watermark: s.watermark,
           // The clip's own clock animates the watermark (the live picture: the wall clock).
           clock: s.playback ? player.currentTime : s.mix && s.ac ? s.ac.currentTime - s.mix.at : now / 1000,
+          card: voice && clipT != null ? clipCard(voice, clipT) : null,
+          subtitles: s.subtitles && dropT != null ? { words: s.words, t: dropT } : null,
         },
         scratch,
         stamp,
+        cardStamp,
       )
     }
     raf = requestAnimationFrame(tick)
@@ -579,8 +609,9 @@ export function CameraRig({
       mix.stop()
       if (rec.state !== 'inactive') rec.stop()
     }
-    // Recording stops a moment after the clip's last sample.
-    void mix.ended.then(() => window.setTimeout(() => rec.state !== 'inactive' && rec.stop(), 150))
+    // Recording stops a moment after the clip's last sample, or after the outro when that runs past the sound.
+    const runOn = s.watermark ? clipLength(plan.length, plan.dropEnd) - plan.length : 0
+    void mix.ended.then(() => window.setTimeout(() => rec.state !== 'inactive' && rec.stop(), 150 + runOn * 1000))
     rec.start(500)
     s.mix = mix
     setPhase('recording')
@@ -666,6 +697,9 @@ export function CameraRig({
           ]}
           onChange={(format) => camera.set({ format })}
         />
+      </Row>
+      <Row title="SUBTITLES">
+        <Switch label="Subtitles" hideLabel checked={subtitles} onChange={(on) => useViewPrefs.getState().setClipSubtitles(on)} />
       </Row>
       <Row title="HIDE">
         <Segmented
@@ -845,7 +879,7 @@ export function CameraRig({
           ) : (
             <Button variant="ink" disabled={!canClip} onClick={() => void makeClip()} data-testid="camera-record">
               {takeVideo ? 'MAKE CLIP' : '● RECORD CLIP'}
-              {dropTiming ? ` · ${plan.length.toFixed(1)} S` : ''}
+              {dropTiming ? ` · ${(watermark ? clipLength(plan.length, plan.dropEnd) : plan.length).toFixed(1)} S` : ''}
             </Button>
           )}
         </div>

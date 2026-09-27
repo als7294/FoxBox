@@ -761,12 +761,14 @@ function DefaultsCard({ s, change }: { s: Full; change: Change }) {
   )
 }
 
-/** Camera clips (this machine only): the fox watermark in the corner of every clip. */
+/** Camera clips (this machine only): the fox watermark in the corner of every clip, and the drop's words as subtitles. */
 function CameraClipsCard() {
   const on = useViewPrefs((v) => v.clipWatermark)
+  const subtitles = useViewPrefs((v) => v.clipSubtitles)
   return (
     <Card title="Camera clips" area="camera">
       <Switch row label="FoxBox watermark" checked={on} onChange={(v) => useViewPrefs.getState().setClipWatermark(v)} />
+      <Switch row label="Subtitles" checked={subtitles} onChange={(v) => useViewPrefs.getState().setClipSubtitles(v)} />
     </Card>
   )
 }

@@ -231,6 +231,24 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - Library schema v4: `songs` and `mixes` tables.
   - Tests use stub `analyze_song`/`mix_song` until S2's land.
 
+- **1.2 component updates: the bundle is split** (this commit):
+  - Layout under `engine/`: `runtime/` (python/, venv/ with every third-party package, requirements.txt), `code/` (fvwks_* packages + assets, ~2 MB, no dist-info), `bin/fvwks-engine`, `components.json`, `MANIFEST.txt`.
+  - `runtime/venv/.../site-packages/fvwks-code.pth` holds one constant relative line to `../code`, so the runtime records nothing about our packages. Swapping `code/` alone works.
+  - `components.json`: `{"runtime": sha256, "code": sha256}`, each the sha256 of the component's sorted manifest (path, exec bit, content sha256; symlinks by target).
+    - A `.pyc` counts by its 16-byte header (magic + source hash): marshal isn't byte-stable (1 scipy test pyc in ~20k differed between builds).
+  - Two clean builds from the same uv.lock give the same runtime hash; a code-only change moves only the code hash. An opt-in bundle test checks this with a second build.
+  - S4's updater swaps components in a re-signed staged copy of the app (never inside the running app), so the seal stays valid.
+
+
+## Handover (S3 stopped here)
+- Branch `session/s3-engine`, latest `99f1b88`. Everything above is committed; main was merged at 55d9b2b (v0.7 contracts).
+- Build the bundle: `engine/server/scripts/bundle_engine.sh <out>`. It fails on any file naming the build machine and prints the component hashes. Tests: `uv run --all-packages pytest server/tests contracts/tests` from `engine/`; the bundle tests are opt-in with `FVWKS_TEST_BUNDLE=1` (~2.5 min, two builds).
+- Open:
+  - Songs run against stub `analyze_song`/`mix_song`. When S2's land, import song-1 (local only, never in the repo) and mix it once through the real ones.
+  - rekordbox.xml for `baked` files still anchors TEMPO at 0 s; a song whose bar 1 isn't at 0 needs its downbeat there.
+  - An `embed_cover_art` toggle would need a `Settings` field (contract change); the writer already takes `ExportMeta.cover=None`.
+- Pitfall: in these Claude shells `grep` is a wrapper that skips ignored and binary files. Use `/usr/bin/grep` or a Python walk for leak scans.
+
 ## Performance (HTTP, real engines, M3 Pro; `uv run --all-packages python server/scripts/bench_http.py`)
 | what | p50 ms | p95 ms |
 |---|---|---|

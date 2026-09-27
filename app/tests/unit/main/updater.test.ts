@@ -127,6 +127,7 @@ describe('feed', () => {
       url: 'https://updates.example.com/foxbox/FoxBox-0.2.0-arm64.zip',
       size_bytes: 240_000_000,
       sha256: zipSha,
+      components: null,
     })
   })
 

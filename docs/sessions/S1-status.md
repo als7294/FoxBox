@@ -2,6 +2,31 @@
 
 Updated 2026-09-27. Branch `session/s1-voice`, on main (contracts v0.6). Owner of `engine/voice/`.
 
+## Handover (2026-09-27, wrap-up)
+Everything that ships is merged, either by S4 (camera, app) or in main (engine). Nothing is left uncommitted.
+
+**Engine** (`session/s1-voice` @ 3c0246a): models already on this Mac aren't downloaded again.
+- `models.repo_dir` looks for the exact pinned snapshot in the other HF caches: $HF_HUB_CACHE, $HF_HOME/hub,
+  ~/.cache/huggingface/hub and the other FoxBox*/models/hub.
+- It trusts a snapshot only when every required file is there and the fetched files add up to exactly
+  `size_bytes`. A trusted one is cloned in with `cp -c` (APFS, no extra disk), so list/health/install see it as
+  installed. Anything else downloads as before.
+- Kokoro's pinned size was corrected to 341,742,463 bytes.
+
+**Camera** (`help/s1-camera`, all in session/s4-app; S4 has since added the fox intro/outro at 089c6a5, so
+further camera work starts from there). The camera lives in RECORD (VOICE + CAMERA):
+- A masked live preview sits in the orb's place, and takes are filmed too (in memory, only ever used masked).
+- MAKE CLIP / RECORD CLIP make the clip. Clips are remuxed to plain MP4 (`remux.ts`).
+- A filmed take plays back synced with its drop (`filmSync.ts`: speech onsets + `fit.stretch_ratio`). The whole
+  picture is hidden for 0.4 s after any switch or jump.
+- The DROP + SONG sound uses S4's shared song store (`state/song.ts`).
+- The fox watermark loops every 7 s. It can be turned off in SETTINGS → Camera clips (view prefs).
+
+**Open ends:**
+- The camera has only been driven by a fake camera from my tools. Real-camera runs were the user's own.
+- The README camera shot is 1× (1512×982), while the others are 2×. I offered to retake it.
+- contracts/proposals/S3.md still shows Kokoro's old size in an example.
+
 ## 2026-09-27 (late): the ASR test flake and the TTS release
 - **ASR flake (the coordinator saw one word's start 222 ms off under load).** It isn't load: MLX on the GPU isn't
   bit-exact between processes (even with the RNG seeded, Kokoro's audio differs a little per process), and within

@@ -2,6 +2,15 @@
 // release/FoxBox-<version>-arm64.dmg (the note in build-resources/ rides along in the disk image).
 const { join } = require('node:path')
 
+const electronFuses = {
+  runAsNode: false,
+  enableCookieEncryption: true,
+  enableNodeOptionsEnvironmentVariable: false,
+  enableNodeCliInspectArguments: false,
+  enableEmbeddedAsarIntegrityValidation: true,
+  onlyLoadAppFromAsar: true,
+}
+
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId: 'com.smittytech.foxbox',
@@ -12,13 +21,16 @@ module.exports = {
   files: ['out/**', 'package.json', '!out/**/*.map'],
   asar: true,
   npmRebuild: false,
-  electronFuses: {
-    runAsNode: false,
-    enableCookieEncryption: true,
-    enableNodeOptionsEnvironmentVariable: false,
-    enableNodeCliInspectArguments: false,
-    enableEmbeddedAsarIntegrityValidation: true,
-    onlyLoadAppFromAsar: true,
+  electronFuses,
+  // Component updates (1.2): record each part's hash in Contents/Resources/components.json before signing
+  // (src/main/components.ts). The fuses are applied after this hook, so they go into the electron part's hash.
+  afterPack: async (context) => {
+    const { hashComponents, writeComponentsFile } = await import('./src/main/components.ts')
+    const app = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
+    const electron = require('electron/package.json').version
+    const hashes = hashComponents(app, { electron: JSON.stringify({ electron, electronFuses }) })
+    writeComponentsFile(app, hashes)
+    console.log(`  • components  ${Object.entries(hashes).map(([n, h]) => `${n}=${h.slice(0, 12)}`).join('  ')}`)
   },
   mac: {
     target: [{ target: 'dir', arch: ['arm64'] }],

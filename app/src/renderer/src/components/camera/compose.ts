@@ -1,11 +1,13 @@
 /**
  * The camera clip's frame: the camera on top (faces masked), the clip's sound as a waveform with a playhead underneath
  * (the song, if there is one, with the drop over it), and a small FOXBOX mark; optionally the animated fox watermark in
- * the picture's bottom-right. Everything is drawn on one canvas, which is what gets recorded.
+ * the picture's bottom-right and the drop's words as subtitles over the picture. Everything is drawn on one canvas,
+ * which is what gets recorded.
  */
 import type { Peaks } from '@/api/types'
 import { theme } from '@/visuals/theme'
 import type { Box } from './faceTrack'
+import { subtitleAt, type Subtitle, type SubWord } from './subtitles'
 
 export type ClipFormat = 'vertical' | 'horizontal'
 
@@ -168,7 +170,58 @@ export interface FrameInput {
   watermark: boolean
   /** Seconds into the clip (it animates the watermark), or null for the live picture. */
   clock: number | null
+  /** The fox card over the picture (before the drop, and after it with MADE WITH FOXBOX), or null. */
+  card?: Card | null
+  /** The drop's words and the time on its own timeline (s), while a clip or a filmed take plays; null: none shown. */
+  subtitles?: { words: readonly SubWord[]; t: number } | null
 }
+
+// ------------------------------------------------------------------------------------------ intro / outro
+
+/** After the drop's last word the picture holds this long (the take's last frame, or the live camera paused). */
+export const FREEZE_S = 2
+export const CARD_FADE_S = 0.35
+/** The outro (the fox with MADE WITH FOXBOX) runs at least this long: a clip without a song runs on to fit it. */
+export const OUTRO_MIN_S = 3
+/** MADE WITH FOXBOX comes in this long after the outro's fox. */
+const MADE_WITH_AT_S = 0.6
+
+export interface Card {
+  /** Over the picture, 0–1. */
+  alpha: number
+  /** Seconds since this card started (it animates the fox). */
+  t: number
+  /** MADE WITH FOXBOX, 0–1 (0 in the intro). */
+  madeWith: number
+}
+
+/** Where the voice is in a clip, in seconds: from its first word to its last. */
+export interface ClipVoice {
+  from: number
+  end: number
+}
+
+/** A clip's full length with the outro: the song's tail, or longer when that's too short for the freeze and outro. */
+export const clipLength = (length: number, voiceEnd: number): number => Math.max(length, voiceEnd + FREEZE_S + OUTRO_MIN_S)
+
+/** True while the picture should hold still: from the last word until the outro's fox. */
+export const frozenAt = (v: ClipVoice, t: number): boolean => t >= v.end && t < v.end + FREEZE_S + CARD_FADE_S
+
+/**
+ * The fox card `t` seconds into a clip: over the picture until the first word (fading out as it comes), and again
+ * after the last word plus FREEZE_S, with MADE WITH FOXBOX, to the end. Null while the picture shows.
+ */
+export function clipCard(v: ClipVoice, t: number): Card | null {
+  const outro = v.end + FREEZE_S
+  if (t >= outro) {
+    const s = t - outro
+    return { alpha: clamp01(s / CARD_FADE_S), t: s, madeWith: clamp01((s - MADE_WITH_AT_S) / 0.5) }
+  }
+  if (t < v.from) return { alpha: clamp01((v.from - t) / CARD_FADE_S), t: Math.max(0, t), madeWith: 0 }
+  return null
+}
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, Number.isFinite(x) ? x : 0))
 
 // ------------------------------------------------------------------------------------------ watermark
 
@@ -240,10 +293,24 @@ export function markPose(t: number | null): MarkPose {
  */
 export function drawWatermark(ctx: CanvasRenderingContext2D, L: Layout, t: number | null, stamp: HTMLCanvasElement): void {
   const k = Math.min(L.w, L.h) / 1080
-  const s = (56 * k) / 414 // the mark spans y 56–470 and x 56–456 of its 512 box
+  const size = paintMark(stamp, 56 * k, markPose(t), Math.ceil(12 * k))
+  if (!size) return
+  const { w, h, pad } = size
+  const margin = 24 * k
+  ctx.save()
+  ctx.globalAlpha = 0.85
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)'
+  ctx.shadowBlur = 10 * k
+  ctx.shadowOffsetY = k
+  ctx.drawImage(stamp, L.cam.x + L.cam.w - margin - w - pad, L.cam.y + L.cam.h - margin - h - pad)
+  ctx.restore()
+}
+
+/** Paints the mark `height` px tall (in `pose`, ember) on `stamp` with `pad` px around it, holes cut out. */
+function paintMark(stamp: HTMLCanvasElement, height: number, p: MarkPose, pad: number): { w: number; h: number; pad: number } | null {
+  const s = height / 414 // the mark spans y 56–470 and x 56–456 of its 512 box
   const w = 400 * s
   const h = 414 * s
-  const pad = Math.ceil(12 * k)
   const sw = Math.ceil(w + 2 * pad)
   const sh = Math.ceil(h + 2 * pad)
   if (stamp.width !== sw || stamp.height !== sh) {
@@ -251,8 +318,7 @@ export function drawWatermark(ctx: CanvasRenderingContext2D, L: Layout, t: numbe
     stamp.height = sh
   }
   const m = stamp.getContext('2d')
-  if (!m) return
-  const p = markPose(t)
+  if (!m) return null
   const e = p.eyeX
   m.setTransform(1, 0, 0, 1, 0, 0)
   m.clearRect(0, 0, sw, sh)
@@ -273,13 +339,110 @@ export function drawWatermark(ctx: CanvasRenderingContext2D, L: Layout, t: numbe
   m.strokeStyle = '#000'
   m.stroke(new Path2D('M56 298 L256 410 L456 298'))
   m.globalCompositeOperation = 'source-over'
-  const margin = 24 * k
+  return { w, h, pad }
+}
+
+/**
+ * The fox card over the picture: the easter-egg fox, glancing and flicking its ear on a loop, over a soft ember glow;
+ * in the outro MADE WITH FOXBOX under it.
+ */
+function drawCard(ctx: CanvasRenderingContext2D, L: Layout, card: Card, stamp: HTMLCanvasElement): void {
+  const th = theme()
+  const r = L.cam
+  const unit = Math.min(L.w, L.h) / 1080
+  const fox = Math.min(r.w, r.h) * 0.34
+  const cx = r.x + r.w / 2
+  const cy = r.y + r.h * 0.46 - (card.madeWith ? fox * 0.12 * card.madeWith : 0)
   ctx.save()
-  ctx.globalAlpha = 0.85
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)'
-  ctx.shadowBlur = 10 * k
-  ctx.shadowOffsetY = k
-  ctx.drawImage(stamp, L.cam.x + L.cam.w - margin - w - pad, L.cam.y + L.cam.h - margin - h - pad)
+  ctx.globalAlpha = card.alpha
+  ctx.fillStyle = th.bg
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, fox * 1.4)
+  glow.addColorStop(0, 'rgba(255, 75, 43, 0.16)')
+  glow.addColorStop(1, 'rgba(255, 75, 43, 0)')
+  ctx.fillStyle = glow
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  // The fox starts on its glance, so even a short intro shows it move.
+  const size = paintMark(stamp, fox, markPose(MARK_START_S + card.t), Math.ceil(4 * unit))
+  if (size) ctx.drawImage(stamp, cx - size.w / 2 - size.pad, cy - size.h / 2 - size.pad)
+  if (card.madeWith > 0) {
+    ctx.globalAlpha = card.alpha * card.madeWith
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    const top = cy + fox / 2 + 64 * unit
+    ctx.fillStyle = th.dim
+    ctx.font = `500 ${Math.round(32 * unit)}px ${th.mono}`
+    ctx.letterSpacing = `${Math.round(10 * unit)}px`
+    ctx.fillText('MADE WITH', cx, top)
+    ctx.fillStyle = th.ink
+    ctx.font = `${th.displayWeight} ${Math.round(96 * unit)}px ${th.display}`
+    ctx.letterSpacing = `${Math.round(6 * unit)}px`
+    ctx.fillText('FOXBOX', cx, top + 100 * unit)
+  }
+  ctx.restore()
+}
+
+// ------------------------------------------------------------------------------------------ subtitles
+
+/**
+ * The subtitle: the phrase (subtitles.ts) centred in the picture's lower middle, bottom clear of the watermark's
+ * height so it never meets the fox; uppercase in the display face, the word being said in the accent, the rest in ink,
+ * on a soft dark rounded backing. 72 px type on 1080-wide video (scaled with it), smaller when a line would run wider
+ * than the picture's safe area.
+ */
+function drawSubtitle(ctx: CanvasRenderingContext2D, L: Layout, sub: Subtitle): void {
+  if (sub.alpha <= 0) return
+  const th = theme()
+  const k = Math.min(L.w, L.h) / 1080
+  const r = L.cam
+  const maxW = r.w * 0.84
+  const lines = sub.lines.map((l) => l.map((w) => w.toUpperCase()))
+  const fontAt = (px: number) => {
+    ctx.font = `${th.displayWeight} ${px}px ${th.display}`
+    ctx.letterSpacing = `${Math.round(px * 0.03)}px`
+  }
+  ctx.save()
+  // The backing's padding, in type sizes: across, and above the capitals and below the baseline.
+  const padX = 0.42
+  const padY = 0.3
+  let size = Math.round(72 * k)
+  fontAt(size)
+  const widest = Math.max(...lines.map((l) => ctx.measureText(l.join(' ')).width))
+  if (widest + 2 * padX * size > maxW) {
+    size = Math.floor(maxW / (widest / size + 2 * padX))
+    fontAt(size)
+  }
+  const space = ctx.measureText(' ').width
+  const widths = lines.map((l) => l.map((w) => ctx.measureText(w).width))
+  const lineW = widths.map((ws) => ws.reduce((a, b) => a + b, 0) + space * (ws.length - 1))
+  const cap = ctx.measureText('H').actualBoundingBoxAscent || size * 0.7
+  const lead = size * 1.12
+  const boxW = Math.max(...lineW) + 2 * padX * size
+  const boxH = cap + lead * (lines.length - 1) + 2 * padY * size
+  const cx = r.x + r.w / 2
+  // Bottom at the watermark's top (24 px margin, 56 px mark) plus a gap.
+  const bottom = r.y + r.h - (24 + 56 + 28) * k
+  const top = bottom - boxH
+  ctx.globalAlpha = sub.alpha
+  ctx.fillStyle = 'rgba(11, 11, 12, 0.68)'
+  ctx.beginPath()
+  ctx.roundRect(cx - boxW / 2, top, boxW, boxH, 14 * k)
+  ctx.fill()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+  ctx.shadowBlur = 8 * k
+  ctx.shadowOffsetY = 2 * k
+  let n = 0
+  lines.forEach((line, li) => {
+    let x = cx - lineW[li]! / 2
+    const y = top + padY * size + cap + li * lead
+    line.forEach((w, wi) => {
+      ctx.fillStyle = n++ === sub.current ? th.accent : '#e9e5da'
+      ctx.fillText(w, x, y)
+      x += widths[li]![wi]! + space
+    })
+  })
   ctx.restore()
 }
 
@@ -334,13 +497,14 @@ function drawWaveform(ctx: CanvasRenderingContext2D, r: Rect, wave: Wave, progre
   ctx.fillRect(px - 1.5, mid - amp - 18, 3, amp * 2 + 36)
 }
 
-/** One frame of the clip. `scratch` is a small canvas the mosaic reuses, `stamp` one the watermark does. */
+/** One frame of the clip. `scratch` is a small canvas the mosaic reuses, `stamp` one the watermark does, `cardStamp` the fox card's. */
 export function drawFrame(
   ctx: CanvasRenderingContext2D,
   L: Layout,
   f: FrameInput,
   scratch: HTMLCanvasElement,
   stamp?: HTMLCanvasElement,
+  cardStamp?: HTMLCanvasElement,
 ): void {
   const t = theme()
   ctx.fillStyle = t.bg
@@ -365,6 +529,9 @@ export function drawFrame(
     ctx.fillText('NO CAMERA', L.cam.x + L.cam.w / 2, L.cam.y + L.cam.h / 2)
   }
   if (f.watermark && stamp) drawWatermark(ctx, L, f.clock, stamp)
+  const sub = f.subtitles ? subtitleAt(f.subtitles.words, f.subtitles.t) : null
+  if (sub) drawSubtitle(ctx, L, sub)
+  if (f.card && f.card.alpha > 0 && cardStamp) drawCard(ctx, L, f.card, cardStamp)
 
   // The panel under the camera: the clip's sound, the drop's label and the mark.
   ctx.fillStyle = t.bg

@@ -12,8 +12,16 @@ describe('voice core panel', () => {
     render(<VoiceCore />)
     fireEvent.click(screen.getByRole('button', { name: 'Hide voice core' }))
     expect(useViewPrefs.getState().showVoiceCore).toBe(false)
-    expect(JSON.parse(window.localStorage.getItem('foxbox-view') ?? '{}')).toEqual({ showVoiceCore: false, clipWatermark: true })
+    expect(JSON.parse(window.localStorage.getItem('foxbox-view') ?? '{}')).toEqual({
+      showVoiceCore: false,
+      clipWatermark: true,
+      clipSubtitles: true,
+    })
     useViewPrefs.getState().setShowVoiceCore(true)
-    expect(JSON.parse(window.localStorage.getItem('foxbox-view') ?? '{}')).toEqual({ showVoiceCore: true, clipWatermark: true })
+    expect(JSON.parse(window.localStorage.getItem('foxbox-view') ?? '{}')).toEqual({
+      showVoiceCore: true,
+      clipWatermark: true,
+      clipSubtitles: true,
+    })
   })
 })

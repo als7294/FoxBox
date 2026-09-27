@@ -1,8 +1,28 @@
 # S2 SOUND: status
 
-Branch `session/s2-sound` (up to date with `main` and `v0.1.2-contracts`). Owns `engine/fx/`. **State: B1–B9 done,
-including v0.1 word throws; ready for the final merge. The full engine suite passes apart from two S1 voice tests (see
-the bottom). The audition pack is ready in `out/audition/`.**
+Branch `session/s2-sound`, which owns `engine/fx/`. **State: wrapped up (2026-09-27).** Everything is merged into
+`main`: the rack, the 7 factory presets, v0.4/v0.5 arrange and motion, v1.0 QA fixes, v0.7 songs (analyze_song /
+mix_song) and the low-confidence key → None rule. Local audition packs in `out/` are git-ignored and stay local.
+
+## Handover: tuning the presets
+- **Where they live:** `engine/fx/src/fvwks_fx/presets/<id>.json` (pact, legion, abyss, unit, ghost, signal, raw).
+  Each file has:
+  - `chain`: the modules in rack order, each with fixed `params`.
+  - `macros`: the default DEPTH / GRIT / MACHINE / SPACE, 0..1.
+  - `macro_map`: each macro sweeps module params from `min` (macro 0) to `max` (macro 1), `lin` / `exp` / `log`.
+  - `stack`, and the voice / speed hints.
+- **Param names and ranges:** `rack_spec.py` (also `uv run fvwks rack`). `resolve()` clamps anything out of range.
+- **Tuning loop:**
+  - Edit the JSON.
+  - Listen: `uv run fvwks render fixtures/sources/<x>.source.json -p <id> --bpm 140 --bars 4 --key Am -o out.wav`
+    from `engine/`, or `uv run fvwks audition` for the whole pack.
+  - Then `FVWKS_UPDATE_GOLDEN=1 scripts/check.sh fx` to accept the new sound, and `scripts/check.sh fx` to confirm
+    green.
+  - The golden tests exist to catch unintended changes; regenerate them only for deliberate retunes.
+- **Macro math is mirrored in the app** (S4's `lib/macros.ts`). Changing a preset's `macro_map` needs no app change;
+  changing the curve formulas in `api.resolve` does.
+- **Songs:** `fvwks_fx/song.py`. Key detection is the weak spot on bass-heavy tracks: song-1 is D#m, and it reads
+  None there, so the user sets it with the override.
 
 ## How to use
 - Tests: `scripts/check.sh fx` runs the fx suite, including perf, which are skippable with `FVWKS_SKIP_PERF=1`. The contract

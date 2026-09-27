@@ -13,6 +13,14 @@
  *     { "version": "1.2.0", "released": "2026-10-05", "size_bytes": 240000000, "notes": ["…"],
  *       "url": "https://…/FoxBox-1.2.0-arm64-mac.zip", "sha256": "<64 hex>" }
  *
+ * A release manifest may also list the app's parts (components.ts), for small updates (1.2):
+ *     "components": [{ "name": "app" | "electron" | "engine-runtime" | "engine-code", "hash": "<64 hex>",
+ *                      "url": "https://…/FoxBox-app-<hash16>.zip", "size": 3100000, "sha256": "<64 hex>" }, …]
+ * When it does and the running app knows its own parts (Contents/Resources/components.json), only the parts whose
+ * hash changed are downloaded; the new app is assembled from an APFS clone of the running one with those parts
+ * swapped in, re-signed ad hoc (keeping the executable's entitlements) and verified like a full download. Anything
+ * going wrong there falls back to the full zip.
+ *
  * Flow: check (newer versions only, never a downgrade) → download the zipped app to userData/updates with progress,
  * SHA-256 computed while streaming → extract with `ditto -x -k` → verify the app (bundle id, version = feed version,
  * `codesign --verify --deep --strict`) → ready. It installs only when the user presses "Restart to update" and
@@ -43,6 +51,7 @@ import { Readable, Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import type { UpdateFailure, UpdatePhase, UpdateState, UpdateTransfer, WhatsNewInfo } from '../shared/bridge'
+import { COMPONENTS, readComponentsFile, removeParts, strayEntry, type ComponentHashes, type ComponentName } from './components'
 import { APP_BUNDLE_ID, compareVersions, DEFAULT_FEED_URL, feedUrlProblem, githubRepoOf, parseVersion, RELEASE_MANIFEST, tokenProblem } from '../shared/updates'
 
 /** CFBundleIdentifier every update must carry (electron-builder appId). */
@@ -77,6 +86,16 @@ export interface UpdateFeed {
   /** The zipped .app. */
   url: string
   size_bytes: number
+  sha256: string
+  /** The app's parts (all four), or null: then only the full zip. */
+  components: FeedComponent[] | null
+}
+
+export interface FeedComponent {
+  name: ComponentName
+  hash: string
+  url: string
+  size: number
   sha256: string
 }
 
@@ -133,7 +152,40 @@ export function parseFeed(raw: unknown, feedUrl: string, allowLocalHttp: boolean
   if (problem) throw new UpdateError('bad_feed', `The update's download address is not allowed. ${problem}`)
   const sha256 = typeof sha === 'string' ? sha.trim().toLowerCase() : ''
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw bad('sha256')
-  return { version, released, notes, url: new URL(url).toString(), size_bytes: size, sha256 }
+  const components = parseComponents(f.components, feedUrl, allowLocalHttp)
+  return { version, released, notes, url: new URL(url).toString(), size_bytes: size, sha256, components }
+}
+
+/** The manifest's part list, or null when it has none or any part is invalid (the full zip still works). */
+export function parseComponents(raw: unknown, feedUrl: string, allowLocalHttp: boolean): FeedComponent[] | null {
+  if (!Array.isArray(raw) || raw.length !== COMPONENTS.length) return null
+  const out: FeedComponent[] = []
+  for (const x of raw as unknown[]) {
+    const c = (x ?? {}) as Record<string, unknown>
+    const name = COMPONENTS.find((n) => n === c.name)
+    const hash = typeof c.hash === 'string' ? c.hash.toLowerCase() : ''
+    const sha256 = typeof c.sha256 === 'string' ? c.sha256.toLowerCase() : ''
+    const size = c.size
+    if (!name || out.some((o) => o.name === name) || !/^[0-9a-f]{64}$/.test(hash) || !/^[0-9a-f]{64}$/.test(sha256)) return null
+    if (typeof size !== 'number' || !Number.isSafeInteger(size) || size <= 0 || size > MAX_UPDATE_BYTES) return null
+    if (typeof c.url !== 'string' || !c.url) return null
+    let url: string
+    try {
+      url = new URL(c.url.trim(), feedUrl).toString()
+    } catch {
+      return null
+    }
+    if (feedUrlProblem(url, allowLocalHttp)) return null
+    out.push({ name, hash, url, size, sha256 })
+  }
+  return out
+}
+
+/** The parts to download: those whose hash differs from the running app's. Null: download the full zip instead. */
+export function partsToUpdate(feed: UpdateFeed, installed: ComponentHashes | null): FeedComponent[] | null {
+  if (!feed.components || !installed) return null
+  const changed = feed.components.filter((c) => installed[c.name] !== c.hash)
+  return changed.length > 0 ? changed : null
 }
 
 /** fetch() that follows redirects itself, so every hop must pass the same https rule as the first address. */
@@ -361,6 +413,29 @@ export async function extractUpdate(zip: string, dir: string, run: Run): Promise
   return app
 }
 
+/**
+ * The new app, assembled in `dir` from the running one: an APFS clone (instant, no extra disk), each changed part's
+ * files removed and its zip unpacked in their place (ditto: keeps the files' signatures, symlinks and attributes),
+ * then signed ad hoc as a whole, keeping the executable's entitlements. Returns its path; verify it before use.
+ */
+export async function assembleUpdate(o: { current: string; dir: string; parts: { name: ComponentName; zip: string }[]; run: Run }): Promise<string> {
+  rmSync(o.dir, { recursive: true, force: true })
+  mkdirSync(o.dir, { recursive: true, mode: 0o700 })
+  const app = join(o.dir, basename(o.current))
+  await o.run('/bin/cp', ['-c', '-R', '-p', o.current, app])
+  for (const { name, zip } of o.parts) {
+    const entries = (await o.run('/usr/bin/zipinfo', ['-1', zip])).split('\n').map((l) => l.trim()).filter(Boolean)
+    const stray = unsafeZipEntry(entries) ?? strayEntry(entries, name)
+    if (stray) throw new UpdateError('bad_archive', `The ${name} update holds a file outside its part: ${stray}`)
+    removeParts(app, (c) => c !== name)
+    await o.run('/usr/bin/ditto', ['-x', '-k', zip, app])
+  }
+  // A copy of an app that came from a download may carry quarantine; this one was built here.
+  await o.run('/usr/bin/xattr', ['-d', '-r', 'com.apple.quarantine', app]).catch(() => '')
+  await o.run('/usr/bin/codesign', ['--force', '--sign', '-', '--preserve-metadata=entitlements', app])
+  return app
+}
+
 export interface AppInfo {
   bundleId: string
   version: string
@@ -493,7 +568,8 @@ interface Persisted {
 
 interface Prepared {
   feed: UpdateFeed
-  zip: string
+  /** The downloaded archives (the full zip, or the changed parts), hashed again before the swap. */
+  archives: { path: string; sha256: string }[]
   app: string
 }
 
@@ -539,6 +615,8 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
   private persisted: Persisted
   private phase: UpdatePhase = 'idle'
   private feed: UpdateFeed | null = null
+  /** The changed parts of `feed` (a small update), or null for the full zip. */
+  private parts: FeedComponent[] | null = null
   private transfer: UpdateTransfer | null = null
   private failure: UpdateFailure | null = null
   private prepared: Prepared | null = null
@@ -570,7 +648,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       phase: this.phase,
       current: this.o.currentVersion,
       latest: feed?.version ?? null,
-      sizeBytes: feed?.size_bytes ?? null,
+      sizeBytes: feed ? (this.parts ? this.parts.reduce((n, p) => n + p.size, 0) : feed.size_bytes) : null,
       released: feed?.released ?? null,
       notes: feed ? [...feed.notes] : [],
       download: this.transfer ? { ...this.transfer } : null,
@@ -628,10 +706,14 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       const newer = compareVersions(feed.version, this.o.currentVersion) > 0
       this.o.log?.(`checked ${new URL(url).host}: ${feed.version} (${newer ? 'newer' : 'not newer'} than ${this.o.currentVersion})`)
       this.feed = newer ? feed : null
+      // Small updates need the public feed's own addresses (a private repo's API route serves the full zip only).
+      this.parts = newer && !this.viaApi && this.o.appBundle ? partsToUpdate(feed, readComponentsFile(this.o.appBundle)) : null
+      if (this.parts) this.o.log?.(`small update: ${this.parts.map((p) => `${p.name} ${(p.size / 1e6).toFixed(1)} MB`).join(', ')}`)
       this.set({ phase: newer ? 'available' : 'up-to-date' })
     } catch (err) {
       this.o.log?.(`check failed: ${messageOf(err)}`)
       this.feed = null
+      this.parts = null
       const reason = err instanceof UpdateError && err.code !== 'network' ? ` ${err.message}` : ''
       this.fail('check', codeOf(err, 'network'), `Couldn't reach the update server.${reason}`)
     } finally {
@@ -640,7 +722,10 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     return this.getState()
   }
 
-  /** Download, verify the SHA-256, extract and verify the app. Ends in `ready` or `error`. */
+  /**
+   * Download and verify: the changed parts (assembled into the new app), or the full zip (extracted). Ends in `ready`
+   * or `error`. A small update that fails for any reason but a cancel falls back to the full zip.
+   */
   async download(): Promise<UpdateState> {
     const feed = this.feed
     const retry = this.phase === 'error' && this.failure?.during !== 'check'
@@ -649,12 +734,34 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     const abort = new AbortController()
     this.abort = abort
     this.prepared = null
-    this.set({ phase: 'downloading', failure: null, transfer: { bytes_done: 0, bytes_total: feed.size_bytes, rate_bps: null, eta_s: null } })
-    const zip = join(this.dir, `FoxBox-${feed.version}.zip`)
-    const partial = `${zip}.partial`
-    try {
+    const expected = { bundleId: this.o.bundleId ?? BUNDLE_ID, version: feed.version }
+    const fresh = () => {
       rmSync(this.dir, { recursive: true, force: true })
       mkdirSync(this.dir, { recursive: true, mode: 0o700 })
+    }
+    try {
+      const parts = this.parts
+      if (parts && this.o.appBundle) {
+        try {
+          fresh()
+          this.prepared = await this.downloadParts(feed, parts, this.o.appBundle, expected, abort.signal)
+          this.o.log?.(`${feed.version} assembled from ${parts.map((p) => p.name).join(', ')} and verified`)
+          this.set({ phase: 'ready' })
+          return this.getState()
+        } catch (err) {
+          if (codeOf(err, '') === 'cancelled') {
+            this.o.log?.('download cancelled')
+            this.set({ phase: 'available', transfer: null })
+            return this.getState()
+          }
+          this.o.log?.(`small update failed (${messageOf(err)}); downloading the full app instead`)
+          this.parts = null
+        }
+      }
+      this.set({ phase: 'downloading', failure: null, transfer: { bytes_done: 0, bytes_total: feed.size_bytes, rate_bps: null, eta_s: null } })
+      const zip = join(this.dir, `FoxBox-${feed.version}.zip`)
+      const partial = `${zip}.partial`
+      fresh()
       try {
         const token = this.viaApi ? this.token() : null
         if (this.viaApi && !token) throw new UpdateError('no_token', 'The GitHub token was removed; check for updates again.')
@@ -687,8 +794,8 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       this.set({ phase: 'verifying' })
       try {
         const app = await extractUpdate(zip, join(this.dir, feed.version), this.run)
-        await verifyApp(app, { bundleId: this.o.bundleId ?? BUNDLE_ID, version: feed.version }, this.run)
-        this.prepared = { feed, zip, app }
+        await verifyApp(app, expected, this.run)
+        this.prepared = { feed, archives: [{ path: zip, sha256: feed.sha256 }], app }
         this.o.log?.(`${feed.version} downloaded and verified`)
         this.set({ phase: 'ready' })
       } catch (err) {
@@ -701,6 +808,44 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       this.busy = false
       if (this.abort === abort) this.abort = null
     }
+  }
+
+  /** The changed parts, one after another with one progress bar, then the new app assembled from them and verified. */
+  private async downloadParts(feed: UpdateFeed, parts: FeedComponent[], current: string, expected: AppInfo, signal: AbortSignal): Promise<Prepared> {
+    const total = parts.reduce((n, p) => n + p.size, 0)
+    this.set({ phase: 'downloading', failure: null, transfer: { bytes_done: 0, bytes_total: total, rate_bps: null, eta_s: null } })
+    const got: { part: FeedComponent; zip: string }[] = []
+    let before = 0
+    for (const part of parts) {
+      const zip = join(this.dir, `${part.name}-${part.hash.slice(0, 16)}.zip`)
+      try {
+        await downloadVerified({
+          fetch: this.fetchImpl,
+          url: part.url,
+          dest: `${zip}.partial`,
+          expectedBytes: part.size,
+          sha256: part.sha256,
+          allowLocalHttp: this.allowLocal,
+          signal,
+          progressIntervalMs: this.o.progressIntervalMs ?? 250,
+          now: this.now,
+          onProgress: (t) => {
+            const done = before + t.bytes_done
+            this.set({ transfer: { bytes_done: done, bytes_total: total, rate_bps: t.rate_bps, eta_s: t.rate_bps ? Math.ceil((total - done) / t.rate_bps) : null } })
+          },
+        })
+        renameSync(`${zip}.partial`, zip)
+      } catch (err) {
+        rmSync(`${zip}.partial`, { force: true })
+        throw err
+      }
+      before += part.size
+      got.push({ part, zip })
+    }
+    this.set({ phase: 'verifying' })
+    const app = await assembleUpdate({ current, dir: join(this.dir, feed.version), parts: got.map((g) => ({ name: g.part.name, zip: g.zip })), run: this.run })
+    await verifyApp(app, expected, this.run)
+    return { feed, archives: got.map((g) => ({ path: g.zip, sha256: g.part.sha256 })), app }
   }
 
   cancel(): UpdateState {
@@ -728,8 +873,10 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     const expected = { bundleId: this.o.bundleId ?? BUNDLE_ID, version: prepared.feed.version }
     // Hash before swap: the archive at rest must still be the one the feed describes.
     try {
-      if ((await sha256File(prepared.zip)) !== prepared.feed.sha256) {
-        throw new UpdateError('checksum_mismatch', 'The downloaded update no longer matches its SHA-256; it was not installed.')
+      for (const a of prepared.archives) {
+        if ((await sha256File(a.path)) !== a.sha256) {
+          throw new UpdateError('checksum_mismatch', 'The downloaded update no longer matches its SHA-256; it was not installed.')
+        }
       }
     } catch (err) {
       this.busy = false
@@ -789,6 +936,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     this.persisted.lastChecked = null
     this.save()
     this.feed = null
+    this.parts = null
     this.prepared = null
     this.set({ phase: 'idle', failure: null, transfer: null })
     return this.getState()
@@ -806,6 +954,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     store.save(token === null ? null : token.trim())
     this.o.log?.(token === null ? 'GitHub token removed' : 'GitHub token stored')
     this.feed = null
+    this.parts = null
     this.prepared = null
     this.viaApi = false
     this.set({ phase: 'idle', failure: null, transfer: null })

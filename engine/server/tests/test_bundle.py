@@ -83,7 +83,7 @@ def _running(engine: Path, tmp_path: Path):
 
 
 def test_bundle_is_relocatable(app_engine, tmp_path):
-    for link in (app_engine / "venv" / "bin").glob("python*"):
+    for link in (app_engine / "runtime" / "venv" / "bin").glob("python*"):
         assert not os.readlink(link).startswith("/"), f"{link} is an absolute link"
     with _running(app_engine, tmp_path) as (port, proc):
         status, health = _call(port, "GET", "/api/health")
@@ -95,7 +95,7 @@ def test_bundle_is_relocatable(app_engine, tmp_path):
 
 @pytest.mark.xfail(not HAS_ESPEAK_FIX, reason=ESPEAK_XFAIL, strict=False)
 def test_tts_espeak_fallback_from_a_deep_install_path(app_engine, tmp_path):
-    phontab = next((app_engine / "venv").rglob("espeakng_loader/espeak-ng-data/phontab"))
+    phontab = next((app_engine / "runtime" / "venv").rglob("espeakng_loader/espeak-ng-data/phontab"))
     assert len(str(phontab)) > 160, "the scenario must really be past espeak-ng's limit"
     with _running(app_engine, tmp_path) as (port, proc):
         deadline = time.monotonic() + 180
@@ -200,7 +200,7 @@ def test_packaged_first_launch_on_a_fresh_mac_offline(app_engine, tmp_path):
 def test_bytecode_is_never_revalidated(app_engine):
     """Unchecked-hash .pyc files: a packaging copy that changes source mtimes can't make any interpreter rewrite
     them (flags word 0b01 = hash-based, source not checked)."""
-    pycs = [p for p in (app_engine / "venv").rglob("*.pyc")] + [p for p in (app_engine / "python").rglob("*.pyc")]
+    pycs = [*(app_engine / "runtime").rglob("*.pyc"), *(app_engine / "code").rglob("*.pyc")]
     assert len(pycs) > 1000
     flags = {int.from_bytes(p.read_bytes()[4:8], "little") for p in pycs[::50]}
     assert flags == {1}, flags
@@ -221,8 +221,29 @@ def test_no_file_names_the_build_machine(app_engine):
             if any(n in data for n in needles):
                 leaks.append(str(path.relative_to(app_engine)))
     assert leaks == []
-    out = subprocess.run([str(app_engine / "venv" / "bin" / "python"), "-I", "-B", "-c",
+    out = subprocess.run([str(app_engine / "runtime" / "venv" / "bin" / "python"), "-I", "-B", "-c",
                           "import sys, sysconfig; print(sys.base_prefix); print(sysconfig.get_paths()['stdlib'])"],
                          capture_output=True, text=True, check=True)
     base_prefix, stdlib = out.stdout.split()
-    assert Path(base_prefix) == app_engine / "python" and Path(stdlib) == app_engine / "python" / "lib" / "python3.12"
+    python = app_engine / "runtime" / "python"
+    assert Path(base_prefix) == python and Path(stdlib) == python / "lib" / "python3.12"
+
+
+def test_components_runtime_hash_only_moves_with_dependencies(app_engine, tmp_path):
+    """1.2 component updates: a second clean build from the same uv.lock, with one change to our code, has the
+    same runtime hash and a new code hash (so the app downloads ~2 MB, not the ~800 MB runtime)."""
+    engine = SCRIPT.parents[2]
+    copy = tmp_path / "engine"
+    shutil.copytree(engine, copy, symlinks=True, ignore=shutil.ignore_patterns(
+        ".venv", "__pycache__", "*.egg-info", ".pytest_cache", "tests"))
+    writer = copy / "server" / "src" / "fvwks_server" / "writer.py"
+    writer.write_text(writer.read_text() + "\n# a code-only change\n")
+    built = tmp_path / "build" / "engine"
+    subprocess.run([str(copy / "server" / "scripts" / "bundle_engine.sh"), str(built)], check=True,
+                   capture_output=True, text=True)
+    first, second = (json.loads((b / "components.json").read_text()) for b in (app_engine, built))
+    assert first["runtime"] == second["runtime"] and first["code"] != second["code"]
+    loaded = subprocess.run([str(built / "runtime" / "venv" / "bin" / "python"), "-I", "-B", "-c",
+                             "import fvwks_server.writer as w; print(w.__file__)"],
+                            capture_output=True, text=True, check=True)
+    assert Path(loaded.stdout.strip()) == built / "code" / "fvwks_server" / "writer.py"
