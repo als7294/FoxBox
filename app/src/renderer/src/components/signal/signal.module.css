@@ -987,7 +987,7 @@
   position: absolute;
   top: 14px;
   bottom: 5px;
-  padding: 0 5px;
+  padding: 0;
   overflow: hidden;
   border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
   border-radius: 4px;
@@ -1002,6 +1002,27 @@
   transition:
     left var(--vb-fast),
     background var(--vb-fast);
+}
+/* The word, cut with an ellipsis when its block is short, and gone when there's no room (it's on the title). */
+.block {
+  container-type: inline-size;
+}
+.blockLabel {
+  display: block;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container (max-width: 34px) {
+  .blockLabel {
+    padding: 0 2px;
+    text-overflow: clip;
+  }
+}
+@container (max-width: 12px) {
+  .blockLabel {
+    display: none;
+  }
 }
 .block[data-throw] {
   border-color: rgba(var(--vb-accent-rgb), 0.7);

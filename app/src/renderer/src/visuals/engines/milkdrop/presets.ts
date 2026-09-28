@@ -13,14 +13,14 @@ export interface MilkdropPreset {
  * Reduced motion: presets that stay calm under a hard beat, measured (not guessed). Each of the 100 was rendered for 3 s
  * against a 140 BPM kick-heavy test signal. These have the least frame-to-frame change (< 1.1 % of the picture per
  * frame, where the median preset has 2 % and the worst 20 %), no whole-screen brightness jump over 4 %, and are lit
- * (≥ 15 % mean brightness).
+ * (≥ 15 % mean brightness). Each also draws something while nothing plays (the idle input); 'idiot-star-of-annon' was
+ * calm but goes black at idle, so it's out.
  */
 export const CALM_PRESETS: readonly string[] = [
   'milk-artist-at-our-best-fed-slowfast-ft-adamfx-n-martin-hd-c',
   'martin-castle-in-the-air',
   'flexi-truly-soft-piece-of-software-this-is-generic-texturing',
   'flexi-martin-cascading-decay-swing',
-  'idiot-star-of-annon',
   'flexi-swing-out-on-the-spiral',
   'flexi-stahlregen-jelly-showoff-parade',
   'martin-mandelbox-explorer-high-speed-demo-version',

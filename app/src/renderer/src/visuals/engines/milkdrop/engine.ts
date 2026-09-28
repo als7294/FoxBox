@@ -6,6 +6,14 @@ import { CALM_PRESETS, favourites, loadPresets, type MilkdropPreset } from './pr
 const WAVE = 1024
 /** Reduced motion: the waveform butterchurn reacts to is pulled towards silence (calmer motion, no hard hits). */
 const CALM = 0.35
+/** While nothing plays: a quiet, slowly breathing sine. In true silence 8 of the 100 presets draw nothing at all (a
+ *  black stage); with this, 99 keep moving. Not scaled by CALM: it's already gentle. */
+const IDLE_AMP = 18
+
+function idleInto(dst: Uint8Array, t: number): void {
+  const swell = 0.6 + 0.4 * Math.sin(t * 1.2)
+  for (let i = 0; i < dst.length; i++) dst[i] = 128 + IDLE_AMP * swell * Math.sin(i * 0.035 + t * 3)
+}
 
 export interface MilkdropPick {
   /** One preset by slug; or null to cycle. */
@@ -60,8 +68,13 @@ export async function createMilkdrop(canvas: HTMLCanvasElement, opts: StyleOptio
   return {
     frame(a: AudioFrame, dt: number) {
       const gain = opts.reduced ? CALM : 1
-      waveInto(left, a.active ? a.waveL : null, gain)
-      waveInto(right, a.active ? (a.waveR ?? a.waveL) : null, gain)
+      if (a.active) {
+        waveInto(left, a.waveL, gain)
+        waveInto(right, a.waveR ?? a.waveL, gain)
+      } else {
+        idleInto(left, a.time)
+        right.set(left)
+      }
       for (let i = 0; i < WAVE; i++) mono[i] = (left[i]! + right[i]!) >> 1
       if (cycleBeats && a.active) {
         if (a.beatPhase + 0.5 < lastPhase) beats += 1 // the phase wrapped: a beat went by

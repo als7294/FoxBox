@@ -96,7 +96,12 @@ export function ArrangeView() {
         <div className={styles.flex} />
         <span className={styles.fitChip} data-status={fit.status} title={fit.verdict} data-testid="fit-chip" role="status" aria-label="Fit">
           {fit.icon} {fit.state}
-          {render && <span className="sr-only"> · {render.bars ? `${render.bars} BARS @ ${Math.round(render.bpm)}` : 'FREE'} · {fit.verdict}</span>}
+          {render && (
+            <span className="sr-only">
+              {' '}
+              · {render.bars ? `${render.bars} BARS @ ${Math.round(render.bpm)}` : 'FREE'} · {fit.verdict}
+            </span>
+          )}
         </span>
         <SnapEndPicker />
       </div>
@@ -109,6 +114,10 @@ export function ArrangeView() {
         {words.length === 0 && <span className={styles.laneEmpty}>Render a line to arrange its words on the beat.</span>}
         {words.map((w, i) => {
           const at = drag?.index === i ? drag.beat * beatS : w.t0
+          // Close words don't overlap: a block ends 1 px before the next word starts (never below 6 px); its start is
+          // always the word's real time.
+          const next = words.reduce((m, o, j) => (j !== i && o.t0 > at && o.t0 < m ? o.t0 : m), Number.POSITIVE_INFINITY)
+          const span = Math.min(w.t1 - w.t0, next - at)
           return (
             <button
               key={i}
@@ -116,7 +125,7 @@ export function ArrangeView() {
               className={styles.block}
               data-throw={w.th || undefined}
               data-drag={drag?.index === i || undefined}
-              style={{ left: `${(at / g.target) * 100}%`, width: `max(18px, ${((w.t1 - w.t0) / g.target) * 100}%)` }}
+              style={{ left: `${(at / g.target) * 100}%`, width: `max(6px, calc(${(span / g.target) * 100}% - 1px))` }}
               title={`${w.w} · beat ${Math.round(w.t0 / beatS) + 1} · drag or ←/→ to move`}
               aria-label={`${w.w}, beat ${Math.round(w.t0 / beatS) + 1}`}
               onPointerDown={(e) => onDown(e, i)}
@@ -124,7 +133,7 @@ export function ArrangeView() {
               onPointerUp={() => onUp(i)}
               onKeyDown={(e) => onKey(e, i)}
             >
-              {w.w.toUpperCase()}
+              <span className={styles.blockLabel}>{w.w.toUpperCase()}</span>
             </button>
           )
         })}
