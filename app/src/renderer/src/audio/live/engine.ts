@@ -30,7 +30,12 @@ const SMOOTH_S = 0.015
 const DRIVE_RANGE = 8 // the shaper curve spans ±8 (pre-gain divides by it): headroom for +24 dB of drive
 const THROW_FEEDBACK = 0.55
 
+/** What feeds the mask: nothing (VISUALS → TRACK: song deck and taps only; the mic is never asked for), the mic
+ * (opened by the engine; the default), or a stream the caller owns. */
+export type LiveInputChoice = 'none' | 'mic' | MediaStream
+
 export interface LiveEngineOptions {
+  input?: LiveInputChoice
   deviceId?: string
   latency?: LatencyMode
   bpm?: number
@@ -45,6 +50,18 @@ export interface TriggerOptions {
 }
 
 const dbToLin = (db: number) => Math.pow(10, db / 20)
+
+function openMic(deviceId?: string): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      channelCount: 1,
+    },
+  })
+}
 
 function shaperCurve(mode: string): Float32Array<ArrayBuffer> {
   const n = 4096
@@ -87,7 +104,9 @@ export class LiveEngine {
   readonly ctx: AudioContext
   readonly bus: LiveBus
   private readonly busImpl: LiveBusImpl
-  private readonly stream: MediaStream
+  private stream: MediaStream | null = null
+  private ownsStream = false
+  private micSource: MediaStreamAudioSourceNode | null = null
   private readonly stretch: StretchNode
   private stretchLatencyS = 0
   private stretchOn = false
@@ -145,34 +164,30 @@ export class LiveEngine {
     out: GainNode
   }
 
-  /** Opens the mic (asks for permission), loads the worklets and builds the chain. Call `apply()` next. */
+  /** Loads the worklets, builds the chain and attaches the input: the mic by default (asks for permission), or
+   * `input: 'none'` (never touches the mic: the song deck, taps, recorder and output all run) or a caller's stream.
+   * Call `apply()` next. */
   static async create(opts: LiveEngineOptions = {}): Promise<LiveEngine> {
     const ctx = new AudioContext({ latencyHint: 'interactive' })
+    let engine: LiveEngine | null = null
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(opts.deviceId ? { deviceId: { exact: opts.deviceId } } : {}),
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1,
-        },
-      })
       await ctx.audioWorklet.addModule(processorsUrl)
       SignalsmithStretch.moduleUrl = stretchUrl // a file URL: the default blob: URL is blocked by the app's CSP
       const stretch = await SignalsmithStretch(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] })
-      const engine = new LiveEngine(ctx, stream, stretch, opts.bpm ?? 120)
+      engine = new LiveEngine(ctx, stretch, opts.bpm ?? 120)
       await engine.setLatencyMode(opts.latency ?? 'low')
+      await engine.setInput(opts.input ?? 'mic', opts.deviceId)
+      void ctx.resume()
       return engine
     } catch (err) {
-      await ctx.close().catch(() => {})
+      if (engine) await engine.close().catch(() => {})
+      else await ctx.close().catch(() => {})
       throw err
     }
   }
 
-  private constructor(ctx: AudioContext, stream: MediaStream, stretch: StretchNode, bpm: number) {
+  private constructor(ctx: AudioContext, stretch: StretchNode, bpm: number) {
     this.ctx = ctx
-    this.stream = stream
     this.stretch = stretch
     this.bpm = bpm
     this.anchor = ctx.currentTime
@@ -228,7 +243,7 @@ export class LiveEngine {
     const voiceBus = gain() // the masked voice with its SPACE, before the song joins
 
     // PREP → MASK (the two paths cross-fade: Stretch only runs while it shifts something)
-    ctx.createMediaStreamSource(stream).connect(n.inGain)
+    // the input (mic or stream) joins at n.inGain: setInput()
     n.inGain.connect(inputTap)
     n.inGain.connect(n.hp).connect(n.gate)
     n.gate.connect(n.direct).connect(n.voice)
@@ -277,10 +292,28 @@ export class LiveEngine {
     this.stretchLatencyS = await this.stretch.latency()
   }
 
+  /** 'none' (no input attached), 'mic' (opened by the engine) or 'stream' (the caller's). */
+  get input(): 'none' | 'mic' | 'stream' {
+    return !this.stream ? 'none' : this.ownsStream ? 'mic' : 'stream'
+  }
+
+  /** Swaps the input: 'mic' opens it now (e.g. when the user picks MIC or opens the voice panel), 'none' closes it.
+   * The new input is opened before the old one goes, so a refused mic leaves the current input as it was. */
+  async setInput(input: LiveInputChoice, deviceId?: string): Promise<void> {
+    const next = input === 'none' ? null : input === 'mic' ? await openMic(deviceId) : input
+    this.detachInput()
+    if (!next) return
+    this.micSource = this.ctx.createMediaStreamSource(next)
+    this.micSource.connect(this.n.inGain)
+    this.stream = next
+    this.ownsStream = input === 'mic'
+  }
+
   /** Round trip estimate, ms: the context's output path, the mic's input latency and the pitch shifter (when on). */
   latencyMs(): number {
-    const track = this.stream.getAudioTracks()[0]
-    const input = (track?.getSettings() as MediaTrackSettings & { latency?: number }).latency ?? 0
+    const track = this.stream?.getAudioTracks()[0]
+    // no input (a mic-less start) or an ended track: no input latency (never throw: the page calls this while rendering)
+    const input = (track?.getSettings() as (MediaTrackSettings & { latency?: number }) | undefined)?.latency ?? 0
     const out = this.ctx.baseLatency + (this.ctx.outputLatency || 0)
     return (out + input + (this.stretchOn ? this.stretchLatencyS : 0)) * 1000
   }
@@ -439,8 +472,16 @@ export class LiveEngine {
 
   async close(): Promise<void> {
     this.busImpl.dispose()
-    for (const t of this.stream.getTracks()) t.stop()
+    this.detachInput()
     await this.ctx.close()
+  }
+
+  private detachInput(): void {
+    this.micSource?.disconnect()
+    this.micSource = null
+    if (this.ownsStream) for (const t of this.stream?.getTracks() ?? []) t.stop()
+    this.stream = null
+    this.ownsStream = false
   }
 
   private nextGrid(q: Quantize): number {

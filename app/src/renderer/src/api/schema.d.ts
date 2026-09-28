@@ -296,6 +296,46 @@ export interface paths {
         patch: operations["updateSong"];
         trace?: never;
     };
+    "/api/songs/{song_id}/stems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Separate Song Stems
+         * @description v0.9: split the song into drums, bass, vocals and other (a song_stems job; instant when cached).
+         */
+        post: operations["separateSongStems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{song_id}/stems/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Stem Features
+         * @description v0.9: per-stem envelopes and onsets for the visuals (60 fps over the whole song).
+         */
+        get: operations["getStemFeatures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mix": {
         parameters: {
             query?: never;
@@ -1000,7 +1040,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis";
+            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis" | "song_stems";
             /**
              * State
              * @enum {string}
@@ -1924,6 +1964,18 @@ export interface components {
             key_override?: string | null;
             /** Created At */
             created_at: string;
+            /**
+             * Stems State
+             * @description v0.9: stem separation, started with POST /api/songs/{id}/stems.
+             * @default none
+             * @enum {string}
+             */
+            stems_state: "none" | "queued" | "running" | "done" | "error";
+            /**
+             * Stems
+             * @description v0.9: the separated stems once stems_state is 'done'.
+             */
+            stems?: components["schemas"]["SongStem"][];
         };
         /**
          * SongAnalysis
@@ -2003,6 +2055,22 @@ export interface components {
              * @description Excerpt end bar, exclusive; None = song end.
              */
             end_bar?: number | null;
+        };
+        /**
+         * SongStem
+         * @description One separated stem of a song (v0.9). Stems are local-only, like songs.
+         */
+        SongStem: {
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "drums" | "bass" | "vocals" | "other";
+            /**
+             * Audio Id
+             * @description Stream with GET /api/audio/{audio_id}.
+             */
+            audio_id: string;
         };
         /**
          * SongUpdate
@@ -2124,6 +2192,33 @@ export interface components {
              * @default -12
              */
             gain_db: number;
+        };
+        /**
+         * StemFeatures
+         * @description Per-stem reactive features of a whole song for the visuals (v0.9): GET /api/songs/{id}/stems/features.
+         *
+         *     Sampled at `fps` over the whole song; frame f covers song time f / fps seconds.
+         *     `data_b64` is base64 of uint8, frame-major: for each frame, for each entry of `tracks` in order, two bytes (rms, onset):
+         *     - rms: that track's envelope, 0-255 for 0-1, normalised per song (the track's loudest moment is 255).
+         *     - onset: 0 when there's no hit; otherwise strength / threshold * 64, clamped to 255 (>= 64 is a hit, matching
+         *       AudioFrame onset >= 1).
+         *     `tracks` is the four stems in STEM_NAMES order, then "mix" (the whole song), so offline clip renders never need
+         *     real-time analysis.
+         */
+        StemFeatures: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * Fps
+             * @default 60
+             */
+            fps: number;
+            /** Frames */
+            frames: number;
+            /** Tracks */
+            tracks: ("drums" | "bass" | "vocals" | "other" | "mix")[];
+            /** Data B64 */
+            data_b64: string;
         };
         /** StemInfo */
         StemInfo: {
@@ -3771,6 +3866,158 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Song"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    separateSongStems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStemFeatures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StemFeatures"];
                 };
             };
             /** @description Bad Request */

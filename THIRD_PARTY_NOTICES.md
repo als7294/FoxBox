@@ -17,6 +17,8 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) (v3) | Denoising recorded takes (weights) | MIT / Apache-2.0 |
 | [Whisper](https://github.com/openai/whisper) large-v3-turbo (MLX build) | Transcribing recordings (weights) | MIT |
 | [Qwen3-ForcedAligner-0.6B](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) | Word timings for recordings (weights) | Apache-2.0 |
+| [Demucs](https://github.com/facebookresearch/demucs) HT-Demucs (Meta), MLX fp16 build [mlx-community/demucs-mlx-fp16](https://huggingface.co/mlx-community/demucs-mlx-fp16) | Optional stem separation for VISUALS (weights) | MIT |
+| [demucs-mlx](https://pypi.org/project/demucs-mlx/) model code · [mlx-spectro](https://pypi.org/project/mlx-spectro/), vendored in `fvwks_voice/stems` | Runs HT-Demucs on Apple Silicon | MIT |
 
 ## Sound
 | Project | Use | License |
@@ -57,6 +59,8 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [butterchurn-presets](https://github.com/jberg/butterchurn-presets) (base pack, 100 presets) | MILKDROP presets; their equations precompiled into `visuals/engines/milkdrop/eqs.gen.js` (no eval) | MIT (the package) |
 | [interactive-shader-format-js](https://github.com/msfeldstein/interactive-shader-format-js) (Michael Feldstein) | SHADERS: ISF renderer | ISC |
 | FoxBox's own ISF shader pack (`visuals/engines/isf/shaders`, see its LICENSES.md) | SHADERS styles | MIT |
+| [Ableton Link](https://github.com/Ableton/link) (Ableton AG) | "Sync to Rekordbox": tempo and beat from the Link session (`native/link`, as the `link-helper` process) | GPL-2.0-or-later |
+| [asio](https://github.com/chriskohlhoff/asio) (Christopher Kohlhoff), standalone, via Link | Link's networking | BSL-1.0 |
 
 The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
 Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that

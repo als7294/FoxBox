@@ -68,6 +68,15 @@ class MixOutput:
 
 
 @dataclass
+class StemFeatureData:
+    """v0.9: what FxAPI.stem_features returns; the server wraps it as StemFeatures (base64 of `data`)."""
+
+    fps: float
+    tracks: list[str]  # the four stems in STEM_NAMES order, then "mix"
+    data: np.ndarray  # uint8, shape (frames, len(tracks), 2): (rms, onset) as documented on StemFeatures
+
+
+@dataclass
 class RenderOutput:
     audio: np.ndarray  # (channels, n) float32 at sample_rate; mastered; exact length
     dry: np.ndarray  # (channels, n) same length/rate: dry voice on the same plan, mastered to the same target (A/B, delivery-safe)
@@ -127,6 +136,14 @@ class FxAPI(Protocol):
         ...
 
 
+    # v0.9 stems (optional, like the song methods: the server checks with getattr)
+    def stem_features(self, stems: dict[str, np.ndarray], sr: int, mix: np.ndarray, *,
+                      analysis: SongAnalysis | None = None, fps: float = 60.0) -> StemFeatureData:
+        """Per-stem envelopes and onsets for the visuals. `stems` maps each of STEM_NAMES to (channels, n) float32
+        at `sr`; `mix` is the whole song at `sr`. Onsets may lean on the song's beat grid (`analysis`)."""
+        ...
+
+
 class VoiceHooks(Protocol):
     """OPTIONAL module-level hooks on fvwks_voice.api (v0.1, accepted from S3's proposal P1).
 
@@ -159,4 +176,11 @@ class VoiceHooks(Protocol):
 
     def realign(self, source: Source, script: str) -> Source:
         """v0.3: apply an edited transcript (markup allowed): one segment per chunk with flags, words aligned."""
+        ...
+
+    def separate_stems(self, audio: np.ndarray, sr: int,
+                       progress: Callable[[float | None, str | None], None]) -> dict[str, np.ndarray]:
+        """v0.9 (optional; the server checks with getattr): split a song into STEM_NAMES, each (channels, n) float32 at
+        `sr`, the same length as `audio`. Needs the optional stems model (list_models/install_model); raises the
+        usual error with code "model_not_installed" (and model_id) when it isn't installed, like the persona designer. Runs in the song_stems job."""
         ...

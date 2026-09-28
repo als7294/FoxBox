@@ -18,8 +18,9 @@ import {
 } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdir, realpath, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   AUDIO_SCHEME,
@@ -46,11 +47,12 @@ import {
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
-import { ExportGuard } from './exportGuard'
+import { ExportGuard, isInside } from './exportGuard'
 import { buildMenu } from './menu'
 import { cartridgePng } from './png'
 import { hasSetupMarker, requiredMissing, shouldShowSetup, writeSetupMarker } from './setup'
 import { importShaderFiles, listShaders, removeShader, shadersDir } from './shaders'
+import { LinkSession, linkHelperPath } from './link'
 import { Updater } from './updater'
 
 // Dev only: a packaged app launched with FVWKS_MOCK must never silently talk to mocks and play fake audio.
@@ -565,6 +567,13 @@ function lockDownPermissions(): void {
     if (!allowed.has(permission)) return false
     return RENDERER_URL ? origin === new URL(RENDERER_URL).origin : origin.startsWith('file://')
   })
+  // VISUALS LIVE INPUT "System audio" (1.4, S2): the DJ software's output through the system loopback. The video is our
+  // own window (the renderer drops that track), so no screen-recording grant is needed; macOS asks once for System
+  // Audio Recording. Only our own renderer may ask.
+  ses.setDisplayMediaRequestHandler((request, callback) => {
+    if (!request.frame || !isTrustedUrl(request.frame.url)) return callback({})
+    callback({ video: request.frame, audio: 'loopback' })
+  })
 }
 
 function registerAudioProtocol(): void {
@@ -593,6 +602,17 @@ function registerAudioProtocol(): void {
       return new Response(`engine unreachable: ${(err as Error).message}`, { status: 502, headers: cors })
     }
   })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ableton Link (1.4): one session for the app; its states go to the main and output windows.
+
+let link: LinkSession | null = null
+function linkSession(): LinkSession {
+  link ??= new LinkSession(linkHelperPath(app.isPackaged, process.resourcesPath, app.getAppPath()), (state) => {
+    for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(IPC.linkState, state)
+  }, log)
+  return link
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -686,6 +706,44 @@ function registerIpc(): void {
     return true
   })
 
+  // Renderer errors an error boundary caught: into main.log, clipped and at most 30 a minute.
+  let errorWindow = 0
+  let errorCount = 0
+  ipcMain.on(IPC.logError, (event, scope: unknown, message: unknown, stack: unknown) => {
+    if (!trusted(event)) return
+    const now = Date.now()
+    if (now - errorWindow > 60_000) {
+      errorWindow = now
+      errorCount = 0
+    }
+    if (++errorCount > 30) return
+    const text = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '')
+    log(`renderer error [${text(scope, 40)}]: ${text(message, 1000)}${typeof stack === 'string' ? `\n${text(stack, 4000)}` : ''}`)
+  })
+
+  // SAVE CLIP / REC LIVE: the renderer made the MP4; main writes it into <exports>/Clips/ (never a Save panel), like
+  // the audio exports, and lets it be dragged and revealed.
+  ipcMain.handle(IPC.saveClip, async (event, rawName: unknown, raw: unknown) => {
+    if (!trusted(event)) throw new Error('not allowed')
+    const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : null
+    if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 4 * 1024 ** 3) throw new Error('That clip is empty or too large.')
+    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.mp4$/i, '') : ''
+    const safe = base.replace(/[^\w .()+-]/g, '').replace(/^[.\s]+/, '').slice(0, 100).trim() || 'FoxBox clip'
+    const root = exportGuard.root ?? EXPORT_DIR
+    const dir = join(root, 'Clips')
+    await mkdir(dir, { recursive: true })
+    const realRoot = await realpath(root)
+    if (!isInside(realRoot, await realpath(dir))) throw new Error('The Clips folder is outside the export folder.')
+    let target = join(dir, `${safe}.mp4`)
+    for (let n = 2; existsSync(target); n++) target = join(dir, `${safe} ${n}.mp4`)
+    const tmp = `${target}.part`
+    await writeFile(tmp, bytes)
+    await rename(tmp, target)
+    exportGuard.noteReturnedPath(target)
+    log(`saved clip ${target} (${(bytes.byteLength / 1e6).toFixed(1)} MB)`)
+    return target
+  })
+
   ipcMain.handle(IPC.chooseFolder, async (event, raw: unknown) => {
     if (!trusted(event)) return null
     const opts = raw && typeof raw === 'object' ? (raw as { title?: unknown; defaultPath?: unknown }) : {}
@@ -747,6 +805,18 @@ function registerIpc(): void {
     if (!trusted(event)) return outputState()
     if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
     return { open: false, displayId: null }
+  })
+
+  // Ableton Link (1.4): the helper runs only while the user has sync on --------------------
+  ipcMain.handle(IPC.linkSet, (event, on: unknown) => {
+    if (!trusted(event)) return { running: false, error: 'Refused.' }
+    if (on === true) linkSession().start()
+    else linkSession().stop()
+    const { running, error } = linkSession().state()
+    return { running, error }
+  })
+  ipcMain.on(IPC.linkTempo, (event, bpm: unknown) => {
+    if (trusted(event) && typeof bpm === 'number') linkSession().setTempo(bpm)
   })
 
   // SHADERS: the user's .fs files (1.3) ------------------------------------------------------
@@ -884,6 +954,9 @@ async function startEngine(): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 // Lifecycle
 
+// macOS 14.2+ system-audio loopback (Core Audio taps) for VISUALS' LIVE INPUT "System audio" (1.4, S2).
+app.commandLine.appendSwitch('enable-features', 'MacCatapLoopbackAudioForScreenShare')
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -941,6 +1014,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', (event) => {
     updater?.dispose()
+    link?.stop()
     if (quitting || !supervisor) return
     event.preventDefault()
     quitting = true

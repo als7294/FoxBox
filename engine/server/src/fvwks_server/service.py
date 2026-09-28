@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import base64
 import errno
 import hashlib
 import inspect
@@ -73,6 +74,8 @@ from fvwks_contracts.models import (
     SegmentFlags,
     Settings,
     Song,
+    SongStem,
+    StemFeatures,
     SongAnalysis,
     SongPlacement,
     SongUpdate,
@@ -108,7 +111,10 @@ MAX_SONG_S = 15 * 60
 MIX_KEEP = 8  # newest song mixes kept; they're re-creatable (and a whole-song mix is big)
 DISK_RESERVE = 5_000_000_000  # free space that must remain after a model download
 TRANSCRIBE_MODEL = "whisper-aligner"  # the voice package's model behind transcribe()/realign() (v0.3)
-GATE_FOR_ENGINE = {"kokoro": "kokoro", "qwen3": "persona", "asr": "aligner", "denoise": "ingest"}  # ModelInfo.engine
+GATE_FOR_ENGINE = {"kokoro": "kokoro", "qwen3": "persona", "asr": "aligner", "denoise": "ingest",
+                   "demucs": "stems", "stems": "stems"}  # ModelInfo.engine
+STEM_TRACKS = ("drums", "bass", "vocals", "other")  # v0.9 STEM_NAMES, in order
+STEM_FPS = 60.0
 _SYSTEM_DIRS = tuple(Path(p) for p in ("/System", "/usr", "/bin", "/sbin", "/etc", "/dev", "/private/etc",
                                        "/Library", "/Applications", "/cores"))
 FALLBACK_MODELS = [
@@ -271,7 +277,7 @@ class EngineService:
         # (Qwen3), the transcriber (Whisper + aligner) and the ingest denoiser (DeepFilterNet3) are separate models,
         # so an 8 s persona design or a transcription never holds up an ordinary TTS line.
         self._voice_gates = {"kokoro": PriorityLock(), "persona": PriorityLock(), "aligner": PriorityLock(),
-                             "ingest": PriorityLock()}
+                             "ingest": PriorityLock(), "stems": PriorityLock()}
         # Two fx lanes: interactive renders (HTTP) queue among themselves, and background work (batch renders, WORLD
         # analysis, stack prefetch) queues on its own lock, so a preview never waits behind a Setlist render.
         # fvwks_fx is pure apart from its own locked caches, so one render of each kind can run at once.
@@ -306,6 +312,9 @@ class EngineService:
         self.library.reset_transcript_states()  # transcripts are stored; only unfinished jobs start over
         for song_id in self.library.unfinished_song_analyses():  # song analyses are stored too
             self._queue_song_analysis(song_id)
+        for row in self.library.select("songs"):  # a separation the last process never finished: ask again
+            if row["info"].get("stems_state") in ("queued", "running"):
+                self._set_song(row["id"], stems_state="none")
 
     def close(self, timeout: float = 3.0) -> bool:
         """Stop the engine: cancel background jobs and start-up work, wait up to ``timeout`` s for them (so no worker
@@ -1533,15 +1542,143 @@ class EngineService:
         for job in self.jobs.list(kind="song_analysis", active_only=True):
             if job.meta.get("song_id") == song_id:
                 self.jobs.cancel(job.id)
+        for job in self.jobs.list(kind="song_stems", active_only=True):
+            if job.meta.get("song_id") == song_id:
+                self.jobs.cancel(job.id)
         for mix in self.library.select("mixes", "song_id = ?", (song_id,)):
             self._drop_mix(mix)
         self.library.delete("songs", [song_id])
-        self.song_audio.delete(row["audio_id"])
+        self.song_audio.delete(row["audio_id"], *(s.get("audio_id") for s in row["info"].get("stems") or []))
         with self._lock:
             self._songs.pop(song_id, None)
 
     def mix_song(self, req: MixRequest) -> MixInfo:
         return self._mix(req.render_id, req.placement, req.quality)
+
+    # -- stems (v0.9, VISUALS) ------------------------------------------------------------------------------
+
+    def request_stems(self, song_id: str) -> Job:
+        """POST /songs/{id}/stems: separate the song into drums/bass/vocals/other (a song_stems job). Stems are
+        content-addressed by the song's audio and the separator, so asking again (or re-importing the song) is
+        instant."""
+        separate = getattr(voice, "separate_stems", None)
+        if not callable(separate):
+            raise ApiException(501, "not_implemented", "Stem separation arrives with the stems model update.")
+        song = self.get_song(song_id)
+        if song.stems_state in ("queued", "running"):
+            for job in self.jobs.list(kind="song_stems", active_only=True):
+                if job.meta.get("song_id") == song_id:
+                    return _job(job)
+        if song.stems_state == "done" and all(self.song_audio.exists(s.audio_id) for s in song.stems):
+            return _job(self.jobs.complete(self.jobs.new_job("song_stems", meta={"song_id": song_id}),
+                                           message="Stems ready.", result={"song_id": song_id}))
+        self._set_song(song_id, stems_state="queued")
+        return _job(self.jobs.submit("song_stems", self._separate_stems, song_id, lane="songs",
+                                     dedupe_key=f"song_stems:{song_id}", meta={"song_id": song_id}))
+
+    def stem_features(self, song_id: str) -> StemFeatures:
+        """GET /songs/{id}/stems/features: per-stem envelopes and onsets over the whole song (S2's fx), cached."""
+        if not callable(getattr(fx, "stem_features", None)):
+            raise ApiException(501, "not_implemented", "Stem features arrive with the sound engine's stems update.")
+        song = self.get_song(song_id)
+        if song.stems_state != "done" or not song.stems:
+            running = song.stems_state in ("queued", "running")
+            raise ApiException(409, "stems_not_ready",
+                               "This song's stems are still being separated." if running else "This song has no stems yet.",
+                               hint=None if running else "Separate its stems first.", retryable=running)
+        key = self._features_key(song)
+        cached = self.cache.lookup(key)
+        data = self.cache.get_bytes(key) if cached else None
+        if data is None or not cached:
+            stems = {s.name: self._load_stem(s.audio_id)[0] for s in song.stems}
+            mix, sr = self._song_audio(song_id)
+            data, frames = self._compute_features(song, stems, mix, sr)
+        else:
+            frames = int(cached["meta"].get("frames", 0))
+        return StemFeatures(song_id=song_id, fps=STEM_FPS, frames=frames, tracks=[*STEM_TRACKS, "mix"],
+                            data_b64=base64.b64encode(data).decode("ascii"))
+
+    def _stems_key(self, song_row: dict[str, Any]) -> str:
+        engine = str(getattr(voice, "STEMS_ENGINE", "") or self.voice_salt)
+        return request_hash("song_stems", {"audio": song_row["audio_hash"]}, salt=engine)
+
+    def _features_key(self, song: Song) -> str:
+        return request_hash("stem_features", {"stems": [s.audio_id for s in song.stems], "fps": STEM_FPS,
+                                              "grid": song.analysis.model_dump(mode="json") if song.analysis else None},
+                            salt=self.fx_salt)
+
+    def _load_stem(self, audio_id: str) -> tuple[np.ndarray, int]:
+        try:
+            return self.song_audio.load(audio_id)
+        except FileNotFoundError:
+            raise ApiException(409, "stems_missing", "This song's stems are gone.", hint="Separate its stems again.") from None
+
+    def _compute_features(self, song: Song, stems: dict[str, np.ndarray], mix: np.ndarray, sr: int) -> tuple[bytes, int]:
+        with self._fx_background:
+            out = fx.stem_features(stems, sr, mix, analysis=song.analysis, fps=STEM_FPS)
+        data = np.ascontiguousarray(out.data, dtype=np.uint8)
+        if data.ndim != 3 or data.shape[1:] != (len(STEM_TRACKS) + 1, 2) or list(out.tracks) != [*STEM_TRACKS, "mix"]:
+            raise ApiException(500, "stems_failed", f"Stem features came back as {data.shape} for {list(out.tracks)}.")
+        raw = data.tobytes()
+        self.cache.put_bytes("stem_features", self._features_key(song), raw, artifact_id=song.id,
+                             meta={"frames": int(data.shape[0])})
+        return raw, int(data.shape[0])
+
+    def _separate_stems(self, ctx: JobContext, song_id: str) -> dict[str, Any] | None:
+        row = self.library.get("songs", song_id)
+        if row is None or self._set_song(song_id, stems_state="running") is None:
+            return None  # deleted while queued
+        try:
+            key = self._stems_key(row)
+            hit = self.cache.lookup(key)
+            ids = (hit or {}).get("meta", {}).get("stems") or {}
+            if not (set(ids) == set(STEM_TRACKS) and all(self.song_audio.exists(i) for i in ids.values())):
+                audio, sr = self._song_audio(song_id)
+                ctx.check()
+                ctx.progress(0.0, "Separating stems")
+
+                def progress(fraction: float | None = None, message: str | None = None, /, **_: Any) -> None:
+                    ctx.check()
+                    ctx.progress(None if fraction is None else 0.9 * max(0.0, min(1.0, fraction)), message)
+
+                with self._model_lock("stems"):
+                    stems = voice.separate_stems(audio, sr, progress)
+                ctx.check()
+                checked = {}
+                for name in STEM_TRACKS:
+                    raw = stems.get(name) if isinstance(stems, dict) else None
+                    arr = as_channels_first(raw) if raw is not None else np.zeros((1, 0), np.float32)
+                    if arr.ndim != 2 or arr.shape[-1] != audio.shape[-1] or not np.isfinite(arr).all():
+                        raise ApiException(500, "stems_failed", f"The separator's {name} stem is missing or malformed.")
+                    checked[name] = arr
+                # Separated stems overshoot full scale (they sum back to the mix; ±1.6 on a real song), which would
+                # force float WAV (~55 MB per 2.5-minute stem). One shared gain keeps them in FLAC-24 (~1/4 of it)
+                # and keeps their balance; the features come from the unscaled stems and are normalised per song.
+                peak = max(float(np.max(np.abs(a))) for a in checked.values())
+                headroom = min(1.0, 0.999 / peak) if peak > 0 else 1.0
+                ids = {}
+                for name, arr in checked.items():
+                    try:
+                        ids[name] = self.song_audio.put(arr * headroom if headroom < 1.0 else arr, sr, "sgs", compact=True)
+                    except Exception as exc:
+                        self.song_audio.delete(*ids.values())
+                        raise _write_error(exc, "stems_failed", "Couldn't store the stems") from exc
+                self.cache.remember("song_stems", key, artifact_id=song_id, meta={"stems": ids})
+                ctx.progress(0.92, "Stem features")
+                if callable(getattr(fx, "stem_features", None)):
+                    song = self._song(self.library.get("songs", song_id) or row)
+                    self._compute_features(song.model_copy(update={"stems": [SongStem(name=n, audio_id=ids[n])
+                                                                             for n in STEM_TRACKS]}),
+                                           checked, audio, sr)
+        except JobCancelled:
+            self._set_song(song_id, stems_state="none")
+            raise
+        except Exception:
+            self._set_song(song_id, stems_state="error")
+            raise
+        if self._set_song(song_id, stems_state="done", stems=[SongStem(name=n, audio_id=ids[n]) for n in STEM_TRACKS]) is None:
+            return None
+        return {"song_id": song_id}
 
     def _song(self, row: dict[str, Any]) -> Song:
         return Song.model_validate({**row["info"], "name": row["name"], "analysis_state": row["analysis_state"]})
@@ -2006,7 +2143,7 @@ class EngineService:
     def audio_path(self, audio_id: str) -> Path:
         if not AudioStore.valid(audio_id):
             raise NotFound("audio", audio_id)
-        store = self.song_audio if audio_id.startswith("sng_") else self.audio
+        store = self.song_audio if audio_id.startswith(("sng_", "sgs_")) else self.audio  # songs and their stems
         path = store.stream_path(audio_id)
         if path is None and audio_id.startswith("smp_"):
             if audio_id not in self._samples:

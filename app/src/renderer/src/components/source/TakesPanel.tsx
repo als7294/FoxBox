@@ -9,8 +9,8 @@ import { TranscriptEditor } from './TranscriptEditor'
 import styles from './source.module.css'
 
 /**
- * The Studio's TAKES: the takes recorded on LIVE, the active one's transcript (edit it to place throws), and a way
- * back to LIVE for another. Recording itself lives on LIVE (TAKE → STUDIO).
+ * The Studio's TAKES: the takes recorded on VISUALS, the active one's transcript (edit it to place throws), and a way
+ * back to VISUALS for another. Recording itself lives on VISUALS (VOICE → TAKE → STUDIO).
  */
 export function TakesPanel() {
   const takes = useStudio((s) => s.takes)
@@ -19,7 +19,7 @@ export function TakesPanel() {
   return (
     <div className={styles.record}>
       <Button variant="primary" onClick={() => useUi.getState().navigate('live')} data-testid="record-in-live">
-        ● RECORD A TAKE IN LIVE
+        ● RECORD A TAKE IN VISUALS
       </Button>
       <TranscriptEditor />
       <div className={styles.takesHead}>

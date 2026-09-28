@@ -8,6 +8,7 @@
 - ``render(main, stack, req)``: the full rack -> arrange -> master pipeline (see ``pipeline.py``).
 - v0.7 songs (``song.py``): ``analyze_song(audio, sr)`` (tempo, key, bar 1) and ``mix_song(...)`` (the drop in the
   song: duck, gains, true-peak limit, excerpt).
+- v0.9 ``stem_features(stems, sr, mix, analysis=, fps=)`` (``stems.py``): per-stem envelopes and onsets for the visuals.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from .maskscore import mask_strength as _mask_strength
 from .modules import mask as _mask
 from .rack_spec import ORDER, RACK_VERSION, SPECS, rack_descriptor
 from .song import analyze_song, mix_song
+from .stems import stem_features
 
 ENGINE_NAME = "fvwks-rack"
 # v0.2 AUTO bars: plan_placement resolves Arrange.bars == "auto" on the arranged natural length (Beat-Lock gaps,
@@ -41,7 +43,7 @@ ENGINE_NAME = "fvwks-rack"
 # engine/contracts/tests/test_auto_bars.py::test_engine_resolves_auto_bars.
 AUTO_BARS = True
 __all__ = ["ENGINE_NAME", "RACK_VERSION", "rack_schema", "list_presets", "get_preset", "resolve", "analyze", "render",
-           "mask_strength", "apply_hints", "analyze_song", "mix_song"]
+           "mask_strength", "apply_hints", "analyze_song", "mix_song", "stem_features"]
 
 PRESET_ORDER = ["pact", "legion", "abyss", "unit", "ghost", "signal", "raw"]
 

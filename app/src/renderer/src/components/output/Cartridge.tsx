@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '@/api/queries'
 import type { ExportedFile, RenderInfo } from '@/api/types'
-import { camera } from '@/components/camera/cameraStore'
 import { MiniWaveform } from '@/components/signal/MiniWaveform'
 import { bridge } from '@/env'
 import { camelot } from '@/lib/keys'
@@ -223,11 +222,8 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
         <button
           type="button"
           disabled={!render}
-          onClick={() => {
-            camera.setLiveMode('drop')
-            useUi.getState().navigate('live')
-          }}
-          title="Make a video clip of this drop (camera or visuals, faces hidden, over the song) on LIVE"
+          onClick={() => useUi.getState().navigate('live')}
+          title="Make a video clip of this drop over the song: VISUALS → EXPORT → SAVE CLIP"
           data-testid="clip-button"
         >
           CLIP

@@ -1123,6 +1123,120 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: Internal Server Error
+  /api/songs/{song_id}/stems:
+    post:
+      tags:
+      - songs
+      summary: Separate Song Stems
+      description: 'v0.9: split the song into drums, bass, vocals and other (a song_stems job; instant when cached).'
+      operationId: separateSongStems
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/songs/{song_id}/stems/features:
+    get:
+      tags:
+      - songs
+      summary: Get Stem Features
+      description: 'v0.9: per-stem envelopes and onsets for the visuals (60 fps over the whole song).'
+      operationId: getStemFeatures
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StemFeatures'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
   /api/mix:
     post:
       tags:
@@ -3056,6 +3170,7 @@ components:
           - analysis
           - persona_design
           - song_analysis
+          - song_stems
           title: Kind
         state:
           type: string
@@ -4524,6 +4639,23 @@ components:
         created_at:
           type: string
           title: Created At
+        stems_state:
+          type: string
+          enum:
+          - none
+          - queued
+          - running
+          - done
+          - error
+          title: Stems State
+          description: 'v0.9: stem separation, started with POST /api/songs/{id}/stems.'
+          default: none
+        stems:
+          items:
+            $ref: '#/components/schemas/SongStem'
+          type: array
+          title: Stems
+          description: 'v0.9: the separated stems once stems_state is ''done''.'
       additionalProperties: false
       type: object
       required:
@@ -4634,6 +4766,27 @@ components:
       - song_id
       title: SongPlacement
       description: Where a drop sits in a song, and how the two are balanced (v0.7).
+    SongStem:
+      properties:
+        name:
+          type: string
+          enum:
+          - drums
+          - bass
+          - vocals
+          - other
+          title: Name
+        audio_id:
+          type: string
+          title: Audio Id
+          description: Stream with GET /api/audio/{audio_id}.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - audio_id
+      title: SongStem
+      description: One separated stem of a song (v0.9). Stems are local-only, like songs.
     SongUpdate:
       properties:
         name:
@@ -4829,6 +4982,48 @@ components:
       type: object
       title: StackVoice
       description: Extra voice layered on the main one (the 'robotic TTS collage').
+    StemFeatures:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        fps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Fps
+          default: 60.0
+        frames:
+          type: integer
+          minimum: 0.0
+          title: Frames
+        tracks:
+          items:
+            type: string
+            enum:
+            - drums
+            - bass
+            - vocals
+            - other
+            - mix
+          type: array
+          title: Tracks
+        data_b64:
+          type: string
+          title: Data B64
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - frames
+      - tracks
+      - data_b64
+      title: StemFeatures
+      description: "Per-stem reactive features of a whole song for the visuals (v0.9): GET /api/songs/{id}/stems/features.\n\
+        \nSampled at `fps` over the whole song; frame f covers song time f / fps seconds.\n`data_b64` is base64 of uint8,\
+        \ frame-major: for each frame, for each entry of `tracks` in order, two bytes (rms, onset):\n- rms: that track's envelope,\
+        \ 0-255 for 0-1, normalised per song (the track's loudest moment is 255).\n- onset: 0 when there's no hit; otherwise\
+        \ strength / threshold * 64, clamped to 255 (>= 64 is a hit, matching\n  AudioFrame onset >= 1).\n`tracks` is the\
+        \ four stems in STEM_NAMES order, then \"mix\" (the whole song), so offline clip renders never need\nreal-time analysis."
     StemInfo:
       properties:
         name:

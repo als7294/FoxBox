@@ -46,6 +46,8 @@ module.exports = {
     extendInfo: {
       NSMicrophoneUsageDescription:
         'FoxBox records your voice so it can be masked. The audio stays on this Mac.',
+      NSAudioCaptureUsageDescription:
+        "FoxBox listens to your DJ software's output (system audio) to drive the visuals. Nothing is recorded or sent anywhere.",
       NSCameraUsageDescription:
         'FoxBox uses the camera for camera clips. Faces are pixelated on this Mac, and the video never leaves it unless you share it.',
       // The engine's wheels (mlx, mlx-metal, numpy, scipy) are macosx_14_0_arm64: macOS 14 on Apple silicon only.

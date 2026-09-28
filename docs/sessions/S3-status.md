@@ -248,6 +248,14 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - Length: the bars that hold every piece + auto_tail + tail beats. AUTO picks the next standard count; a numeric count too short is extended (never cut); FREE is whole beats.
   - `RenderOutput.chop` → `RenderInfo.chop` (index, landed beat). Each piece is a `beat_lock` motion event. The chop fields are in fx's plan cache key and the server's render key (the whole arrange block).
 
+- **1.4 VISUALS: song stems (v0.9)**:
+  - `POST /api/songs/{id}/stems` → a `song_stems` job (lane `songs`): S1's `separate_stems` (HT-Demucs) under a new `stems` voice gate, then S2's `stem_features`.
+    - Stems are content-addressed by the song's audio and the separator (`voice.STEMS_ENGINE` or the voice digest), so asking again is instant.
+    - They're stored in the songs folder as `sgs_` FLAC-24 with one shared headroom gain (Demucs stems overshoot to ±1.6; the balance is kept, ~¼ the size of float WAV). `Song.stems` gives their audio ids for playback.
+  - `GET /api/songs/{id}/stems/features` → `StemFeatures` (60 fps, drums/bass/vocals/other/mix × (rms, onset)), cached and recomputed from the stored stems if the cache was pruned. 409 `stems_not_ready` before; 501 without the hooks.
+  - An unfinished separation resets to `none` at launch, and deleting a song deletes its stems.
+  - The real test song (2 min 24 s): 14 s end to end, 8,644 feature frames, a second request 1 ms, stems 20–30 MB each.
+
 ## Handover (S3 stopped here)
 - Branch `session/s3-engine`, latest `99f1b88`. Everything above is committed; main was merged at 55d9b2b (v0.7 contracts).
 - Build the bundle: `engine/server/scripts/bundle_engine.sh <out>`. It fails on any file naming the build machine and prints the component hashes. Tests: `uv run --all-packages pytest server/tests contracts/tests` from `engine/`; the bundle tests are opt-in with `FVWKS_TEST_BUNDLE=1` (~2.5 min, two builds).

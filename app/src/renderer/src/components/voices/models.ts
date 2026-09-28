@@ -5,6 +5,9 @@ import { useUi } from '@/state/ui'
 /** The opt-in model behind word timings and transcripts for recordings (503 `model_not_installed` without it). */
 export const WHISPER_ALIGNER = 'whisper-aligner'
 
+/** 1.4: the opt-in stem separator (engine "stems", ~84 MB): VISUALS → TRACK → SPLIT STEMS installs it inline. */
+export const STEMS_MODEL = 'stems-htdemucs'
+
 interface ModelFocus {
   /** The model whose card should be highlighted and focused, until that card has done so. */
   modelId: string | null

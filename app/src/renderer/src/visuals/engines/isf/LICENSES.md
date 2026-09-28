@@ -23,6 +23,22 @@ CC BY-NC-SA. Today every shader is original work written for FoxBox, released un
 | `voice-core.fs` | An orb sized by the voice, with a halo that follows the song. | Original, written for FoxBox | MIT |
 | `vortex.fs` | A spiral that twists tighter with the mids. | Original, written for FoxBox | MIT |
 
+
+### Filters (1.4: they transform the picture beneath, ISF `inputImage`)
+
+| File | What it does | Source | License |
+|---|---|---|---|
+| `filters/datamosh.fs` | Blocks hold on to the previous frames and drift, more of them on each hit (a datamosh look). | Original, written for FoxBox | MIT |
+| `filters/edge-glow.fs` | Outlines glow in the accent colour over a darkened picture; brighter on hits. | Original, written for FoxBox | MIT |
+| `filters/feedback-trails.fs` | Echoing trails: each frame keeps a slowly zooming, fading copy of the last, longer with the level. | Original, written for FoxBox | MIT |
+| `filters/halftone.fs` | A print halftone: dots sized by brightness, the screen turning slowly with the beat. | Original, written for FoxBox | MIT |
+| `filters/kaleido-mirror.fs` | Mirrors the picture into a kaleidoscope; the highs add segments. | Original, written for FoxBox | MIT |
+| `filters/pixel-sort.fs` | Bright pixels melt upwards in streaks, longer with the level (a pixel-sort look). | Original, written for FoxBox | MIT |
+| `filters/rgb-split.fs` | Splits red and blue apart; wider on each hit. | Original, written for FoxBox | MIT |
+| `filters/thermal.fs` | A thermal camera: brightness through ice, accent, amber to white; hotter with the level. | Original, written for FoxBox | MIT |
+| `filters/vhs.fs` | Worn tape: tracking wobble on hits, colour bleed, scanlines and noise. | Original, written for FoxBox | MIT |
+| `filters/zoom-pulse.fs` | Punches in on every hit and breathes with the beat. | Original, written for FoxBox | MIT |
+
 ## MIT license (the shaders above)
 
 Copyright (c) 2026 SmittyTech

@@ -37,11 +37,13 @@ def error_payload(exc: BaseException, default_code: str = "job_failed") -> dict[
     error = getattr(exc, "error", None)  # an ApiException carries a ready ApiError
     if error is not None and hasattr(error, "model_dump"):
         return error.model_dump()
+    model_id = getattr(exc, "model_id", None)  # model_not_installed from a hook: the app deep-links to it (P7)
     return {
         "code": str(getattr(exc, "code", None) or default_code),
         "message": str(getattr(exc, "message", None) or exc) or type(exc).__name__,
         "hint": getattr(exc, "hint", None),
         "retryable": bool(getattr(exc, "retryable", False)),
+        **({"model_id": str(model_id)} if model_id else {}),
     }
 
 

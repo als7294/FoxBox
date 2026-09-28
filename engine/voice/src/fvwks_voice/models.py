@@ -6,6 +6,7 @@
 - qwen3-tts-voicedesign (opt-in): the persona designer. It is two repos installed together: VoiceDesign 1.7B
   (describe a voice) and Base 1.7B (clone the chosen candidate for every line). The id matches the server's
   fallback list and the app's VOICES screen, which gates the designer on the first `engine == "qwen3"` model.
+- stems-htdemucs (opt-in, 84 MB): splits a song into drums, bass, vocals and other for the visuals (v0.9).
 
 Revisions are pinned, so an install is reproducible and ENGINE_VERSION means something. A pinned snapshot that is
 already complete elsewhere on this Mac (the standard Hugging Face cache, another FoxBox data dir) is cloned into ours
@@ -108,7 +109,14 @@ ASR = ModelSpec(
     "whisper-aligner", "Recording transcription", "asr", False, "MIT (Whisper) + Apache-2.0 (Qwen3-ForcedAligner)",
     "Transcribes recordings (Whisper large-v3-turbo) and places every word (Qwen3-ForcedAligner), so throws "
     "hit exact words and the transcript can be edited.", (WHISPER_REPO, WHISPER_TOKENIZER_REPO, ALIGNER_REPO))
-MODELS: dict[str, ModelSpec] = {m.id: m for m in (KOKORO, DENOISE, QWEN3, ASR)}
+# Meta's HT-Demucs, converted to MLX (fp16) from the official checkpoint; only the one model of the repo's eight.
+STEMS_FILES = ("htdemucs_config.json", "htdemucs.safetensors")
+STEMS_REPO = Repo("mlx-community/demucs-mlx-fp16", "908d2d05cf3035bf4017fc0f52be64163689a61f", 84_038_036,
+                  STEMS_FILES, STEMS_FILES)
+STEMS = ModelSpec(
+    "stems-htdemucs", "HT-Demucs stem splitter", "stems", False, "MIT",
+    "Splits a song into drums, bass, vocals and other, so the visuals can follow each one. 84 MB.", (STEMS_REPO,))
+MODELS: dict[str, ModelSpec] = {m.id: m for m in (KOKORO, DENOISE, QWEN3, ASR, STEMS)}
 
 _lock = threading.RLock()
 _pins: dict[str, ModelSpec] = {}  # model id -> the spec a manifest moved it to

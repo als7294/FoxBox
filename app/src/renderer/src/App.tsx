@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import type { MenuCommand } from '@shared/bridge'
 import { useEffect, useRef } from 'react'
 import { usePresets, useSettings } from '@/api/queries'
@@ -156,12 +157,15 @@ function Screens() {
         </>
       }
     >
-      {screen === 'studio' && <StudioScreen />}
-      {screen === 'vault' && <VaultScreen />}
-      {screen === 'setlist' && <SetlistScreen />}
-      {screen === 'voices' && <VoicesScreen />}
-      {screen === 'settings' && <SettingsScreen />}
-      {screen === 'live' && <LiveScreen />}
+      {/* A render error stays inside its page (and main.log); the app never goes blank. */}
+      <ErrorBoundary key={screen} scope={screen === 'live' ? 'VISUALS' : screen.toUpperCase()}>
+        {screen === 'studio' && <StudioScreen />}
+        {screen === 'vault' && <VaultScreen />}
+        {screen === 'setlist' && <SetlistScreen />}
+        {screen === 'voices' && <VoicesScreen />}
+        {screen === 'settings' && <SettingsScreen />}
+        {screen === 'live' && <LiveScreen />}
+      </ErrorBoundary>
     </AppShell>
   )
 }

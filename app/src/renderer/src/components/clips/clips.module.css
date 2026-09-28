@@ -1,0 +1,92 @@
+/* SAVE CLIP, in the EXPORT panel: the stretch, the format, the switches, RENDER with its progress, then SAVE. */
+.saveClip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.stems {
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  padding: 3px 7px;
+  border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
+  border-radius: 999px;
+  color: var(--vb-dim);
+}
+.stems[data-on] {
+  border-color: rgba(var(--vb-amber-rgb), 0.5);
+  color: var(--vb-amber);
+}
+.bars {
+  display: flex;
+  gap: 10px;
+}
+.bars label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.bars input {
+  width: 56px;
+  height: 26px;
+  padding: 0 6px;
+  font: 500 12px var(--vb-font-mono);
+  color: var(--vb-ink);
+  background: transparent;
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-r1, 4px);
+}
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.progress {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+  overflow: hidden;
+}
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--vb-accent);
+  transform-origin: left;
+  transition: transform 0.2s linear;
+}
+.preview {
+  width: 100%;
+  max-height: 320px;
+  border-radius: var(--vb-r2, 8px);
+  background: #000;
+  object-fit: contain;
+}
+.hint {
+  margin: 0;
+  font: 400 11.5px var(--vb-font-sans, inherit);
+  color: var(--vb-dim);
+}
+.error {
+  margin: 0;
+  font: 400 11.5px var(--vb-font-sans, inherit);
+  color: var(--vb-accent);
+}

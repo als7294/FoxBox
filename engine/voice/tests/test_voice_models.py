@@ -34,7 +34,7 @@ def fake_download(monkeypatch):
 
 def test_catalog_matches_the_server_and_app_ids():
     got = {m.id: m for m in api.list_models()}
-    assert set(got) == {"kokoro-82m", "deepfilternet3", "qwen3-tts-voicedesign", "whisper-aligner"}
+    assert set(got) == {"kokoro-82m", "deepfilternet3", "qwen3-tts-voicedesign", "whisper-aligner", "stems-htdemucs"}
     assert got["deepfilternet3"].required and got["deepfilternet3"].license == "MIT"
     assert not got["whisper-aligner"].required and got["whisper-aligner"].engine == "asr"
     assert got["whisper-aligner"].size_bytes == 1_613_979_758 + 4_618_475 + 1_276_475_979

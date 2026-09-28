@@ -842,6 +842,7 @@ export class MockEngine {
       audio_id: this.putAudio('sng', pcm),
       analysis_state: 'queued',
       analysis: null,
+      stems_state: 'none',
       bpm_override: null,
       downbeat_override_s: null,
       key_override: null,

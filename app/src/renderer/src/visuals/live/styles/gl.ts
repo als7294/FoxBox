@@ -16,7 +16,7 @@ import {
   type WebGLRenderer,
 } from 'three'
 import type { AudioFrame, Palette } from '../registry'
-import { ease, easeBands, onsetEnvelope } from './audioKit'
+import { ease, easeBands, kickOnset, onsetEnvelope, stemBands } from './audioKit'
 
 /** The palette in three's linear working space (Color parses the sRGB CSS and converts). */
 export interface GlPalette {
@@ -167,9 +167,9 @@ export class Cues {
   update(a: AudioFrame, dt: number): void {
     const step = Math.min(100, Math.max(0, dt))
     const before = this.kick
-    this.kick = onsetEnvelope(this.kick, { onset: a.song ? a.song.onset : a.onset, active: a.active }, step, 220, this.reduced)
+    this.kick = onsetEnvelope(this.kick, { onset: kickOnset(a), active: a.active }, step, 220, this.reduced)
     this.hit = this.kick > before + 0.3
-    easeBands(this.bands, a.song ? { ...a, bands: a.song.bands } : a, step)
+    easeBands(this.bands, { ...a, bands: stemBands(a) }, step)
     const v = a.active ? (a.voice?.rms ?? a.rms) : 0
     this.voice = ease(this.voice, Math.min(1, v * 2.5), step, v * 2.5 > this.voice ? 50 : 300)
     this.live = ease(this.live, a.active ? 1 : 0, step, 600)

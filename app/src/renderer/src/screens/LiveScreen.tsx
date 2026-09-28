@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { usePresets, useRack } from '@/api/queries'
 import { MACRO_IDS, type MacroId, type Preset } from '@/api/types'
 import {
@@ -15,23 +16,30 @@ import {
   type Quantize,
   type SetRecording,
 } from '@/audio/live'
+import type { LiveInput } from '@/audio/live/input'
 import { click } from '@/audio/recorder'
+import { SaveClip } from '@/components/clips/SaveClip'
 import { Button } from '@/components/common/Button'
 import common from '@/components/common/common.module.css'
 import { Screen, ScreenHeader } from '@/components/layout/Screen'
-import { LiveCamera } from '@/components/live/LiveCamera'
 import { LiveMeters } from '@/components/live/LiveMeters'
 import { LiveSongStrip } from '@/components/live/LiveSongStrip'
 import styles from '@/components/live/live.module.css'
 import { orderPresets } from '@/components/rack/PresetStrip'
 import { Segmented } from '@/components/rack/Segmented'
 import { addTake, setTakeShortcut } from '@/components/source/takes'
+import { BasePanel } from '@/components/visuals/BasePanel'
+import { EffectsPanel } from '@/components/visuals/EffectsPanel'
+import { LiveInputControls } from '@/components/visuals/LiveInputControls'
+import { LiveRecord } from '@/components/visuals/LiveRecord'
+import { clipAudioFor, loadPrefs, savePrefs, setClipAudio, voiceOpen, type AudioSource } from '@/components/visuals/page'
+import { StemsRow } from '@/components/visuals/StemsRow'
+import { VisualsStage } from '@/components/visuals/VisualsStage'
 import { bridge } from '@/env'
 import { useSong } from '@/state/song'
 import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
-import { LiveVisuals } from '@/visuals/live/LiveVisuals'
 
 type Status = 'off' | 'starting' | 'on' | 'error'
 type TalkMode = 'open' | 'ptt' | 'latch'
@@ -58,11 +66,13 @@ const HEADPHONES = /head(phone|set)|ear(phone|bud)|airpods|buds|in-ear|iem/i
 const bindingText = (b: MidiBinding | undefined) => (b ? `${b.kind === 'cc' ? 'CC' : 'N'}${b.number}` : null)
 
 /**
- * LIVE (1.3): the voice mask in real time, laid out to perform. The mic goes through S2's live rack (audio/live) with
- * the Studio's preset and macros: preset pads, BPM-quantised FX pads (S2's triggers, on the session grid), four
- * macros, push-to-talk, MIDI learn for all of them (S2's MidiMap), recording the set (S2's SetRecorder), input and
- * output devices and the round-trip latency. The song deck strip plays the Studio's song under the voice. The stage
- * in the middle is S4's (visuals and the output window); camera clips reuse the camera pipeline.
+ * VISUALS (1.4; LIVE until 1.3, the screen id stays 'live'): the picture first. The STAGE is the compositor's scene
+ * (a BASE and a stack of EFFECTS, S4's) with the palette, Link and the output window in its bar; around it, AUDIO
+ * SOURCE (TRACK: the song deck and its stems · LIVE INPUT · MIC: the voice mask's devices), BASE, EFFECTS, EXPORT and
+ * the camera clips, and under it VOICE: the voice mask laid out to perform, as LIVE had it. The mic goes through
+ * S2's live rack (audio/live) with the Studio's preset and macros: preset pads, BPM-quantised FX pads (S2's
+ * triggers, on the session grid), four macros, push-to-talk, MIDI learn for all of them (S2's MidiMap), recording
+ * the set (S2's SetRecorder) and TAKE → STUDIO.
  */
 export function LiveScreen() {
   const [status, setStatus] = useState<Status>('off')
@@ -71,6 +81,8 @@ export function LiveScreen() {
   const [inputs, setInputs] = useState<MediaDeviceInfo[]>([])
   const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([])
   const [inputId, setInputId] = useState('')
+  /** Whether the running engine has the mic (TRACK starts without it). */
+  const [micOpen, setMicOpen] = useState(false)
   const [outputId, setOutputId] = useState('')
   const [latencyMode, setLatencyMode] = useState<LatencyMode>('low')
   const [latency, setLatency] = useState<number | null>(null)
@@ -100,6 +112,21 @@ export function LiveScreen() {
   const [deck, setDeck] = useState<SongDeck | null>(null)
   const [songLevel, setSongLevel] = useState(0)
   const [songDuck, setSongDuck] = useState(true)
+  // The page's remembered choices: the audio source, and VOICE open or closed (per source).
+  const [prefs, setPrefs] = useState(loadPrefs)
+  useEffect(() => savePrefs(prefs), [prefs])
+  const source = prefs.source
+  const voiceIsOpen = voiceOpen(prefs)
+  // TRACK plays the song through the live engine with the mic muted (MUTE here, so VOICE can open it again).
+  // LIVE INPUT while it listens (its controls own it; leaving LIVE INPUT closes it).
+  const [liveInput, setLiveInput] = useState<LiveInput | null>(null)
+  // A clip of the stage records the active source's sound (getClipAudio); REC LIVE films the stage's canvas.
+  const clipAudio = clipAudioFor(source, live?.bus ?? null, liveInput)
+  useEffect(() => {
+    setClipAudio(clipAudioFor(source, live?.bus ?? null, liveInput))
+    return () => setClipAudio(null)
+  }, [source, live, liveInput])
+  const stageCanvas = useRef<HTMLCanvasElement | null>(null)
 
   const liveRef = useRef<LiveEngine | null>(null)
   liveRef.current = live
@@ -116,6 +143,7 @@ export function LiveScreen() {
   const key = useStudio((s) => s.key)
   const bpm = useStudio((s) => s.bpm)
   const presetId = useStudio((s) => s.presetId)
+  const presetName = useStudio((s) => s.presetName)
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -212,10 +240,17 @@ export function LiveScreen() {
     setStatus('starting')
     try {
       const b = bridge()
-      if (b && !(await b.askMicAccess())) throw new Error('Microphone access is off for FoxBox.')
-      const engine = await LiveEngine.create({ deviceId: inputId || undefined, latency: latencyMode, bpm: useStudio.getState().bpm })
+      // TRACK plays the song without the mic; it opens only when the DJ arms it (picks MIC, or ARM MIC in VOICE).
+      if (b && source !== 'track' && !(await b.askMicAccess())) throw new Error('Microphone access is off for FoxBox.')
+      const engine = await LiveEngine.create({
+        input: source === 'track' ? 'none' : 'mic',
+        deviceId: inputId || undefined,
+        latency: latencyMode,
+        bpm: useStudio.getState().bpm,
+      })
       if (outputId) await (engine.ctx as SinkContext).setSinkId?.(outputId)
       setLive(engine)
+      setMicOpen(engine.input !== 'none')
       setStatus('on')
       void refreshDevices() // labels arrive once the mic is allowed
     } catch (e) {
@@ -233,6 +268,7 @@ export function LiveScreen() {
     setTakeState('idle')
     setSetT0(null)
     setLive(null)
+    setMicOpen(false)
     setStatus('off')
     await l?.close()
   }
@@ -429,10 +465,47 @@ export function LiveScreen() {
     setLatencyMode(mode)
     await live?.setLatencyMode(mode)
   }
+  /** A running engine started for TRACK has no mic: open it only when the DJ arms it (MIC source, or ARM MIC). */
+  const ensureMic = async () => {
+    const engine = liveRef.current
+    if (!engine || engine.input !== 'none') return
+    const b = bridge()
+    if (b && !(await b.askMicAccess())) return setError('Microphone access is off for FoxBox.')
+    await engine.setInput('mic', inputId || undefined)
+    setMicOpen(engine.input !== 'none')
+    void refreshDevices()
+  }
+  /** Disarms: the mic closes, the song and the rack keep running (clips then carry the track alone). */
+  const closeMic = async () => {
+    const engine = liveRef.current
+    if (!engine || engine.input === 'none') return
+    await engine.setInput('none')
+    setMicOpen(false)
+  }
+  const onSource = (next: AudioSource) => {
+    if (next === 'mic') void ensureMic()
+    else void closeMic()
+    setPrefs((p) => ({ ...p, source: next }))
+  }
+  const toggleVoice = () => setPrefs((p) => ({ ...p, voice: { ...p.voice, [p.source]: !voiceOpen(p) } }))
+  const talkText =
+    on && !micOpen
+      ? 'MIC OFF'
+      : muted
+        ? 'MUTED'
+        : talkMode === 'open'
+          ? on
+            ? 'MIC OPEN'
+            : 'MIC'
+          : talking
+            ? 'TALKING'
+            : talkMode === 'ptt'
+              ? 'HOLD TO TALK'
+              : 'TAP TO TALK'
 
   return (
     <Screen className={styles.screen} data-testid="live-screen" data-learning={learning || undefined}>
-      <ScreenHeader code="02" kicker="PERFORMANCE" title="LIVE">
+      <ScreenHeader code="02" kicker="STAGE" title="VISUALS">
         <div className={styles.headBar}>
           <span className={styles.status} data-status={status} role="status">
             {status === 'on' ? '● LIVE' : status === 'starting' ? 'STARTING…' : status === 'error' ? 'NO INPUT' : 'OFF'}
@@ -447,259 +520,326 @@ export function LiveScreen() {
             <b>{key}</b> KEY
           </span>
           <LiveMeters bus={live?.bus ?? null} />
-          <div className={styles.quantize} title="Where the FX pads land">
-            <Segmented<Quantize | 'auto'>
-              label="Quantize"
-              hideLabel
-              size="sm"
-              value={quantize}
-              options={[
-                { value: 'auto', label: 'AUTO', title: 'Each FX on its own grid (swell on the bar, stutter on 1/16)' },
-                { value: '1/16', label: '1/16' },
-                { value: 'beat', label: 'BEAT' },
-                { value: 'bar', label: 'BAR' },
-              ]}
-              onChange={setQuantize}
-            />
-          </div>
-          {!headphones && (
+          {source === 'mic' && !headphones && (
             <span className={styles.warn} title="On speakers the mic hears the mask and feeds back: use headphones">
               ⚠ HEADPHONES
             </span>
           )}
-          <button
-            type="button"
-            className={styles.toggle}
-            data-on={learning || undefined}
-            disabled={!midi}
-            onClick={() => {
-              if (learning) midi?.cancelLearn()
-              setLearnTarget(null)
-              setLearning(!learning)
-            }}
-            title={
-              midi ? 'Click a pad, macro or push-to-talk, then move a knob or hit a pad on your controller' : 'No MIDI controller access'
-            }
-          >
-            MIDI LEARN
-          </button>
-          <Button
-            variant={takeState === 'idle' ? 'secondary' : 'danger'}
-            disabled={!on}
-            onClick={() => void toggleTake()}
-            title="Record a dry take (after a count-in) and open it in the Studio as the source · R"
-            data-testid="live-take"
-          >
-            {takeState === 'count' ? 'COUNT-IN…' : takeState === 'rec' ? '■ TAKE → STUDIO' : '● TAKE'}
-          </Button>
-          <Button
-            variant={setT0 != null ? 'danger' : 'secondary'}
-            disabled={!on}
-            onClick={() => void recordSet()}
-            data-testid="live-rec-set"
-          >
-            {setT0 != null ? `■ STOP SET · ${clock((setNow - setT0) / 1000)}` : '● REC SET'}
-          </Button>
-          {on ? (
-            <Button variant="danger" onClick={() => void stop()} data-testid="live-stop">
-              ■ STOP
-            </Button>
-          ) : (
-            <Button variant="primary" size="lg" onClick={() => void start()} disabled={status === 'starting'} data-testid="live-start">
-              ● GO LIVE
-            </Button>
-          )}
         </div>
       </ScreenHeader>
       {error && <p className={styles.error}>{error}</p>}
-      {lastSet && (
-        <div className={styles.setDone}>
-          <span>
-            SET · {clock(lastSet.durationS)} · {lastSet.filename}
-          </span>
-          <a className={common.button} data-variant="secondary" data-size="sm" href={lastSet.url} download={lastSet.filename}>
-            SAVE WAV
-          </a>
-          <Button size="sm" onClick={() => void addSetToVault()}>
-            ADD TO VAULT
-          </Button>
-        </div>
-      )}
 
-      <div className={styles.grid}>
+      <div className={styles.grid} data-voice={voiceIsOpen ? 'open' : 'closed'}>
         <aside className={styles.side}>
-          <section className={styles.card} aria-label="Setup">
-            <h2 className={styles.cardTitle}>SETUP</h2>
-            <label className={styles.field}>
-              <span>INPUT</span>
-              <select value={inputId} onChange={(e) => void onInput(e.target.value)}>
-                <option value="">DEFAULT INPUT</option>
-                {inputs.map((d, i) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `MICROPHONE ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>OUTPUT</span>
-              <select value={outputId} onChange={(e) => void onOutput(e.target.value)}>
-                <option value="">SYSTEM OUTPUT</option>
-                {outputs.map((d, i) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `OUTPUT ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className={styles.field}>
-              <span>LATENCY</span>
-              <Segmented<LatencyMode>
-                label="Latency"
-                hideLabel
-                size="sm"
-                value={latencyMode}
-                options={[
-                  { value: 'low', label: 'LOW', title: 'Performing (a little grainier on low voices)' },
-                  { value: 'balanced', label: 'SMOOTH', title: 'Smoother pitch shifting, a few ms more' },
-                ]}
-                onChange={(m) => void onLatency(m)}
-              />
-            </div>
-            <p className={styles.hint}>Use headphones: the mask comes back through the output while you talk.</p>
+          <section className={styles.card} aria-label="Audio source" data-testid="visuals-source">
+            <h2 className={styles.cardTitle}>AUDIO SOURCE</h2>
+            <Segmented<AudioSource>
+              label="Audio source"
+              hideLabel
+              size="sm"
+              value={source}
+              options={[
+                { value: 'track', label: 'TRACK', title: 'The song: the visuals follow the track (and its stems)' },
+                { value: 'input', label: 'LIVE INPUT', title: 'System audio or an audio interface: what the DJ is playing' },
+                { value: 'mic', label: 'MIC', title: 'The live voice mask' },
+              ]}
+              onChange={onSource}
+            />
+            {source === 'track' ? (
+              <>
+                <LiveSongStrip deck={deck} level={songLevel} duck={songDuck} onLevel={setSongLevel} onDuck={setSongDuck} />
+                {song && <StemsRow song={song} />}
+              </>
+            ) : source === 'input' ? (
+              <LiveInputControls onInput={setLiveInput} />
+            ) : (
+              <>
+                <label className={styles.field}>
+                  <span>INPUT</span>
+                  <select value={inputId} onChange={(e) => void onInput(e.target.value)}>
+                    <option value="">DEFAULT INPUT</option>
+                    {inputs.map((d, i) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `MICROPHONE ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>OUTPUT</span>
+                  <select value={outputId} onChange={(e) => void onOutput(e.target.value)}>
+                    <option value="">SYSTEM OUTPUT</option>
+                    {outputs.map((d, i) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `OUTPUT ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className={styles.field}>
+                  <span>LATENCY</span>
+                  <Segmented<LatencyMode>
+                    label="Latency"
+                    hideLabel
+                    size="sm"
+                    value={latencyMode}
+                    options={[
+                      { value: 'low', label: 'LOW', title: 'Performing (a little grainier on low voices)' },
+                      { value: 'balanced', label: 'SMOOTH', title: 'Smoother pitch shifting, a few ms more' },
+                    ]}
+                    onChange={(m) => void onLatency(m)}
+                  />
+                </div>
+                <p className={styles.hint}>Use headphones: the mask comes back through the output while you talk.</p>
+              </>
+            )}
+            {source !== 'input' &&
+              (on ? (
+                <Button variant="secondary" onClick={() => void stop()} data-testid="live-stop">
+                  {source === 'track' ? '■ STOP AUDIO' : '■ END LIVE'}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={() => void start()}
+                  disabled={status === 'starting'}
+                  title={source === 'track' ? 'Start the audio to play the song here (the mic stays off)' : undefined}
+                  data-testid="live-start"
+                >
+                  {source === 'track' ? '▶ START AUDIO' : '● GO LIVE'}
+                </Button>
+              ))}
           </section>
-          <LiveCamera live={live} />
+          <BasePanel />
+          <section className={styles.card} aria-label="Export" data-testid="visuals-export">
+            <h2 className={styles.cardTitle}>EXPORT</h2>
+            <SaveClip />
+            <LiveRecord stage={() => stageCanvas.current} audioReady={clipAudio != null} deck={source === 'track' ? deck : null} />
+          </section>
         </aside>
 
-        <div className={styles.center}>
-          <LiveSongStrip deck={deck} level={songLevel} duck={songDuck} onLevel={setSongLevel} onDuck={setSongDuck} />
-          {/* The stage: S4's visuals (LiveVisuals) and the output window go here. */}
-          <div className={styles.stage}>
-            <div className={styles.stageSlot}>
-              <LiveVisuals bus={live?.bus ?? null} deck={deck} bpm={bpm} />
-            </div>
-          </div>
-          <div className={styles.talkRow}>
-            <div className={styles.talkModes}>
-              <Segmented<TalkMode>
-                label="Talk"
-                hideLabel
-                size="sm"
-                value={talkMode}
-                options={[
-                  { value: 'open', label: 'OPEN' },
-                  { value: 'ptt', label: 'PUSH' },
-                  { value: 'latch', label: 'LATCH' },
-                ]}
-                onChange={(m) => {
-                  setHeld(false)
-                  setLatched(false)
-                  setTalkMode(m)
-                }}
-              />
-              <button type="button" className={styles.mute} data-on={muted || undefined} onClick={() => setMuted(!muted)} disabled={!on}>
-                {muted ? 'MUTED' : 'MUTE'}
-              </button>
-            </div>
-            <button
-              type="button"
-              className={styles.talk}
-              data-talking={(on && talking) || undefined}
-              disabled={!on && !learning}
-              onClick={learning ? learnOr('ptt', () => {}) : undefined}
-              onPointerDown={() => !learning && talk(true)}
-              onPointerUp={() => !learning && talk(false)}
-              onPointerLeave={() => !learning && talkMode === 'ptt' && held && talk(false)}
-              data-testid="live-talk"
-            >
-              {muted
-                ? 'MUTED'
-                : talkMode === 'open'
-                  ? on
-                    ? 'MIC OPEN'
-                    : 'MIC'
-                  : talking
-                    ? 'TALKING'
-                    : talkMode === 'ptt'
-                      ? 'HOLD TO TALK'
-                      : 'TAP TO TALK'}
-              {talkMode !== 'open' && <kbd>SPACE</kbd>}
-              {badge('ptt')}
-            </button>
-          </div>
+        <div className={styles.stage}>
+          <ErrorBoundary scope="STAGE" compact>
+            <VisualsStage
+              bus={live?.bus ?? null}
+              deck={deck}
+              input={source === 'input' ? liveInput : null}
+              bpm={bpm}
+              onCanvas={(c) => (stageCanvas.current = c)}
+            />
+          </ErrorBoundary>
         </div>
 
-        <section className={styles.perform} aria-label="Performance">
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>
-              PRESETS <kbd>1–7</kbd>
-            </h2>
-            <div className={styles.presetPads}>
-              {presets.slice(0, 8).map((p: Preset, i) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={styles.pad}
-                  data-active={p.id === presetId || undefined}
-                  onClick={learnOr(`preset:${i}`, () => studio.applyPreset(p))}
-                >
-                  <span className={styles.padNo}>{p.factory && i < 7 ? i + 1 : 'U'}</span>
-                  {p.name}
-                  {badge(`preset:${i}`)}
-                </button>
-              ))}
-            </div>
+        <aside className={styles.fxCol}>
+          <ErrorBoundary scope="EFFECTS" compact>
+            <EffectsPanel stemsLive={source === 'input' && Boolean(liveInput)} />
+          </ErrorBoundary>
+        </aside>
+
+        <section className={styles.voice} aria-label="Voice" data-testid="visuals-voice">
+          <div className={styles.voiceHead}>
+            <button type="button" className={styles.voiceToggle} aria-expanded={voiceIsOpen} onClick={toggleVoice}>
+              <span aria-hidden className={styles.caret}>
+                ▸
+              </span>
+              VOICE
+            </button>
+            <span className={styles.voiceSummary}>
+              {presetName ?? 'CUSTOM'} · {on ? talkText : 'OFF'}
+            </span>
+            <div className={styles.flex} />
+            {on && source !== 'mic' && (
+              <button
+                type="button"
+                className={styles.toggle}
+                data-on={micOpen || undefined}
+                onClick={() => void (micOpen ? closeMic() : ensureMic())}
+                title="Talk over the track: opens the mic (clips then carry your masked voice too)"
+                data-testid="arm-mic"
+              >
+                {micOpen ? '● MIC ARMED' : 'ARM MIC'}
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.toggle}
+              data-on={learning || undefined}
+              disabled={!midi}
+              onClick={() => {
+                if (learning) midi?.cancelLearn()
+                setLearnTarget(null)
+                setLearning(!learning)
+              }}
+              title={
+                midi ? 'Click a pad, macro or push-to-talk, then move a knob or hit a pad on your controller' : 'No MIDI controller access'
+              }
+            >
+              MIDI LEARN
+            </button>
+            <Button
+              size="sm"
+              variant={takeState === 'idle' ? 'secondary' : 'danger'}
+              disabled={!on}
+              onClick={() => void toggleTake()}
+              title="Record a dry take (after a count-in) and open it in the Studio as the source · R"
+              data-testid="live-take"
+            >
+              {takeState === 'count' ? 'COUNT-IN…' : takeState === 'rec' ? '■ TAKE → STUDIO' : '● TAKE'}
+            </Button>
+            <Button
+              size="sm"
+              variant={setT0 != null ? 'danger' : 'secondary'}
+              disabled={!on}
+              onClick={() => void recordSet()}
+              data-testid="live-rec-set"
+            >
+              {setT0 != null ? `■ STOP SET · ${clock((setNow - setT0) / 1000)}` : '● REC SET'}
+            </Button>
           </div>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>
-              FX <kbd>A S D F G</kbd>
-            </h2>
-            <div className={styles.fxPads}>
-              {FX.map((f) => (
+          {lastSet && (
+            <div className={styles.setDone}>
+              <span>
+                SET · {clock(lastSet.durationS)} · {lastSet.filename}
+              </span>
+              <a className={common.button} data-variant="secondary" data-size="sm" href={lastSet.url} download={lastSet.filename}>
+                SAVE WAV
+              </a>
+              <Button size="sm" onClick={() => void addSetToVault()}>
+                ADD TO VAULT
+              </Button>
+            </div>
+          )}
+          {voiceIsOpen && (
+            <div className={styles.voiceBody}>
+              <div className={styles.talkModes}>
+                <Segmented<TalkMode>
+                  label="Talk"
+                  hideLabel
+                  size="sm"
+                  value={talkMode}
+                  options={[
+                    { value: 'open', label: 'OPEN' },
+                    { value: 'ptt', label: 'PUSH' },
+                    { value: 'latch', label: 'LATCH' },
+                  ]}
+                  onChange={(m) => {
+                    setHeld(false)
+                    setLatched(false)
+                    setTalkMode(m)
+                  }}
+                />
                 <button
-                  key={f.name}
                   type="button"
-                  className={styles.fxPad}
-                  data-firing={firing[f.name] || undefined}
+                  className={styles.mute}
+                  data-on={muted || undefined}
+                  onClick={() => setMuted(!muted)}
+                  disabled={!on}
+                >
+                  {muted ? 'MUTED' : 'MUTE'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.talk}
+                  data-talking={(on && talking) || undefined}
                   disabled={!on && !learning}
-                  onClick={learnOr(`pad:${f.name}`, () => fire(f.name))}
-                  data-testid={`live-fx-${f.name}`}
+                  onClick={learning ? learnOr('ptt', () => {}) : undefined}
+                  onPointerDown={() => !learning && talk(true)}
+                  onPointerUp={() => !learning && talk(false)}
+                  onPointerLeave={() => !learning && talkMode === 'ptt' && held && talk(false)}
+                  data-testid="live-talk"
                 >
-                  {f.label}
-                  <kbd>{f.key.toUpperCase()}</kbd>
-                  {badge(`pad:${f.name}`)}
+                  {talkText}
+                  {talkMode !== 'open' && <kbd>SPACE</kbd>}
+                  {badge('ptt')}
                 </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>MACROS</h2>
-            <div className={styles.macros}>
-              {MACRO_IDS.map((id) => (
-                <div key={id} className={styles.macro}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={macros[id]}
-                    onChange={(e) => studio.setMacro(id, Number(e.target.value))}
-                    aria-label={MACRO_LABEL[id]}
-                    disabled={learning}
-                  />
-                  <b>{Math.round(macros[id] * 100)}</b>
-                  {learning ? (
-                    <button type="button" className={styles.macroLearn} onClick={learnOr(`macro:${id}`, () => {})}>
-                      {MACRO_LABEL[id]}
-                      {badge(`macro:${id}`)}
+              </div>
+              <div className={styles.voiceGroup}>
+                <h3 className={styles.cardTitle}>
+                  PRESETS <kbd>1–7</kbd>
+                </h3>
+                <div className={styles.presetPads}>
+                  {presets.slice(0, 8).map((p: Preset, i) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={styles.pad}
+                      data-active={p.id === presetId || undefined}
+                      onClick={learnOr(`preset:${i}`, () => studio.applyPreset(p))}
+                    >
+                      <span className={styles.padNo}>{p.factory && i < 7 ? i + 1 : 'U'}</span>
+                      {p.name}
+                      {badge(`preset:${i}`)}
                     </button>
-                  ) : (
-                    <span>{MACRO_LABEL[id]}</span>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className={styles.voiceGroup}>
+                <h3 className={styles.cardTitle}>
+                  FX
+                  <div className={styles.quantize} title="Where the FX pads land">
+                    <Segmented<Quantize | 'auto'>
+                      label="Quantize"
+                      hideLabel
+                      size="sm"
+                      value={quantize}
+                      options={[
+                        { value: 'auto', label: 'AUTO', title: 'Each FX on its own grid (swell on the bar, stutter on 1/16)' },
+                        { value: '1/16', label: '1/16' },
+                        { value: 'beat', label: 'BEAT' },
+                        { value: 'bar', label: 'BAR' },
+                      ]}
+                      onChange={setQuantize}
+                    />
+                  </div>
+                </h3>
+                <div className={styles.fxPads}>
+                  {FX.map((f) => (
+                    <button
+                      key={f.name}
+                      type="button"
+                      className={styles.fxPad}
+                      data-firing={firing[f.name] || undefined}
+                      disabled={!on && !learning}
+                      onClick={learnOr(`pad:${f.name}`, () => fire(f.name))}
+                      data-testid={`live-fx-${f.name}`}
+                    >
+                      {f.label}
+                      <kbd>{f.key.toUpperCase()}</kbd>
+                      {badge(`pad:${f.name}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.voiceGroup}>
+                <h3 className={styles.cardTitle}>MACROS</h3>
+                <div className={styles.macros}>
+                  {MACRO_IDS.map((id) => (
+                    <div key={id} className={styles.macro}>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={macros[id]}
+                        onChange={(e) => studio.setMacro(id, Number(e.target.value))}
+                        aria-label={MACRO_LABEL[id]}
+                        disabled={learning}
+                      />
+                      <b>{Math.round(macros[id] * 100)}</b>
+                      {learning ? (
+                        <button type="button" className={styles.macroLearn} onClick={learnOr(`macro:${id}`, () => {})}>
+                          {MACRO_LABEL[id]}
+                          {badge(`macro:${id}`)}
+                        </button>
+                      ) : (
+                        <span>{MACRO_LABEL[id]}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </section>
       </div>
     </Screen>

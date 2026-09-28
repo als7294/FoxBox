@@ -51,6 +51,7 @@ from fvwks_contracts.models import (
     Settings,
     SignedModelManifest,
     Song,
+    StemFeatures,
     SongUpdate,
     SourceInfo,
     SourceList,
@@ -272,6 +273,16 @@ def create_app(config: Config) -> FastAPI:
     def delete_song(song_id: str) -> Response:
         _songs("delete_song")(song_id)
         return Response(status_code=204)
+
+    @r.post("/songs/{song_id}/stems", response_model=Job, tags=["songs"], operation_id="separateSongStems")
+    def separate_song_stems(song_id: str) -> Job:
+        """v0.9: split the song into drums, bass, vocals and other (a song_stems job; instant when cached)."""
+        return _songs("request_stems")(song_id)
+
+    @r.get("/songs/{song_id}/stems/features", response_model=StemFeatures, tags=["songs"], operation_id="getStemFeatures")
+    def get_stem_features(song_id: str) -> StemFeatures:
+        """v0.9: per-stem envelopes and onsets for the visuals (60 fps over the whole song)."""
+        return _songs("stem_features")(song_id)
 
     @r.post("/mix", response_model=MixInfo, tags=["songs"], operation_id="mixSong")
     def mix_song(req: MixRequest) -> MixInfo:

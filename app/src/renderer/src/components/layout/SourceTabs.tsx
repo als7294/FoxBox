@@ -10,11 +10,11 @@ import styles from './layout.module.css'
 const TABS: { id: SourceTab; label: string }[] = [
   { id: 'type', label: 'TYPE' },
   { id: 'import', label: 'IMPORT' },
-  // Takes are recorded on LIVE; the tab shows once there are some (their transcript and list).
+  // Takes are recorded on VISUALS (VOICE → TAKE); the tab shows once there are some (their transcript and list).
   { id: 'record', label: 'TAKES' },
 ]
 
-/** SOURCE panel: TYPE | IMPORT (| TAKES), and RECORD → LIVE, where takes are recorded. */
+/** SOURCE panel: TYPE | IMPORT (| TAKES), and RECORD →, the way to VISUALS, where takes are recorded. */
 export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
   const tab = useStudio((s) => s.tab)
   const hasTakes = useStudio((s) => s.takes.length > 0)
@@ -40,8 +40,8 @@ export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
             </button>
           ))}
         </div>
-        <button type="button" className={styles.toLive} onClick={() => useUi.getState().navigate('live')} title="Record takes on LIVE">
-          {hasTakes || tab === 'record' ? '● LIVE' : '● RECORD → LIVE'}
+        <button type="button" className={styles.toLive} onClick={() => useUi.getState().navigate('live')} title="Record takes on VISUALS (VOICE → TAKE)">
+          {hasTakes || tab === 'record' ? '● RECORD' : '● RECORD →'}
         </button>
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className={styles.tabPanel}>

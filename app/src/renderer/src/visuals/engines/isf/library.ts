@@ -5,10 +5,16 @@ import { bridge } from '@/env'
 import { parseIsf, type IsfShader } from './loader'
 
 const PACK = import.meta.glob('./shaders/*.fs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const FILTERS = import.meta.glob('./filters/*.fs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-export const packShaders: IsfShader[] = Object.entries(PACK)
-  .map(([path, source]) => parseIsf(source, path.split('/').pop()!))
-  .sort((a, b) => a.label.localeCompare(b.label))
+const load = (files: Record<string, string>, prefix = ''): IsfShader[] =>
+  Object.entries(files)
+    .map(([path, source]) => parseIsf(source, path.split('/').pop()!))
+    .map((s) => ({ ...s, id: prefix + s.id }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+
+/** FoxBox's generators (./shaders) and, 1.4, its filters (./filters: they transform the picture beneath). */
+export const packShaders: IsfShader[] = [...load(PACK), ...load(FILTERS, 'fx-')]
 
 export function shaderFiles(): VisualsBridge | null {
   return bridge()?.visuals ?? null

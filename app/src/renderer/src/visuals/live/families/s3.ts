@@ -54,6 +54,7 @@ const shaders: StyleFamily = {
     return [...packShaders.filter((s) => !s.error), ...mine].map((s) => ({
       id: `shaders.${s.id}`,
       label: s.label,
+      kind: s.kind,
       create: (canvas, opts) => createIsf(canvas, opts, s),
     }))
   },

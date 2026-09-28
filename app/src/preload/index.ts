@@ -11,6 +11,8 @@ import {
   type EngineResponse,
   type EngineStatus,
   type FvwksBridge,
+  type LinkBridge,
+  type LinkState,
   type MenuCommand,
   type MicAccess,
   type SetupBridge,
@@ -64,6 +66,12 @@ const visuals: VisualsBridge = {
   removeShader: (file: string) => ipcRenderer.invoke(IPC.shadersRemove, file) as Promise<boolean>,
 }
 
+const link: LinkBridge = {
+  setEnabled: (on) => ipcRenderer.invoke(IPC.linkSet, on) as Promise<{ running: boolean; error: string | null }>,
+  setTempo: (bpm) => ipcRenderer.send(IPC.linkTempo, bpm),
+  onState: (listener) => subscribe<LinkState | null>(IPC.linkState, listener),
+}
+
 // A MessagePort can't cross contextBridge: it goes to the page as a window message (visuals/live/output.ts).
 const page = globalThis as unknown as { postMessage(message: unknown, origin: string, transfer?: unknown[]): void }
 ipcRenderer.on(IPC.visualsPort, (event) => page.postMessage({ fvwks: 'visuals-port' }, '*', event.ports))
@@ -81,6 +89,8 @@ const bridge: FvwksBridge = {
     ipcRenderer.send(IPC.startDrag, Array.isArray(path) ? path : [path], options ?? {})
   },
   reveal: (path: string) => ipcRenderer.invoke(IPC.reveal, path) as Promise<boolean>,
+  logError: (scope: string, message: string, stack?: string) => ipcRenderer.send(IPC.logError, scope, message, stack),
+  saveClip: (name: string, data: ArrayBuffer) => ipcRenderer.invoke(IPC.saveClip, name, data) as Promise<string>,
   chooseFolder: (options) => ipcRenderer.invoke(IPC.chooseFolder, options ?? {}) as Promise<string | null>,
   askMicAccess: () => ipcRenderer.invoke(IPC.askMic) as Promise<boolean>,
   askCameraAccess: () => ipcRenderer.invoke(IPC.askCamera) as Promise<boolean>,
@@ -95,6 +105,7 @@ const bridge: FvwksBridge = {
   updates,
   setup,
   visuals,
+  link,
 }
 
 contextBridge.exposeInMainWorld('fvwks', bridge)

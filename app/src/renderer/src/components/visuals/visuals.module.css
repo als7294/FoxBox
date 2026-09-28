@@ -1,0 +1,455 @@
+/*
+ * VISUALS (1.4) panels and the stage's glass bar. The cards themselves are the page's (components/live
+ * live.module.css: .card, .cardTitle, .field, .hint); the --glass-* variables come from its .screen.
+ */
+
+/* ---------------------------------------------------------------- the stage */
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+.bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  /* A dark scrim under the glass, so the controls read over any picture (bright MILKDROP frames included). */
+  background:
+    linear-gradient(rgba(6, 6, 8, 0.62), rgba(6, 6, 8, 0.62)),
+    var(--vb-glass-fill, rgba(12, 12, 14, 0.55));
+  backdrop-filter: blur(16px) saturate(0.8) brightness(0.7);
+  border: 1px solid var(--vb-glass-edge, rgba(233, 229, 218, 0.1));
+  border-top-color: var(--vb-glass-edge-top, rgba(233, 229, 218, 0.18));
+  border-radius: var(--vb-glass-radius, 9px);
+  corner-shape: var(--vb-glass-corner);
+  box-shadow: var(--vb-glass-inner, none), 0 6px 24px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  opacity: 0.78;
+  transition: opacity var(--vb-med, 200ms);
+}
+.stage:hover .bar,
+.bar:focus-within {
+  opacity: 1;
+}
+.palettes {
+  display: flex;
+  gap: 5px;
+}
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+.swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--vb-ink);
+}
+.flex {
+  flex: 1;
+}
+.fps {
+  font: 500 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+.output {
+  display: flex;
+  gap: 6px;
+}
+.output select {
+  height: 26px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 600 10px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+}
+.outBtn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-amber-line, rgba(255, 178, 62, 0.45));
+  border-radius: 6px;
+  background: rgba(10, 10, 12, 0.7);
+  color: var(--vb-amber);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.outBtn[aria-pressed='true'] {
+  background: var(--vb-accent);
+  border-color: var(--vb-accent);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- shared bits */
+.kicker {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}
+.inlineError {
+  margin: 0;
+  color: var(--vb-accent);
+  font: 500 10px/1.45 var(--vb-font-mono);
+}
+.chip {
+  height: 28px;
+  min-width: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background var(--vb-fast),
+    color var(--vb-fast),
+    border-color var(--vb-fast);
+}
+.chip:hover {
+  color: var(--vb-ink);
+  background: var(--glass-hi);
+}
+.chip[aria-checked='true'] {
+  color: var(--vb-bg);
+  background: var(--vb-ink);
+  border-color: var(--vb-ink);
+}
+
+/* ---------------------------------------------------------------- AUDIO SOURCE: stems, live input */
+.stems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--vb-line);
+}
+.stemsHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.stateChip {
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  font: 700 8.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.stateChip[data-state='queued'],
+.stateChip[data-state='running'] {
+  color: var(--vb-amber);
+  border-color: rgba(var(--vb-amber-rgb), 0.5);
+}
+.stateChip[data-state='done'] {
+  color: var(--vb-ok);
+  border-color: currentColor;
+}
+.stateChip[data-state='error'] {
+  color: var(--vb-accent);
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+}
+.stemsProgress {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stemsProgress > span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--vb-amber);
+  transform-origin: left;
+  transition: transform var(--vb-med, 200ms);
+}
+.stemsProgress > span[data-indeterminate] {
+  transform: none !important;
+  opacity: 0.35;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.stemsProgress em {
+  font: 400 9.5px var(--vb-font-mono);
+  font-style: normal;
+  color: var(--vb-dim);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.8;
+  }
+}
+.stemsModel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.inputOn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.inputLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 10px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  color: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- BASE */
+.baseGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.mediaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.fileName {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 10px var(--vb-font-mono);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fit {
+  flex: none;
+  width: 132px;
+}
+
+/* ---------------------------------------------------------------- EFFECTS */
+.effects {
+  flex: 1;
+  min-height: 0;
+}
+.count {
+  font: 600 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  letter-spacing: 0.06em;
+}
+/* The style picker as the ADD button: full width, its popover opening leftwards over the stage. */
+.addFx > div {
+  width: 100%;
+}
+.addFx > div > span:first-child {
+  display: none;
+}
+.addFx button[aria-haspopup] {
+  flex: 1;
+  max-width: none;
+  height: 28px;
+  justify-content: center;
+  border: 1px dashed rgba(var(--vb-amber-rgb), 0.55);
+  background: none;
+  color: var(--vb-amber);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.addFx button[aria-haspopup]:hover {
+  background: rgba(var(--vb-amber-rgb), 0.08);
+}
+.addFx [role='dialog'] {
+  left: auto;
+  right: 0;
+}
+.fxList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.fxRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--vb-glass-radius, 9px);
+  background: rgba(var(--vb-shadow-rgb), 0.18);
+}
+.fxRow[data-off] > :not(.fxHead) {
+  opacity: 0.45;
+}
+.fxRow[data-off] .fxName {
+  color: var(--vb-dim);
+}
+.fxHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+.fxOn {
+  flex: none;
+  width: 26px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--vb-line-2);
+  border-radius: 999px;
+  background: var(--vb-well);
+  position: relative;
+}
+.fxOn::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vb-dim);
+  transition: transform var(--vb-fast);
+}
+.fxOn[aria-pressed='true'] {
+  border-color: rgba(var(--vb-accent-rgb), 0.7);
+  background: rgba(var(--vb-accent-rgb), 0.2);
+}
+.fxOn[aria-pressed='true']::after {
+  transform: translateX(10px);
+  background: var(--vb-accent);
+}
+.fxName {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  font: var(--vb-display-weight) 13px/1.1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  color: var(--vb-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fxFamily {
+  font: 600 8px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-accent);
+}
+.filterTag {
+  flex: none;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(var(--vb-ice-rgb, 124, 200, 255), 0.55);
+  color: var(--vb-ice, #7cc8ff);
+  font: 700 8px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+}
+.iconBtn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--vb-dim);
+  font: 600 10px var(--vb-font-mono);
+}
+.iconBtn:hover:not(:disabled) {
+  color: var(--vb-ink);
+  border-color: var(--glass-edge);
+}
+.iconBtn:disabled {
+  opacity: 0.25;
+}
+.fxField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font: 500 8.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.fxField > span {
+  flex: none;
+}
+.fxField input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--vb-accent);
+}
+.fxField b {
+  width: 22px;
+  text-align: right;
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-ink);
+  font-variant-numeric: tabular-nums;
+}
+.fxField select {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 9.5px var(--vb-font-mono);
+}
+.fxField select:disabled {
+  opacity: 0.45;
+}
+.fxSelects {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stemsProgress > span[data-indeterminate] {
+    animation: none;
+  }
+}
+
+/* 1280: the BASE chips tighten so VOICE CORE fits */
+@container vb (max-width: 1419px) {
+  .chip {
+    padding: 0 4px;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* EXPORT: REC LIVE under SAVE CLIP */
+.divided {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--vb-line);
+}

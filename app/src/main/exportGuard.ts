@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, normalize, relative, sep } from 'node:path'
 
-const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3'])
+const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3', '.mp4'])
 const MAX_ROOTS = 16
 const MAX_RETURNED = 20_000
 const MAX_JSON_BYTES = 32 * 1024 * 1024
@@ -14,7 +14,7 @@ function real(p: string): string | null {
   }
 }
 
-function isInside(root: string, target: string): boolean {
+export function isInside(root: string, target: string): boolean {
   const rel = relative(root, target)
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
@@ -85,7 +85,7 @@ export class ExportGuard {
     }
   }
 
-  /** Record a path the engine returned. Ignored unless it lies inside a known root. */
+  /** Record a path the engine returned, or main wrote (a saved clip). Ignored unless it lies inside a known root. */
   noteReturnedPath(candidate: unknown): void {
     const path = asPath(candidate)
     if (!path || !this.knownRoots.some((r) => isInside(r, path))) return

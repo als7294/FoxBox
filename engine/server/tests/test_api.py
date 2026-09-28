@@ -1,5 +1,6 @@
 """HTTP API against the voice and fx stubs: the full tts → render → export → rekordbox.xml flow, auth, library,
 presets, settings, batch, jobs and audio streaming."""
+import base64
 import dataclasses
 import io
 import json
@@ -2489,3 +2490,62 @@ def test_chop_lands_every_word_on_a_beat(client):
     assert all(b == int(b) for b in beats) and beats == sorted(set(beats))  # whole beats, in order
     plain = render(client, src["id"], arrange={"bpm": 140, "bars": "auto", "key": "Am"})
     assert plain["chop"] is None and plain["id"] != chopped["id"]
+
+
+# ------------------------------------------------------------------------------------------ stems (v0.9)
+
+
+@pytest.fixture
+def separator(monkeypatch):
+    """A stand-in for S1's separate_stems (htdemucs): four scaled copies of the song, same length."""
+    calls = []
+
+    def separate_stems(audio, sr, progress):
+        calls.append((audio.shape, sr))
+        progress(0.5, "halfway")
+        return {name: (audio * g).astype(np.float32) for name, g in
+                (("drums", 0.5), ("bass", 0.3), ("vocals", 0.2), ("other", 0.1))}
+
+    monkeypatch.setattr(voice_api, "separate_stems", separate_stems, raising=False)
+    return calls
+
+
+def test_song_stems_job_features_and_cache(client, song_fx, separator):
+    song = wait_song(client, ok(upload_song(client))["id"])
+    job = wait_job(client, ok(client.post(f"/api/songs/{song['id']}/stems"))["id"])
+    assert job["kind"] == "song_stems" and job["state"] == "done", job
+    song = ok(client.get(f"/api/songs/{song['id']}"))
+    assert song["stems_state"] == "done" and [s["name"] for s in song["stems"]] == ["drums", "bass", "vocals", "other"]
+    assert client.get(f"/api/audio/{song['stems'][0]['audio_id']}").status_code == 200
+    feats = ok(client.get(f"/api/songs/{song['id']}/stems/features"))
+    assert feats["tracks"] == ["drums", "bass", "vocals", "other", "mix"] and feats["fps"] == 60
+    assert feats["frames"] == pytest.approx(20 * 60, abs=2)
+    assert len(base64.b64decode(feats["data_b64"])) == feats["frames"] * 5 * 2
+    again = ok(client.post(f"/api/songs/{song['id']}/stems"))
+    assert again["state"] == "done" and len(separator) == 1  # cached: separated once
+    ok(client.delete(f"/api/songs/{song['id']}"), 204)
+    assert client.get(f"/api/audio/{song['stems'][0]['audio_id']}").status_code == 404
+
+
+def test_stems_answer_501_without_the_separator_and_409_before_they_exist(client, song_fx, monkeypatch):
+    monkeypatch.delattr(voice_api, "separate_stems", raising=False)
+    song = ok(upload_song(client))
+    res = client.post(f"/api/songs/{song['id']}/stems")
+    assert res.status_code == 501 and res.json()["error"]["code"] == "not_implemented"
+    res = client.get(f"/api/songs/{song['id']}/stems/features")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "stems_not_ready"
+
+
+def test_stems_job_error_names_the_missing_model(client, song_fx, monkeypatch):
+    """Found by the packaged 1.4.0 check: the song_stems job's model_not_installed lost its model_id."""
+    class ModelMissing(Exception):
+        code, status, hint, retryable, model_id = "model_not_installed", 503, "Install it.", False, "stems-htdemucs"
+
+    def separate_stems(audio, sr, progress):
+        raise ModelMissing("The stem splitter isn't installed.")
+
+    monkeypatch.setattr(voice_api, "separate_stems", separate_stems, raising=False)
+    song = ok(upload_song(client))
+    job = wait_job(client, ok(client.post(f"/api/songs/{song['id']}/stems"))["id"])
+    assert job["state"] == "error" and job["error"]["code"] == "model_not_installed"
+    assert job["error"]["model_id"] == "stems-htdemucs"

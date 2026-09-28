@@ -3,13 +3,17 @@
  * a MessageChannel (IPC.visualsPort, arriving here as a window message from the preload). The LIVE page sends the
  * chosen style and palette, then one AudioFrame per drawn frame; the output window draws the same style from them.
  */
+import type { Scene } from './compositor'
 import type { AudioFrame } from './registry'
 
-export type OutputMessage = { type: 'style'; styleId: string; paletteId: string } | { type: 'frame'; frame: AudioFrame }
+export type OutputMessage =
+  | { type: 'style'; styleId: string; paletteId: string }
+  | { type: 'scene'; scene: Scene }
+  | { type: 'frame'; frame: AudioFrame }
 
 let port: MessagePort | null = null
 const listeners = new Set<(m: OutputMessage) => void>()
-let lastStyle: Extract<OutputMessage, { type: 'style' }> | null = null
+let lastStyle: Extract<OutputMessage, { type: 'style' | 'scene' }> | null = null
 
 /** Starts listening for the port (once, at app start, in both windows). */
 export function initOutputLink(): void {
@@ -30,6 +34,12 @@ export function initOutputLink(): void {
 /** LIVE page: the style and palette to show. */
 export function sendStyle(styleId: string, paletteId: string): void {
   lastStyle = { type: 'style', styleId, paletteId }
+  port?.postMessage(lastStyle)
+}
+
+/** VISUALS (1.4): the whole scene (base + effects) to show. */
+export function sendScene(scene: Scene): void {
+  lastStyle = { type: 'scene', scene }
   port?.postMessage(lastStyle)
 }
 

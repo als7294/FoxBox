@@ -11,6 +11,7 @@
  *   fvwks-perform   master: stutter (buffer repeat), tape-stop, drop-out, and a soft safety clip at -1 dBFS
  *   fvwks-tap       SetRecorder capture: planar float batches from `startAt` (context time) until 'stop'
  *   fvwks-duck      SongDeck: the song (input 0) ducked under the voice (input 1, the key): 10 ms attack
+ *   fvwks-stems     LIVE INPUT stem approximator: drums / bass / vocals / other levels and onsets at 60 fps
  */
 const TAU = Math.PI * 2
 const dbToLin = (db) => Math.pow(10, db / 20)
@@ -29,6 +30,11 @@ class Biquad {
   lowpass(f, q = 0.7071) {
     const w = (TAU * Math.min(f, sampleRate * 0.45)) / sampleRate, a = Math.sin(w) / (2 * q), c = Math.cos(w), a0 = 1 + a
     this.b0 = (1 - c) / 2 / a0; this.b1 = (1 - c) / a0; this.b2 = this.b0; this.a1 = (-2 * c) / a0; this.a2 = (1 - a) / a0
+    return this
+  }
+  highpass(f, q = 0.7071) {
+    const w = (TAU * Math.min(f, sampleRate * 0.45)) / sampleRate, a = Math.sin(w) / (2 * q), c = Math.cos(w), a0 = 1 + a
+    this.b0 = (1 + c) / 2 / a0; this.b1 = -(1 + c) / a0; this.b2 = this.b0; this.a1 = (-2 * c) / a0; this.a2 = (1 - a) / a0
     return this
   }
   run(x) {
@@ -462,3 +468,86 @@ class Duck extends AudioWorkletProcessor {
   }
 }
 registerProcessor('fvwks-duck', Duck)
+
+// ---------------------------------------------------------------------------------------------------------- stems
+// A real-time stand-in for separated stems (LIVE INPUT has no precompute): per 1/60 s it posts
+// {t, s: [drumsRms, drumsOnset, bassRms, bassOnset, vocalsRms, vocalsOnset, otherRms, otherOnset]}.
+//   bass    the power under ~150 Hz
+//   vocals  the sustained (harmonic) power of 300 Hz – 3 kHz: a slow envelope, so snare hits barely register
+//   drums   percussive flux: the transients (fast over slow envelope) of the kick, snare-mid and hat bands
+//   other   what's left of the full-band power
+// Levels are normalised by a slowly decaying running max (like the per-song normalisation of the precompute), never
+// below a share of the full-band level's max, so a stem that only carries leakage (bass from a lead line) stays low;
+// an onset is a jump of the level over its recent average (strength ≥ 1, at most one per 80 ms per stem).
+const STEM_N = 4
+const STEM_FLOOR = [0.05, 0.2, 0.15, 0.15] // of the full-band max: drums (transient power is small), bass, vocals, other
+class Stems extends AudioWorkletProcessor {
+  constructor() {
+    super()
+    this.bassLp = [new Biquad().lowpass(150), new Biquad().lowpass(150)]
+    this.vocBand = [new Biquad().highpass(300), new Biquad().highpass(300), new Biquad().lowpass(3000), new Biquad().lowpass(3000)]
+    this.kick = new Biquad().bandpass(65, 1.1)
+    this.hat = [new Biquad().highpass(5000), new Biquad().highpass(5000)]
+    this.e = { vs: 0, kf: 0, ks: 0, hf: 0, hs: 0, mf: 0, ms: 0 }
+    this.k = { a3: coef(0.003), a5: coef(0.005), s60: coef(0.06), s100: coef(0.1), v: coef(0.08) }
+    this.hop = Math.max(1, Math.round(sampleRate / 60))
+    this.n = 0
+    this.acc = new Float64Array(STEM_N + 1) // drums, bass, vocals, (other), full
+    this.max = new Float64Array(STEM_N).fill(1e-6)
+    this.fullMax = 1e-6
+    this.avg = new Float64Array(STEM_N)
+    this.cool = new Int32Array(STEM_N)
+  }
+  process(inputs, outputs) {
+    const inp = inputs[0]
+    const o = outputs[0]
+    if (o) for (const ch of o) ch.fill(0)
+    if (!inp || !inp.length) return true
+    const L = inp[0], R = inp[1] || inp[0], e = this.e, k = this.k, acc = this.acc
+    for (let i = 0; i < L.length; i++) {
+      const x = 0.5 * (L[i] + R[i])
+      const b = this.bassLp[1].run(this.bassLp[0].run(x))
+      let v = x
+      for (const f of this.vocBand) v = f.run(v)
+      const kk = this.kick.run(x)
+      const h = this.hat[1].run(this.hat[0].run(x))
+      const pv = v * v, pk = kk * kk, ph = h * h
+      e.vs = k.v * e.vs + (1 - k.v) * pv // sustained vocal-band power
+      e.kf = k.a5 * e.kf + (1 - k.a5) * pk; e.ks = k.s100 * e.ks + (1 - k.s100) * pk
+      e.hf = k.a3 * e.hf + (1 - k.a3) * ph; e.hs = k.s60 * e.hs + (1 - k.s60) * ph
+      e.mf = k.a3 * e.mf + (1 - k.a3) * pv; e.ms = k.s60 * e.ms + (1 - k.s60) * pv
+      acc[0] += Math.max(0, e.kf - 1.5 * e.ks) + Math.max(0, e.hf - 1.5 * e.hs) + 0.5 * Math.max(0, e.mf - 1.5 * e.ms)
+      acc[1] += b * b
+      acc[2] += e.vs
+      acc[4] += x * x
+      if (++this.n >= this.hop) this.flush()
+    }
+    return true
+  }
+  flush() {
+    const acc = this.acc, n = this.n
+    const p = [acc[0] / n, acc[1] / n, acc[2] / n, 0]
+    p[3] = Math.max(0, acc[4] / n - p[0] - p[1] - p[2])
+    const out = new Float32Array(2 * STEM_N)
+    this.fullMax = Math.max(Math.sqrt(acc[4] / n), this.fullMax * 0.9995)
+    for (let s = 0; s < STEM_N; s++) {
+      const lvl = Math.sqrt(p[s])
+      this.max[s] = Math.max(lvl, this.max[s] * 0.9995) // decays to half in ~23 s at 60 fps
+      const denom = Math.max(this.max[s], STEM_FLOOR[s] * this.fullMax)
+      const rms = denom > 1e-6 ? Math.min(1, lvl / denom) : 0
+      let onset = 0
+      if (this.cool[s] > 0) this.cool[s]--
+      else if (rms > 0.05 && this.avg[s] > 0 && rms > 1.8 * this.avg[s]) {
+        onset = rms / (1.8 * this.avg[s])
+        this.cool[s] = 5
+      }
+      this.avg[s] = 0.85 * this.avg[s] + 0.15 * rms
+      out[2 * s] = rms
+      out[2 * s + 1] = onset
+    }
+    this.port.postMessage({ t: currentTime, s: out })
+    acc.fill(0)
+    this.n = 0
+  }
+}
+registerProcessor('fvwks-stems', Stems)

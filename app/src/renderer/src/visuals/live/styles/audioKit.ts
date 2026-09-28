@@ -90,8 +90,7 @@ export class Cues {
   constructor(private readonly reduced: boolean) {}
 
   step(a: AudioFrame, dtMs: number): this {
-    const kickOnset = a.song ? a.song.onset : a.onset
-    this.kick = onsetEnvelope(this.kick, { onset: kickOnset, active: a.active }, dtMs, 180, this.reduced)
+    this.kick = onsetEnvelope(this.kick, { onset: kickOnset(a), active: a.active }, dtMs, 180, this.reduced)
     this.voice = onsetEnvelope(this.voice, { onset: a.voice ? a.voice.onset : a.onset, active: a.active }, dtMs, 200, this.reduced)
     const bar = a.bar ?? null
     const phase = a.barPhase ?? null
@@ -107,6 +106,16 @@ export class Cues {
     this.drop = this.dropStart ? (this.reduced ? 0.4 : 1) : this.drop * Math.exp(-Math.max(0, dtMs) / (this.reduced ? 1600 : 900))
     return this
   }
+}
+
+/** 1.4: the hit a style pulses on: the drums stem when stems are measured, else the song's, else the mix's. */
+export const kickOnset = (a: AudioFrame): number => a.stems?.drums?.onset ?? (a.song ? a.song.onset : a.onset)
+
+/** 1.4: the bands with the bass stem as the low end when stems are measured (the sub, not the kick's thump). */
+export function stemBands(a: AudioFrame): { low: number; mid: number; high: number } {
+  const b = a.song?.bands ?? a.bands
+  const bass = a.stems?.bass
+  return bass ? { ...b, low: Math.min(1, bass.rms * 2.5) } : b
 }
 
 /** The song's bands when a song plays, else the mix's (what the backdrop of a voice-led style follows). */

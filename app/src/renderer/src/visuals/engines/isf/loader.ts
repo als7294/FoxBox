@@ -23,6 +23,8 @@ export interface IsfShader {
   error: string | null
   /** A user shader's file name in <data dir>/shaders/ (for removing it); unset for the pack. */
   file?: string
+  /** 'filter' when it transforms the picture beneath (an ISF `inputImage`), else 'generator' (1.4). */
+  kind: 'generator' | 'filter'
 }
 
 /** Inputs FoxBox fills every frame when a shader declares them (by name). */
@@ -49,7 +51,7 @@ function labelOf(fileName: string): string {
 
 export function parseIsf(text: string, fileName: string): IsfShader {
   const base: IsfShader = { id: shaderId(fileName), label: labelOf(fileName), source: text, description: '', credit: '',
-    inputs: [], error: null }
+    inputs: [], error: null, kind: 'generator' }
   const fail = (error: string): IsfShader => ({ ...base, error })
   if (text.length > MAX_SHADER_BYTES) return fail('The file is over 64 KB.')
   const open = text.indexOf('/*')
@@ -79,5 +81,6 @@ export function parseIsf(text: string, fileName: string): IsfShader {
     description: typeof header.DESCRIPTION === 'string' ? header.DESCRIPTION : '',
     credit: typeof header.CREDIT === 'string' ? header.CREDIT : '',
     inputs,
+    kind: inputs.some((i) => i.NAME === 'inputImage' && i.TYPE === 'image') ? 'filter' : 'generator',
   }
 }

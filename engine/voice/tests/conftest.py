@@ -13,6 +13,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "qwen3: needs the Qwen3-TTS persona model (skipped when it isn't installed)")
     config.addinivalue_line("markers", "denoise: needs the DeepFilterNet3 model (skipped when it isn't installed)")
     config.addinivalue_line("markers", "asr: needs the whisper-aligner model (skipped when it isn't installed)")
+    config.addinivalue_line("markers", "stems: needs the stems-htdemucs model (skipped when it isn't installed)")
 
 
 @pytest.fixture(scope="session")

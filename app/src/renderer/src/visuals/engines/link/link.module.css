@@ -1,0 +1,35 @@
+/* LINK toggle, in the VISUALS glass bar's control look (26 px, mono). */
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-dim);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 600 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.link[aria-pressed='true'] {
+  color: var(--vb-ink);
+  border-color: rgba(var(--vb-accent-rgb), 0.5);
+}
+.link:focus-visible {
+  outline: 2px solid var(--vb-accent);
+  outline-offset: 1px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(var(--vb-ink-rgb), 0.25);
+}
+.link[aria-pressed='true'] .dot {
+  background: var(--vb-amber);
+}
+.link[data-peers] .dot {
+  background: var(--vb-ok, #4bd07a);
+}

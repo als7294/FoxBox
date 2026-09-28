@@ -7,8 +7,8 @@
 ### Stay stealthy.
 
 The voice-mask studio for bass music. Type a line or record your own. FoxBox masks it into a deep, distorted, anonymous voice, locks it to your grid,
-and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW, or performs it **live** over your track with
-visuals that hit on the drop. It runs entirely on your Mac.
+and prints a **bar-exact, club-loud drop** for Rekordbox, CDJs and your DAW. Then turn your tracks into **stem-reactive visuals and
+promo videos**, or run them live. It runs entirely on your Mac.
 
 <br/>
 
@@ -106,45 +106,44 @@ These are straight exports; only the silence between clips was trimmed.
 
 A **mask-strength badge** (SYNTHETIC · WEAK · MEDIUM · STRONG) tells you plainly when a chain is only pitch-shifted, and so reversible.
 
-## 🔴 LIVE <sup>new in 1.3</sup>
+## 🎆 VISUALS <sup>new in 1.4</sup>
 
-Perform the mask in real time. **LIVE** is a dedicated page built for the booth: your mic goes through the FoxBox rack live,
-with the song you attached playing underneath and visuals that react to both.
+Make visuals and **promo videos for your music**, or run them live behind your set. Pick what the visuals listen to, what sits
+underneath, and stack effects on top. Every layer can react to its own **stem**.
 
-<img src="app/docs/screens/readme/11-live.png" alt="The LIVE page: song deck, visuals stage, preset and FX pads" width="100%"/>
+<img src="app/docs/screens/readme/11-visuals.png" alt="VISUALS: a photo base with a filter reacting to the drums and an overlay reacting to the bass" width="100%"/>
 
-- **Live mask:** the same presets and four macros as the Studio, on your mic, with push-to-talk (hold, latch or mute) and
-  the round-trip latency shown.
-- **FX pads:** THROW · STUTTER · SWELL · TAPE STOP · DROP OUT, each landing on the next 1/16, beat or bar of the song.
-- **Song deck:** play your track on the next bar, jump to the drop, duck it under the voice, and lock the session to its tempo and key.
-- **MIDI learn:** click a pad, fader or preset, then move a control on your controller.
-- **Record:** REC SET prints the whole performance (mask + song) to a 24-bit WAV in the Vault; TAKE → STUDIO sends a dry take
-  to the Studio to be finished and exported as a drop.
-- **Camera:** your face is hidden live, and LIVE CLIP films the take with the masked voice.
-
-### Visuals
-
-The stage and a **full-screen output window** for a second display or a projector react to the song and your voice together:
-the kick pulses, bar lines cut, the drop hits hard, and your voice stays its own layer.
+| | |
+|---|---|
+| **Audio source** | **TRACK:** your song. **SPLIT STEMS** separates drums, bass, vocals and other on your Mac (HT-Demucs on MLX, about 15× real time). **LIVE INPUT:** your DJ output from an audio interface (e.g. your mixer's USB record out) or Mac system audio. **MIC:** the live voice mask. |
+| **Base** | Nothing, the track's waveform, the voice core, your camera (faces hidden), a photo, or a video |
+| **Effects** | Stack styles and filters, each with its own opacity, blend mode and the stem it reacts to (kick → drums, sub → bass, …) |
+| **Sync** | **Ableton Link** locks tempo and beat to rekordbox's decks (Performance mode) |
+| **Output** | The stage, a full-screen **output window** for a projector or LED wall, **SAVE CLIP** and **REC LIVE** |
 
 | Family | What it is |
 |---|---|
 | **FOXBOX** | FoxBox's own WebGL styles: the voice core, feedback tunnel, point cloud, spectral terrain, scope, datamosh, flow field |
 | **MILKDROP** | 100 classic Milkdrop presets via Butterchurn, with AUTO cycling on the bar |
 | **SHADERS** | 16 original ISF shaders, plus your own `.fs` files |
+| **FILTERS** | 10 effects that work on the picture beneath: RGB split, datamosh, kaleidoscope, pixel sort, halftone, VHS, trails, thermal, edge glow, zoom pulse |
 
-Every style also works as the picture for a clip. With *Reduce motion* on, FoxBox picks calm styles.
+<img src="app/docs/screens/readme/12-visuals-camera.png" alt="The camera as the base, face hidden, with a filter on top" width="100%"/>
 
-<img src="app/docs/screens/readme/12-live-milkdrop.png" alt="LIVE with a MILKDROP preset on the stage" width="100%"/>
+### 📹 SAVE CLIP
 
-## 📹 Camera clips <sup>beta</sup>
+Render **the drop, the whole song or a bar range** as a **9:16, 16:9 or 1:1 MP4** (H.264 + AAC) for Reels, TikTok and Shorts.
+It's rendered frame by frame from the stems (faster than real time, with picture and sound in sync), carries the fox watermark,
+and lands in your exports folder, ready to drag. Hit **CLIP** on a finished drop in the Studio to start from it. **REC LIVE**
+records the stage as you play. Set it to **THE DROP** with the CAMERA base and it films you through the drop. The camera hides your face with MediaPipe **on the Mac**, and nothing is uploaded.
 
-Hit **CLIP** on a finished drop (or open **CLIPS → CLIP THE DROP** on LIVE). FoxBox tracks your face with MediaPipe **on the Mac**
-and hides it live (mosaic, blur or solid, with your choice of strength and coverage), films you while the drop plays over your song,
-and saves a **9:16 or 16:9 MP4** (H.264 + AAC) for Reels, TikTok and Shorts, with the fox watermark. No camera? Pick **VISUALS** and
-any style becomes the picture. Nothing is uploaded.
+<img src="app/docs/screens/readme/13-save-clip.png" alt="SAVE CLIP after a render" width="100%"/>
 
-<img src="app/docs/screens/readme/13-clip-the-drop.png" alt="CLIP THE DROP on the LIVE page" width="100%"/>
+### 🎙 Voice panel
+
+The live mask is still on the page: every Studio preset and the four macros on your mic, push-to-talk (hold, latch or mute), FX pads
+(THROW · STUTTER · SWELL · TAPE STOP · DROP OUT, landing on the song's grid), MIDI learn, **REC SET** for the whole performance,
+and **TAKE → STUDIO** for a dry take to finish as a drop.
 
 ## Tour
 
@@ -154,7 +153,7 @@ any style becomes the picture. Nothing is uploaded.
 <td width="50%"><img src="app/docs/screens/readme/03-presets.png" alt="The voice core"/><br/><sub><b>VOICE CORE:</b> reacts to each render's pitch, words and tails, differently per preset.</sub></td>
 </tr>
 <tr>
-<td><img src="app/docs/screens/readme/04-takes.png" alt="A take in the Studio"/><br/><sub><b>TAKES:</b> record on LIVE with a count-in; clean-up and a word-level transcript you can edit.</sub></td>
+<td><img src="app/docs/screens/readme/04-takes.png" alt="A take in the Studio"/><br/><sub><b>TAKES:</b> record from the VOICE panel with a count-in; clean-up and a word-level transcript you can edit.</sub></td>
 <td><img src="app/docs/screens/readme/05-vault.png" alt="The Vault"/><br/><sub><b>VAULT:</b> every take, searchable and draggable, exportable as a Rekordbox playlist.</sub></td>
 </tr>
 <tr>
@@ -185,10 +184,10 @@ A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep nam
 2. **First open only:** FoxBox isn't notarized by Apple yet, so macOS asks once.
    - **macOS 14:** right-click FoxBox → **Open** → **Open**.
    - **macOS 15+:** open it once and click **Done**, then go to **System Settings → Privacy & Security → Open Anyway**.
-3. **Setup** downloads the voices and the denoiser (about 365 MB) with live progress. The persona designer (9.1 GB) and transcripts (2.9 GB) are optional.
+3. **Setup** downloads the voices and the denoiser (about 365 MB) with live progress. The persona designer (9.1 GB), transcripts (2.9 GB) and the stem splitter (84 MB) are optional.
 4. **Updates install in the app:** FoxBox checks GitHub Releases, verifies each download's SHA-256, and restarts into the new version.
 
-**Privacy:** audio, video and text never leave the Mac. The only network use is the model download (Hugging Face) and the update check (GitHub).
+**Privacy:** audio, video and text never leave the Mac. The only network use is the model download (Hugging Face), the update check (GitHub) and, when you turn it on, Ableton Link on your local network.
 
 <div align="center">
 <img src="app/docs/screens/readme/09-boot.png" alt="The FoxBox boot screen" width="80%"/>
@@ -198,12 +197,13 @@ A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep nam
 
 ```
 Electron app (React · TypeScript)       IPC proxy · vbx:// audio · drag-out · camera · updater
-   ├── LIVE             AudioWorklet mask · Signalsmith Stretch · song deck · MIDI · set recorder
-   └── visuals          three.js · Butterchurn (Milkdrop) · ISF shaders · output window
+   ├── VISUALS          compositor · three.js · Butterchurn (Milkdrop) · ISF shaders + filters · output window · WebCodecs clips
+   ├── live audio       AudioWorklet mask · Signalsmith Stretch · song deck · live input · stem estimation · MIDI
+   └── link-helper      Ableton Link (tempo + beat sync)
         │  token-authenticated, loopback only
 Python engine (FastAPI · uv)            library (SQLite) · jobs · exports · rekordbox.xml · songs
-   ├── fvwks_voice      Kokoro-MLX · Qwen3-TTS · DeepFilterNet3 · Whisper + forced aligner
-   ├── fvwks_fx         WORLD mask · layers · vocoder/talkbox · Airwindows · arrange · master · song analysis
+   ├── fvwks_voice      Kokoro-MLX · Qwen3-TTS · DeepFilterNet3 · Whisper + forced aligner · HT-Demucs stems
+   ├── fvwks_fx         WORLD mask · layers · vocoder/talkbox · Airwindows · arrange · master · song + stem analysis
    └── fvwks_contracts  the shared models and seams every package agrees on
 ```
 

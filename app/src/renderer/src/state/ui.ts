@@ -5,7 +5,7 @@ export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'l
 
 export const SCREENS: { id: Screen; label: string; code: string }[] = [
   { id: 'studio', label: 'STUDIO', code: '01' },
-  { id: 'live', label: 'LIVE', code: '02' },
+  { id: 'live', label: 'VISUALS', code: '02' },
   { id: 'vault', label: 'VAULT', code: '03' },
   { id: 'setlist', label: 'SETLIST', code: '04' },
   { id: 'voices', label: 'VOICES', code: '05' },

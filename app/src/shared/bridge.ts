@@ -209,8 +209,15 @@ export interface FvwksBridge {
   }
   /** Start a native file drag. Only files the engine returned, inside its export root, are allowed. */
   startDrag(path: string | string[], options?: StartDragOptions): void
+  /** Writes a renderer error (an error boundary caught it) to main.log. */
+  logError(scope: string, message: string, stack?: string): void
   /** Show a file or folder in Finder. Resolves false when the path is not allowed. */
   reveal(path: string): Promise<boolean>
+  /**
+   * Writes a rendered or recorded clip (MP4) into <export folder>/Clips/ under a free name; resolves its path, which
+   * startDrag and reveal then accept. Rejects a bad name or an oversized clip.
+   */
+  saveClip(name: string, data: ArrayBuffer): Promise<string>
   /** Native folder picker. Resolves null when cancelled. */
   chooseFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null>
   /** macOS microphone permission (systemPreferences.askForMediaAccess). */
@@ -233,6 +240,8 @@ export interface FvwksBridge {
   readonly setup: SetupBridge
   /** 1.3: the stage visuals' output window (a projector or LED wall), and the user's ISF shaders for SHADERS. */
   readonly visuals: VisualsBridge
+  /** Ableton Link, "Sync to Rekordbox" (1.4): the visuals' tempo and beat from the DJ's Link session. */
+  readonly link: LinkBridge
 }
 
 export interface DisplayInfo {
@@ -278,6 +287,8 @@ export const IPC = {
   engineRestart: 'fvwks:engine-restart',
   startDrag: 'fvwks:start-drag',
   reveal: 'fvwks:reveal',
+  saveClip: 'fvwks:save-clip',
+  logError: 'fvwks:log-error',
   chooseFolder: 'fvwks:choose-folder',
   askMic: 'fvwks:ask-mic',
   askCamera: 'fvwks:ask-camera',
@@ -308,7 +319,33 @@ export const IPC = {
   shadersList: 'fvwks:shaders-list',
   shadersImport: 'fvwks:shaders-import',
   shadersRemove: 'fvwks:shaders-remove',
+  linkSet: 'fvwks:link-set',
+  linkTempo: 'fvwks:link-tempo',
+  linkState: 'fvwks:link-state',
 } as const
+
+// ------------------------------------------------------------------------------------------------ Ableton Link (1.4)
+
+export interface LinkState {
+  enabled: boolean
+  /** Other Link apps in the session (0 = alone on the network). */
+  peers: number
+  tempo: number
+  /** Session beat when main received this line (Date.now() = `at`), and the phase within the quantum. */
+  beat: number
+  phase: number
+  quantum: number
+  at: number
+}
+
+export interface LinkBridge {
+  /** Join (true) or leave (false) the Link session. Resolves with whether it's running and any error. */
+  setEnabled(on: boolean): Promise<{ running: boolean; error: string | null }>
+  /** Propose a tempo to the whole session. */
+  setTempo(bpm: number): void
+  /** ~60 updates a second while joined; null when it stops. */
+  onState(listener: (state: LinkState | null) => void): () => void
+}
 
 export interface BootInfo {
   /** FVWKS_MOCK=1: no engine; the renderer (dev server only) answers /api/* with MSW. */

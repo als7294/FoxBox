@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.8 contracts: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v0.9 contracts: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -579,7 +579,7 @@ class JobItem(Model):
 
 class Job(Model):
     id: str
-    kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis"]
+    kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis", "song_stems"]
     state: JobState
     progress: float = Field(default=0.0, ge=0, le=1)
     message: str | None = None
@@ -716,6 +716,9 @@ class Song(Model):
     downbeat_override_s: float | None = Field(default=None, ge=0, description="User's bar-1 position (grid nudge).")
     key_override: str | None = None
     created_at: str
+    stems_state: Literal["none", "queued", "running", "done", "error"] = Field(
+        default="none", description="v0.9: stem separation, started with POST /api/songs/{id}/stems.")
+    stems: list["SongStem"] = Field(default_factory=list, description="v0.9: the separated stems once stems_state is 'done'.")
 
 
 class SongUpdate(Model):
@@ -761,5 +764,38 @@ class MixInfo(Model):
     warnings: list[str] = Field(default_factory=list)
 
 
+# --- v0.9: stems and reactive features (VISUALS) -----------------------------------------------------------------
+
+StemName = Literal["drums", "bass", "vocals", "other"]
+STEM_NAMES: tuple[str, ...] = ("drums", "bass", "vocals", "other")
+
+
+class SongStem(Model):
+    """One separated stem of a song (v0.9). Stems are local-only, like songs."""
+
+    name: StemName
+    audio_id: str = Field(description="Stream with GET /api/audio/{audio_id}.")
+
+
+class StemFeatures(Model):
+    """Per-stem reactive features of a whole song for the visuals (v0.9): GET /api/songs/{id}/stems/features.
+
+    Sampled at `fps` over the whole song; frame f covers song time f / fps seconds.
+    `data_b64` is base64 of uint8, frame-major: for each frame, for each entry of `tracks` in order, two bytes (rms, onset):
+    - rms: that track's envelope, 0-255 for 0-1, normalised per song (the track's loudest moment is 255).
+    - onset: 0 when there's no hit; otherwise strength / threshold * 64, clamped to 255 (>= 64 is a hit, matching
+      AudioFrame onset >= 1).
+    `tracks` is the four stems in STEM_NAMES order, then "mix" (the whole song), so offline clip renders never need
+    real-time analysis.
+    """
+
+    song_id: str
+    fps: float = Field(default=60.0, gt=0)
+    frames: int = Field(ge=0)
+    tracks: list[Literal["drums", "bass", "vocals", "other", "mix"]]
+    data_b64: str
+
+
+Song.model_rebuild()  # v0.9: Song.stems refers to SongStem, defined after it
 ExportRequest.model_rebuild()  # v0.7: ExportRequest.bake refers to SongPlacement, defined above
 Arrange.model_rebuild()  # v0.8: Arrange.chop_slots refers to ChopSlot, defined after it

@@ -40,7 +40,14 @@ export interface AudioFrame {
   barPhase?: number
   /** At the song's big beat drop (from the moment it lands, for about a bar): the big event. */
   drop?: boolean
+  // ---- 1.4 stems (additive; S2 feeds them for a separated track, or approximates them live). Absent = no stems.
+  /** Per stem: level (linear 0–1) and onset (≥ 1 on a hit, else 0). Kick → drums.onset, sub → bass.rms, … */
+  stems?: Partial<Record<StemId, { rms: number; onset: number }>>
 }
+
+/** 1.4: the separated parts of a track (S1 separates, S2 measures). */
+export type StemId = 'drums' | 'bass' | 'vocals' | 'other'
+export const STEMS: readonly StemId[] = ['drums', 'bass', 'vocals', 'other']
 
 export interface Palette {
   id: string
@@ -62,8 +69,11 @@ export interface StyleOptions {
 }
 
 export interface StyleInstance {
-  /** Draw one frame. `dt` in ms since the last one. */
-  frame(a: AudioFrame, dt: number): void
+  /**
+   * Draw one frame. `dt` in ms since the last one. `input` (1.4): the composite beneath this layer (the base, and
+   * any layers under it) at the canvas's size; a filter draws from it (ISF inputImage), a generator may ignore it.
+   */
+  frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null): void
   /** The canvas's backing size changed (CSS px × dpr). */
   resize(width: number, height: number): void
   dispose(): void
@@ -73,6 +83,11 @@ export interface VisualStyle {
   /** Unique across families, e.g. 'foxbox.tunnel', 'milkdrop.<preset slug>', 'shaders.<name>'. */
   id: string
   label: string
+  /**
+   * 1.4: 'generator' (default) draws its own picture, layered over what's beneath with a blend mode; 'filter'
+   * transforms the picture beneath (the `input` it's given each frame) and replaces it, at the layer's opacity.
+   */
+  kind?: 'generator' | 'filter'
   /** Owns `canvas`: creates its own context on it ('webgl2' or '2d'). May load assets first. */
   create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance | Promise<StyleInstance>
 }

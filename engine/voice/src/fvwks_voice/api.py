@@ -17,6 +17,8 @@ VoiceHooks
   Slow-ish (about 1.5 s for 5 s), so the server runs it in the background after an upload.
 - realign(source, script) -> Source: the user's edited transcript, markup included, re-segments a recording
   (one segment per chunk, flags and per-word throws), exactly like TTS.
+- separate_stems(audio, sr, progress) -> {drums, bass, vocals, other} (v0.9): HT-Demucs on MLX, the optional
+  stems-htdemucs model. About 25x realtime or better on Apple silicon, so it runs in the song_stems job.
 
 Failures raise fvwks_voice.errors.VoiceError (code, message, hint, HTTP status).
 """
@@ -67,6 +69,7 @@ from .markup import parse, speak_chunk
 from .personas import Persona, PersonaStore, default_root
 from .synth import VoiceRender, render_script
 from .tts_kokoro import get_engine
+from .stems import get_splitter
 from .tts_qwen3 import SAMPLE_RATE as QWEN3_SR, PersonaTTS, get_qwen3
 
 
@@ -93,7 +96,7 @@ _NAME_CHARS = 60
 
 __all__ = ["ENGINE_NAME", "ENGINE_VERSION", "VoiceError", "apply_model_manifest", "configure", "design_persona",
            "ingest", "install_model", "list_models", "list_voices", "preview_script", "realign", "save_persona",
-           "synthesize", "transcribe", "uninstall_model", "voice_sample", "warm_up"]
+           "separate_stems", "synthesize", "transcribe", "uninstall_model", "voice_sample", "warm_up"]
 # DeepFilterNet3 strength when the caller doesn't choose: on for anything recorded, never for TTS.
 DEFAULT_DENOISE: dict[str, float] = {"recording": 1.0, "import": 1.0, "tts": 0.0}
 
@@ -289,7 +292,7 @@ def uninstall_model(model_id: str) -> None:
     spec = _model(model_id)
     if spec.required:
         raise VoiceError("model_required", f"{spec.name} is required, so it can't be removed.", status=409)
-    engine = {models.QWEN3.id: get_qwen3, models.ASR.id: get_transcriber}.get(model_id)
+    engine = {models.QWEN3.id: get_qwen3, models.ASR.id: get_transcriber, models.STEMS.id: get_splitter}.get(model_id)
     if engine is not None and not engine().try_unload():
         raise VoiceError("model_busy", f"{spec.name} is in use.", "Try again when it has finished.", status=409)
     models.uninstall(spec)
@@ -454,3 +457,11 @@ def realign(source: Source, script: str) -> Source:
     info = source.info.model_copy(update={"script": script, "script_hash": script_hash(script), "segments": segments,
                                           "warnings": list(parsed.warnings), "transcript_state": "done"})
     return Source(info=info, audio=source.audio)
+
+
+# -- stems (v0.9) ---------------------------------------------------------------------------------------
+def separate_stems(audio: np.ndarray, sr: int,
+                   progress: Callable[[float | None, str | None], None]) -> dict[str, np.ndarray]:
+    """A song split into drums, bass, vocals and other: each (channels, n) float32 at `sr`, the same length as
+    `audio`. Raises model_not_installed (model_id stems-htdemucs) without the stem splitter."""
+    return get_splitter().separate(audio, int(sr), progress)

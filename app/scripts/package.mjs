@@ -64,6 +64,13 @@ if (bundled) {
   extra = { extraMetadata: { fvwks: { linkedEngineDir: engineDir } } }
 }
 
+// Ableton Link helper (1.4, "Sync to Rekordbox"): built from native/link with the Command Line Tools, shipped as
+// Contents/Resources/link-helper next to its license.
+const linkOut = join(outDir, '.link-helper')
+execFileSync('bash', [join(appDir, 'native', 'link', 'build.sh'), linkOut], { stdio: 'inherit' })
+extra.extraResources = [...(extra.extraResources ?? []), { from: join(linkOut, 'link-helper'), to: 'link-helper' },
+  { from: join(linkOut, 'link-helper.LICENSE.md'), to: 'link-helper.LICENSE.md' }]
+
 const { build, Platform } = require('electron-builder')
 // electron-builder 26 writes its extraMetadata-merged, stripped package.json over the source one (scripts and
 // devDependencies gone). Put the original back whatever happens.
@@ -83,6 +90,8 @@ try {
 
 const appPath = join(outDir, 'mac-arm64', `${productName}.app`)
 execFileSync('codesign', ['--verify', '--deep', '--strict', appPath], { stdio: 'inherit' })
+// The Link helper: signed itself, and in the app part (componentOf), so a small update carries it.
+execFileSync('codesign', ['--verify', '--strict', join(appPath, 'Contents', 'Resources', 'link-helper')], { stdio: 'inherit' })
 const info = execFileSync('codesign', ['-dv', appPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 console.log(`Built ${appPath}`)
 console.log(info)

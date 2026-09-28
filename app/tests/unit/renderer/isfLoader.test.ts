@@ -3,15 +3,16 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FOXBOX_INPUTS, parseIsf } from '@/visuals/engines/isf/loader'
 
-const PACK = join(__dirname, '../../../src/renderer/src/visuals/engines/isf/shaders')
+const ISF = join(__dirname, '../../../src/renderer/src/visuals/engines/isf')
 
 describe('ISF loader (SHADERS)', () => {
-  it('loads every pack shader, with audio inputs as images and only inputs FoxBox fills', () => {
-    const files = readdirSync(PACK).filter((f) => f.endsWith('.fs'))
-    expect(files.length).toBeGreaterThanOrEqual(15)
-    const known = new Set<string>([...FOXBOX_INPUTS.float, ...FOXBOX_INPUTS.color, ...FOXBOX_INPUTS.image])
+  it.each([['shaders', 15, 'generator'], ['filters', 10, 'filter']] as const)('loads every pack %s (inputs FoxBox fills, audio as images)', (dir, least, kind) => {
+    const files = readdirSync(join(ISF, dir)).filter((f) => f.endsWith('.fs'))
+    expect(files.length).toBeGreaterThanOrEqual(least)
+    const known = new Set<string>([...FOXBOX_INPUTS.float, ...FOXBOX_INPUTS.color, ...FOXBOX_INPUTS.image, 'inputImage'])
     for (const file of files) {
-      const s = parseIsf(readFileSync(join(PACK, file), 'utf8'), file)
+      const s = parseIsf(readFileSync(join(ISF, dir, file), 'utf8'), file)
+      expect(s.kind, file).toBe(kind)
       expect(s.error, file).toBeNull()
       expect(s.credit, file).toMatch(/FoxBox/)
       for (const input of s.inputs) expect(known.has(input.NAME), `${file}: ${input.NAME}`).toBe(true)

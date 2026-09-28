@@ -53,9 +53,14 @@ export function createIsf(canvas: HTMLCanvasElement, opts: StyleOptions, shader:
   const fftPixels = fft2d?.createImageData(FFT_BINS, 1) ?? null
   const wantsFft = FOXBOX_INPUTS.image.some((n) => declared.has(n))
   let onsetHold = 0
+  // Filters (1.4) draw the picture beneath: the compositor's `input`, or black before there is one.
+  const isFilter = declared.has('inputImage')
+  const black = document.createElement('canvas')
+  black.width = black.height = 2
 
   return {
-    frame(a: AudioFrame, dt: number) {
+    frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null) {
+      if (isFilter) set('inputImage', input ?? black)
       const calm = opts.reduced
       // An onset flashes and decays over ~150 ms (~600 ms and at a third of the height with reduced motion).
       const hit = a.active ? Math.min(1, a.onset / 2) * (calm ? 0.35 : 1) : 0
