@@ -10,6 +10,35 @@ export const LEAD_BARS = 4
 
 const gainOf = (db: number) => 10 ** (db / 20)
 
+/** Analyser taps on the playing preview, for the Studio visuals (studioSource). Side taps only: the sound is unchanged. */
+export interface PreviewTap {
+  ctx: AudioContext
+  /** AudioContext time it started, and the song time it started from. */
+  at: number
+  from: number
+  length: number
+  /** The whole preview (after its limiter). */
+  mix: AnalyserNode
+  /** The song branch (for an HQ preview: the engine's whole mix). */
+  song: AnalyserNode
+  /** The drop branch (a local preview only). */
+  drop: AnalyserNode | null
+}
+
+let current: PreviewTap | null = null
+
+/** The preview playing now, or null. */
+export function previewTap(): PreviewTap | null {
+  return current
+}
+
+function tap(ac: AudioContext): AnalyserNode {
+  const a = ac.createAnalyser()
+  a.fftSize = 1024
+  a.smoothingTimeConstant = 0.6
+  return a
+}
+
 export interface Preview {
   /** AudioContext time the preview started, and the song time it started from. */
   at: number
@@ -39,6 +68,8 @@ function play(o: {
   songGainDb?: number
   dropGainDb?: number
   duckDb?: number
+  /** Song time at buffer time 0 (an HQ mix starts mid-song): for the visuals' clock only. */
+  songFrom?: number
 }): Preview {
   const ac = audioContext()
   void ac.resume()
@@ -62,6 +93,9 @@ function play(o: {
   song.connect(shape)
   song.start(at, o.from, o.length)
   sources.push(song)
+  const taps: PreviewTap = { ctx: ac, at, from: (o.songFrom ?? 0) + o.from, length: o.length, mix: tap(ac), song: tap(ac), drop: null }
+  bus.connect(taps.mix)
+  songGain.connect(taps.song)
   if (o.drop) {
     const d0 = at + o.drop.at - o.from
     const d1 = d0 + o.drop.voiceEnd
@@ -75,6 +109,8 @@ function play(o: {
     const dropGain = ac.createGain()
     dropGain.gain.value = gainOf(o.dropGainDb ?? 0)
     dropGain.connect(bus)
+    taps.drop = tap(ac)
+    dropGain.connect(taps.drop)
     const drop = ac.createBufferSource()
     drop.buffer = o.drop.buffer
     drop.connect(dropGain)
@@ -83,12 +119,20 @@ function play(o: {
     sources.push(drop)
   }
   const ended = new Promise<void>((done) => (song.onended = () => done()))
-  void ended.then(() => bus.disconnect())
+  current = taps
+  const untap = () => {
+    if (current === taps) current = null
+  }
+  void ended.then(() => {
+    bus.disconnect()
+    untap()
+  })
   return {
     at,
     from: o.from,
     length: o.length,
     stop() {
+      untap()
       for (const s of sources) {
         try {
           s.stop()
@@ -132,7 +176,7 @@ export async function previewHq(o: { grid: SongGrid; placement: SongPlacement; r
   }
   const mix = await unwrap(api.POST('/api/mix', { body: { render_id: o.render.id, placement, quality: 'preview' } }))
   const buffer = await loadAudioBuffer(mix.audio_id)
-  const p = play({ song: buffer, from: 0, length: buffer.duration })
+  const p = play({ song: buffer, from: 0, length: buffer.duration, songFrom: mix.start_s })
   // Report song time, so the lane's playhead lines up.
   return { ...p, from: mix.start_s }
 }

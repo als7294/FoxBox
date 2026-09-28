@@ -43,7 +43,8 @@ export function ScriptEditor() {
           onClick={() => {
             const replaced = studio.shuffleLine()
             schedulePreview()
-            if (replaced != null) toast.info('LINE SHUFFLED', { actions: [{ label: 'UNDO', run: () => (studio.setScript(replaced), schedulePreview()) }] })
+            if (replaced != null)
+              toast.info('LINE SHUFFLED', { actions: [{ label: 'UNDO', run: () => (studio.setScript(replaced), schedulePreview()) }] })
           }}
         >
           <span aria-hidden="true">🎲</span>

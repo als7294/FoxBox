@@ -1,0 +1,154 @@
+/* STYLE picker for the stage's glass bar: a 26 px trigger like `.field select`, and a glass popover below it. */
+.picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.caption {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+}
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  max-width: 260px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 600 10px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.trigger:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+.trigger:focus-visible,
+.tab:focus-visible,
+.option:focus-visible,
+.remove:focus-visible,
+.import:focus-visible {
+  outline: 2px solid var(--vb-accent);
+  outline-offset: 1px;
+}
+.family {
+  color: var(--vb-accent);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caret {
+  color: var(--vb-dim);
+}
+
+.pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--vb-glass-fill-hi, rgba(12, 12, 14, 0.85));
+  backdrop-filter: var(--vb-glass-blur, blur(12px));
+  border: 1px solid var(--vb-glass-edge, rgba(233, 229, 218, 0.1));
+  border-radius: var(--vb-glass-radius, 9px);
+  box-shadow: var(--vb-glass-shadow, 0 12px 32px rgba(0, 0, 0, 0.5));
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tab {
+  flex: 1;
+  height: 24px;
+  background: none;
+  color: var(--vb-dim);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: 600 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+.tab[aria-selected='true'] {
+  color: var(--vb-ink);
+  background: rgba(var(--vb-ink-rgb), 0.08);
+  border-color: rgba(var(--vb-ink-rgb), 0.16);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow: auto;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+}
+.option {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 8px;
+  background: none;
+  color: var(--vb-ink);
+  border: 0;
+  border-radius: 5px;
+  font: 500 10.5px var(--vb-font-mono);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.option:hover {
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.option[aria-current='true'] {
+  background: rgba(var(--vb-accent-rgb), 0.14);
+  box-shadow: inset 2px 0 0 var(--vb-accent);
+}
+.remove {
+  width: 22px;
+  height: 22px;
+  background: none;
+  color: var(--vb-dim);
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.remove:hover {
+  color: var(--vb-accent);
+}
+.import {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 600 9.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+.note {
+  margin: 0;
+  font: 500 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+}

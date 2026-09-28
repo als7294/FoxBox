@@ -1,0 +1,69 @@
+/* MILKDROP preset browser (inside the STYLE picker's glass popover): search over a list, ★ at the end of each row. */
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.search {
+  height: 26px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 500 10.5px var(--vb-font-mono);
+  letter-spacing: 0.04em;
+}
+.search:focus-visible,
+.name:focus-visible,
+.star:focus-visible {
+  outline: 2px solid var(--vb-accent);
+  outline-offset: 1px;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  max-height: 220px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+}
+.row[data-selected] {
+  background: rgba(var(--vb-accent-rgb), 0.14);
+  box-shadow: inset 2px 0 0 var(--vb-accent);
+}
+.name,
+.star {
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 8px;
+  color: var(--vb-ink);
+  font: 500 10.5px var(--vb-font-mono);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.name:hover {
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.star {
+  width: 24px;
+  height: 22px;
+  color: var(--vb-amber);
+  font-size: 12px;
+}
+.star:hover {
+  color: var(--vb-accent);
+}

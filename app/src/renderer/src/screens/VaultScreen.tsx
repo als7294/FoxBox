@@ -375,7 +375,7 @@ export function VaultScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="02" kicker="LIBRARY" title="VAULT">
+      <ScreenHeader code="03" kicker="LIBRARY" title="VAULT">
         <span className={v.count} aria-live="polite">
           {lib.data ? rows.length : '—'} OF {total ?? '—'} DROPS
         </span>

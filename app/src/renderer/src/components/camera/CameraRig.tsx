@@ -19,6 +19,7 @@ import {
   voiceEndOf,
   type ClipPlan,
   type Placement,
+  type SongGrid,
 } from '@/state/song'
 import { useStudio } from '@/state/studio'
 import { useViewPrefs } from '@/state/viewPrefs'
@@ -26,7 +27,7 @@ import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 import { camera, takeFilm, useCamera, type CameraSettings } from './cameraStore'
 import { clipCard, clipLength, drawFrame, layout, type ClipVoice, type MaskStyle, type Wave } from './compose'
 import { detectFaces, loadFaceDetector } from './faceDetector'
-import { coreSource } from './coreSource'
+import { clipPicture } from '@/visuals/live/clipPicture'
 import { filmTime, onsetOf, syncFilm, type FilmSync } from './filmSync'
 import { step, type Track } from './faceTrack'
 import { startMix, type Mix, type MixLevels } from './mix'
@@ -183,6 +184,7 @@ export function CameraRig({
     wave: null as Wave | null,
     label: '',
     watermark: true,
+    clipSong: null as { buf: AudioBuffer; grid: SongGrid | null; dropAt: number | null } | null,
     subtitles: true,
     /** The render's words, for the subtitles. */
     words: [] as SubWord[],
@@ -242,6 +244,8 @@ export function CameraRig({
   )
   st.current.plan = plan
   st.current.wave = wave
+  // The song under the clip, for a style picture that reacts to it (its grid gives the bars, its beat drop the drop).
+  st.current.clipSong = withSong ? { buf: withSong.buffer, grid, dropAt: beatDrop } : null
 
   // The camera: ask macOS first (a request it never answers otherwise just hangs), then open it. Again on TRY AGAIN.
   useEffect(() => {
@@ -401,7 +405,8 @@ export function CameraRig({
     const scratch = document.createElement('canvas')
     const stamp = document.createElement('canvas')
     const cardStamp = document.createElement('canvas')
-    const drawCoreAt = source === 'core' ? coreSource() : null
+    // VOICE ONLY: the chosen visual style is the picture (the voice core by default).
+    const drawCoreAt = source === 'core' ? clipPicture() : null
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const s = st.current
@@ -446,7 +451,10 @@ export function CameraRig({
         L,
         {
           video: v,
-          core: drawCoreAt && !s.film ? drawCoreAt(L.cam.w, L.cam.h, now, dropT, s.drop) : null,
+          core:
+            drawCoreAt && !s.film
+              ? drawCoreAt(L.cam.w, L.cam.h, now, dropT, s.drop, s.clipSong && clipT != null && s.plan ? { ...s.clipSong, t: s.plan.songFrom + clipT } : null)
+              : null,
           faces: s.tracks.map((t) => t.box),
           // Until faces can be found (or if the detector fails), the whole picture is hidden.
           wholeFrame: s.settings.wholeFrame || !s.detector || now < s.settleUntil,

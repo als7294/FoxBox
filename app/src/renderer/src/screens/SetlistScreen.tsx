@@ -256,7 +256,7 @@ export function SetlistScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="03" kicker="BATCH" title="SETLIST">
+      <ScreenHeader code="04" kicker="BATCH" title="SETLIST">
         <div className={s.playlist}>
           <TextField label="PLAYLIST NAME" value={playlist} onChange={(name) => store.setPlaylist(name)} disabled={busy} />
         </div>

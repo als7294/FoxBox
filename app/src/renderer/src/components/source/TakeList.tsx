@@ -50,7 +50,12 @@ export function TakeList({ takes, activeId, onUse, onRetry }: TakeListProps) {
         const status = t.status === 'uploading' ? 'SENDING…' : t.status === 'error' ? 'RETRY' : active ? '✓ IN USE' : 'USE'
         return (
           <li key={t.id} className={styles.take} data-take={t.id} data-active={active || undefined} data-status={t.status}>
-            <button type="button" className={styles.takePlay} aria-label={`${playing === t.id ? 'Stop' : 'Play'} ${t.name}`} onClick={() => listen(t)}>
+            <button
+              type="button"
+              className={styles.takePlay}
+              aria-label={`${playing === t.id ? 'Stop' : 'Play'} ${t.name}`}
+              onClick={() => listen(t)}
+            >
               {playing === t.id ? '■' : '▶'}
             </button>
             <span className={styles.takeName}>{t.name}</span>

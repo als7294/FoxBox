@@ -534,12 +534,15 @@ export function drawFrame(
   if (f.core) {
     const crop = coverCrop(f.core.width, f.core.height, L.cam)
     ctx.drawImage(f.core, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
-    // Once more, added on top: the whole picture is the core, so it glows brighter than the Studio's calm panel.
-    ctx.save()
-    ctx.globalCompositeOperation = 'lighter'
-    ctx.globalAlpha = 0.8
-    ctx.drawImage(f.core, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
-    ctx.restore()
+    // Once more, added on top: the whole picture is the (2D) core, so it glows brighter than the Studio's calm panel.
+    // WebGL styles bring their own bloom and skip this.
+    if (f.core.dataset.glow) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = 0.8
+      ctx.drawImage(f.core, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
+      ctx.restore()
+    }
   } else if (v && v.readyState >= 2 && v.videoWidth > 0) {
     const crop = coverCrop(v.videoWidth, v.videoHeight, L.cam)
     ctx.drawImage(v, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)

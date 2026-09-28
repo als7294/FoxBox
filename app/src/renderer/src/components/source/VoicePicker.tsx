@@ -57,7 +57,6 @@ export function useAudition(voice: Voice) {
   return { state, toggle }
 }
 
-
 export function VoiceCard({
   voice,
   selected,

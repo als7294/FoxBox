@@ -6,6 +6,7 @@ import { bridge } from '@/env'
 import { renderFinal, scheduleRender } from '@/state/renderController'
 import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
+import { useUi } from '@/state/ui'
 import { useFrame } from '@/visuals/frame'
 import { vis } from '@/visuals/state'
 import { BarsPicker } from './BarsPicker'
@@ -88,12 +89,19 @@ export function TopBar() {
     const i = cycle.findIndex((f) => f.format === fmt.format && f.rate === fmt.rate)
     const next = cycle[(i + 1) % cycle.length]!
     try {
-      await update.mutateAsync({ ...settings, format: next.format, bit_depth: next.bit, master: { ...settings.master!, sample_rate: next.rate } })
+      await update.mutateAsync({
+        ...settings,
+        format: next.format,
+        bit_depth: next.bit,
+        master: { ...settings.master!, sample_rate: next.rate },
+      })
       scheduleRender(250)
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
+  // LIVE keeps the session's BPM and key; bars, format, loudness and RENDER are the Studio's.
+  const onLive = useUi((u) => u.screen === 'live')
   return (
     <header className={styles.top} data-reveal="0">
       <div className={styles.lights} aria-hidden="true">
@@ -113,23 +121,27 @@ export function TopBar() {
       <div className={styles.flex} />
       <TempoField />
       <KeyPicker />
-      <BarsPicker />
-      <button type="button" className={styles.chip} title="Export format (click to change)" onClick={() => void cycleFormat()}>
-        {formatLabel(fmt)}
-      </button>
-      <button
-        type="button"
-        className={styles.loud}
-        aria-label={`Loudness ${masterMode}`}
-        title="CLUB: −7 LUFS short-term, −1 dBTP · BAKE-IN: −6 dBFS peak, no limiting"
-        onClick={() => {
-          studio.setMasterMode(masterMode === 'club' ? 'bake' : 'club')
-          scheduleRender(250)
-        }}
-      >
-        {masterMode === 'club' ? 'CLUB' : masterMode === 'bake' ? 'BAKE-IN' : 'CUSTOM'}
-      </button>
-      <RenderButton />
+      {!onLive && (
+        <>
+          <BarsPicker />
+          <button type="button" className={styles.chip} title="Export format (click to change)" onClick={() => void cycleFormat()}>
+            {formatLabel(fmt)}
+          </button>
+          <button
+            type="button"
+            className={styles.loud}
+            aria-label={`Loudness ${masterMode}`}
+            title="CLUB: −7 LUFS short-term, −1 dBTP · BAKE-IN: −6 dBFS peak, no limiting"
+            onClick={() => {
+              studio.setMasterMode(masterMode === 'club' ? 'bake' : 'club')
+              scheduleRender(250)
+            }}
+          >
+            {masterMode === 'club' ? 'CLUB' : masterMode === 'bake' ? 'BAKE-IN' : 'CUSTOM'}
+          </button>
+          <RenderButton />
+        </>
+      )}
     </header>
   )
 }

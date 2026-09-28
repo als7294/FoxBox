@@ -1,0 +1,594 @@
+/*
+ * LIVE (1.3): setup + camera on the left, the song strip / stage / talk in the middle, the performance (presets, FX,
+ * macros) on the right. Cards are S2's 1.2.3 glass (--vb-glass-*, with their values as fallbacks). The stage slot is
+ * S4's: nothing here styles inside it.
+ */
+.screen {
+  --glass-fill: var(--vb-glass-fill, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.075), rgba(var(--vb-ink-rgb), 0.025)));
+  --glass-hi: var(--vb-glass-fill-hi, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.12), rgba(var(--vb-ink-rgb), 0.045)));
+  --glass-edge: var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
+  --glass-top: var(--vb-glass-edge-top, rgba(var(--vb-ink-rgb), 0.26));
+  --glass-shadow: var(--vb-glass-inner, inset 0 1px 0 rgba(255, 255, 255, 0.08)), var(--vb-glass-shadow, 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35));
+}
+
+/* header */
+.headBar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.status {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+}
+.status[data-status='on'] {
+  color: var(--vb-accent);
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+  box-shadow: 0 0 calc(14px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35);
+}
+.status[data-status='starting'],
+.status[data-status='error'] {
+  color: var(--vb-amber);
+}
+.readout {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.readout b {
+  font: 700 17px/1 var(--vb-font-display);
+  letter-spacing: 0.04em;
+  color: var(--vb-ink);
+  font-variant-numeric: tabular-nums;
+  margin-right: 3px;
+}
+.toggle {
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+}
+.toggle[data-on] {
+  color: var(--vb-bg);
+  background: var(--vb-amber);
+  border-color: var(--vb-amber);
+}
+.toggle:disabled {
+  opacity: 0.4;
+}
+.error {
+  margin: 0;
+  color: var(--vb-accent);
+  font: 500 10.5px var(--vb-font-mono);
+}
+.setDone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.4);
+  border-radius: var(--vb-r2);
+  font: 500 10px var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.setDone > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setDone a {
+  text-decoration: none;
+}
+
+/* the layout */
+.grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(250px, 20cqw, 300px) minmax(0, 1fr) clamp(280px, 23cqw, 340px);
+  gap: var(--space-3);
+}
+.side,
+.perform {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.center {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--vb-line);
+  border-radius: var(--vb-glass-radius-lg, 12px);
+  overflow: hidden;
+  background: #050506;
+}
+.stageSlot {
+  position: absolute;
+  inset: 0;
+}
+
+/* cards */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--glass-top);
+  border-radius: var(--vb-glass-radius-lg, 12px);
+  corner-shape: var(--vb-glass-corner, squircle);
+  box-shadow: var(--glass-shadow);
+  flex: none;
+}
+.cardTitle {
+  margin: 0 0 var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font: 700 10.5px var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-ink);
+}
+.cardTitle kbd,
+.fxPad kbd,
+.talk kbd {
+  font: 600 8.5px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  color: var(--vb-dim);
+  padding: 2px 5px;
+  border: 1px solid var(--vb-line);
+  border-radius: 4px;
+}
+.field {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 28px;
+}
+.field > span {
+  font: 500 10px var(--vb-font-mono);
+  letter-spacing: 0.18em;
+  color: var(--vb-dim);
+}
+.field select {
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r1);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 500 10.5px var(--vb-font-mono);
+  text-overflow: ellipsis;
+}
+.hint {
+  margin: 0;
+  color: var(--vb-dim);
+  font: 400 10px/1.45 var(--vb-font-mono);
+}
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--vb-amber);
+  font: inherit;
+  text-decoration: underline;
+}
+
+/* pads */
+.presetPads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.pad,
+.fxPad {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--glass-top);
+  border-radius: var(--vb-glass-radius, 9px);
+  corner-shape: var(--vb-glass-corner, squircle);
+  background: var(--glass-fill);
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  text-align: left;
+  transition:
+    background var(--vb-fast),
+    border-color var(--vb-fast),
+    box-shadow var(--vb-fast),
+    transform var(--vb-fast);
+}
+.pad:hover:not(:disabled),
+.fxPad:hover:not(:disabled) {
+  background: var(--glass-hi);
+}
+.pad:active:not(:disabled),
+.fxPad:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.pad[data-active] {
+  border-color: var(--vb-accent);
+  box-shadow: inset 0 0 0 1px var(--vb-accent), 0 0 calc(16px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.3);
+}
+.padNo {
+  font: 600 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  letter-spacing: 0;
+}
+.fxPads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.fxPad {
+  justify-content: space-between;
+  min-height: 52px;
+}
+.fxPad:last-child {
+  grid-column: 1 / -1;
+}
+.fxPad:disabled {
+  opacity: 0.45;
+}
+.fxPad[data-firing] {
+  background: var(--vb-accent);
+  border-color: var(--vb-accent);
+  color: var(--vb-bg);
+  box-shadow: 0 0 calc(22px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.6);
+}
+.fxPad[data-firing] kbd {
+  color: var(--vb-bg);
+  border-color: rgba(var(--vb-shadow-rgb), 0.3);
+}
+
+/* macros: four vertical faders */
+.macros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+.macro input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: 110px;
+  width: 28px;
+  margin: 0;
+  accent-color: var(--vb-accent);
+}
+.macro b {
+  font: 700 15px/1 var(--vb-font-display);
+  font-variant-numeric: tabular-nums;
+}
+.macro span,
+.macroLearn {
+  font: 600 8.5px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.macroLearn {
+  position: relative;
+  border: 1px dashed rgba(var(--vb-amber-rgb), 0.6);
+  border-radius: 4px;
+  background: none;
+  padding: 3px 5px;
+}
+
+/* talk */
+.talkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.talkModes {
+  flex: none;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.mute {
+  height: 26px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 9.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+}
+.mute[data-on] {
+  background: var(--vb-amber);
+  border-color: var(--vb-amber);
+  color: var(--vb-bg);
+}
+.mute:disabled {
+  opacity: 0.45;
+}
+.talk {
+  position: relative;
+  flex: 1;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--glass-top);
+  border-radius: 999px;
+  background: var(--glass-fill);
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 22px/1 var(--vb-font-display);
+  letter-spacing: 0.16em;
+  user-select: none;
+  touch-action: none;
+}
+.talk:disabled:not([data-talking]) {
+  opacity: 0.5;
+}
+.talk[data-talking] {
+  background: var(--vb-accent);
+  border-color: var(--vb-accent);
+  color: var(--vb-bg);
+  box-shadow: 0 0 calc(28px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.55);
+}
+
+/* MIDI learn */
+.midiBadge {
+  position: absolute;
+  top: -7px;
+  right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--vb-amber);
+  color: var(--vb-bg);
+  font: 700 8px var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.midiBadge[data-waiting] {
+  animation: learnBlink 0.8s ease-in-out infinite;
+}
+@keyframes learnBlink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.screen[data-learning] .pad,
+.screen[data-learning] .fxPad,
+.screen[data-learning] .talk {
+  border-style: dashed;
+  border-color: rgba(var(--vb-amber-rgb), 0.6);
+}
+
+/* the song deck strip */
+.songStrip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'info controls'
+    'wave wave';
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  min-height: 56px;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--glass-top);
+  border-radius: var(--vb-glass-radius-lg, 12px);
+  corner-shape: var(--vb-glass-corner, squircle);
+  box-shadow: var(--glass-shadow);
+}
+.songStrip[data-empty] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: none;
+}
+.songInfo {
+  grid-area: info;
+}
+.songControls {
+  grid-area: controls;
+}
+.songWave {
+  grid-area: wave;
+}
+.songEmpty {
+  color: var(--vb-dim);
+  font: 400 10px var(--vb-font-mono);
+}
+.songInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.songName {
+  font: var(--vb-display-weight) 15px/1.1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.songMeta {
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+}
+.songWave {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+}
+.songControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.songLevel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: 600 8.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+}
+.songLevel input {
+  width: 70px;
+  accent-color: var(--vb-amber);
+}
+.songSwap {
+  border: 0;
+  background: none;
+  color: var(--vb-dim);
+  font-size: 15px;
+}
+
+/* camera tile */
+.camFrame {
+  position: relative;
+  align-self: center;
+  overflow: hidden;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--vb-glass-radius, 9px);
+  background: var(--vb-bg);
+}
+.camFrame[data-format='vertical'] {
+  height: 280px;
+  aspect-ratio: 9 / 16;
+}
+.camFrame[data-format='horizontal'] {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.camCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.recBadge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(var(--vb-shadow-rgb), 0.6);
+  color: var(--vb-accent);
+  font: 700 8.5px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
+.camActions {
+  display: flex;
+  gap: var(--space-2);
+}
+.camActions > * {
+  flex: 1;
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .midiBadge[data-waiting] {
+    animation: none;
+  }
+}
+
+/* top bar: quantize, the feedback warning, IN / OUT meters */
+.quantize {
+  width: 220px;
+}
+.warn {
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  color: var(--vb-amber);
+  font: 700 9px var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 110px;
+}
+.meter {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 8px;
+  align-items: center;
+  gap: 5px;
+  font: 600 8px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+}
+.meterTrack {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+  overflow: hidden;
+}
+.meterBar {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, var(--vb-ok) 0%, var(--vb-ok) 70%, var(--vb-amber) 88%, var(--vb-accent) 100%);
+}
+.clip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(var(--vb-accent-rgb), 0.18);
+}
+.clip[data-on='true'] {
+  background: var(--vb-accent);
+  box-shadow: 0 0 8px var(--vb-accent);
+}
+
+/* CLIP THE DROP inside the tile: the camera rig's full-bleed stage matches the card's padding. */
+.clipBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dropClip {
+  --space-4: var(--space-3);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

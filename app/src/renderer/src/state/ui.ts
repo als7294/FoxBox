@@ -1,14 +1,15 @@
 import { create } from 'zustand'
 import { reducedMotion } from '@/visuals/motion'
 
-export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings'
+export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live'
 
 export const SCREENS: { id: Screen; label: string; code: string }[] = [
   { id: 'studio', label: 'STUDIO', code: '01' },
-  { id: 'vault', label: 'VAULT', code: '02' },
-  { id: 'setlist', label: 'SETLIST', code: '03' },
-  { id: 'voices', label: 'VOICES', code: '04' },
-  { id: 'settings', label: 'SETTINGS', code: '05' },
+  { id: 'live', label: 'LIVE', code: '02' },
+  { id: 'vault', label: 'VAULT', code: '03' },
+  { id: 'setlist', label: 'SETLIST', code: '04' },
+  { id: 'voices', label: 'VOICES', code: '05' },
+  { id: 'settings', label: 'SETTINGS', code: '06' },
 ]
 
 export interface Wipe {

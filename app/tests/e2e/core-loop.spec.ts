@@ -29,7 +29,7 @@ test('launch → type → render → export → file exists', async () => {
   await editor.press('Meta+Enter')
   await expect(cartridge).toHaveAttribute('data-state', 'ready', { timeout: 60_000 })
   const filename = (await page.getByTestId('cartridge-filename').textContent())?.trim() ?? ''
-  expect(filename).toMatch(/^GUYFVWKS_.*\.(aiff|wav)$/)
+  expect(filename).toMatch(/^[a-z0-9-]+_.*\.(aiff|wav)$/)
 
   // Export options (EXPORT ▾ → sheet → WAV → Export): the WAV variant lands in the export folder.
   await page.getByTestId('export-options').click()

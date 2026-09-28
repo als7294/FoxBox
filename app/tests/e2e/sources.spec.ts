@@ -51,7 +51,7 @@ test('import a file: WAV goes up as-is; an unknown extension is decoded to WAV f
   await page.getByRole('tab', { name: 'IMPORT' }).click()
   const fixture = resolve(__dirname, '../../../fixtures/voices/hands_up.wav')
 
-  await page.locator('input[type="file"]').setInputFiles(fixture)
+  await page.getByRole('tabpanel', { name: 'IMPORT' }).locator('input[type="file"]').setInputFiles(fixture)
   const source = page.getByRole('status').filter({ hasText: 'SOURCE · IN USE' })
   await expect(source).toContainText('hands_up.wav', { timeout: 30_000 })
   await expect(source).toContainText(/\d+\.\d s · sent as-is/)
@@ -60,7 +60,7 @@ test('import a file: WAV goes up as-is; an unknown extension is decoded to WAV f
   // Chromium decodes by content, so a WAV named .m4a exercises the Web Audio → WAV conversion path.
   const disguised = join(dirs.root, 'voice-memo.m4a')
   copyFileSync(fixture, disguised)
-  await page.locator('input[type="file"]').setInputFiles(disguised)
+  await page.getByRole('tabpanel', { name: 'IMPORT' }).locator('input[type="file"]').setInputFiles(disguised)
   await expect(source).toContainText('voice-memo.m4a', { timeout: 30_000 })
   await expect(source).toContainText('converted to WAV')
 })

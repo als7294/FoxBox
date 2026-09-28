@@ -1,27 +1,30 @@
 import type { Voice } from '@/api/types'
 import { ImportDropzone } from '@/components/source/ImportDropzone'
-import { Recorder } from '@/components/source/Recorder'
+import { TakesPanel } from '@/components/source/TakesPanel'
 import { ScriptEditor } from '@/components/source/ScriptEditor'
 import { VoicePicker } from '@/components/source/VoicePicker'
 import { studio, useStudio, type SourceTab } from '@/state/studio'
+import { useUi } from '@/state/ui'
 import styles from './layout.module.css'
 
 const TABS: { id: SourceTab; label: string }[] = [
   { id: 'type', label: 'TYPE' },
-  { id: 'record', label: 'RECORD' },
   { id: 'import', label: 'IMPORT' },
+  // Takes are recorded on LIVE; the tab shows once there are some (their transcript and list).
+  { id: 'record', label: 'TAKES' },
 ]
 
-/** SOURCE panel: TYPE | RECORD | IMPORT. */
+/** SOURCE panel: TYPE | IMPORT (| TAKES), and RECORD → LIVE, where takes are recorded. */
 export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
   const tab = useStudio((s) => s.tab)
+  const hasTakes = useStudio((s) => s.takes.length > 0)
   return (
     <section className={styles.source} aria-label="Source" data-reveal="2">
       <div className={styles.panelHead}>
         <span className={styles.panelTitle}>SOURCE</span>
         <div className={styles.flex} />
         <div role="tablist" aria-label="Source" className={styles.tabs}>
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.id !== 'record' || hasTakes || tab === 'record').map((t) => (
             <button
               key={t.id}
               type="button"
@@ -37,6 +40,9 @@ export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
             </button>
           ))}
         </div>
+        <button type="button" className={styles.toLive} onClick={() => useUi.getState().navigate('live')} title="Record takes on LIVE">
+          {hasTakes || tab === 'record' ? '● LIVE' : '● RECORD → LIVE'}
+        </button>
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className={styles.tabPanel}>
         {tab === 'type' && (
@@ -45,7 +51,7 @@ export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
             <VoicePicker voices={voices} />
           </div>
         )}
-        {tab === 'record' && <Recorder />}
+        {tab === 'record' && <TakesPanel />}
         {tab === 'import' && <ImportDropzone />}
       </div>
     </section>

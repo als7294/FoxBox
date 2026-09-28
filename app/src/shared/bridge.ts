@@ -231,6 +231,42 @@ export interface FvwksBridge {
   readonly updates: UpdatesBridge
   /** The first-run Setup window. */
   readonly setup: SetupBridge
+  /** 1.3: the stage visuals' output window (a projector or LED wall), and the user's ISF shaders for SHADERS. */
+  readonly visuals: VisualsBridge
+}
+
+export interface DisplayInfo {
+  id: number
+  label: string
+  width: number
+  height: number
+  primary: boolean
+}
+
+export interface VisualsOutputState {
+  open: boolean
+  /** The display it's on, or null when closed. */
+  displayId: number | null
+}
+
+/**
+ * The output window: borderless and fullscreen on a display (the first external one by default), drawing the LIVE
+ * page's style with no UI. It renders the style itself; the LIVE page sends it the style and its audio frames over a
+ * MessagePort, which main hands to both windows (see visuals/live/output.ts).
+ */
+export interface VisualsBridge {
+  displays(): Promise<DisplayInfo[]>
+  open(displayId?: number): Promise<VisualsOutputState>
+  close(): Promise<VisualsOutputState>
+  getState(): Promise<VisualsOutputState>
+  onState(listener: (state: VisualsOutputState) => void): () => void
+
+  /** The .fs files in <data dir>/shaders/, as text. */
+  listShaders(): Promise<{ file: string; source: string }[]>
+  /** Native open dialog; copies the chosen .fs files in. Resolves with how many were added. */
+  importShaders(): Promise<number>
+  /** Deletes one of them by file name. Resolves false if there's no such file. */
+  removeShader(file: string): Promise<boolean>
 }
 
 export const IPC = {
@@ -262,6 +298,16 @@ export const IPC = {
   updatesDismissWhatsNew: 'fvwks:updates-dismiss-whats-new',
   setupInfo: 'fvwks:setup-info',
   setupComplete: 'fvwks:setup-complete',
+  visualsDisplays: 'fvwks:visuals-displays',
+  visualsOpen: 'fvwks:visuals-open',
+  visualsClose: 'fvwks:visuals-close',
+  visualsGet: 'fvwks:visuals-get',
+  visualsState: 'fvwks:visuals-state',
+  /** main → both windows: one end each of the MessageChannel the frames go over. */
+  visualsPort: 'fvwks:visuals-port',
+  shadersList: 'fvwks:shaders-list',
+  shadersImport: 'fvwks:shaders-import',
+  shadersRemove: 'fvwks:shaders-remove',
 } as const
 
 export interface BootInfo {

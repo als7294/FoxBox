@@ -4,9 +4,11 @@ import {
   dialog,
   ipcMain,
   Menu,
+  MessageChannelMain,
   nativeImage,
   protocol,
   safeStorage,
+  screen,
   session,
   shell,
   systemPreferences,
@@ -23,12 +25,14 @@ import {
   AUDIO_SCHEME,
   IPC,
   type BootInfo,
+  type DisplayInfo,
   type EngineResponse,
   type EngineStatus,
   type MicAccess,
   type SetupCompleteResult,
   type SetupInfo,
   type UpdateState,
+  type VisualsOutputState,
 } from '../shared/bridge'
 import {
   bundledEngineDir,
@@ -46,6 +50,7 @@ import { ExportGuard } from './exportGuard'
 import { buildMenu } from './menu'
 import { cartridgePng } from './png'
 import { hasSetupMarker, requiredMissing, shouldShowSetup, writeSetupMarker } from './setup'
+import { importShaderFiles, listShaders, removeShader, shadersDir } from './shaders'
 import { Updater } from './updater'
 
 // Dev only: a packaged app launched with FVWKS_MOCK must never silently talk to mocks and play fake audio.
@@ -246,8 +251,12 @@ function createWindow(): void {
   })
   mainWindow = win
   win.once('ready-to-show', () => win.show())
+  // A reload drops the LIVE page's end of the visuals channel: hand out a fresh pair.
+  win.webContents.on('did-finish-load', () => outputWindow && linkOutput())
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
+    // The output window has no UI of its own: it goes with the app window (so quitting isn't blocked by it).
+    if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
   })
   if (RENDERER_URL) void win.loadURL(RENDERER_URL)
   else void win.loadFile(join(RENDERER_DIR, 'index.html'))
@@ -291,6 +300,90 @@ function createSetupWindow(): void {
   } else {
     void win.loadFile(join(RENDERER_DIR, 'index.html'), { query: { window: 'setup' } })
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Visuals output (1.3): the stage's style on a projector or LED wall
+
+let outputWindow: BrowserWindow | null = null
+
+const outputState = (): VisualsOutputState => ({
+  open: Boolean(outputWindow && !outputWindow.isDestroyed()),
+  displayId: outputWindow && !outputWindow.isDestroyed() ? screen.getDisplayMatching(outputWindow.getBounds()).id : null,
+})
+
+function displays(): DisplayInfo[] {
+  const primary = screen.getPrimaryDisplay().id
+  return screen.getAllDisplays().map((d, i) => ({
+    id: d.id,
+    label: d.label || (d.id === primary ? 'Main display' : `Display ${i + 1}`),
+    width: d.size.width,
+    height: d.size.height,
+    primary: d.id === primary,
+  }))
+}
+
+/** One MessageChannel between the main window (the LIVE page sends) and the output window (it draws). */
+function linkOutput(): void {
+  const main = mainWindow?.webContents
+  const out = outputWindow?.webContents
+  if (!main || !out || main.isDestroyed() || out.isDestroyed()) return
+  const { port1, port2 } = new MessageChannelMain()
+  main.postMessage(IPC.visualsPort, null, [port1])
+  out.postMessage(IPC.visualsPort, null, [port2])
+}
+
+/**
+ * Opens the output window on `displayId` (default: the first display that isn't the main one): borderless and
+ * fullscreen, black, no cursor, no UI. With only one display it opens as a plain window, so it doesn't cover FoxBox.
+ */
+function openOutput(displayId: number | null): VisualsOutputState {
+  const all = screen.getAllDisplays()
+  const primary = screen.getPrimaryDisplay()
+  const target = all.find((d) => d.id === displayId) ?? all.find((d) => d.id !== primary.id) ?? primary
+  const external = target.id !== primary.id
+  if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
+  const b = target.bounds
+  const win = new BrowserWindow({
+    x: external ? b.x : b.x + 80,
+    y: external ? b.y : b.y + 80,
+    width: external ? b.width : 960,
+    height: external ? b.height : 540,
+    frame: false,
+    show: false,
+    title: 'FoxBox Visuals',
+    backgroundColor: '#000000',
+    fullscreenable: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      spellcheck: false,
+      backgroundThrottling: false,
+    },
+  })
+  outputWindow = win
+  win.once('ready-to-show', () => {
+    win.show()
+    if (external) win.setFullScreen(true)
+  })
+  win.webContents.on('did-finish-load', linkOutput)
+  win.on('closed', () => {
+    if (outputWindow === win) outputWindow = null
+    broadcast(IPC.visualsState, outputState())
+  })
+  if (RENDERER_URL) {
+    const url = new URL(RENDERER_URL)
+    url.searchParams.set('window', 'output')
+    void win.loadURL(url.toString())
+  } else {
+    void win.loadFile(join(RENDERER_DIR, 'index.html'), { query: { window: 'output' } })
+  }
+  log(`visuals output on ${external ? 'an external display' : 'the main display (windowed)'} ${target.size.width}×${target.size.height}`)
+  broadcast(IPC.visualsState, { open: true, displayId: target.id })
+  return { open: true, displayId: target.id }
 }
 
 /** Required models still missing, per the engine itself (so the marker is only written once they're installed). */
@@ -457,7 +550,8 @@ function handleDownloads(): void {
 
 function lockDownPermissions(): void {
   const ses = session.defaultSession
-  const allowed = new Set(['media', 'speaker-selection', 'clipboard-sanitized-write'])
+  // 'midi' (never 'midiSysex'): the LIVE page's MIDI controllers (audio/live/midi.ts)
+  const allowed = new Set(['media', 'speaker-selection', 'clipboard-sanitized-write', 'midi'])
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
     if (!allowed.has(permission) || !isTrustedUrl(details.requestingUrl)) return callback(false)
     if (permission === 'media') {
@@ -640,6 +734,32 @@ function registerIpc(): void {
   ipcMain.handle(IPC.openLogs, async (event) => {
     if (trusted(event)) await shell.openPath(LOG_DIR)
   })
+
+  // Visuals output (1.3) ----------------------------------------------------------------------
+  ipcMain.handle(IPC.visualsDisplays, (event): DisplayInfo[] => (trusted(event) ? displays() : []))
+  ipcMain.handle(IPC.visualsGet, (event): VisualsOutputState => (trusted(event) ? outputState() : { open: false, displayId: null }))
+  ipcMain.handle(IPC.visualsOpen, (event, displayId: unknown): VisualsOutputState => {
+    // Only the main window opens it (the output window itself has no controls but Esc, which closes).
+    if (!trusted(event) || event.sender !== mainWindow?.webContents) return outputState()
+    return openOutput(typeof displayId === 'number' ? displayId : null)
+  })
+  ipcMain.handle(IPC.visualsClose, (event): VisualsOutputState => {
+    if (!trusted(event)) return outputState()
+    if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
+    return { open: false, displayId: null }
+  })
+
+  // SHADERS: the user's .fs files (1.3) ------------------------------------------------------
+  ipcMain.handle(IPC.shadersList, (event) => (trusted(event) ? listShaders(shadersDir(DATA_DIR)) : []))
+  ipcMain.handle(IPC.shadersImport, async (event) => {
+    if (!trusted(event)) return 0
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const opts: Electron.OpenDialogOptions = { title: 'Import ISF shaders', properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'ISF shaders', extensions: ['fs'] }] }
+    const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    return result.canceled ? 0 : importShaderFiles(shadersDir(DATA_DIR), result.filePaths)
+  })
+  ipcMain.handle(IPC.shadersRemove, (event, file: unknown) => trusted(event) && removeShader(shadersDir(DATA_DIR), file))
 
   // First-run Setup -------------------------------------------------------------------------
   ipcMain.handle(IPC.setupInfo, async (event): Promise<SetupInfo | null> => {

@@ -47,4 +47,19 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [TanStack Query](https://github.com/TanStack/query) · [Zustand](https://github.com/pmndrs/zustand) · openapi-typescript/openapi-fetch | Data and state | MIT |
 | [Big Shoulders Display](https://fonts.google.com/specimen/Big+Shoulders+Display) · [JetBrains Mono](https://www.jetbrains.com/lp/mono/) | Bundled fonts | SIL OFL 1.1 |
 
+## LIVE and visuals (1.3)
+| Project | Use | License |
+|---|---|---|
+| [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (Geraint Luff / Signalsmith Audio) | LIVE: real-time pitch and formant shift (vendored in `audio/live/vendor`) | MIT |
+| [three.js](https://github.com/mrdoob/three.js) | FOXBOX visual styles (WebGL) | MIT |
+| [postprocessing](https://github.com/pmndrs/postprocessing) | The stage's bloom, grain and vignette | Zlib |
+| [butterchurn](https://github.com/jberg/butterchurn) (Jordan Berg) | MILKDROP: Milkdrop 2 visualizer in WebGL 2 | MIT |
+| [butterchurn-presets](https://github.com/jberg/butterchurn-presets) (base pack, 100 presets) | MILKDROP presets; their equations precompiled into `visuals/engines/milkdrop/eqs.gen.js` (no eval) | MIT (the package) |
+| [interactive-shader-format-js](https://github.com/msfeldstein/interactive-shader-format-js) (Michael Feldstein) | SHADERS: ISF renderer | ISC |
+| FoxBox's own ISF shader pack (`visuals/engines/isf/shaders`, see its LICENSES.md) | SHADERS styles | MIT |
+
+The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
+Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that
+package's MIT license; the individual presets carry no licenses of their own.
+
 The full license texts ship with each package in the engine environment and in `node_modules`.

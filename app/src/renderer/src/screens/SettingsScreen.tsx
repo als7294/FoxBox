@@ -1143,7 +1143,7 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="05" kicker="CONFIG" title="SETTINGS">
+      <ScreenHeader code="06" kicker="CONFIG" title="SETTINGS">
         {s && <SaveState kind={kind} problems={problems} failure={failure} onRetry={() => void flush()} />}
       </ScreenHeader>
       <div className={styles.grid} data-reveal="3">

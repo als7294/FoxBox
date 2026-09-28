@@ -182,7 +182,11 @@ function Transcript({ source }: { source: SourceInfo }) {
               ? blocked.detail
               : 'Word timings for recordings need the whisper-aligner model. Install it in VOICES to edit this transcript.'}
           </p>
-          <button type="button" className={styles.noticeAction} onClick={() => openModelsFor(blocked?.kind === 'model' ? blocked.modelId : ASR_MODEL)}>
+          <button
+            type="button"
+            className={styles.noticeAction}
+            onClick={() => openModelsFor(blocked?.kind === 'model' ? blocked.modelId : ASR_MODEL)}
+          >
             INSTALL IN VOICES
           </button>
         </div>

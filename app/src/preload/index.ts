@@ -6,6 +6,7 @@ import {
   audioUrlFor,
   IPC,
   type BootInfo,
+  type DisplayInfo,
   type EngineRequest,
   type EngineResponse,
   type EngineStatus,
@@ -18,6 +19,8 @@ import {
   type StartDragOptions,
   type UpdatesBridge,
   type UpdateState,
+  type VisualsBridge,
+  type VisualsOutputState,
 } from '../shared/bridge'
 
 const boot = ipcRenderer.sendSync(IPC.bootInfo) as BootInfo
@@ -50,6 +53,21 @@ const setup: SetupBridge = {
   complete: () => ipcRenderer.invoke(IPC.setupComplete) as Promise<SetupCompleteResult>,
 }
 
+const visuals: VisualsBridge = {
+  displays: () => ipcRenderer.invoke(IPC.visualsDisplays) as Promise<DisplayInfo[]>,
+  open: (displayId) => ipcRenderer.invoke(IPC.visualsOpen, displayId ?? null) as Promise<VisualsOutputState>,
+  close: () => ipcRenderer.invoke(IPC.visualsClose) as Promise<VisualsOutputState>,
+  getState: () => ipcRenderer.invoke(IPC.visualsGet) as Promise<VisualsOutputState>,
+  onState: (listener) => subscribe<VisualsOutputState>(IPC.visualsState, listener),
+  listShaders: () => ipcRenderer.invoke(IPC.shadersList) as Promise<{ file: string; source: string }[]>,
+  importShaders: () => ipcRenderer.invoke(IPC.shadersImport) as Promise<number>,
+  removeShader: (file: string) => ipcRenderer.invoke(IPC.shadersRemove, file) as Promise<boolean>,
+}
+
+// A MessagePort can't cross contextBridge: it goes to the page as a window message (visuals/live/output.ts).
+const page = globalThis as unknown as { postMessage(message: unknown, origin: string, transfer?: unknown[]): void }
+ipcRenderer.on(IPC.visualsPort, (event) => page.postMessage({ fvwks: 'visuals-port' }, '*', event.ports))
+
 const bridge: FvwksBridge = {
   isElectron: true,
   platform: process.platform,
@@ -76,6 +94,7 @@ const bridge: FvwksBridge = {
   openLogs: () => ipcRenderer.invoke(IPC.openLogs) as Promise<void>,
   updates,
   setup,
+  visuals,
 }
 
 contextBridge.exposeInMainWorld('fvwks', bridge)

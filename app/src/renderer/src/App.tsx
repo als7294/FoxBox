@@ -12,9 +12,10 @@ import { AppShell } from '@/components/layout/AppShell'
 import { orderPresets } from '@/components/rack/PresetStrip'
 import { closeRack } from '@/components/rack/RackPanel'
 import { togglePlay } from '@/components/signal/Transport'
-import { toggleRecordingShortcut } from '@/components/source/Recorder'
+import { toggleRecordingShortcut } from '@/components/source/takes'
 import { bridge } from '@/env'
 import { isTextTarget, matchShortcut, type ShortcutAction } from '@/lib/shortcuts'
+import { LiveScreen } from '@/screens/LiveScreen'
 import { SetlistScreen } from '@/screens/SetlistScreen'
 import { SettingsScreen } from '@/screens/SettingsScreen'
 import { StudioScreen } from '@/screens/StudioScreen'
@@ -80,7 +81,7 @@ function useCommands(presets: readonly Preset[]) {
           ui.navigate('settings')
           break
         case 'record':
-          if (ui.screen === 'studio' && useStudio.getState().tab === 'record') toggleRecordingShortcut()
+          if (ui.screen === 'live') toggleRecordingShortcut()
           break
         case 'escape':
           if (ui.shortcutsOpen) ui.setShortcutsOpen(false)
@@ -160,6 +161,7 @@ function Screens() {
       {screen === 'setlist' && <SetlistScreen />}
       {screen === 'voices' && <VoicesScreen />}
       {screen === 'settings' && <SettingsScreen />}
+      {screen === 'live' && <LiveScreen />}
     </AppShell>
   )
 }

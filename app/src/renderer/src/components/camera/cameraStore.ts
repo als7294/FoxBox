@@ -14,8 +14,10 @@ export interface CameraSettings {
 }
 
 interface CameraState {
-  /** RECORD is VOICE + CAMERA. */
+  /** CLIP THE DROP's picture: the camera (true) or the voice core / a visual style (VOICE ONLY). */
   on: boolean
+  /** LIVE's camera tile: LIVE CLIP (films the live mask) or CLIP THE DROP (the rendered drop, over the song). */
+  liveMode: 'live' | 'drop'
   settings: CameraSettings
   /** The camera video filmed with each take (by take id). In memory only, and only ever used masked. */
   takeVideos: Record<string, Blob>
@@ -23,6 +25,7 @@ interface CameraState {
 
 export const useCamera = create<CameraState>(() => ({
   on: false,
+  liveMode: 'live',
   settings: {
     format: 'vertical',
     wholeFrame: false,
@@ -35,6 +38,7 @@ export const useCamera = create<CameraState>(() => ({
 
 export const camera = {
   setOn: (on: boolean) => useCamera.setState({ on }),
+  setLiveMode: (liveMode: 'live' | 'drop') => useCamera.setState({ liveMode }),
   set: (patch: Partial<CameraSettings>) => useCamera.setState((s) => ({ settings: { ...s.settings, ...patch } })),
   keepTakeVideo: (id: string, video: Blob) => useCamera.setState((s) => ({ takeVideos: { ...s.takeVideos, [id]: video } })),
 }

@@ -94,8 +94,9 @@ export function ArrangeView() {
         </span>
         {chop === 'custom' && <span className={styles.arrangeCustom}>CUSTOM</span>}
         <div className={styles.flex} />
-        <span className={styles.fitChip} data-status={fit.status} title={fit.verdict} data-testid="fit-chip">
+        <span className={styles.fitChip} data-status={fit.status} title={fit.verdict} data-testid="fit-chip" role="status" aria-label="Fit">
           {fit.icon} {fit.state}
+          {render && <span className="sr-only"> · {render.bars ? `${render.bars} BARS @ ${Math.round(render.bpm)}` : 'FREE'} · {fit.verdict}</span>}
         </span>
         <SnapEndPicker />
       </div>

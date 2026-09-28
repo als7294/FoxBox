@@ -1,0 +1,99 @@
+/* The LIVE stage: the style full-bleed, a slim glass bar over its top edge. */
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+  border-radius: var(--vb-r2, 6px);
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--vb-glass-fill, rgba(12, 12, 14, 0.55));
+  backdrop-filter: var(--vb-glass-blur, blur(12px));
+  border: 1px solid var(--vb-glass-edge, rgba(233, 229, 218, 0.1));
+  border-radius: var(--vb-glass-radius, 9px);
+  corner-shape: var(--vb-glass-corner);
+  opacity: 0.35;
+  transition: opacity var(--vb-med, 200ms);
+}
+.stage:hover .bar,
+.bar:focus-within {
+  opacity: 1;
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 9.5px var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+}
+.field select,
+.output select {
+  height: 26px;
+  padding: 0 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 6px;
+  font: 600 10px var(--vb-font-mono);
+  letter-spacing: 0.06em;
+}
+.palettes {
+  display: flex;
+  gap: 5px;
+}
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+.swatch[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--vb-ink);
+}
+.flex {
+  flex: 1;
+}
+.fps {
+  font: 500 9.5px var(--vb-font-mono);
+  color: var(--vb-dim);
+  letter-spacing: 0.1em;
+}
+.output {
+  display: flex;
+  gap: 6px;
+}
+.outBtn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-amber-line, rgba(255, 178, 62, 0.45));
+  border-radius: 6px;
+  background: rgba(var(--vb-amber-rgb), 0.08);
+  color: var(--vb-amber);
+  font: 700 10px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.outBtn[aria-pressed='true'] {
+  background: var(--vb-accent);
+  border-color: var(--vb-accent);
+  color: #fff;
+}
