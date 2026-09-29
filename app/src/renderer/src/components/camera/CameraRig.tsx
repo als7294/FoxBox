@@ -26,10 +26,11 @@ import { useViewPrefs } from '@/state/viewPrefs'
 import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 import { camera, takeFilm, useCamera, type CameraSettings } from './cameraStore'
 import { clipCard, clipLength, drawFrame, layout, type ClipVoice, type MaskStyle, type Wave } from './compose'
-import { detectFaces, loadFaceDetector } from './faceDetector'
+import { detectFacesDetailed, loadFaceDetector } from './faceDetector'
 import { clipPicture } from '@/visuals/live/clipPicture'
 import { filmTime, onsetOf, syncFilm, type FilmSync } from './filmSync'
-import { step, type Track } from './faceTrack'
+import { FacePicker, step, type Scored, type Track } from './faceTrack'
+import { PeopleControl, TwoFacesPrompt } from './TwoFaces'
 import { startMix, type Mix, type MixLevels } from './mix'
 import { clipName, pickFilmType, pickMimeType } from './recording'
 import { defragment } from './remux'
@@ -176,6 +177,9 @@ export function CameraRig({
     settleUntil: 0,
     detector: null as FaceDetector | null,
     tracks: [] as Track[],
+    /** One person unless the user says two (FacePicker); `dets`: this frame's detections, with their scores. */
+    picker: new FacePicker(),
+    dets: [] as Scored[],
     settings,
     ac: null as AudioContext | null,
     drop: null as AudioBuffer | null,
@@ -435,7 +439,9 @@ export function CameraRig({
       const v = s.film ?? s.video
       if (s.detector && !s.settings.wholeFrame && v && v.readyState >= 2) {
         try {
-          s.tracks = step(s.tracks, detectFaces(s.detector, v, now), now, s.settings.coverage / 100)
+          const found = detectFacesDetailed(s.detector, v, now)
+          s.tracks = step(s.tracks, found.map((d) => d.box), now, s.settings.coverage / 100)
+          s.dets = found
         } catch {
           s.detector = null // fail closed: the whole picture is hidden from here on
           setDetector('failed')
@@ -446,6 +452,8 @@ export function CameraRig({
         : s.mix && s.ac
           ? (s.ac.currentTime - s.mix.at) / s.mix.length
           : 0
+      const picked = s.picker.pick(s.tracks, s.dets, now, s.settings.people, useCamera.getState().justMe)
+      camera.setTwoFaces(picked.second)
       drawFrame(
         ctx,
         L,
@@ -455,7 +463,7 @@ export function CameraRig({
             drawCoreAt && !s.film
               ? drawCoreAt(L.cam.w, L.cam.h, now, dropT, s.drop, s.clipSong && clipT != null && s.plan ? { ...s.clipSong, t: s.plan.songFrom + clipT } : null)
               : null,
-          faces: s.tracks.map((t) => t.box),
+          faces: picked.mask.map((t) => t.box),
           // Until faces can be found (or if the detector fails), the whole picture is hidden.
           wholeFrame: s.settings.wholeFrame || !s.detector || now < s.settleUntil,
           mask: s.settings.mask,
@@ -477,7 +485,10 @@ export function CameraRig({
       )
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      camera.setTwoFaces(false)
+    }
   }, [])
 
   useEffect(() => () => void (clip && URL.revokeObjectURL(clip.url)), [clip])
@@ -738,6 +749,12 @@ export function CameraRig({
             />
           </Row>
           {!settings.wholeFrame && <p className={styles.hint}>Only your face is hidden. Clothes and the room can still give you away.</p>}
+          {!settings.wholeFrame && (
+            <Row title="PEOPLE">
+              <PeopleControl />
+            </Row>
+          )}
+          {!settings.wholeFrame && <TwoFacesPrompt />}
           <Row title="MASK">
             <Segmented
               label="Mask"

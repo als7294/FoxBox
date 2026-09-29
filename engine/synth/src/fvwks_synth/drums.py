@@ -1,13 +1,13 @@
 """The REMIX kit's drum voices (docs/REMIX_SOUND_BIBLE.md §3.1), synthesized: numpy/scipy, click-free, (2, n) float32.
 S2 sequences them, buses them and matches their loudness; levels here are the table's peaks relative to the kick.
 
-  render_drum(voice, sr=48000, vel=1.0, seed=0, variant=0, root_hz=None, length_s=None) -> (2, n)
+  render_drum(voice, sr=48000, vel=1.0, seed=0, variant=0, root_hz=None, length_s=None, tone_hz=None) -> (2, n)
 
-  kick          a sine body 150 Hz -> 52 Hz (tau 25 ms; ends on `root_hz` when that's 45-60 Hz), 220 ms decay, gone by
+  kick          a sine body 150 Hz -> 52 Hz (tau 25 ms; ends on `root_hz` when that's 38-64 Hz), 220 ms decay, gone by
                 300 ms, HP 30 Hz; a noise click (HP 2 kHz, 8-15 ms, -8 dB) and a +4 dB transient; lightly soft-clipped
   kick_riddim   the same, low-passed at 4 kHz (dull)
   kick_tearout  the same, the transient kept and nothing squashed
-  snare         the stack: L1 body (noise + a 185 Hz tone, 150 ms, HP 120), L2 crack (noise, BP 1-5 kHz, 15 ms),
+  snare         the stack: L1 body (noise + a `tone_hz` tone, 185 Hz by default, 150 ms, HP 120), L2 crack (noise, BP 1-5 kHz, 15 ms),
                 L3 clap (3 bursts 10 ms apart, BP 1.2 kHz, HP 500, its own short room), L4 tail (noise HP 2 kHz,
                 -12 dB). Variants: 0 tail A (180 ms), 1 tail B (300 ms), 2 tail A +2 st, 3 Tape B/UK (the clap
                 -8 dB under the snare, -1 st). Alternate 0 and 1 hit by hit.
@@ -42,6 +42,7 @@ PLATE = (1.0, 1.59, 2.14, 2.30, 2.65, 2.92, 3.16)  # a struck plate's first mode
 
 
 def _sos(kind: str, hz, sr: int, order: int = 2):
+    hz = np.minimum(hz, 0.45 * sr)  # a low rate (the 22.05 kHz previews and tests): the top edges come under Nyquist
     return signal.butter(order, hz, kind, fs=sr, output="sos")
 
 
@@ -68,7 +69,7 @@ def _out(x: np.ndarray, sr: int, ms: float = 5.0) -> np.ndarray:
 
 def _kick(sr: int, rng: np.random.Generator, pitch: float, decay: float, root_hz: float | None, style: str) -> np.ndarray:
     t = _t(0.3, sr)
-    end = root_hz if root_hz is not None and 45 <= root_hz <= 60 else 52.0
+    end = root_hz if root_hz is not None and 38 <= root_hz <= 64 else 52.0  # the key's tuned kick (kit.py: 40-62 Hz + θ)
     hz = (end + (150.0 - end) * np.exp(-t / 0.025)) * pitch
     body = np.sin(2 * np.pi * np.cumsum(hz) / sr)  # from phase 0: no step
     env = np.exp(-t / (0.09 * decay))
@@ -110,10 +111,11 @@ def _clap(sr: int, rng: np.random.Generator, decay: float, tune: float) -> np.nd
     return _room(_out(x / np.max(np.abs(x)), sr), sr, rng)
 
 
-def _snare(sr: int, rng: np.random.Generator, pitch: float, decay: float, variant: int, plate: float = 0.0) -> np.ndarray:
+def _snare(sr: int, rng: np.random.Generator, pitch: float, decay: float, variant: int, plate: float = 0.0,
+           tone_hz: float = 185.0) -> np.ndarray:
     tune = pitch * (2 ** (-1 / 12) if variant == 3 else 1.0)
     t = _t(0.35, sr)
-    tone = np.sin(2 * np.pi * np.cumsum(185 * tune * (1 + 0.15 * np.exp(-t / 0.01))) / sr)
+    tone = np.sin(2 * np.pi * np.cumsum(tone_hz * tune * (1 + 0.15 * np.exp(-t / 0.01))) / sr)
     body = (0.6 * tone + 0.5 * _f(rng.standard_normal(len(t)), "bandpass", (180, 6000), sr)) * np.exp(-t / (0.05 * decay))
     body = _f(body, "highpass", 120, sr)
     crack = _f(rng.standard_normal(len(t)), "bandpass", (1000, 5000), sr) * np.exp(-t / 0.005) * 1.8  # +5 dB, ~15 ms
@@ -154,17 +156,19 @@ def _cymbal(sr: int, rng: np.random.Generator, pitch: float, decay: float, lengt
 
 
 def render_drum(voice: str, sr: int = 48_000, vel: float = 1.0, seed: int = 0, variant: int = 0,
-                root_hz: float | None = None, length_s: float | None = None) -> np.ndarray:
+                root_hz: float | None = None, length_s: float | None = None, tone_hz: float | None = None) -> np.ndarray:
     if voice not in VOICES:
         raise KeyError(f"unknown drum voice {voice!r} (one of {', '.join(VOICES)})")
     rng = np.random.default_rng([seed, zlib.crc32(voice.encode()), variant])
-    pitch = 2 ** (rng.uniform(-15, 15) / 1200)  # +-15 cents
+    cents = rng.uniform(-15, 15)  # drawn either way, so a seed keeps its decay
+    tuned = root_hz is not None and voice.startswith("kick") or tone_hz is not None and voice.startswith("snare")
+    pitch = 1.0 if tuned else 2 ** (cents / 1200)  # +-15 cents; a voice tuned to the key (kit.py) stays on it
     decay = 1 + rng.uniform(-0.06, 0.06)  # +-6 %
     v = variant % 4
     if voice.startswith("kick"):
         x = _kick(sr, rng, pitch, decay, root_hz, voice.removeprefix("kick_") if "_" in voice else "")
     elif voice in ("snare", "snare_pan"):
-        x = _snare(sr, rng, pitch, decay, v, plate=0.25 if voice == "snare_pan" else 0.0)
+        x = _snare(sr, rng, pitch, decay, v, plate=0.25 if voice == "snare_pan" else 0.0, tone_hz=tone_hz or 185.0)
     elif voice == "clap":
         x = _clap(sr, rng, decay, pitch)
     elif voice == "hat":

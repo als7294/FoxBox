@@ -104,6 +104,14 @@ from fvwks_contracts.models import (
     SongWord,
     StemFeatures,
     SongAnalysis,
+    SongCue,
+    SamplePack,
+    SamplePackAdd,
+    SamplePackUpdate,
+    RekordboxEntry,
+    RekordboxImportRequest,
+    RekordboxLibrary,
+    RekordboxPlaylist,
     SongSection,
     SongPlacement,
     SongUpdate,
@@ -122,6 +130,7 @@ from fvwks_voice import api as voice
 
 from . import manifest as model_manifest
 from . import takes as take_weights
+from . import rekordbox as rbx
 from . import writer
 from .audio_io import AudioStore, as_channels_first, peaks, sweep_partials
 from .config import VERSION, Config
@@ -129,6 +138,7 @@ from .errors import ApiException, NotFound
 from .jobs import DONE, ERROR, JobCancelled, JobContext, JobRunner, error_payload
 from .library import ArtifactCache, Library, audio_hash, new_id, request_hash, utcnow
 from .masks import MaskStore
+from .sample_packs import PackStore, check_folder
 from .music import key_name
 from .rekordbox import RekordboxOptions, RekordboxTrack, write_rekordbox_xml
 
@@ -338,10 +348,13 @@ class EngineService:
         # v0.7 songs: the user's own tracks, kept at their own rate under <data>/songs/, apart from engine audio
         self.song_audio = AudioStore(config.data_dir, folder="songs")
         self.masks = MaskStore(config.data_dir)  # v0.11.6 camera face masks
+        self.packs = PackStore(config.data_dir)  # v0.15 the user's drum sample packs
+        self._sync_packs(invalidate=False)
         self._songs: _LRU = _LRU(1)  # song id → (audio, sr); a decoded 15-minute song is ~300 MB
         self._song_lock = threading.Lock()  # read-modify-write of song rows (analysis job vs PATCH)
         self._remix_lock = threading.Lock()  # read-modify-write of remix rows (jobs vs PATCH)
         self._previews: dict[str, tuple[str, str]] = {}  # pvw_ audio id → (patch | kit, id); fvwks_synth renders it
+        self._rekordbox: dict[str, tuple[float, dict[str, dict]]] = {}  # v0.12: library id → (made at, entry id → TRACK)
         if synth := _synth():
             synth.bass.configure(self.config.data_dir / "synth")  # Surge's own folders stay in the engine's data
         # fx keeps its WORLD analyses in memory, so none survive a restart (and a job killed mid-way left its row
@@ -1522,26 +1535,239 @@ class EngineService:
                                hint="Use a mono or stereo mix of it.")
         if audio.shape[-1] / sr > MAX_SONG_S:
             raise too_long
+        name = (name or "").strip()[:200] or Path(filename or "").stem[:200] or "Song"
+        return self._store_song(audio, int(sr), name)[0]
+
+    def _store_song(self, audio: np.ndarray, sr: int, name: str, *, analysis: SongAnalysis | None = None,
+                    cues: list[SongCue] | None = None, cache: bool = True) -> tuple[Song, bool]:
+        """A decoded track stored as a Song (new: True), or the Song already holding the same audio (False). A given
+        `analysis` (a Rekordbox grid) skips FoxBox's tempo analysis: only the structure runs on it. On an existing song
+        the given analysis and cues replace the old ones; the user's overrides are never touched."""
         digest = audio_hash(audio, sr)
         for row in self.library.select("songs", "audio_hash = ?", (digest,), limit=1):  # the same file again
             if self.song_audio.exists(row["audio_id"]):
-                return self._song(row)
+                song = self._song(row)
+                if analysis is None and cues is None:
+                    return song, False
+                update = {"cues": cues} if cues is not None else {}
+                if analysis is not None:
+                    update.update(analysis=analysis, analysis_state="done")
+                song = self._set_song(song.id, **update) or song
+                if analysis is not None:
+                    self._queue_structure(song.id)
+                return song, False
         try:
             audio_id = self.song_audio.put(audio, sr, "sng", compact=True)
         except Exception as exc:
             raise _write_error(exc, "upload_failed", "Couldn't store the song") from exc
         analyse = callable(getattr(fx, "analyze_song", None))
-        song = Song(id=new_id("sng"), name=(name or "").strip()[:200] or Path(filename or "").stem[:200] or "Song",
-                    duration_s=round(audio.shape[-1] / sr, 5), sample_rate=int(sr), channels=audio.shape[0],
-                    peaks=peaks(audio, sr), audio_id=audio_id, analysis_state="queued" if analyse else "error",
+        song = Song(id=new_id("sng"), name=name, duration_s=round(audio.shape[-1] / sr, 5), sample_rate=int(sr),
+                    channels=audio.shape[0], peaks=peaks(audio, sr), audio_id=audio_id, analysis=analysis,
+                    analysis_state="done" if analysis else "queued" if analyse else "error", cues=cues or [],
                     created_at=utcnow())
         self.library.insert("songs", id=song.id, name=song.name, created_at=song.created_at, audio_hash=digest,
                             audio_id=audio_id, analysis_state=song.analysis_state, info=song.model_dump(mode="json"))
-        with self._lock:
-            self._songs.put(song.id, (audio, int(sr)))
-        if analyse:
+        if cache:
+            with self._lock:
+                self._songs.put(song.id, (audio, int(sr)))
+        if analysis is not None:
+            self._queue_structure(song.id)
+        elif analyse:
             self._queue_song_analysis(song.id)
-        return song
+        return song, True
+
+    # -- Rekordbox library import (v0.12) -----------------------------------------------------------------------
+
+    REKORDBOX_TTL_S, MAX_REKORDBOX_XML = 1800.0, 100 << 20
+
+    # -- the user's drum sample packs (v0.15) -------------------------------------------------------------------
+
+    def list_sample_packs(self) -> list[SamplePack]:
+        return [self.packs.info(p) for p in self.packs.list()]
+
+    def add_sample_pack(self, req: SamplePackAdd) -> Job:
+        """POST /sample-packs: the picked folder (the path gate: local, resolved, a folder) scanned for one-shots."""
+        return self._scan_job(self.packs.save(self.packs.new(check_folder(req.folder), req.name)))
+
+    def rescan_sample_pack(self, pack_id: str) -> Job:
+        """POST /sample-packs/{id}/rescan: read its folder again (a renamed file names its role again)."""
+        pack = self.packs.get(pack_id)
+        check_folder(pack["folder"])
+        return self._scan_job(pack)
+
+    def update_sample_pack(self, pack_id: str, req: SamplePackUpdate) -> SamplePack:
+        pack = self.packs.get(pack_id)
+        if req.name is not None:
+            pack["name"] = req.name.strip()[:80] or pack["name"]
+        if req.enabled is not None:
+            pack["enabled"] = req.enabled
+        self.packs.save(pack)
+        self._sync_packs()
+        return self.packs.info(pack)
+
+    def delete_sample_pack(self, pack_id: str) -> None:
+        """Forget it: its files are never touched."""
+        self.packs.delete(pack_id)
+        self._sync_packs()
+
+    def _scan_job(self, pack: dict) -> Job:
+        from fvwks_synth import oneshots
+
+        try:
+            files = oneshots.candidates(pack["folder"])
+        except OSError:
+            raise ApiException(404, "missing", "That folder isn't there any more.", hint="Plug its drive in, or pick it again.") from None
+        return _job(self.jobs.submit("sample_scan", self._scan_pack, pack, files, lane="import",
+                                     labels=[f.name[:200] for f in files]))
+
+    def _scan_pack(self, ctx: JobContext, pack: dict, files: list[Path]) -> dict[str, Any]:
+        """One item per audio file (its name): done, or error with the reason as the code. Paths are logged nowhere."""
+        from fvwks_synth import oneshots
+
+        samples = []
+        for i, f in enumerate(files):
+            ctx.check()
+            ctx.progress(i / max(1, len(files)), f"Reading {i + 1} of {len(files)}")
+            shot, why = oneshots.check(f)
+            if shot is None:
+                ctx.item(i, state="error", error={"code": why, "message": _PACK_SKIP[why], "hint": None, "retryable": False})
+                continue
+            samples.append({"path": str(shot.path), "role": shot.role, "name": shot.name})
+            ctx.item(i, state="done", progress=1.0)
+        pack["samples"] = samples
+        self.packs.save(pack)
+        ctx.add_results([pack["id"]])
+        self._sync_packs()
+        ctx.progress(1.0, f"{len(samples)} one-shots")
+        return {"pack_id": pack["id"]}
+
+    def _sync_packs(self, invalidate: bool = True) -> None:
+        """The enabled packs whose folder is there replace the bundled one-shots for their roles (fvwks_synth.layers).
+        When that changes the sound, the remixes' kit clips prepare again."""
+        try:
+            from fvwks_synth import layers
+        except ImportError:
+            return
+        before = layers.bank_version()
+        layers.set_user_samples(self.packs.active())
+        if not invalidate or layers.bank_version() == before:
+            return
+        with self._remix_lock:
+            for row in self.library.select("remixes"):
+                cur = Remix.model_validate(row["info"])
+                if not any(c.src.kind == "kit" and c.audio_id for lane in cur.lanes for c in lane.clips):
+                    continue
+                lanes = [lane.model_copy(update={"clips": [c.model_copy(update={"audio_id": None}) if c.src.kind == "kit" else c
+                                                           for c in lane.clips]}) for lane in cur.lanes]
+                self.library.update("remixes", cur.id, info=cur.model_copy(update={"lanes": lanes}).model_dump(mode="json"))
+
+    def rekordbox_library(self, data: bytes) -> RekordboxLibrary:
+        """POST /rekordbox/library: the uploaded rekordbox.xml's tracks (an opaque id each, their grid, key and cues, and
+        whether the file is on this Mac) and playlists, kept 30 min for the import. No path is returned or logged."""
+        if len(data) > self.MAX_REKORDBOX_XML:
+            raise ApiException(413, "file_too_large", "This rekordbox.xml is over 100 MB.",
+                               hint="Export a playlist's tracks instead of the whole collection.")
+        try:
+            tracks, playlists = rbx.read_library(data)
+        except ValueError:
+            raise ApiException(400, "bad_xml", "This isn't a Rekordbox library file.",
+                               hint="In Rekordbox: File > Export Collection in xml format.") from None
+        known = self.library.get_setting("rekordbox_songs", {})
+        by_id: dict[str, dict] = {}
+        entries = []
+        for t in tracks:
+            eid = rbx.entry_id(t.get("Location", ""))
+            if eid in by_id:
+                continue
+            by_id[eid] = t
+            path, _ = rbx.local_audio_path(t.get("Location", ""))
+            grid, bpm, _ = rbx.grid_of(t["tempo"])
+            song_id = known.get(eid)
+            entries.append(RekordboxEntry(
+                id=eid, title=(t.get("Name") or "Untitled").strip()[:200] or "Untitled", artist=(t.get("Artist") or None),
+                duration_s=max(0.0, _num(t.get("TotalTime"))), bpm=bpm or (_num(t.get("AverageBpm")) or None),
+                key=_key(t.get("Tonality")), grid=grid, cues=len(rbx.cues_of(t["marks"])), available=path is not None,
+                song_id=song_id if song_id and self.library.get("songs", song_id) else None))
+        lists = [RekordboxPlaylist(name=p["name"] or "Playlist", folders=p["folders"],
+                                   track_ids=[e for e in (rbx.entry_id(loc) for loc in p["locations"]) if e in by_id])
+                 for p in playlists]
+        lib_id = new_id("rbx")
+        with self._lock:
+            now = time.monotonic()
+            live = sorted(((k, v) for k, v in self._rekordbox.items() if now - v[0] < self.REKORDBOX_TTL_S),
+                          key=lambda kv: kv[1][0])[-2:]  # at most 3 held (they can be big)
+            self._rekordbox = {**dict(live), lib_id: (now, by_id)}
+        return RekordboxLibrary(id=lib_id, tracks=entries, playlists=lists, missing=sum(not e.available for e in entries))
+
+    def import_rekordbox(self, req: RekordboxImportRequest) -> Job:
+        """POST /rekordbox/import: the chosen tracks become Songs (a rekordbox_import job, its own lane)."""
+        with self._lock:
+            held = self._rekordbox.get(req.library_id)
+        if held is None or time.monotonic() - held[0] > self.REKORDBOX_TTL_S:
+            raise ApiException(404, "library_expired", "This Rekordbox library has expired.",
+                               hint="Choose the rekordbox.xml again.")
+        unknown = [t for t in req.track_ids if t not in held[1]]
+        if unknown:
+            raise ApiException(422, "invalid_request", f"{len(unknown)} of these tracks aren't in this library.")
+        tracks = {t: held[1][t] for t in dict.fromkeys(req.track_ids)}
+        return _job(self.jobs.submit("rekordbox_import", self._import_rekordbox, tracks, lane="import",
+                                     labels=[(t.get("Name") or "Untitled").strip()[:200] or "Untitled" for t in tracks.values()]))
+
+    def _import_rekordbox(self, ctx: JobContext, tracks: dict[str, dict]) -> dict[str, Any]:
+        """One job item per track (its title): done with its song id, or error with the skip reason as the code; the
+        job's result_ids are every song imported or refreshed."""
+        done: list[str] = []
+        for i, (eid, t) in enumerate(tracks.items()):
+            ctx.check()
+            ctx.progress(i / len(tracks), f"Importing {i + 1} of {len(tracks)}")
+            ctx.item(i, state="running")
+            try:
+                song, _ = self._import_track(t)
+            except _Skip as skip:
+                log.info("rekordbox import: %s skipped (%s)", eid, skip.reason)  # the entry id, never the path
+                ctx.item(i, state="error", error={"code": skip.reason, "message": _SKIPPED[skip.reason], "hint": None,
+                                                  "retryable": skip.reason == "missing"})
+                continue
+            if song.id not in done:
+                ctx.add_results([song.id])  # appends: each song once
+                done.append(song.id)
+            ctx.item(i, state="done", progress=1.0, result_ids=[song.id])
+            known = self.library.get_setting("rekordbox_songs", {})
+            self.library.set_setting("rekordbox_songs", {**known, eid: song.id})
+        ctx.progress(1.0, "Imported")
+        return {"song_ids": done}
+
+    def _import_track(self, t: dict) -> tuple[Song, bool]:
+        """One TRACK: its local audio file (the path gate in rekordbox.local_audio_path), decoded with the upload's
+        limits (pedalboard: AAC / M4A too), stored under its XML title with its grid, key and cues."""
+        path, why = rbx.local_audio_path(t.get("Location", ""))
+        if path is None:
+            raise _Skip(why)
+        if path.stat().st_size > MAX_SONG_BYTES:
+            raise _Skip("too_large")
+        try:
+            from pedalboard.io import AudioFile
+
+            with AudioFile(str(path)) as f:
+                if f.samplerate <= 0 or f.frames / f.samplerate > MAX_SONG_S:
+                    raise _Skip("too_long")
+                audio, sr = np.ascontiguousarray(f.read(f.frames), np.float32), int(f.samplerate)
+        except _Skip:
+            raise
+        except Exception:  # noqa: BLE001  not audio after all, or damaged
+            raise _Skip("unreadable") from None
+        if audio.shape[-1] == 0 or not np.isfinite(audio).all():
+            raise _Skip("unreadable")
+        if audio.shape[0] > 2:
+            raise _Skip("unsupported")
+        grid, bpm, down = rbx.grid_of(t["tempo"])
+        key = _key(t.get("Tonality"))
+        analysis = SongAnalysis(bpm=bpm, bpm_confidence=1.0, key=key, key_confidence=1.0 if key else 0.0,
+                                downbeat_s=down, source="rekordbox") if grid == "fixed" else None
+        length = audio.shape[-1] / sr
+        cues = [SongCue.model_validate(c) for c in rbx.cues_of(t["marks"]) if c["start_s"] <= length]
+        name = (t.get("Name") or "").strip()[:200] or "Untitled"
+        return self._store_song(audio, sr, name, analysis=analysis, cues=cues, cache=False)
 
     def list_songs(self) -> list[Song]:
         return [self._song(row) for row in self.library.select("songs")]
@@ -1740,6 +1966,10 @@ class EngineService:
                 update["structure"] = structure
         if self._set_song(song_id, **update) is None:
             return None
+        try:  # the timed words from the vocals stem, queued behind this on the songs lane: lyrics come with the split,
+            self.request_lyrics(song_id)  # never a separate click (the user). No transcriber or its model: the
+        except ApiException:  # LYRICS button says so when asked
+            pass
         return {"song_id": song_id}
 
     def _song(self, row: dict[str, Any]) -> Song:
@@ -1949,7 +2179,9 @@ class EngineService:
                 keep = {e.seed: e for e in update["takes"]}
                 update["takes"] = [t.model_copy(update={"name": keep[t.seed].name, "starred": keep[t.seed].starred})
                                    for t in cur.takes if t.seed in keep]
-            if update.get("seed", cur.seed) != cur.seed:  # v0.11.9: switching takes saves the one on screen, edits and all
+            built_rev = self.library.get_setting("remix_built_rev", {}).get(remix_id, {}).get(str(cur.seed))
+            edited = cur.rev != built_rev or "sections" in update or "lanes" in update
+            if update.get("seed", cur.seed) != cur.seed and edited:  # v0.11.9: switching away saves an edited take
                 shown = cur.model_copy(update={k: update[k] for k in ("sections", "lanes") if k in update})
                 saved = {"sections": shown.sections, "lanes": _keep_prepared(cur, shown)}
                 update["takes"] = [t.model_copy(update=saved) if t.seed == cur.seed else t for t in update.get("takes", cur.takes)]
@@ -1982,8 +2214,12 @@ class EngineService:
                                    retryable=running)
             loaded = {s.name: self._load_stem(s.audio_id) for s in song.stems}
             sr = next(iter(loaded.values()))[1]
+            extra = {}
+            if song.lyrics_state == "done" and "words" in inspect.signature(engine.SongInput).parameters:  # S2's seam
+                stored = (self.library.get("songs", song.id) or {}).get("lyrics")
+                extra["words"] = SongLyrics.model_validate(stored).words if stored else None
             out[src.slot] = engine.SongInput(song=song.model_copy(update={"analysis": self._grid(song)}),
-                                             stems={k: a for k, (a, _) in loaded.items()}, sr=sr)
+                                             stems={k: a for k, (a, _) in loaded.items()}, sr=sr, **extra)
         return out
 
     def _set_remix(self, remix_id: str, bump: bool = False, **update: Any) -> Remix | None:
@@ -2016,7 +2252,8 @@ class EngineService:
             if saved and not fresh:  # the take's own arrangement, as it was left (audio that's since been evicted goes)
                 lanes = [lane.model_copy(update={"clips": [c.model_copy(update={"audio_id": c.audio_id if c.audio_id and
                          self.song_audio.exists(c.audio_id) else None}) for c in lane.clips]}) for lane in saved.lanes]
-                self._set_remix(remix_id, bump=True, build_state="done", sections=saved.sections or [], lanes=lanes)
+                self._built(self._set_remix(remix_id, bump=True, build_state="done", sections=saved.sections or [],
+                                            lanes=lanes))
                 return {"remix_id": remix_id}
             if saved:  # fresh: the edits go; the take's recorded choices rebuild it
                 remix = remix.model_copy(update={"takes": [t.model_copy(update={"sections": None, "lanes": None})
@@ -2046,9 +2283,17 @@ class EngineService:
         with self._remix_lock:  # the takes as they are now (a PATCH may have renamed one meanwhile)
             now = self.get_remix(remix_id).takes
             takes = [record if t.seed == remix.seed else t for t in now] + ([] if any(t.seed == remix.seed for t in now) else [record])
-        self._set_remix(remix_id, bump=True, build_state="done", bpm=built.bpm, key=built.key, sections=built.sections,
-                        lanes=built.lanes, bass_patch_id=built.bass_patch_id, flip=built.flip, mash=built.mash, takes=takes)
+        self._built(self._set_remix(remix_id, bump=True, build_state="done", bpm=built.bpm, key=built.key,
+                                    sections=built.sections, lanes=built.lanes, bass_patch_id=built.bass_patch_id,
+                                    flip=built.flip, mash=built.mash, takes=takes))
         return {"remix_id": remix_id}
+
+    def _built(self, remix: Remix | None) -> None:
+        """The rev a take's arrangement had as BUILD left it (a build or a restore), so switching away saves it only when
+        it's been edited since (1.5.1: a ROLL marked take 1 EDITED untouched)."""
+        if remix is not None:
+            revs = self.library.get_setting("remix_built_rev", {})
+            self.library.set_setting("remix_built_rev", {**revs, remix.id: {**revs.get(remix.id, {}), str(remix.seed): remix.rev}})
 
     def prepare_remix(self, remix_id: str) -> Job:
         """POST /remixes/{id}/prepare: every clip without audio rendered at the remix tempo and key (a remix_prepare
@@ -2069,6 +2314,9 @@ class EngineService:
         the remix while the job runs; edits made meanwhile stay)."""
         engine = self._remix_engine()
         remix = self.get_remix(remix_id)
+        for job in self.jobs.list("take_loudness", active_only=True):  # v0.15.3: a new PREPARE drops the old readout
+            if job.meta.get("remix_id") == remix_id:  # (ROLL spam never stacks them; this one queues its own)
+                self.jobs.cancel(job.id)
         sources = self._remix_sources(remix)
         known: dict[str, str] = {}  # clip_key → audio_id
 
@@ -2112,31 +2360,57 @@ class EngineService:
             state.update(remix=remix, clips={c.id: c for lane in remix.lanes for c in lane.clips})
             ctx.check()
             with self._fx_background:
-                out = engine.run(remix, sources, stage="prepare", sr=REMIX_SR, on_clip=on_clip,
+                out = engine.run(remix, sources, stage="prepare", sr=REMIX_SR, on_clip=on_clip, audio=self._drop_bass(remix),
                                  progress=lambda f, m: ctx.check())
             prepared += len(out.audio)
-        self._take_loudness(engine, remix_id, sources)
+        remix = self.get_remix(remix_id)
+        if any(t.seed == remix.seed for t in remix.takes) and all(c.audio_id for lane in remix.lanes for c in lane.clips):
+            loud = self.jobs.submit("take_loudness", self._take_loudness, remix_id, remix.seed, lane="loudness",
+                                    meta={"remix_id": remix_id})  # (no dedupe: a cancelled one may still be finishing)
+            ctx.add_results([loud.id])  # v0.15.3: the app waits on it, then refetches the take
         return {"remix_id": remix_id, "prepared": prepared}
 
-    def _take_loudness(self, engine: Any, remix_id: str, sources: dict) -> None:
-        """v0.11.10: the take's prepared mix, mastered as the export would be: its short-term max and true peak on the
-        take at Remix.seed (the TakeCard readout). Only once every clip has audio."""
+    def _drop_bass(self, remix: Remix) -> dict[str, np.ndarray]:
+        """S2's first-hit carrier (1.5.1) lifts its sub against the drop's whole bass bus, so when a bass clip is still to
+        prepare, run() gets the bass-lane clips that already have audio over the drops (and only those: bounded RAM)."""
+        bass = [c for lane in remix.lanes if lane.role in ("bass", "synth_bass") for c in lane.clips]
+        if all(c.audio_id for c in bass):
+            return {}
+        drops = [((s.start_bar - 1) * 4.0, (s.start_bar - 1 + s.bars) * 4.0) for s in remix.sections if s.kind == "drop"]
+        over = lambda c: any(c.at_beat < b and c.at_beat + c.beats > a for a, b in drops)  # noqa: E731
+        return {c.id: self.song_audio.load(c.audio_id)[0] for c in bass
+                if c.audio_id and over(c) and self.song_audio.exists(c.audio_id)}
+
+    def _take_loudness(self, ctx: JobContext, remix_id: str, seed: int) -> dict[str, Any] | None:
+        """v0.11.10 / v0.15.3 (a take_loudness job after PREPARE, M2.5): the take's prepared mix, mastered as the export
+        would be: its short-term max and true peak on the take at `seed` (the TakeCard readout). Low priority: it waits
+        while a BUILD or PREPARE runs, runs outside the fx lock (so a new PREPARE never waits behind it; fvwks_fx is
+        pure), and a new PREPARE of this remix cancels it."""
+        while any(j.active for kind in ("remix_build", "remix_prepare") for j in self.jobs.list(kind)):
+            ctx.check()
+            time.sleep(0.25)
         remix = self.get_remix(remix_id)
         clips = [c for lane in remix.lanes for c in lane.clips]
-        if not any(t.seed == remix.seed for t in remix.takes) or not all(c.audio_id and self.song_audio.exists(c.audio_id)
-                                                                          for c in clips):
-            return
-        audio = {c.id: self.song_audio.load(c.audio_id)[0] for c in clips}
-        with self._fx_background:
-            report = engine.run(remix, sources, stage="mixdown", audio=audio, master=Master(), sr=REMIX_SR).report
+        if remix.seed != seed or not all(c.audio_id and self.song_audio.exists(c.audio_id) for c in clips):
+            return None  # rolled or edited meanwhile: that take's own PREPARE queues its own
+        engine = self._remix_engine()
+        sources = self._remix_sources(remix)
+        audio = {}
+        for c in clips:
+            ctx.check()
+            audio[c.id] = self.song_audio.load(c.audio_id)[0]
+        ctx.progress(0.5, "Measuring the take's loudness")
+        report = engine.run(remix, sources, stage="mixdown", audio=audio, master=Master(), sr=REMIX_SR).report
+        ctx.check()
         if report is None:
-            return
+            return None
         with self._remix_lock:
             cur = self.get_remix(remix_id)
             loud = {"short_term_max_lufs": round(float(report.short_term_max_lufs), 2),
                     "true_peak_db": round(min(0.0, float(report.true_peak_dbtp)), 2)}
-            takes = [t.model_copy(update=loud) if t.seed == remix.seed else t for t in cur.takes]
+            takes = [t.model_copy(update=loud) if t.seed == seed else t for t in cur.takes]
             self.library.update("remixes", remix_id, info=cur.model_copy(update={"takes": takes}).model_dump(mode="json"))
+        return {"remix_id": remix_id}
 
     # -- the sound library and BASS DNA (v0.11.4) ---------------------------------------------------------------
 
@@ -2265,7 +2539,7 @@ class EngineService:
         root = self.export_root
         folder = writer.safe_path(root, writer.folder_name(title, "Remix"))
         folder.mkdir(parents=True, exist_ok=True)
-        base, sr, mix = writer.folder_name(f"{title} {remix.recipe.upper()}", "Remix"), master.sample_rate, out.mix
+        base, sr, mix = writer.remix_file_stem(_export_stem(remix, title)), master.sample_rate, out.mix
         bars = sum(s.bars for s in remix.sections) or None
         files: list[ExportedFile] = []
         warnings: list[str] = []
@@ -2359,8 +2633,54 @@ class EngineService:
             self.library.insert("remix_feedback", id=fb.id, remix_id=remix_id, created_at=fb.created_at,
                                 data=fb.model_dump(mode="json"))
             takes = [t.model_copy(update={"rating": req.rating}) if t.seed == req.seed else t for t in cur.takes]
-            self.library.update("remixes", remix_id, info=cur.model_copy(update={"takes": takes}).model_dump(mode="json"))
+            new = cur.model_copy(update={"takes": takes})
+            self.library.update("remixes", remix_id, info=new.model_dump(mode="json"))
+        try:
+            self._golden(new, take, req.rating, req.tags)
+        except (OSError, ApiException):  # a golden is a dev aid: it never fails the rating
+            log.warning("remix golden for %s s%s not written", remix_id, req.seed, exc_info=True)
         return fb
+
+    GOLDENS_PER_STYLE, GOLDENS_MAX = 3, 40  # plan v2 §7.5
+
+    def _golden(self, remix: Remix, take: RemixTake, rating: int, tags: list[str]) -> None:
+        """M4.4 (1.5.1): a liked take (👍, LOVE IT) as a golden for S2's runner, <data>/goldens/<song>-<remix>-s<seed>.json
+        = {"song": its audio file, "remix": the doc at that seed, its arrangement and choices, "love", "style", "engine": the
+        engine version}; a 0 or a 👎
+        removes it. At most 3 per (song, style) and 40 in all, LOVE IT first then the newest. They stay in the engine's
+        data dir (plan v2 §7.6: ratings stay on this machine): copying them into a dev checkout's out/goldens is the
+        user's export."""
+        folder = self.config.data_dir / "goldens"
+        song_id = next(s.song_id for s in remix.sources if s.slot == "A")
+        path = folder / f"{song_id}-{remix.id}-s{take.seed}.json"
+        if rating <= 0:
+            path.unlink(missing_ok=True)
+            return
+        if take.seed == remix.seed:
+            arrangement = {"sections": remix.sections, "lanes": remix.lanes}
+        else:  # its saved arrangement, else none: the runner rebuilds it from the take's choices
+            arrangement = {"sections": take.sections or [], "lanes": take.lanes or []}
+        doc = remix.model_copy(update={"seed": take.seed, **arrangement}).model_dump(mode="json")
+        audio = self.song_audio.stream_path(self.get_song(song_id).audio_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"song": str(audio), "remix": doc, "love": "love_it" in tags, "style": take.style,
+                                    "engine": VERSION}))
+        entries = []
+        for f in folder.glob("*.json"):
+            try:
+                g = json.loads(f.read_text())
+            except (OSError, ValueError):
+                continue
+            entries.append((not g.get("love"), -f.stat().st_mtime, f, f.name.split("-rmx_")[0], g.get("style")))
+        entries.sort(key=lambda e: e[:2])  # LOVE IT first, then the newest
+        per: dict[tuple, int] = {}
+        kept = 0
+        for _, _, f, song, style in entries:
+            per[song, style] = per.get((song, style), 0) + 1
+            if per[song, style] > self.GOLDENS_PER_STYLE or kept >= self.GOLDENS_MAX:
+                f.unlink(missing_ok=True)
+            else:
+                kept += 1
 
     def _feedback_since_reset(self) -> dict[str, list[TakeFeedback]]:
         """Every style's feedback rows since its last RESET, oldest first."""
@@ -2395,6 +2715,9 @@ class EngineService:
             if job.meta.get("remix_id") == remix_id:
                 self.jobs.cancel(job.id)
         self.library.delete("remixes", [remix_id])
+        revs = self.library.get_setting("remix_built_rev", {})
+        if remix_id in revs:
+            self.library.set_setting("remix_built_rev", {k: v for k, v in revs.items() if k != remix_id})
 
     def request_lyrics(self, song_id: str) -> Job:
         """POST /songs/{id}/lyrics: the song's timed words (a song_lyrics job), from the vocals stem when it has
@@ -3137,6 +3460,48 @@ def _keep_prepared(old: Remix, new: Remix) -> list[RemixLane]:
 def _engine_bass(clip: dict) -> bool:
     src = clip.get("src") or {}
     return src.get("kind") == "groove" and str(src.get("patch_id", "")).startswith(("resample:", "hybrid:", "riddim:", "808:"))
+
+
+_PACK_SKIP = {"not_one_shot": "Longer than 2 s, or more than one hit (a loop).",
+              "unreadable": "The audio couldn't be read.", "unsupported": "Not a local audio file FoxBox can use."}
+_SKIPPED = {"missing": "The file isn't on this Mac (a drive not plugged in?).",
+            "unsupported": "Not a local audio file FoxBox can import.", "too_long": "Longer than 15 minutes.",
+            "too_large": "Over 400 MB.", "unreadable": "The audio couldn't be read."}
+
+
+class _Skip(Exception):
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _num(text: str | None) -> float:
+    try:
+        return float(text or 0)
+    except ValueError:
+        return 0.0
+
+
+def _key(text: str | None) -> str | None:
+    """A Rekordbox Tonality ('Am', '8A', ...) as FoxBox's key name, None when it's empty or unreadable."""
+    try:
+        return key_name(text or None)
+    except ValueError:
+        return None
+
+
+def _export_stem(remix: Remix, title: str) -> str:
+    """A remix export's name (1.5.1, S5's R21 in the PM's ASCII form): "<song> (<STYLE> <RECIPE> - TAKE <n>)". A default
+    name's trailing recipe word moves into the bracket ("ncs-01 VIP" -> "ncs-01 (RIDDIM VIP - TAKE 2)"); another name is
+    kept as it is. STYLE (the take's, trap_hybrid -> TRAP HYBRID) is left out when it's the recipe; n is the take's place
+    in Remix.takes, left out when there's no take."""
+    recipe = remix.recipe.upper()
+    words = title.split()
+    song = " ".join(words[:-1]) if len(words) > 1 and words[-1].upper() == recipe else title
+    take = next(((n, t) for n, t in enumerate(remix.takes, 1) if t.seed == remix.seed), None)
+    style = take[1].style.replace("_", " ").upper() if take else ""
+    label = recipe if not style or style == recipe else f"{style} {recipe}"
+    return f"{song} ({label}{f' - TAKE {take[0]}' if take else ''})"
 
 
 def _take_style(remix: Remix) -> str | None:

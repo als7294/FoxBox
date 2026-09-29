@@ -3,5 +3,11 @@
   "hybrid:": [
    "tearout.chomp_snap"
   ]
+ },
+ "axes": {
+  "top.hook": {
+   "motif": 0.0,
+   "none": 1.0
+  }
  }
 }

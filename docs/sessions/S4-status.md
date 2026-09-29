@@ -2,27 +2,96 @@
 
 Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART VISUALS + fixes + REMIX, in progress; 1.4.0 is live)
 
-## Now: the 1.5 lean wrap-up (the user's call: ship 1.5, then 1.5.1)
+## 1.5.1 in progress (test build from 5e453c7)
 
-- **Merged:** M3.5, the REMIX HARDWARE design with the timeline, markers, bass layers and v0.11.12 controls (e559638, 702e518); help/s3-remix e50d45e; help/s3-growls e0f905b; help/s1-camfix a01e5f1. S2's final sha is pending (help/s2-bassdna was at b46715c).
-- **Hidden for 1.5.1:**
-  - REMIX ALL (off behind `REMIX_ALL`; the queue and its test stay);
-  - REMIX's LINK dot;
-  - the TEAROUT flip card (never built; it waits for S2's C18).
-- **Live-set fixes:**
-  - LS1 (e2dcf79);
-  - LS15 and LS9 (cea5d5c);
-  - LS2–LS7 (0e852b3), code-reviewed OK by S5;
-  - LS8 and LS10 are 1.5.1 unless the PM says otherwise.
-- **Docs:** c3536b8 updates the README and WHAT'S NEW (the 1.5.0 notes).
-- **Checks:** the full unit suite passes (560, 1 skipped) and typecheck is clean.
-- **RC steps:**
-  - merge S2;
-  - `git archive` into scratch, build surgepy, then `release.mjs --no-bump`;
-  - check codesign on surgepy and that the .so has no home path;
-  - check latest-mac.json reuses runtime v1.2.1;
-  - one 15-minute isolated smoke (`--use-mock-keychain`, .test bundle id);
-  - send the RC path to the PM.
+- **Merged:**
+  - main (contracts v0.12 / v0.12.1 / v0.13);
+  - help/s3-151 up to c780942: Rekordbox server, mask recipes, the EDITED fix and export naming;
+  - help/s1-popups e0b36c0;
+  - help/s1-maskcreator 73f502e;
+  - help/s1-camera-151 1e0d995: LS11, the one-face and fail-open fixes, the glasses rim.
+  - Held: S2's help/s2-151-wip, until S2 says go (a harmony layer first). TOP layers and the macros stay behind ENGINE_V01112 until then.
+- **Done:**
+  - IMPORT FROM REKORDBOX: REMIX's picker, plus the Studio SONG strip and VISUALS TRACK;
+  - REMIX ALL on;
+  - export names by S3's rule (exportName.ts);
+  - LS8 and LS10;
+  - S5's pass-3 P2s;
+  - the FIRST HIT lane.
+- **REMIX design fidelity** (S5's list against the handoff; re-check: no P0s left):
+  - before BUILD, the ORIGINAL timeline with the PRESS BUILD card;
+  - all 7 lanes with merged strips and RMS bars;
+  - the EXPORT drawer's done state;
+  - BASS DNA's head;
+  - caps sound names;
+  - the dashed drop page;
+  - the whole idle transport.
+  - DOUBLE THE LAST DROP is off (the PM: the design rules).
+- **Test build:** 5e453c7 is running as the user's test copy (smoke 12/12). Page work waits for the user's feedback.
+- **Open, P2:**
+  - the FIRST HIT lane's 2-beat clips barely show at FIT;
+  - check REVEAL in the packaged copy.
+  - Waveform energy is checked on real audio, and it's fine.
+- **On the next merge of main or S2's branch:** re-export the REMIX openapi (contracts v0.14, `Chord` and `SongStructure.chords` / `RemixSection.chords`, main af33bdd) so the drift test stays green. No CHORDS row yet (no design).
+
+## 1.5.1 RC (73eb4a0), handed to the PM to publish
+
+- **Scope:**
+  - the new REMIX engine (S2's help/s2-151-wip e60ffec, with S3's M2.5, v0.15.2/.3, sample packs and notices);
+  - S5's REMIX rebuild, with a BETA badge in the rail;
+  - MASKS Phase 2, on for everyone;
+  - S1's tracking (8b09871: one mask per head, head-first);
+  - SAMPLE LAYERS; TOP and the macros on (ENGINE_V01112); the client at v0.15.3.
+- **Build:** app part 22.0 MB and engine-code 7.8 MB are new (~30 MB update). Electron and engine-runtime are reused from v1.2.1. DMG 420.5 MB, zip 453.1 MB.
+- **Checked:** 597 unit tests; contract tests; a boot check on a .test clone (3/3). The earlier RC smoke passed boot, rail, STUDIO, VISUALS output and REMIX's ALL TRACKS ▾. The user asked to ship sooner, so the rest (BUILD, export/REVEAL, SAMPLE LAYERS on the real routes, MASKS) wasn't finished.
+- **For 1.5.2:**
+  - On a fresh install, a track added via ALL TRACKS ▾ → ADD A FILE… imported and analysed but didn't show in DECK A within 4 minutes in the smoke. Check it on a fresh install.
+  - Then run the rest of the RC smoke (scratchpad rc-smoke.mjs).
+
+## MASKS page, Phase 2 (the user's Claude Design, app/design/masks)
+
+- **What's in:** the page is rebuilt to the design's README and prototype on session/s4-app (dfd933c → c72e43d):
+  - LINEUP (8 presets, one live stage, the acts);
+  - CategoryTabs (9 slots; HEADS is LATER);
+  - MaskPreview (status display, MODEL / LIVE / DJ CLIP, the viewport chrome, BEAT with the demo-drop waveform, A/B, FX FULL | REDUCED, the perf strip, the LIVE states);
+  - the options panel (POSTER tiles with hover preview, ParamSlider, palettes and + CUSTOM, PATTERN / DECAL / TAG);
+  - GlowPanel (FX PRESETS, REACTS TO, FLASH RATE, 7 FxModules with SOLO);
+  - the SaveBar (RANDOMIZE choreography, NAME hints with REPLACE / SAVE AS n, WEAR);
+  - MY MASKS (IMPORT drawer, inline delete, BUILT-IN).
+- **Model:** the store keeps 80 undo steps with one per drag. MaskConfig v4 lives in camera/maskConfig.ts: S4 owns the tables, S1 owns normalize. The 3D, thumbnails and the face registry are S1's (maskStage, maskThumbs, maskFace).
+- **Checked:**
+  - 3 store tests: randomize with locks, undo, save hints;
+  - the web mock at 1512×982 and 1280×800;
+  - a .test smoke of 9/9: LINEUP → START WITH → flip → lock + R → ⌘Z → ⌘S → MY MASKS, with no page errors.
+- **Open:**
+  - Image masks can't be renamed: the engine has no endpoint for it, so RENAME is hidden on them. This is a contract gap.
+  - The DJ CLIP chip reads "AT THE DECKS · NODS ON THE DEMO BEAT" (the PM's call).
+  - The flag stays until the user signs off.
+
+## MASKS page, Phase 1 (1.5.1 flagship, 4a3fd3e)
+
+- **Where it is:** `app/src/renderer/src/components/masks/`, built on S1's `maskRecipe.ts`, `recipeMask.ts` and `maskTurntable.ts` (a2da131 merged). It uses the component names from `docs/MASKS_DESIGN_PROMPT.md`.
+- **Flag:** the rail shows 03 MASKS only in dev or with `localStorage foxbox-masks = 1`. Packaged builds keep 01–07 until it ships (`state/ui.ts`).
+- **Options:** read off the recipe (choices, numbers, colours, switches), so S1's recipe changes show up on their own. S1 is asked to export `CHOICES`.
+- **Checked:** web mock at 1280×800 and 1512×982 (the core loop, taken-name hint, WEAR sets `recipe:<id>`), 2 unit tests, and a .test smoke with a cloned 1.5.1 app plus the new renderer: PASS 10/10 in 41 s.
+- **Not checked:** LIVE try-on (no camera in the tests, by the TCC rule).
+- **Waiting on:** the user's Claude Design for MASKS, which restyles it.
+- **Kept test app (b31deab):** 5e453c7's package (same engine) with this branch's main, preload and renderer swapped in, the asar hash fixed, ad-hoc signed, stock bundle id. It's in S4's scratchpad (`testapp-151-masks/`); the PM sets its .test id and home. Made with `swap-app.sh`. The full build waits for S2's integration (then the SAMPLE LAYERS smoke, and REVEAL in the export smoke).
+- **Also in:** SAMPLE LAYERS (M3.9) under GENRE FLIP's KIT; the FOXBOX_MASKS=1 flag; recipe v3 (glow.mode, accent, and the rest).
+
+## 1.5.0 is published (2026-09-29)
+
+- **Release:** v1.5.0 on GitHub, marked Latest. The snapshot is c4f3c49, history-free, made from ff85c53, whose app matches the RC built at 4c395b0. The feed (releases/latest/download/latest-mac.json) resolves to 1.5.0. Electron and engine-runtime are reused from v1.2.1, so the update is about 23 MB.
+- **Checks:** unit 560 pass; e2e 6 pass, with the stale Studio RECORD test skipped. The isolated RC smoke passed all 12 checks: boot, STUDIO render, VISUALS output (display kept awake, live strip), and REMIX BUILD/ROLL/rate/play/MP3. LOW-POLY and DEPTH GLITCH were checked on the dev build's fake camera.
+- **Found by the smoke and fixed (4c395b0):** REMIX BUILD never split a new track's stems.
+- **1.5.1 queue:**
+  - REMIX ALL; the TEAROUT card; TOP layers and bass macros (S2's M1.14);
+  - LS8 and LS10; LS11 (the VISUALS camera base needs PrivacyHelp when access is denied, with S1);
+  - the RECORD e2e rewrite on VISUALS;
+  - S5's pass-3 P2s (R16–R21);
+  - from the smoke: take 1 reads EDITED after a ROLL, an empty second SYNTH BASS lane, the export named "<track> VIP VIP";
+  - the MASKS rail item (renumbering the rail, with S1's page);
+  - Developer ID signing (the PM's option; ad-hoc cdhash changes drop camera grants).
 
 ## 1.5 handoff (read first)
 

@@ -1,7 +1,7 @@
 // Sandboxed preload (contextIsolation + sandbox): only `electron`'s renderer modules are available.
 // Everything the renderer may do natively goes through this narrow, typed bridge. The renderer never
 // sees the engine's port or token: requests are proxied by main, audio streams via vbx://audio/<id>.
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import {
   audioUrlFor,
   IPC,
@@ -18,6 +18,7 @@ import {
   type MenuCommand,
   type MicAccess,
   type SetupBridge,
+  type SamplePackAddResult,
   type SetupCompleteResult,
   type SetupInfo,
   type StartDragOptions,
@@ -100,6 +101,11 @@ const bridge: FvwksBridge = {
   saveClip: (name: string, data: ArrayBuffer) => ipcRenderer.invoke(IPC.saveClip, name, data) as Promise<string>,
   diskFree: () => ipcRenderer.invoke(IPC.diskFree) as Promise<number | null>,
   chooseFolder: (options) => ipcRenderer.invoke(IPC.chooseFolder, options ?? {}) as Promise<string | null>,
+  samplePacks: {
+    addFromDialog: () => ipcRenderer.invoke(IPC.samplePackAdd) as Promise<SamplePackAddResult | null>,
+    // The dropped folder's path goes straight to main (the page never sees it).
+    addFromDrop: (file: File) => ipcRenderer.invoke(IPC.samplePackDrop, webUtils.getPathForFile(file)) as Promise<SamplePackAddResult | null>,
+  },
   askMicAccess: () => ipcRenderer.invoke(IPC.askMic) as Promise<boolean>,
   askCameraAccess: () => ipcRenderer.invoke(IPC.askCamera) as Promise<boolean>,
   micAccessStatus: () => ipcRenderer.invoke(IPC.micStatus) as Promise<MicAccess>,

@@ -23,6 +23,16 @@ pre-master, so only ratios and shapes are graded, and drums against source_drums
   drums.wav + source_drums.wav   drums_lu: the kit vs the original's drum stem over the same bars
   drums.wav + mid/sub.wav        snare_top_pct and snare_clear again, from the kit's peaks and the bass buses' onsets;
                                  snare_duck_db: the bass buses in the 60 ms after each snare / clap vs their level
+Harmony (docs/REMIX_HARMONY.md 6.6), from the stems and grid.json's key, tuning_cents, chords [[t_s, root pc,
+quality]], notes [[t_s, dur_s, midi, degree, tension]] and kicks_s (clip seconds; a missing field skips its check),
+over the drop: drop_s to drop_end_s (when given):
+  tuning_dev_c    the sub's cents off the equal-tempered grid moved by the source's tuning (median over half-bars):
+                  sub.wav is a sine on the plan's roots and the voices share its tuning. (6.1's circular mean reads a
+                  distorted mid 2-4 c flat: a harmonic tone's partials 3, 5, 7 aren't on the grid.)
+  sub_root_pct    half-bars whose sub (sub.wav's held note: the median of its periods) is the chord's root +-50 c
+  chord_tone_pct  the notes' time on their chord's tones (tension slots left out; a power chord takes the key's 3rd)
+  kick_beats      kicks 0.3-1.0 st from the sub (drums.wav vs sub.wav, 80-140 ms after the kick: 1-3 Hz beating)
+                  still within 30 dB of their peak at 150 ms: what the kit's tail rule is there to stop
 
 Plan v2 §8, where stems exist the checks read the right bus: onsets_bar and first_hit_db the bass (sub + mid);
 predrop_dbfs, predrop_gap_beats and beat_pauses_16 the non-vocal stems (a vocal cue may sit in the gap); whine_* the
@@ -100,6 +110,11 @@ TARGETS: dict[str, tuple[float, float, float]] = {
     "snare_duck_db": (-60.0, -6.0, 2.0),  # stems, M2.4: the bass buses in the 60 ms after each snare / clap
     "sub_purity_db": (-120.0, -25.0, 5.0),  # stems: the sub bus's harmonics from 2.5 f0 up vs its fundamental
     "drums_lu": (-1.0, 1.0, 1.0),  # stems: the kit vs the original drum stem, integrated over the drop ✅ (review)
+    # REMIX_HARMONY 6.6 (grid.json's harmony + the stems)
+    "tuning_dev_c": (-5.0, 5.0, 3.0),
+    "sub_root_pct": (1.0, 1.0, 0.05),
+    "chord_tone_pct": (0.85, 1.0, 0.05),
+    "kick_beats": (0.0, 0.0, 0.0),
 }
 # graded on the stems only: from a mixdown they read the drums as much as the bass (on the corpus originals the silence
 # share is 0 and the whine tracks the kick), so there they're informational
@@ -250,30 +265,37 @@ def measure(x: np.ndarray, sr: int, *, bars: int, build_bars: int, bpm: float | 
     out.update(low_checks((stems["sub"] if stems and "sub" in stems else x).mean(axis=0), sr, t_drop))
     if stems:
         out.update(stem_checks(stems, sr, t_drop, bpm, (known or {}).get("snares_s")), _stems=1.0)
+        out.update(harmony_checks(stems, sr, t_drop, bpm, known or {}))
     out.update(mid_checks((stems["mid"] if stems and "mid" in stems else x).mean(axis=0), sr, bpm, t_drop))
     out["_take"] = take_features(x, sr, bpm, t_drop)
     return out
 
 
+BUZZ_GAP_S = 0.065  # two periods of the lowest riddim note (C1, 61 ms) and the comb's few % of wobble: S1's R1 buzz
+
+
 def _clicks(e: np.ndarray, sr: int) -> int:
     """Clicks in `e` (power above 4 kHz): events packing their energy into ~0.3 ms (25x their 10 ms surround; 0 on the
     reference, MP3 smears a click to ~30x) over -45 dB (audible in a loud mix), not counting a buzzy bass's own edges.
-    Buzz is local regularity: three or more events in a row with gaps under 30 ms that match (+-12 %, or 2x where an
-    edge dipped under) are a note's pitch period, whatever the note (a line changes pitch), and a lone event 1-3 local
-    periods (+-5 %) from such a train is its too. The rest, merged within 30 ms, are clicks. (fvwks_synth.growls.clicks
-    is the same rule.)"""
+    Buzz is local regularity: three or more events in a row with gaps under BUZZ_GAP_S that match (+-12 %, or 2x where
+    an edge dipped under) are a note's pitch period, whatever the note (a line changes pitch), and a lone event 1-6
+    local periods (+-5 %) from such a train is its too, as is an isolated pair under 30 ms apart within 1 dB (S1: a
+    masked yoi saw's edges). The rest, merged within 30 ms, are clicks. (fvwks_synth.growls.
+    clicks is the same rule.) BUZZ_GAP_S is 65 ms: R1's 0.5-ratio FM repeats every two periods, 61 ms on C1.
+    Blind spot: a click at every 1/32 retrigger (50-54 ms at 140-150 BPM) is as regular as that buzz."""
     short = ndimage.uniform_filter1d(e, max(3, int(0.0003 * sr)), mode="nearest")
     wide = ndimage.uniform_filter1d(e, int(0.010 * sr), mode="nearest")
     hits = np.flatnonzero((short > 25 * wide) & (short > 10 ** (-45 / 10)))
     if not len(hits):
         return 0
-    ev = hits[np.concatenate([[True], np.diff(hits) > int(0.005 * sr)])] / sr
+    first = hits[np.concatenate([[True], np.diff(hits) > int(0.005 * sr)])]
+    ev, db = first / sr, 10 * np.log10(short[first] + 1e-30)
     buzz = np.zeros(len(ev), bool)
     period = np.full(len(ev), np.nan)
     gaps = np.diff(ev)
     for i in range(1, len(ev) - 1):
         a, b = gaps[i - 1], gaps[i]
-        if a < 0.030 and b < 0.030:
+        if a < BUZZ_GAP_S and b < BUZZ_GAP_S:
             r = max(a, b) / min(a, b)
             if round(r) <= 2 and abs(r - round(r)) <= 0.12 * round(r):
                 buzz[i - 1:i + 2] = True
@@ -282,8 +304,13 @@ def _clicks(e: np.ndarray, sr: int) -> int:
     for i in np.flatnonzero(~buzz) if len(trains) else []:
         j = trains[np.argmin(np.abs(ev[trains] - ev[i]))]
         k = abs(ev[i] - ev[j]) / period[j]
-        if round(k) <= 3 and abs(k - round(k)) <= 0.05:
+        if round(k) <= 6 and abs(k - round(k)) <= 0.05:
             buzz[i] = True
+    for i in np.flatnonzero(~buzz)[:-1]:  # an isolated pair under 30 ms apart, level within 1 dB: a buzz's two edges
+        j = i + 1  # (S1: a masked yoi saw's), not two clicks
+        if (not buzz[j] and ev[j] - ev[i] < 0.030 and abs(db[i] - db[j]) <= 1.0
+                and (i == 0 or ev[i] - ev[i - 1] >= 0.030) and (j + 1 == len(ev) or ev[j + 1] - ev[j] >= 0.030)):
+            buzz[i] = buzz[j] = True
     lone = ev[~buzz]
     return int(len(lone) and 1 + np.sum(np.diff(lone) >= 0.030))
 
@@ -550,6 +577,105 @@ def stem_checks(stems: dict[str, np.ndarray], sr: int, t_drop: float, bpm: float
     return out
 
 
+CHORD_TONES = {"m": (0, 3, 7), "M": (0, 4, 7), "5": (0, 7), "dim": (0, 3, 6), "aug": (0, 4, 8), "sus2": (0, 2, 7),
+               "sus4": (0, 5, 7), "7": (0, 4, 7, 10), "m7": (0, 3, 7, 10), "maj7": (0, 4, 7, 11)}
+
+
+def _key_scale(key: str | None) -> set[int] | None:
+    m = re.fullmatch(r"([A-G])([#b]?)\s*(m|min|minor)?", (key or "").strip())
+    if not m:
+        return None
+    tonic = ({"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[m.group(1)] + {"#": 1, "b": -1}.get(m.group(2), 0)) % 12
+    return {(tonic + i) % 12 for i in ((0, 2, 3, 5, 7, 8, 10) if m.group(3) else (0, 2, 4, 5, 7, 9, 11))}
+
+
+def held_hz(seg: np.ndarray, sr: int, lo: float = 25.0, hi: float = 120.0) -> float:
+    """The note a sub holds: the median of its periods (rising zero crossings, interpolated) in lo-hi Hz, so a glide
+    or a pickup is outvoted by the held note (a spectrum peak over a D -> E slide read the D# between). 0 when silent."""
+    i = np.flatnonzero((seg[:-1] < 0) & (seg[1:] >= 0))
+    if len(i) < 4:
+        return 0.0
+    per = np.diff(i + seg[i] / (seg[i] - seg[i + 1]))
+    amp = np.maximum.reduceat(np.abs(seg), i)[:-1]  # each period's peak: a pause's noise crossings don't vote
+    per = per[(per > sr / hi) & (per < sr / lo) & (amp >= 0.1 * np.abs(seg).max())]
+    return float(sr / np.median(per)) if len(per) else 0.0
+
+
+def _zc_hz(y: np.ndarray, sr: int) -> float:
+    """A low sine's frequency from its rising zero crossings (interpolated); 0 with fewer than two periods."""
+    i = np.flatnonzero((y[:-1] < 0) & (y[1:] >= 0))
+    if len(i) < 3:
+        return 0.0
+    zc = i + y[i] / (y[i] - y[i + 1])
+    return sr / float(np.mean(np.diff(zc)))
+
+
+def harmony_checks(stems: dict[str, np.ndarray], sr: int, t_drop: float, bpm: float, known: dict) -> dict[str, float]:
+    """REMIX_HARMONY 6.6 over the drop (see the module doc): the render's own plan (grid.json) against its buses."""
+    out: dict[str, float] = {}
+    theta = float(known.get("tuning_cents") or 0.0)
+    t_end = float(known.get("drop_end_s") or np.inf)  # the drop only (S2's 8-bar drops: bars 9-16 are the source's verse)
+    stems = {k: v[:, : int(min(v.shape[-1], t_end * sr))] for k, v in stems.items()}
+    i0 = int(max(0.0, t_drop) * sr)
+    chords = sorted(known.get("chords") or [])
+    chord_at = lambda t: next((c for c in reversed(chords) if c[0] <= t + 1e-6), None)  # noqa: E731
+    if "sub" in stems and (chords or "tuning_cents" in known):
+        s = stems["sub"].mean(axis=0)
+        half = 120.0 / bpm
+        live = np.max(np.abs(s[i0:])) if len(s) > i0 else 0.0
+        ok, cents = [], []
+        for a in np.arange(t_drop, len(s) / sr - half + 1e-9, half):
+            seg = s[int(a * sr):int((a + half) * sr)]
+            if np.max(np.abs(seg)) < 0.05 * live:
+                continue
+            hz = held_hz(seg, sr)
+            if not hz:
+                continue
+            note = 69 + 12 * np.log2(hz / 440.0) - theta / 100
+            cents.append(100 * ((note + 0.5) % 1 - 0.5))
+            if (c := chord_at(a + half / 2)) is not None:
+                ok.append(abs((note - int(c[1]) + 6) % 12 - 6) <= 0.5)
+        if ok:
+            out["sub_root_pct"] = float(np.mean(ok))
+        if cents and "tuning_cents" in known:
+            out["tuning_dev_c"] = float(np.median(cents))
+    notes = [n for n in known.get("notes") or [] if t_drop - 1e-6 <= n[0] < t_end and not (len(n) > 4 and n[4])]
+    if notes and chords:
+        scale = _key_scale(known.get("key"))
+        on = total = 0.0
+        for t, dur, midi, *_ in notes:
+            c = chord_at(t)
+            if c is None:
+                continue
+            root, quality = int(c[1]), str(c[2]) if len(c) > 2 else "5"
+            tones = set(CHORD_TONES.get(quality, (0, 7)))
+            if quality == "5" and scale:  # a power chord: the key's own 3rd on that root is a chord tone
+                tones |= {k for k in (3, 4) if (root + k) % 12 in scale}
+            total += dur
+            on += dur * ((round(midi) - root) % 12 in tones)
+        if total > 0:
+            out["chord_tone_pct"] = on / total
+    kicks = [k for k in known.get("kicks_s") or [] if t_drop <= k < t_end]
+    if kicks and "drums" in stems and "sub" in stems:
+        low = _band(stems["drums"].mean(axis=0), sr, None, 100.0)
+        sub = _band(stems["sub"].mean(axis=0), sr, None, 100.0)
+        sub_live = np.max(np.abs(sub[i0:])) if len(sub) > i0 else 0.0
+        beats = 0
+        for j, k in enumerate(kicks):
+            if j + 1 < len(kicks) and kicks[j + 1] - k < 0.2:  # the next kick lands on its tail
+                continue
+            a = int(k * sr)
+            w = slice(a + int(0.08 * sr), a + int(0.14 * sr))
+            if a + int(0.17 * sr) > len(low) or np.max(np.abs(sub[w])) < 0.05 * sub_live:
+                continue
+            fk, fs = _zc_hz(low[w], sr), _zc_hz(sub[w], sr)
+            peak = np.max(np.abs(low[a:a + int(0.1 * sr)])) + EPS
+            ringing = np.max(np.abs(low[a + int(0.15 * sr):a + int(0.17 * sr)])) > peak * 10 ** (-30 / 20)
+            beats += bool(fk and fs and 0.3 <= abs(12 * np.log2(fk / fs)) <= 1.0 and ringing)
+        out["kick_beats"] = float(beats)
+    return out
+
+
 def load_stems(clip: Path, sr: int) -> dict[str, np.ndarray]:
     """<clip>.stems/{sub,mid,drums,source_drums}.wav, where present, at the clip's rate."""
     out = {}
@@ -678,6 +804,15 @@ def selftest() -> None:
     assert grade("bass_in_db", late["bass_in_db"]) == "FAIL" and late["bass_lag_bars"] == 1.0, late
     assert grade("drop_attack_db", faded["drop_attack_db"]) != "PASS", faded
     assert grade("clicks_min", clicky["clicks_min"]) == "FAIL", clicky
+    buzz_e = np.zeros(sr * 2)  # HF power: an edge every 2 periods of C#1 (57.8 ms, wobbling +-5 %), then one click
+    at, k = 0.1, 0
+    while at < 1.5:
+        buzz_e[int(at * sr)] = 1.0
+        at += 2 / 34.65 * (1 + 0.05 * np.sin(k))
+        k += 1
+    assert _clicks(buzz_e, sr) == 0, "a low R1's two-period buzz read as clicks"
+    buzz_e[int(1.8 * sr)] = 1.0
+    assert _clicks(buzz_e, sr) == 1
     gap, bleed = ref.copy(), ref.copy()
     gap[:, int(15.5 * beat * sr):int(16 * beat * sr)] = 0  # silence into the drop (the kick before it decays first)
     bleed[:, int(15 * beat * sr):int(16 * beat * sr)] += 0.3 * np.sin(2 * np.pi * 55 * t[int(15 * beat * sr):int(16 * beat * sr)])
@@ -745,8 +880,38 @@ def selftest() -> None:
     grown = bible_checks(bed, sr2, bpm2, 0.0, 4 * bar2, 4, None, quiet=ours5, source_quiet=src35)
     assert grade("gap_added_beats", kept["gap_added_beats"]) == "PASS" and grade("predrop_gap_beats", kept["predrop_gap_beats"]) == "FAIL", kept
     assert grade("gap_added_beats", grown["gap_added_beats"]) == "FAIL", grown
+    # REMIX_HARMONY 6.6: a sub at 432 Hz on its roots vs one on A=440 and off its root; notes off the chord; a kick
+    # ringing 0.5 st from the sub vs one that's 30 dB down by 150 ms
+    fs_ = 46.25 * 2 ** (-31.7 / 1200)  # F#1 at 432
+    harm = {"tuning_cents": -31.7, "key": "F#m", "chords": [[0.0, 6, "m"], [2 * bar2, 2, "M"]]}
+    sub_ok = np.where(tt < 2 * bar2, np.sin(2 * np.pi * fs_ * tt), np.sin(2 * np.pi * fs_ * 2 ** (-4 / 12) * tt))
+    half = int(120 / bpm2 * sr2)  # bar 3's first half: D for 90 %, then a slide up to E (a kept 808's)
+    slide = 2 * np.pi * np.cumsum(np.where(np.arange(half) < 0.9 * half, 36.71, 36.71 * 2 ** (2 / 12 * np.clip((np.arange(half) - 0.9 * half) / (0.1 * half), 0, 1)))) / sr2
+    a2 = int(2 * bar2 * sr2)
+    sub_ok[a2:a2 + half] = np.sin(slide) * 1.0
+    good = harmony_checks({"sub": np.stack([sub_ok] * 2)}, sr2, 0, bpm2, {**harm, "tuning_cents": 0.0,
+                          "chords": [[0.0, 6, "m"], [2 * bar2, 2, "M"]]})
+    assert good["sub_root_pct"] == 1.0, good  # the slide's half-bar reads its held D
+    good = harmony_checks({"sub": np.stack([np.where(tt < 2 * bar2, np.sin(2 * np.pi * fs_ * tt), np.sin(2 * np.pi * fs_ * 2 ** (-4 / 12) * tt))] * 2)},
+                          sr2, 0, bpm2, harm)
+    bad = harmony_checks({"sub": np.stack([np.sin(2 * np.pi * 46.25 * tt)] * 2)}, sr2, 0, bpm2, harm)
+    assert abs(good["tuning_dev_c"]) < 1.0 and grade("sub_root_pct", good["sub_root_pct"]) == "PASS", good
+    assert grade("tuning_dev_c", bad["tuning_dev_c"]) == "FAIL" and grade("sub_root_pct", bad["sub_root_pct"]) == "FAIL", bad
+    notes_in = [[b * 0.2, 0.2, m, None, False] for b, m in enumerate([42, 45, 49, 42, 45, 49])]  # F#, A, C#
+    notes_out = notes_in + [[1.4, 0.4, 44, None, False], [1.8, 0.4, 47, None, False], [2.2, 1.0, 43, None, True]]
+    assert harmony_checks({}, sr2, 0, bpm2, {**harm, "notes": notes_in})["chord_tone_pct"] == 1.0
+    assert grade("chord_tone_pct", harmony_checks({}, sr2, 0, bpm2, {**harm, "notes": notes_out})["chord_tone_pct"]) == "FAIL"
+    k_t = tt[: int(0.3 * sr2)]
+    kick = lambda tail: np.sin(2 * np.pi * np.cumsum(49.0 + 100 * np.exp(-k_t / 0.025)) / sr2) * np.exp(-k_t / 0.09) * tail  # noqa: E731
+    gate = np.clip((0.15 - k_t) / 0.05, 10 ** (-40 / 20), 1)
+    for tail, want in ((1.0, 1.0), (gate, 0.0)):
+        drums = np.zeros_like(tt)
+        drums[: len(k_t)] = kick(tail)
+        kb = harmony_checks({"drums": np.stack([drums] * 2), "sub": np.stack([np.sin(2 * np.pi * 47.6 * tt)] * 2)}, sr2, 0,
+                            bpm2, {"kicks_s": [0.0]})
+        assert kb["kick_beats"] == want, (kb, want)
     print("selftest ok: a bar-late bass, a faded-in drop, no pre-drop gap, a grown gap, clicks, a dirty sub, a spiky mid bus, loud drums, a whine, a "
-          "stateless or gapless tearout, a motif-less riddim, an unducked snare (a held sub no alibi), a drone or a 1/32 mush of onsets and a repeated take are all flagged")
+          "stateless or gapless tearout, a motif-less riddim, an unducked snare (a held sub no alibi), a drone or a 1/32 mush of onsets and a repeated take, a sub off its tuning or its root, notes off their chords and a beating kick are all flagged")
 
 
 if __name__ == "__main__":

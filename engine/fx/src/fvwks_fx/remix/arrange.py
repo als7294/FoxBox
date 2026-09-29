@@ -1,8 +1,9 @@
 """1.6 REMIX: BUILD, a recipe to a draft arrangement. It only lays sections and clips on the remix's bar grid (bar 1 =
 beat 0); prepare.py renders the clips.
 
-build(remix, songs, match=None, vip_drop=False, drum_hits=None) fills remix.bpm / key / sections / lanes from the
-source songs (`songs`: slot → Song with its analysis and structure):
+build(remix, songs, match=None, vip_drop=False, drum_hits=None, own_gaps=None) fills remix.bpm / key / sections / lanes
+from the source songs (`songs`: slot → Song with its analysis and structure; `own_gaps`: the drop bars whose source
+pre-drop is already quiet, pipeline.own_gaps):
   vip     A's sections as they are. In every drop, A's bass stem gives way to its BASS DNA groove on
           remix.bass_patch_id (the synth_bass lane); drums, vocals and other stay. `vip_drop` plays the last drop
           again as a VIP drop.
@@ -35,14 +36,14 @@ from fvwks_contracts.models import (
 )
 
 from .flip import FLIP_STYLES, Hit, reprogram
-from .styles import Choose, record, resolve, take_style
+from .styles import Choose, record, resolve, resolve_one, take_style
 
 FADE_BEATS = 0.25  # the outgoing side where the source changes (A ↔ B)
 CUT_BEATS = 1 / 64  # the incoming side: only a declick, so the new part's first hit (a drop's kick) lands whole
 BASSLESS = {"intro", "outro", "breakdown"}  # without the section's bass fields: where a flip plays no groove
 PATCH_FOR = {"deep": "foxbox.reese", "trap": "foxbox.808", "dubstep": "foxbox.wobble", "other": "foxbox.growl"}
 # flip styles whose bass is the engine's own (prepare.ENGINE_PATCHES), not a synth patch
-FLIP_ENGINE = {"trap_hybrid": "resample:trap_hybrid", "riddim": "riddim:wub"}
+FLIP_ENGINE = {"trap_hybrid": "resample:trap_hybrid", "riddim": "riddim:wub", "tearout": "resample:tearout"}  # C18
 FIRST_BEATS = 2.0  # the drop's first bass hit, darker and longer (a synthesized 808 at the root)
 SWITCH_STYLES = {"trap_hybrid"}  # styles whose last two beats before a drop are a switch-up (a stutter, a dive)
 
@@ -75,7 +76,8 @@ def _sections(song: Song, slot: str) -> list[RemixSection]:
 
 
 def build(remix: Remix, songs: dict[str, Song], *, match=None, vip_drop: bool = False,
-          drum_hits: list[Hit] | None = None, choose: Choose | None = None) -> Remix:
+          drum_hits: list[Hit] | None = None, choose: Choose | None = None, own_gaps: set[int] | None = None,
+          vocal_phrases: list | None = None) -> Remix:
     """The recipe's draft arrangement (see the module doc); `match` is the MashMatch for a mashup. The take's variation
     axes are resolved first (styles.resolve: `choose` is the server's, else a kept take replays and a new seed draws)
     and recorded in remix.takes for remix.seed."""
@@ -126,6 +128,16 @@ def build(remix: Remix, songs: dict[str, Song], *, match=None, vip_drop: bool = 
         # a flip stays at the source's tempo (the user's rule) unless the style is truly elsewhere (DnB off a 145)
         bpm = bpm if abs(style_bpm / bpm - 1) <= 0.15 else style_bpm
 
+    _section_chords(sections, songs, match.shift_st if remix.recipe == "mashup" and match is not None else 0)
+    plan = None
+    if remix.recipe in ("vip", "flip"):  # the drops' harmonic plan (REMIX_HARMONY 1.5 / 5.3 / 6.5), a take choice
+        plan = _drop_plans(sections, remix, style, key, choose)
+        choices.append(plan)
+    from .plan import family
+
+    # the source's 808 stays under the engine only where the plan IS the source's harmony (its loop, as is): anywhere
+    # else it would play other roots than the plan's, and the engine voice carries the plan's roots itself (2.1)
+    keep_source_808 = plan is None or (plan.option == "source" and family(style) in ("trap_hybrid", "halftime"))
     lanes: dict[str, RemixLane] = {}
 
     def patch(s: RemixSection) -> str:
@@ -157,7 +169,7 @@ def build(remix: Remix, songs: dict[str, Song], *, match=None, vip_drop: bool = 
             if plays:
                 clip("synth_bass", "A", GrooveClipSrc(slot="A", start_bar=s.from_start_bar, bars=s.bars,
                                                       patch_id=patch(s)), s)
-                if _keeps_808(patch(s)):
+                if _keeps_808(patch(s)) and keep_source_808:
                     clip("bass", "A", stem("bass"), s)
             for name in ("vocals", "other"):
                 clip(name, "A", stem(name), s)
@@ -167,7 +179,7 @@ def build(remix: Remix, songs: dict[str, Song], *, match=None, vip_drop: bool = 
             clip(name, slot, stem(name), s, shift_st=0.0 if name == "drums" else shift, **fades)  # drums keep their pitch
         if remix.recipe == "vip" and s.kind == "drop":
             clip("synth_bass", "A", GrooveClipSrc(slot="A", start_bar=s.from_start_bar, bars=s.bars, patch_id=patch(s)), s)
-            if _keeps_808(patch(s)):
+            if _keeps_808(patch(s)) and keep_source_808:
                 clip("bass", slot, stem("bass"), s, **fades)
         else:
             clip("bass", slot, stem("bass"), s, shift_st=shift, **fades)
@@ -180,13 +192,23 @@ def build(remix: Remix, songs: dict[str, Song], *, match=None, vip_drop: bool = 
         else:
             clip("vocals", slot, stem("vocals"), s, shift_st=shift, **fades)
 
+    _top_layers(sections, lanes, remix.top_layers)
+    _hooks(sections, lanes, ch.get("top.hook", "none"))
     if remix.recipe == "flip" and remix.flip.style_id in SWITCH_STYLES:
         _switch_ups(sections, lanes)
     _first_hits(sections, lanes)
     _beat_pauses(sections, lanes.values(), ch.get("drop.pause", "bar8"), float(ch.get("drop.pause_len", "1")))
-    _pre_drop_gaps(sections, lanes.values(), float(ch.get("drop.gap", "1")))
+    if not (remix.recipe == "flip" and remix.flip.style_id in SWITCH_STYLES):  # the switch-up replaces the gap (I2)
+        own = (own_gaps or set()) if remix.recipe == "vip" else set()  # a flip's kit plays through the source's quiet
+        _pre_drop_gaps(sections, lanes.values(), float(ch.get("drop.gap", "1")), own)
+    _impacts(sections, lanes, ch.get("drop.gap_fill", "silence"), float(ch.get("drop.gap", "1")))
+    if vocal_phrases and remix.recipe in ("vip", "flip"):
+        src_drop = next(((x.start_bar - 1) * 4.0 for x in a.structure.sections if x.kind == "drop"), None)
+        _vocal_arrangement(sections, lanes, vocal_phrases, ch.get("vocals.arrangement", "keep"), src_drop,
+                           float(ch.get("drop.gap", "1")), int(remix.seed or 0))
     _declick(lanes.values())
-    return remix.model_copy(update={"bpm": bpm, "key": key, "sections": sections, "lanes": list(lanes.values()),
+    return remix.model_copy(update={"bpm": bpm, "key": key, "sections": sections,
+                                    "lanes": [lane for lane in lanes.values() if lane.clips],  # no empty rows (a cut-away dive)
                                     "takes": record(remix, style, choices)})
 
 
@@ -249,6 +271,109 @@ def _beat_pauses(sections, lanes, where: str, beats: float) -> None:
         _cut_window(lanes, end - beats, end)
 
 
+def _drop_plans(sections, remix: Remix, style: str, key: str | None, choose: Choose | None):
+    """Every drop's chords become the take's harmonic plan (plan.drop_plan): the source drop's own chords,
+    style-transformed, or a template (the harmony.progression choice), on the source drop's bar-1 root (1.3 rule 2).
+    Returns the TakeChoice."""
+    from ..music import _NAMES, parse_key
+    from .plan import drop_plan, options
+
+    drops = [s for k, s in enumerate(sections) if k and s.kind == "drop"]
+    k = parse_key(key)
+    skeleton = drops[0].chords if drops else []
+    pick = resolve_one(remix, "harmony.progression", options(style, skeleton), choose)
+    for s in drops:
+        first = next((c for c in s.chords if c.root is not None), None)
+        if first is None:
+            tonic, minor = k.root_pc, k.minor
+        else:  # its own quality decides; a power / sus chord or no third defers to the key
+            tonic = _NAMES.index(first.root)
+            minor = first.quality in ("min", "m7") or (first.quality not in ("maj", "7") and k.minor)
+        s.chords = drop_plan(style, pick.option, s.bars, tonic, minor, s.chords)
+    return pick
+
+
+def _section_chords(sections, songs: dict, shift_st: float) -> None:
+    """v0.14: each section's chords, bar by bar: its source song's chords under it (a mashup's B moved by its key
+    shift). A source without chords (no stems yet) leaves them empty: prepare then reads the stems itself."""
+    from ..music import _NAMES
+
+    for s in sections:
+        song = songs.get(s.from_slot or "A")
+        src = list(getattr(song.structure, "chords", []) or []) if song is not None and song.structure is not None else []
+        if not src or s.from_start_bar is None:
+            continue
+        shift = int(round(shift_st)) if s.from_slot == "B" else 0
+        out = []
+        for c in src[s.from_start_bar - 1 : s.from_start_bar - 1 + s.bars]:
+            if shift and c.root is not None:
+                c = c.model_copy(update={"root": _NAMES[(_NAMES.index(c.root) + shift) % 12]})
+            out.append(c)
+        s.chords = out
+
+
+def _hooks(sections, lanes: dict, hook: str) -> None:
+    """The drop's hook (REMIX_HARMONY 3, the take's top.hook): a top:hook motif or riddim's top:squeak across every
+    drop, on the TOP lane (prepare renders it on the plan's chords)."""
+    if hook not in ("motif", "squeak"):
+        return
+    lane = lanes.setdefault("top-hook", RemixLane(id="top-hook", role="top", slot=None))
+    for k, s in enumerate(sections):
+        if k and s.kind == "drop":
+            lane.clips.append(RemixClip(id=f"top-hook-{len(lane.clips) + 1}", at_beat=(s.start_bar - 1) * 4.0,
+                                        beats=s.bars * 4.0, src=GrooveClipSrc(slot=s.from_slot or "A", start_bar=s.from_start_bar or 1,
+                                                                              bars=s.bars, patch_id="top:" + ("hook" if hook == "motif" else "squeak"))))
+
+
+def _top_layers(sections, lanes: dict, layers: list[str]) -> None:
+    """The ear candy (v0.11.12 Remix.top_layers) on a TOP lane, in key (prepare's _top): the arp across every drop, the
+    powerup into each drop (the 2 beats before its gap), a coin on the last beat of every 4th drop bar (the fills)."""
+    if not layers:
+        return
+    lane = RemixLane(id="top-x", role="top", slot=None)
+
+    def add(kind: str, at: float, beats: float, s: RemixSection) -> None:
+        lane.clips.append(RemixClip(id=f"top-{kind}-{len(lane.clips) + 1}", at_beat=at, beats=beats,
+                                    src=GrooveClipSrc(slot=s.from_slot or "A", start_bar=s.from_start_bar or 1,
+                                                      bars=max(1, int(np.ceil(beats / 4))), patch_id=f"top:{kind}")))
+
+    for k, s in enumerate(sections):
+        if k == 0 or s.kind != "drop":
+            continue
+        d = (s.start_bar - 1) * 4.0
+        if "arp" in layers:
+            add("arp", d, s.bars * 4.0, s)
+        if "powerup" in layers and d >= 3:
+            add("powerup", d - 3.0, 2.0, s)
+        if "coin" in layers:
+            for b in range(4, s.bars + 1, 4):
+                add("coin", d + 4.0 * b - 1.0, 1.0, s)
+    if lane.clips:
+        lanes[lane.id] = lane
+
+
+def _impacts(sections, lanes: dict, fill: str, gap: float) -> None:
+    """The drop's impact stack (Sound Bible 1.7) as clips on the kit-fx lane (M1.14, so the app plays it too): an
+    fx.impact bar from every drop's downbeat, and with the take's gap fill "reverse" an fx.reverse swell rising into it
+    (<= 1/4 beat, AX-02: the gap's first half stays silent)."""
+    lane = RemixLane(id="kit-fx", role="kit", slot=None)
+    for k, s in enumerate(sections):
+        if k == 0 or s.kind != "drop":
+            continue
+        d = (s.start_bar - 1) * 4.0
+        lane.clips.append(RemixClip(id=f"kit-fx-{len(lane.clips) + 1}", at_beat=d, beats=4.0,
+                                    src=KitClipSrc(kit_id="foxbox", pattern_id="fx.impact")))
+        if s.bars >= 12:  # REMIX_HARMONY 5.2: bar 9 is a second first hit, 1 dB under bar 1's
+            lane.clips.append(RemixClip(id=f"kit-fx-{len(lane.clips) + 1}", at_beat=d + 32.0, beats=4.0, gain_db=-1.0,
+                                        src=KitClipSrc(kit_id="foxbox", pattern_id="fx.impact")))
+        r = min(0.25, gap - 0.5)
+        if fill == "reverse" and r > 0.05:
+            lane.clips.append(RemixClip(id=f"kit-fx-{len(lane.clips) + 1}", at_beat=d - r, beats=r,
+                                        src=KitClipSrc(kit_id="foxbox", pattern_id="fx.reverse")))
+    if lane.clips:
+        lanes[lane.id] = lane
+
+
 def _cut_window(lanes, t0: float, t1: float, vocals: bool = False) -> None:
     """[t0, t1) cut out of every clip but the vocals' (theirs too with `vocals`), each clip that spans it split in two
     around it."""
@@ -284,14 +409,86 @@ def _part(c: RemixClip, a: float, b: float, tag: str) -> RemixClip:
                                 "fade_out_beats": CUT_BEATS if tag == "a" else c.fade_out_beats})
 
 
-def _pre_drop_gaps(sections, lanes, gap: float) -> None:
+def _vocal_arrangement(sections, lanes: dict, phrases: list, mode: str, src_drop: float | None, gap: float,
+                       seed: int) -> None:
+    """The source vocals moved (the take's vocals.arrangement; the user's set3: "It should be able to move around
+    vocals too"). Every A vocals clip is split into its sung phrases (`phrases`: vocals.phrases, song beats), so the
+    editor drags phrases. Then "hook_move": the hook (the most repeated phrase of a beat or more, the occurrence nearest
+    before the source's first drop; the last 2 bars of it at most) ends on each drop's gap, over the build's own vocals;
+    "chops": each drop's own vocals out, half-beat chops of phrase starts answering into the snare (beat 2 - 1/2) on
+    its even bars, two chops alternating (call, response), chord tones of the plan there (REMIX_HARMONY 1.3.7: else
+    moved at most 2 st onto one), and the gap cue (1.3.5): a chop on the first drop chord ending on the downbeat."""
+    from ..harmony import from_contract
+    from .vocals import CHOP_BEATS
+
+    lane = lanes.get("vocals-A")
+    if lane is None:
+        return
+    split = []
+    for c in lane.clips:
+        if c.src.kind != "stem" or c.src.slot != "A":
+            split.append(c)
+            continue
+        sb, se = c.src.start_beat, c.src.start_beat + c.beats
+        for j, (p0, p1, *_) in enumerate(phrases):
+            a, b = max(p0, sb), min(p1, se)
+            if b - a > 1e-6:
+                split.append(_part(c, c.at_beat + a - sb, c.at_beat + b - sb, f"p{j}"))
+    lane.clips = split
+    drops = [s for k, s in enumerate(sections) if k and s.kind == "drop"]
+    if mode == "hook_move" and src_drop is not None:
+        long = [p for p in phrases if p[1] - p[0] >= 1.0]
+        top = max((p[3] for p in long), default=0)
+        pick = [p for p in long if p[3] == top]  # the hook's occurrences: the one nearest before the drop, else the first
+        hook = max((p for p in pick if p[1] <= src_drop), key=lambda p: p[1], default=pick[0] if pick else None)
+        for n, s in enumerate(drops if hook else []):
+            d = (s.start_bar - 1) * 4.0
+            ln = min(8.0, hook[1] - hook[0])
+            _cut_window([lane], d - gap - ln, d, vocals=True)
+            lane.clips.append(RemixClip(id=f"vocals-A-hook-{n + 1}", at_beat=d - gap - ln, beats=ln,
+                                        src=StemClipSrc(slot="A", stem="vocals", start_beat=hook[1] - ln)))
+    if mode != "chops":
+        return
+    cands = [(p[0], p[2]) for p in phrases if p[2] is not None and p[1] - p[0] >= CHOP_BEATS]
+    if not cands:
+        return
+    order = list(np.random.default_rng([seed, 1307]).permutation(len(cands)))
+    chops = RemixLane(id="vocals-chops", role="vocals", slot="A")
+
+    def place(at: float, chord, n: int) -> None:  # the n-th chop of its drop: two alternate, the exact tones first
+        tones = [] if chord is None else [(chord[0] + i) % 12 for i in (0, chord[1], 7)]
+        fit = []
+        for k in order:
+            p0, pc = cands[k]
+            move = min(((t - pc + 6) % 12 - 6 for t in tones), key=abs, default=0)
+            if abs(move) <= 2:
+                fit.append((abs(move) > 0, p0, move))
+        pool = sorted(fit, key=lambda f: f[0])[:2]
+        if pool:
+            _, p0, move = pool[n % len(pool)]
+            chops.clips.append(RemixClip(id=f"vocals-chops-{len(chops.clips) + 1}", at_beat=at, beats=CHOP_BEATS,
+                                         shift_st=float(move), src=StemClipSrc(slot="A", stem="vocals", start_beat=p0)))
+
+    for s in drops:
+        d = (s.start_bar - 1) * 4.0
+        _cut_window([lane], d, d + 4.0 * s.bars, vocals=True)
+        at = lambda bar, beat: from_contract(s.chords[bar], beat) if bar < len(s.chords) else None  # noqa: E731
+        place(d - CHOP_BEATS, at(0, 0.0), 0)  # the gap cue
+        for n, bar in enumerate(b for b in range(1, s.bars, 2) if b % 8 != 7):  # the turnaround bar keeps its pause
+            place(d + 4.0 * bar + 2.0 - CHOP_BEATS, at(bar, 2.0 - CHOP_BEATS), n)
+    if chops.clips:
+        lanes[chops.id] = chops
+
+
+def _pre_drop_gaps(sections, lanes, gap: float, own: set[int] = frozenset()) -> None:
     """A beat of silence before every drop (Sound Bible 1.8, the user's "1 beat of silence"): every lane, the vocals
     too (QA: >= 1/2 beat at <= -40 dBFS), is cut for `gap` beats (the take's drop.gap) before a drop, so its first hit
     lands out of silence.
-    Only the mixdown's reverse cymbal rises into the gap's second half."""
+    Only the mixdown's reverse cymbal rises into the gap's second half. A drop whose source bar is in `own` (its
+    pre-drop already quiet: pipeline.own_gaps) keeps the source's own gap and pickup instead."""
     lanes = list(lanes)
     for k, s in enumerate(sections):
-        if k and s.kind == "drop":
+        if k and s.kind == "drop" and s.from_start_bar not in own:
             d = (s.start_bar - 1) * 4.0
             _cut_window(lanes, d - gap, d, vocals=True)
 
@@ -308,7 +505,8 @@ def _declick(lanes) -> None:
                                   and (x.src.slot, x.src.stem) == (y.src.slot, y.src.stem)
                                   and abs(x.at_beat + x.beats - y.at_beat) < 1e-6
                                   and abs(x.src.start_beat + x.beats - y.src.start_beat) < 1e-6)
-            if not joins(c, nxt):
+            fx = c.src.pattern_id if c.src.kind == "kit" else None  # the impact keeps its onset, the swell its peak
+            if not joins(c, nxt) and fx != "fx.reverse":
                 c.fade_out_beats = max(c.fade_out_beats, CUT_BEATS)
-            if not joins(prv, c):
+            if not joins(prv, c) and fx != "fx.impact":
                 c.fade_in_beats = max(c.fade_in_beats, CUT_BEATS)

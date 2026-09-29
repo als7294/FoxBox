@@ -77,9 +77,11 @@ const remote = {
 interface FeedbackState {
   mine: Record<string, Mine>
   prefs: RemixPrefsResult
+  /** The WHY? row: open once a take is rated (the reasons), until DONE or another take. */
+  why: boolean
 }
 
-export const useTakeFeedback = create<FeedbackState>(() => ({ mine: load(), prefs: { styles: [] } }))
+export const useTakeFeedback = create<FeedbackState>(() => ({ mine: load(), prefs: { styles: [] }, why: false }))
 
 async function refreshPrefs(): Promise<void> {
   try {
@@ -111,6 +113,11 @@ export const takeFeedback = {
     const now = prev?.rating ?? shown
     const next = toggle && now === rating ? 0 : rating
     put(take, next, next === now ? (prev?.tags ?? []) : [])
+    useTakeFeedback.setState({ why: next !== 0 })
+  },
+  /** DONE, or another take: the WHY? row closes. */
+  closeWhy(): void {
+    useTakeFeedback.setState({ why: false })
   },
   toggleReason(take: RatedTake, tag: TakeTag, shown: Rating = 0): void {
     const m = useTakeFeedback.getState().mine[keyOf(take)] ?? (shown ? { style: take.style, rating: shown, tags: [] } : null)

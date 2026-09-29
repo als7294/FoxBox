@@ -1,0 +1,306 @@
+/* 08 GLOW & FX (GlowPanel, app/design/masks README): FX PRESETS, REACTS TO (the demo drop, THE DROP | STEADY | OFF,
+   FLASH RATE), the seven FxModules and the safety note. Seg, ParamSlider and Swatch bring their styles from
+   options.module.css; buttons repeat font/colour with !important over the page's `button { font: inherit }`. */
+
+.glow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hint {
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- FX PRESETS */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.preset {
+  position: relative;
+  height: 30px;
+  padding: 0 6px 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 3px;
+  background: #0b0b0c;
+  color: var(--vb-mk-slot-value) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preset:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.preset[aria-checked='true'] {
+  border-color: var(--vb-ink);
+  background: var(--vb-mk-sel);
+  color: var(--vb-ink) !important;
+}
+.preset > i {
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.12);
+}
+.preset[aria-checked='true'] > i {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- REACTS TO */
+.reacts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+}
+.reactsTitle {
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.18em;
+}
+.demo {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--vb-amber) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.demo[aria-pressed='true'] {
+  background: rgba(var(--vb-amber-rgb), 0.12);
+}
+.demo:hover {
+  background: rgba(var(--vb-amber-rgb), 0.14);
+}
+.beats {
+  display: flex;
+  gap: 2px;
+}
+.beats > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.1);
+}
+.beats > i[data-on='build'] {
+  background: var(--vb-amber);
+  box-shadow: 0 0 6px var(--vb-amber);
+}
+.beats > i[data-on='drop'] {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px var(--vb-accent);
+}
+.flash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meter {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+}
+.meter > i {
+  flex: 1;
+  height: 5px;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.1);
+}
+.meter > i[data-on='ok'] {
+  background: var(--vb-ok);
+}
+.meter > i[data-on='hot'] {
+  background: var(--vb-amber);
+}
+.rate {
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-ok);
+  white-space: nowrap;
+}
+.rate[data-hot] {
+  color: var(--vb-amber);
+}
+
+/* ---------------------------------------------------------------- FxModule */
+.mod {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 10px 10px;
+  background: #0b0b0c;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 3px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: background 0.15s;
+}
+.mod[data-on] {
+  background: var(--vb-card);
+  border-color: rgba(var(--vb-ink-rgb), 0.16);
+}
+.modHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.switch {
+  position: relative;
+  flex: none;
+  width: var(--vb-mk-switch-w);
+  height: var(--vb-mk-switch-h);
+  padding: 0;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: 10px;
+  background: #101012;
+  transition: all 0.15s;
+}
+/* Drawn 34×20, 24px tall to the pointer. */
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: -3px -1px;
+}
+.switch > i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--vb-dim);
+  transition: left 0.15s;
+}
+.switch[aria-checked='true'] {
+  border-color: var(--vb-mk-switch-on-edge);
+  background: var(--vb-mk-switch-on-bg);
+}
+.switch[aria-checked='true'] > i {
+  left: 16px;
+  background: var(--vb-amber);
+  box-shadow: 0 0 6px var(--vb-amber);
+}
+.modName {
+  flex: 1;
+  min-width: 0;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.mod[data-on] .modName {
+  color: var(--vb-ink);
+}
+.sum {
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.solo {
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--vb-ink) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.solo[data-on] {
+  border-color: rgba(var(--vb-amber-rgb), 0.6);
+  background: rgba(var(--vb-amber-rgb), 0.12);
+  color: var(--vb-amber) !important;
+}
+.solo:hover {
+  border-color: var(--vb-amber);
+  color: var(--vb-amber) !important;
+}
+.modBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: vbRise 0.22s ease-out;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.segRow {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.segLabel {
+  font: 700 11px var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.note {
+  margin: 0;
+  font: 500 11px/1.4 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- the safety note */
+.safe {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px dashed rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 3px;
+  font: 500 11px/1.45 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.safe > span:first-child {
+  font: 700 12px var(--vb-font-mono);
+  color: var(--vb-ok);
+}
+
+@keyframes vbRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow *,
+  .glow *::before,
+  .glow *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

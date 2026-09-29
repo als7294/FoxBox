@@ -1,0 +1,136 @@
+/* IMPORT FROM REKORDBOX: an inline panel wherever songs are picked (no modal). 11 px floor, 24 px targets. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font: 500 var(--vb-text-min) / 1.4 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.panel :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.head,
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.head > b {
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.dim {
+  margin: 0;
+  color: var(--vb-dim);
+}
+.warn {
+  margin: 0;
+  color: var(--vb-amber);
+  font-weight: 700;
+}
+.btn,
+.primary,
+.select {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill, rgba(233, 229, 218, 0.07));
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+}
+.select {
+  flex: 1;
+  min-width: 0;
+}
+.primary {
+  min-height: 30px;
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.primary:disabled {
+  opacity: 0.45;
+}
+.tracks,
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: min(320px, 45vh);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tracks label {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.tracks label:hover {
+  background: rgba(233, 229, 218, 0.06);
+}
+.tracks label[data-off] {
+  opacity: 0.5;
+  cursor: default;
+}
+.tracks input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--vb-amber);
+}
+.title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.title > b,
+.title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.title > b {
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.04em;
+}
+.title > span,
+.meta {
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  align-items: center;
+}
+.items li[data-state='done'] > span:last-child {
+  color: var(--vb-ok);
+}
+.items li[data-state='error'] > span:last-child {
+  color: var(--vb-accent);
+}
+
+/* FROM REKORDBOX's popover under its button. */
+.pop {
+  position-area: bottom span-left;
+  margin: 6px 0 0;
+  width: 420px;
+  padding: 10px;
+  border: 1px solid rgba(233, 229, 218, 0.16);
+  border-radius: 3px;
+  background: #18181b;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+}

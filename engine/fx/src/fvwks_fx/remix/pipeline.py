@@ -33,6 +33,7 @@ from .arrange import build
 from .flip import Hit, drum_hits
 from .mash import features as mash_features, scan
 from .mixdown import mixdown
+from .dropfx import carries_first
 from .prepare import ENGINE_PATCHES, SourceAudio, prepare_clip
 from .styles import Choose
 
@@ -45,6 +46,7 @@ class SongInput:
     stems: dict[str, np.ndarray]  # drums / bass / vocals / other, (channels, n) float32 at sr
     sr: int
     feats: dict[str, np.ndarray] | None = None  # the song's cached mash features (mash.features), for a mashup's pick
+    words: list | None = None  # its lyrics' SongWords (v0.10, transcribed at import) when it has them: the vocal phrases
 
 
 @dataclass
@@ -82,10 +84,50 @@ def song_drum_hits(src: SongInput) -> list[Hit]:
     return _HITS[key]
 
 
+_PHRASES: dict[tuple[str, int, int], list] = {}
+
+
+def vocal_phrases(src: SongInput) -> list:
+    """vocals.phrases of the song's vocals stem (its words when it has them), read once per song."""
+    if "vocals" not in src.stems:
+        return []
+    key = (src.song.id, src.stems["vocals"].shape[-1], len(src.words or []))
+    if key not in _PHRASES:
+        from .vocals import phrases
+
+        a = src.song.analysis
+        _PHRASES[key] = phrases(src.stems["vocals"], src.sr, float(src.song.bpm_override or a.bpm),
+                                float(src.song.downbeat_override_s or a.downbeat_s), src.words,
+                                float(getattr(a, "tuning_cents", None) or 0.0))
+    return _PHRASES[key]
+
+
+def own_gaps(src: SongInput, gap_beats: float = 1.0) -> set[int]:
+    """The song's drop bars whose pre-drop is already quiet: its non-vocal stems (drums + bass + other) stay under
+    -40 dBFS (50 ms RMS) over the half-beat before the last `gap_beats`. BUILD leaves their gap out: cut on top of the
+    source's own, the silence would stack past the user's 1 beat (and lose the source's pickup into the drop)."""
+    a = src.song.analysis
+    beat = 60.0 / float(src.song.bpm_override or a.bpm)
+    down = float(src.song.downbeat_override_s or a.downbeat_s)
+    x = sum(np.asarray(src.stems[k], np.float64).mean(axis=0) for k in ("drums", "bass", "other") if k in src.stems)
+    if np.ndim(x) == 0 or src.song.structure is None:
+        return set()
+    win = max(1, int(0.05 * src.sr))
+    out = set()
+    for sec in src.song.structure.sections:
+        d = down + (sec.start_bar - 1) * 4 * beat
+        seg = x[max(0, int((d - (gap_beats + 0.5) * beat) * src.sr)):max(0, int((d - gap_beats * beat) * src.sr))]
+        if sec.kind == "drop" and len(seg) > win:
+            env = np.convolve(seg ** 2, np.ones(win) / win, "valid")
+            if 10 * np.log10(env.max() + 1e-12) < -40.0:
+                out.add(sec.start_bar)
+    return out
+
+
 def _audio_source(src: SongInput) -> SourceAudio:
     a = src.song.analysis
     return SourceAudio(bpm=float(src.song.bpm_override or a.bpm), downbeat_s=float(src.song.downbeat_override_s or a.downbeat_s),
-                       stems=src.stems, sr=src.sr)
+                       stems=src.stems, sr=src.sr, tuning_cents=float(getattr(a, "tuning_cents", None) or 0.0))
 
 
 def _pick_mash(sources: dict[str, SongInput]):
@@ -107,17 +149,64 @@ def _pick_mash(sources: dict[str, SongInput]):
     return best[0]
 
 
+def _bass_sum(remix: Remix, audio: dict[str, np.ndarray], carrier: RemixClip, sr: int) -> np.ndarray:
+    """The other bass lanes' prepared audio (lane gain, no mutes) summed over the carrier's drop, from its downbeat."""
+    sec = next(s for s in remix.sections if s.kind == "drop" and abs((s.start_bar - 1) * 4.0 - carrier.at_beat) < 1e-6)
+    per = 60.0 / remix.bpm * sr
+    out = np.zeros((2, int(round(sec.bars * 4 * per))), np.float32)
+    for lane in remix.lanes:
+        if lane.role not in ("bass", "synth_bass") or lane.mute:
+            continue
+        g = np.float32(10 ** (lane.gain_db / 20))
+        for c in lane.clips:
+            x = audio.get(c.id)
+            if c.id == carrier.id or x is None:
+                continue
+            o = int(round((c.at_beat - carrier.at_beat) * per))
+            lo, hi = max(0, o), min(out.shape[1], o + x.shape[1])
+            if hi > lo:
+                out[:, lo:hi] += g * x[:, lo - o : hi - o]
+    return out
+
+
 def clip_key(clip: RemixClip, remix: Remix, sources: dict[str, SongInput]) -> str:
     """A content hash of what a clip sounds like: its source, shift, length, fades and gain, the remix tempo, and the
     source songs' grids (not its place in the remix or its audio_id). A seeded clip (an engine bass patch, a kit) adds
     the remix's seed, its id (its variation is drawn from them, prepare._rng) and the take's choices (the cadence, the
-    voices' axes), so a new take is a new sound."""
+    voices' axes), so a new take is a new sound. A bass-lane clip adds the context its drop rules read (its place, the
+    drum and bass lanes, the sections: C14), so editing the drums re-prepares it."""
     songs = {slot: [s.song.id, s.song.bpm_override or s.song.analysis.bpm, s.song.downbeat_override_s or s.song.analysis.downbeat_s,
                     s.stems[next(iter(s.stems))].shape[-1]] for slot, s in sources.items()}
     body = clip.model_dump(mode="json", exclude={"id", "at_beat", "audio_id"})
     seeded = clip.src.kind == "kit" or (clip.src.kind == "groove" and clip.src.patch_id.startswith(ENGINE_PATCHES))
     take = next(([c.model_dump() for c in t.choices] for t in remix.takes if t.seed == remix.seed), [])
-    blob = json.dumps([body, remix.bpm, songs] + ([remix.seed, clip.id, take] if seeded else []), sort_keys=True, default=str)
+    role = next((lane.role for lane in remix.lanes if any(c.id == clip.id for c in lane.clips)), None)
+    ctx = []
+    if role in ("bass", "synth_bass"):  # its drop rules (dropfx) read its place, the drums, the sections, the bass lanes
+        macros = remix.bass_macros.model_dump() if role == "synth_bass" and remix.bass_macros else None  # its knobs
+        ctx = [clip.at_beat, macros, [s.model_dump(mode="json") for s in remix.sections],
+               [[c.model_dump(mode="json", exclude={"audio_id"}) for c in lane.clips] for lane in remix.lanes
+                if lane.role in ("drums", "kit", "bass", "synth_bass")]]
+    if role == "top":  # the candy follows its sections' chords (v0.14): a re-voiced bar re-prepares it
+        ctx = [[s.model_dump(mode="json") for s in remix.sections]]
+    if clip.src.kind == "kit":  # the harmony kit (S3's VERSION 2): its key, tuning and the plan's roots re-render it
+        try:
+            from fvwks_synth.kit import VERSION as kit_version
+        except ImportError:
+            kit_version = 0
+        a = sources.get("A")
+        ctx = ctx + [kit_version, remix.key, getattr(a.song.analysis, "tuning_cents", None) if a else None,
+                     [s.model_dump(mode="json") for s in remix.sections]]
+    if clip.src.kind == "kit" and next((c.option for t in remix.takes if t.seed == remix.seed for c in t.choices
+                                         if c.axis == "kit.layer"), "synth") != "synth":
+        try:  # the sample bank under the kit (v0.15 packs): a changed pack re-prepares its kit clips
+            from fvwks_synth.layers import bank_version
+
+            ctx = ctx + [bank_version()]
+        except ImportError:
+            pass
+    blob = json.dumps([body, remix.bpm, songs] + ([remix.seed, clip.id, take] if seeded else []) + ctx, sort_keys=True,
+                      default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:32]
 
 
@@ -138,7 +227,7 @@ def run(remix: Remix, sources: dict[str, SongInput], *, stage: Stage = "mixdown"
             remix = remix.model_copy(update={"mash": match})
         hits = song_drum_hits(sources["A"]) if remix.recipe == "flip" else None
         remix = build(remix, {slot: s.song for slot, s in sources.items()}, match=match, vip_drop=vip_drop, drum_hits=hits,
-                      choose=choose)
+                      choose=choose, own_gaps=own_gaps(sources["A"]), vocal_phrases=vocal_phrases(sources["A"]))
         remix = remix.model_copy(update={"build_state": "done"})
         if stage == "build":
             return RunResult(remix)
@@ -154,20 +243,24 @@ def run(remix: Remix, sources: dict[str, SongInput], *, stage: Stage = "mixdown"
     drops = {c.id for lane in remix.lanes for c in lane.clips if drop and over(c, d0, d1)}
     todo.sort(key=lambda c: (c.id not in first, c.id not in drops, c.at_beat))
     ready = set(have) | {c.id for lane in remix.lanes for c in lane.clips if c.audio_id is not None}
-    with ThreadPoolExecutor(WORKERS) as pool:
-        futures = {pool.submit(prepare_clip, c, remix, srcs, sr): c for c in todo}
-        for fut in as_completed(futures):
-            c = futures[fut]
-            made[c.id] = fut.result()
-            ready.add(c.id)
-            info = PrepareProgress(len(made), len(todo), first <= ready, drops <= ready)
-            say(0.1 + 0.8 * len(made) / max(1, len(todo)), f"Preparing clip {len(made)} of {len(todo)}")
-            if on_clip:
-                on_clip(c.id, made[c.id], info)
+    # a drop's first-hit carrier goes second: it lifts itself against the other bass lanes, prepared (dropfx)
+    carriers = [c for c in todo if carries_first(c, remix)]
+    for batch in ([c for c in todo if c not in carriers], carriers):
+        with ThreadPoolExecutor(WORKERS) as pool:
+            futures = {pool.submit(prepare_clip, c, remix, srcs, sr, _bass_sum(remix, {**have, **made}, c, sr)
+                                   if c in carriers else None): c for c in batch}
+            for fut in as_completed(futures):
+                c = futures[fut]
+                made[c.id] = fut.result()
+                ready.add(c.id)
+                info = PrepareProgress(len(made), len(todo), first <= ready, drops <= ready)
+                say(0.1 + 0.8 * len(made) / max(1, len(todo)), f"Preparing clip {len(made)} of {len(todo)}")
+                if on_clip:
+                    on_clip(c.id, made[c.id], info)
     if stage == "prepare":
         say(1.0, "Clips ready")
         return RunResult(remix, made)
     say(0.9, "Mixing down")
-    mix, report = mixdown(remix, {**have, **made}, sr, master, buses)
+    mix, report = mixdown(remix, {**have, **made}, sr, master, buses, srcs)
     say(1.0, "Done")
     return RunResult(remix, made, mix, report)

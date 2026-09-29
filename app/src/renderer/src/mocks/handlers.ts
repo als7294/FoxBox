@@ -17,6 +17,22 @@ import type { TakeFeedbackCreate } from './remixSim'
 
 const API = '*/api'
 
+const masks = new Map<string, { info: Record<string, unknown> & { size_bytes: number }; recipe: object; png: string | null }>()
+let maskSeq = 0
+const packs = new Map(
+  [
+    {
+      id: 'pk1',
+      name: 'My Drums',
+      enabled: true,
+      available: true,
+      counts: { kick: 6, snare: 4, clap: 2, hat: 9 },
+      created_at: '2026-09-29T12:00:00Z',
+    },
+    { id: 'pk2', name: 'Tour SSD', enabled: true, available: false, counts: { kick: 3, perc: 12 }, created_at: '2026-09-29T12:05:00Z' },
+  ].map((p) => [p.id, p]),
+)
+
 function fail(err: unknown) {
   if (err instanceof MockError) {
     return HttpResponse.json({ error: { code: err.code, message: err.message, hint: err.hint, retryable: false } }, { status: err.status })
@@ -169,6 +185,23 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
+  // v0.12 Rekordbox import: the library from the chosen XML, then a job that makes one song per track.
+  http.post(
+    `${API}/rekordbox/library`,
+    safe(async ({ request }) => {
+      const file = (await request.formData()).get('file')
+      if (!(file instanceof Blob)) throw new Error('file is required')
+      return HttpResponse.json(engine.readRekordbox(await file.text()))
+    }),
+  ),
+  http.post(
+    `${API}/rekordbox/import`,
+    safe(async ({ request }) => {
+      const body = (await request.json()) as { library_id: string; track_ids: string[] }
+      return HttpResponse.json(engine.importRekordbox(body.library_id, body.track_ids))
+    }),
+  ),
+
   // v0.7 songs: analysis finishes after mockEngine.songAnalysisMs; the mix is the drop alone.
   http.get(`${API}/songs`, () => {
     engine.remix.seedDemoSongs() // only REMIX lists songs: its demo tracks appear here
@@ -296,6 +329,92 @@ export const handlers = [
       return HttpResponse.json(engine.lexicon)
     }),
   ),
+
+  // SAMPLE LAYERS (v0.15): two packs (one on a drive that isn't there); a rescan is done at once. Adding goes through main.
+  http.get(`${API}/sample-packs`, () => HttpResponse.json([...packs.values()])),
+  http.patch(
+    `${API}/sample-packs/:id`,
+    safe(async ({ request, params }) => {
+      const p = packs.get(String(params.id))
+      if (!p) throw new MockError(404, 'not_found', 'No such pack.')
+      const b = (await request.json()) as { name?: string | null; enabled?: boolean | null }
+      Object.assign(p, b.name != null ? { name: b.name } : {}, b.enabled != null ? { enabled: b.enabled } : {})
+      return HttpResponse.json(p)
+    }),
+  ),
+  http.delete(`${API}/sample-packs/:id`, ({ params }) => HttpResponse.json({ deleted: packs.delete(String(params.id)) })),
+  http.post(`${API}/sample-packs/:id/rescan`, ({ params }) => {
+    const at = new Date().toISOString()
+    const job = {
+      id: `job_scan_${String(params.id)}`,
+      kind: 'sample_scan',
+      state: 'done',
+      progress: 1,
+      message: null,
+      items: [],
+      result_ids: [String(params.id)],
+      error: null,
+      created_at: at,
+      updated_at: at,
+    }
+    engine.jobs.set(job.id, job as never)
+    return HttpResponse.json(job)
+  }),
+
+  // MASKS (v0.13): the user's masks in memory (recipes and their PNG thumbnails; no image upload in the mock).
+  http.get(`${API}/masks`, () => HttpResponse.json([...masks.values()].map((m) => m.info))),
+  http.post(
+    `${API}/masks/recipes`,
+    safe(async ({ request }) => {
+      const b = (await request.json()) as { name: string; recipe: object; thumbnail_png_b64?: string | null }
+      const id = `m${++maskSeq}`
+      const info = {
+        id,
+        name: b.name,
+        kind: 'user',
+        format: 'recipe',
+        width: 512,
+        height: 512,
+        size_bytes: 1,
+        created_at: new Date().toISOString(),
+      }
+      masks.set(id, { info, recipe: b.recipe, png: b.thumbnail_png_b64 ?? null })
+      return HttpResponse.json(info)
+    }),
+  ),
+  http.get(`${API}/masks/:id/recipe`, ({ params }) => {
+    const m = masks.get(String(params.id))
+    return m ? HttpResponse.json({ recipe: m.recipe }) : fail(new MockError(404, 'not_found', 'No such mask.'))
+  }),
+  http.put(
+    `${API}/masks/:id/recipe`,
+    safe(async ({ request, params }) => {
+      const m = masks.get(String(params.id))
+      if (!m) throw new MockError(404, 'not_found', 'No such mask.')
+      const b = (await request.json()) as { name: string; recipe: object; thumbnail_png_b64?: string | null }
+      Object.assign(m, { recipe: b.recipe, png: b.thumbnail_png_b64 ?? m.png })
+      m.info = { ...m.info, name: b.name, size_bytes: m.info.size_bytes + 1 }
+      return HttpResponse.json(m.info)
+    }),
+  ),
+  http.get(`${API}/masks/:id/image`, ({ params }) => {
+    const png = masks.get(String(params.id))?.png
+    if (!png) return fail(new MockError(404, 'not_found', 'No picture.'))
+    return new HttpResponse(
+      Uint8Array.from(atob(png), (c) => c.charCodeAt(0)),
+      { headers: { 'content-type': 'image/png' } },
+    )
+  }),
+  http.patch(
+    `${API}/masks/:id`,
+    safe(async ({ request, params }) => {
+      const m = masks.get(String(params.id))
+      if (!m) throw new MockError(404, 'not_found', 'No such mask.')
+      m.info = { ...m.info, name: ((await request.json()) as { name: string }).name }
+      return HttpResponse.json(m.info)
+    }),
+  ),
+  http.delete(`${API}/masks/:id`, ({ params }) => HttpResponse.json({ deleted: masks.delete(String(params.id)) })),
 
   http.get(`${API}/audio/:audioId`, ({ params }) => {
     const bytes = engine.audio.get(String(params.audioId))

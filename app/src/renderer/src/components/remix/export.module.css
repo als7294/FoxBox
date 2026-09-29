@@ -1,151 +1,223 @@
-/* The EXPORT drawer (app/design/remix README "RemixExport"): toggle cards, file names, EXPORT N, ejected file tiles. */
+/* The EXPORT drawer (app/design/remix README "RemixExport", prototype state 16/17): header, cards → tiles, FILE NAMES. */
 
 .drawer {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
   background: var(--vb-rack);
   border: 1px solid var(--vb-rack-edge);
   border-top-color: rgba(var(--vb-ink-rgb), 0.12);
   border-radius: var(--vb-rack-radius);
-  box-shadow: var(--vb-rack-inset);
-  animation: drawer 0.32s ease-out;
+  box-shadow:
+    inset 0 2px 10px rgba(0, 0, 0, 0.55),
+    0 -10px 30px rgba(0, 0, 0, 0.45);
+  animation: drawer 0.32s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 .drawer :focus-visible {
   outline: 2px solid var(--vb-amber);
   outline-offset: 2px;
 }
+.flex {
+  flex: 1;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+}
+.head > b {
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
+}
+.head > span[role='status'] {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.head > span[data-done] {
+  color: var(--vb-ok);
+}
+.close {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+}
+.close:hover {
+  background: var(--vb-ctl-fill-hi);
+}
+.body {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  min-width: 0;
+}
 .cards {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
-.card {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
-  align-items: start;
-  gap: 6px 8px;
-  padding: 8px 10px;
+.card,
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 74px;
+  min-width: 0;
+  padding: 9px 10px;
   text-align: left;
   border: 1px solid var(--vb-rack-edge);
   border-radius: var(--vb-ctl-radius);
   background: var(--vb-well);
   color: var(--vb-ink);
   box-shadow: var(--vb-well-inset);
+  transition: border-color 0.15s;
 }
-.card[aria-pressed='true'] {
+.card:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.card[aria-checked='true'] {
   border-color: rgba(var(--vb-ink-rgb), 0.3);
 }
 .card:disabled {
   cursor: default;
 }
-.card > :last-child:not(.cardText) {
-  grid-column: 1 / -1;
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.cardHead > b,
+.tile > b {
+  font: 800 14px/1.05 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 /* The LED check. */
 .check {
-  width: 12px;
-  height: 12px;
-  margin-top: 2px;
-  border-radius: 2px;
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 1px;
   background: var(--vb-led-off);
 }
-.card[aria-pressed='true'] .check {
+.card[aria-checked='true'] .check {
   background: var(--vb-amber);
   box-shadow: 0 0 6px var(--vb-amber);
 }
-.cardText {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.cardText > b {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font: 800 14px/1 var(--vb-font-display);
-  letter-spacing: 0.08em;
-}
-.cardText > span {
-  font: 400 var(--vb-text-min) / 1.3 var(--vb-font-mono);
-  color: var(--vb-dim);
-}
 .beta {
-  padding: 1px 3px;
-  border: 1px solid var(--vb-ice);
-  border-radius: 1px;
+  margin-left: auto;
+  padding: 2px 4px;
+  border: 1px solid rgba(var(--vb-src-a-rgb), 0.6);
+  border-radius: 2px;
   color: var(--vb-ice);
   font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
-  letter-spacing: 0.06em;
 }
-.low {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
-  border-radius: 2px;
-  background: rgba(var(--vb-amber-rgb), 0.06);
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-  color: var(--vb-dim);
-}
-.low > b {
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.1em;
-  color: var(--vb-amber);
-}
-.low > button {
-  margin-left: auto;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
-  border-radius: 2px;
-  background: none;
-  color: var(--vb-amber);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.06em;
-}
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.1em;
-  color: var(--vb-dim);
-}
-.name > input {
-  width: 180px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
-  border-radius: 2px;
-  background: var(--vb-well);
-  color: var(--vb-ink);
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-}
-.names {
-  flex: 1;
-  min-width: 0;
+.note {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  font: 400 var(--vb-text-min) / 1.4 var(--vb-font-mono);
   color: var(--vb-dim);
 }
-.go {
-  height: 32px;
-  padding: 0 16px;
+.card .note {
+  white-space: normal;
+  text-wrap: pretty;
+}
+.card > :last-child:not(.note):not(.cardHead) {
+  margin-top: auto;
+}
+
+/* After EXPORT: the cards become tiles in place, ejected one after another. */
+.tile {
+  background: #0e0e10;
+  cursor: grab;
+  animation: eject 0.64s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.tile[data-off] {
+  opacity: 0.45;
+  cursor: default;
+}
+.tile:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.dragBar {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 24px;
+  border: 1px dashed rgba(var(--vb-accent-rgb), 0.55);
+  border-radius: 2px;
+  background: rgba(var(--vb-accent-rgb), 0.07);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.dragBar > span {
+  color: var(--vb-accent);
+}
+.link {
+  align-self: stretch;
+  min-height: 24px;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(127, 208, 138, 0.12);
+  color: var(--vb-ok);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+
+/* FILE NAMES, then REVEAL and EXPORT (ink). */
+.side {
+  width: clamp(220px, 17cqw, 270px);
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.label {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--vb-text-min) / 1.25 var(--vb-font-mono);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.reveal {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+}
+.go {
+  flex: 1;
+  height: 34px;
   border: 0;
   border-radius: 2px;
   background: var(--vb-ink);
@@ -159,61 +231,41 @@
 .go:disabled {
   opacity: 0.45;
 }
-.tiles {
+.low {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 12px;
+  margin: 0 10px 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: var(--vb-ctl-radius);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  font: 500 var(--vb-text-min) / 1.45 var(--vb-font-mono);
 }
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: 220px;
-  padding: 8px 10px;
-  text-align: left;
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+.low > span:first-child {
+  color: var(--vb-amber);
+  font: 700 13px var(--vb-font-mono);
+}
+.low > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.low b {
+  color: var(--vb-amber);
+  letter-spacing: 0.12em;
+}
+.low > button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
   border-radius: 2px;
-  background: #0e0e10;
-  color: var(--vb-ink);
-  cursor: grab;
-  animation: eject 0.6s ease-out both;
-}
-.tile > b {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: rgba(var(--vb-amber-rgb), 0.08);
+  color: var(--vb-amber);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   white-space: nowrap;
-  font: 800 14px/1 var(--vb-font-display);
-  letter-spacing: 0.04em;
-}
-.dragBar {
-  padding-top: 4px;
-  border-top: 1px dashed var(--vb-accent);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.08em;
-  color: var(--vb-dim);
-}
-.tile > button {
-  align-self: flex-start;
-  height: 24px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 2px;
-  background: var(--vb-ctl-fill);
-  color: var(--vb-ink);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-}
-.tile[data-kind='visuals'] {
-  cursor: pointer;
-  border-color: rgba(127, 208, 138, 0.5);
-}
-.tile[data-kind='visuals'] > b {
-  color: var(--vb-ok);
-}
-.tile[data-kind='visuals'] > span {
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
 }
 .warn {
-  margin: 0;
+  margin: 0 10px 10px;
   font: 500 var(--vb-text-min) / 1.45 var(--vb-font-mono);
   color: var(--vb-amber);
 }

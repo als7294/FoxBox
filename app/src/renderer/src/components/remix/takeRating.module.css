@@ -1,20 +1,20 @@
-/* TakeRating row (app/design/remix/README.md "TakeRating"): ▲ UP ▼ DOWN, the reasons, the readout under ROLL, RESET.
+/* TakeRating (Remix.dc.html "TakeRating"): ▲ ▼ at the takes strip's end, the reasons, the readout under ROLL, RESET.
    11 px floor, 24 px targets, AA text. */
 
 .rating {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex: none;
 }
 .btn {
-  height: 26px;
-  padding: 0 9px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
   border-radius: 2px;
   background: none;
   color: var(--vb-ink);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.08em;
+  font: 700 12px var(--vb-font-mono);
   transition: background 0.15s;
 }
 .btn[data-on='up'] {
@@ -43,7 +43,7 @@
   flex: none;
   height: 24px;
   padding: 0 8px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 2px;
   background: rgba(var(--vb-ink-rgb), 0.04);
   color: var(--vb-dim);
@@ -52,11 +52,10 @@
   white-space: nowrap;
   animation: rise 0.25s ease-out both;
 }
-.chip:hover {
-  border-color: rgba(var(--vb-ink-rgb), 0.4);
+.chip:not([data-on]):hover {
+  color: var(--vb-ink);
 }
 .chip[data-on] {
-  border-color: var(--vb-ink);
   background: var(--vb-ink);
   color: var(--vb-bg);
 }
@@ -83,7 +82,7 @@
 
 .reset {
   flex: none;
-  height: 26px;
+  height: 24px;
   padding: 0 8px;
   border: 0;
   border-radius: 2px;

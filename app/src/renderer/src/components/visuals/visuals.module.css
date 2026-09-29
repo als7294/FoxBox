@@ -527,3 +527,12 @@
   padding: 0 10px;
   letter-spacing: 0.2em;
 }
+
+/* LS10: the projector was unplugged mid-set (the output reopens when it's back). A glyph and text, never colour alone. */
+.unplugged {
+  align-self: center;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+}

@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.11.12 contracts: Remix.bass_macros (GRIT/WOBBLE/SUB/GLIDE), Remix.top_layers (ear candy BUILD places), FlipStyle.grid (a 2-bar kick/snare preview); v0.11.11: RemixLane.role adds top (the design package's TOP lane); v0.11.10: RemixTake loudness (short_term_max_lufs, true_peak_db) for the TakeCard readout; BassPatch.category adds tearout and top for SWAP SOUND tabs; v0.11.9: a take keeps its own edited arrangement (RemixTake.sections/lanes), RemixBuildRequest.fresh; v0.11.8: REMIX takes (RemixTake with the choices BUILD resolved), take ratings (TakeFeedback) and the per-style counts ROLL leans on (RemixPrefs); v0.11.7: Remix.seed, so BUILD makes distinct reproducible takes; v0.11.6: camera face masks (MaskInfo, /api/masks); v0.11.5: remix export writes rekordbox.xml cues at the drops; kit previews; v0.11.4: REMIX gaps closed (sync MASH RADAR scan result, chosen MashMatch on the Remix, groove render request/result, export result route, mp3 exports); v0.11.3: seam MashFeatures + FxAPI.mash_features, mash_scan over cached features; v0.11.2: KitClipSrc carries inline hits; v0.11.1: BassGroove in beats (as built); v0.11: REMIX (recipes, arrangement, BASS DNA groove, MASH RADAR matches, sound library); v0.10.1: bass-line intelligence (StemFeatures.bass_b64, SongSection bass fields); v0.10: song structure (sections, drops, phrases) + timed lyrics for SMART VISUALS; v0.9: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v0.15.3 contracts: the take loudness readout runs as its own job after PREPARE (Job.kind take_loudness, listed in PREPARE's result_ids); v0.15.2: PATCH /api/masks/{id} renames any user mask (MaskRename); v0.15.1: a bar that changes chord halfway (Chord.root2/quality2), power chords (quality "5"), the source's tuning (SongAnalysis.tuning_cents); v0.15: your own drum sample packs (SamplePackAdd, SamplePack, SamplePackUpdate, job sample_scan; /api/sample-packs); v0.14: chords bar by bar (Chord; SongStructure.chords, RemixSection.chords), the harmony REMIX's engine voices follow; v0.13: character-creator masks (MaskRecipeSave, MaskInfo.format "recipe", GET/PUT /api/masks/{id}/recipe); v0.12.1: the Rekordbox import job reports per track through JobItems (RekordboxImportResult dropped); v0.12: Rekordbox library import (RekordboxLibrary, RekordboxImportRequest, job rekordbox_import), Song.cues (SongCue), SongAnalysis.source; v0.11.12: Remix.bass_macros (GRIT/WOBBLE/SUB/GLIDE), Remix.top_layers (ear candy BUILD places), FlipStyle.grid (a 2-bar kick/snare preview); v0.11.11: RemixLane.role adds top (the design package's TOP lane); v0.11.10: RemixTake loudness (short_term_max_lufs, true_peak_db) for the TakeCard readout; BassPatch.category adds tearout and top for SWAP SOUND tabs; v0.11.9: a take keeps its own edited arrangement (RemixTake.sections/lanes), RemixBuildRequest.fresh; v0.11.8: REMIX takes (RemixTake with the choices BUILD resolved), take ratings (TakeFeedback) and the per-style counts ROLL leans on (RemixPrefs); v0.11.7: Remix.seed, so BUILD makes distinct reproducible takes; v0.11.6: camera face masks (MaskInfo, /api/masks); v0.11.5: remix export writes rekordbox.xml cues at the drops; kit previews; v0.11.4: REMIX gaps closed (sync MASH RADAR scan result, chosen MashMatch on the Remix, groove render request/result, export result route, mp3 exports); v0.11.3: seam MashFeatures + FxAPI.mash_features, mash_scan over cached features; v0.11.2: KitClipSrc carries inline hits; v0.11.1: BassGroove in beats (as built); v0.11: REMIX (recipes, arrangement, BASS DNA groove, MASH RADAR matches, sound library); v0.10.1: bass-line intelligence (StemFeatures.bass_b64, SongSection bass fields); v0.10: song structure (sections, drops, phrases) + timed lyrics for SMART VISUALS; v0.9: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -580,7 +580,7 @@ class JobItem(Model):
 class Job(Model):
     id: str
     kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis", "song_stems", "song_lyrics",
-                  "remix_build", "remix_prepare", "remix_export"]
+                  "remix_build", "remix_prepare", "remix_export", "rekordbox_import", "sample_scan", "take_loudness"]
     state: JobState
     progress: float = Field(default=0.0, ge=0, le=1)
     message: str | None = None
@@ -699,6 +699,19 @@ class SongAnalysis(Model):
     key_confidence: float = Field(default=0.0, ge=0, le=1)
     downbeat_s: float = Field(default=0.0, ge=0, description="Time of bar 1, beat 1: the grid anchor.")
     beats_per_bar: int = Field(default=4, ge=1)
+    source: Literal["foxbox", "rekordbox"] = Field(default="foxbox", description="v0.12: 'rekordbox' when the grid and key came from a Rekordbox import.")
+    tuning_cents: float | None = Field(default=None, ge=-50, lt=50, description="v0.15.1: the source's tuning against A=440 in cents (a 432 Hz track is -31.8); every REMIX voice, repitched one-shot, kick and snare is tuned by it. None until measured.")
+
+
+class SongCue(Model):
+    """A cue from Rekordbox (v0.12): POSITION_MARK Type 0 (cue) / 4 (loop); Num -1 is a memory cue, 0-7 a hot cue."""
+
+    name: str = ""
+    kind: Literal["hot", "memory", "loop"]
+    start_s: float = Field(ge=0)
+    end_s: float | None = Field(default=None, ge=0, description="Loops only.")
+    num: int | None = Field(default=None, ge=0, le=7, description="Hot-cue slot A-H as 0-7.")
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class Song(Model):
@@ -723,6 +736,7 @@ class Song(Model):
     structure: "SongStructure | None" = Field(default=None, description="v0.10: sections, drops and phrases (after analysis; refined after stems).")
     lyrics_state: Literal["none", "queued", "running", "done", "error"] = Field(
         default="none", description="v0.10: lyrics transcription, started with POST /api/songs/{id}/lyrics.")
+    cues: list[SongCue] = Field(default_factory=list, description="v0.12: cues imported from Rekordbox.")
 
 
 
@@ -826,6 +840,22 @@ class SongSection(Model):
     wobble_anchor_s: float | None = Field(default=None, ge=0, description="v0.10.1: an LFO peak in song time; phase = frac((t - anchor) / period).")
 
 
+NoteName = Literal["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+ChordQuality = Literal["maj", "min", "5", "sus4", "7", "m7", "N"]
+
+
+class Chord(Model):
+    """A bar's chord (v0.14): the harmony REMIX's engine voices follow (basses, growls and the 808 on its root, a grid's '3'
+    as its third). Spelled as FoxBox spells keys. v0.15.1: '5' is a power chord (root and fifth): voices play no third on it. No chord (drums only, silence) is quality 'N' with root None; a None root
+    always means no chord."""
+
+    root: NoteName | None = None
+    quality: ChordQuality = "N"
+    confidence: float = Field(default=1.0, ge=0, le=1, description="The analysis's confidence; 1.0 for a chord you set or a progression BUILD chose.")
+    root2: NoteName | None = Field(default=None, description="v0.15.1: when the bar changes chord halfway (a turnaround or a tension half-bar), the second half's root; None = one chord for the whole bar.")
+    quality2: ChordQuality | None = Field(default=None, description="v0.15.1: the second half's quality, with root2.")
+
+
 class SongStructure(Model):
     """Where a song builds, drops and breathes (v0.10), for the AUTO-VJ director and pre-drop text.
 
@@ -841,6 +871,7 @@ class SongStructure(Model):
     energy_fps: float = Field(default=10.0, gt=0)
     energy_b64: str = Field(default="", description="base64 of uint8, one value per frame at energy_fps.")
     from_stems: bool = Field(default=False, description="True once refined with stems (drums/bass entries).")
+    chords: list[Chord] = Field(default_factory=list, description="v0.14: one chord per song bar from bar 1 (the downbeat), in order, read from the stems; empty until stems exist.")
 
 
 class SongWord(Model):
@@ -1020,6 +1051,7 @@ class RemixSection(Model):
     bars: int = Field(ge=1)
     from_slot: RemixSlot = "A"
     from_start_bar: int = Field(default=1, ge=1, description="Where this block comes from in that source song.")
+    chords: list[Chord] = Field(default_factory=list, description="v0.14: one chord per bar of this section, in order; the engine voices follow them. BUILD fills them (the source's chords under the section, moved with a MASHUP's key shift, or the take's chosen progression); edit them to re-voice a bar. Bars past the end of the list follow the source.")
 
 
 class StemClipSrc(Model):
@@ -1108,7 +1140,7 @@ class RemixTake(Model):
     name: str | None = Field(default=None, max_length=200)
     starred: bool = False
     rating: Literal[-1, 0, 1] = Field(default=0, description="The latest rating (display only; the history is TakeFeedback).")
-    short_term_max_lufs: float | None = Field(default=None, description="v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0).")
+    short_term_max_lufs: float | None = Field(default=None, description="v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0). v0.15.3: filled by the take's own low-priority loudness job (kind take_loudness) after PREPARE; PREPARE's Job lists that job's id in result_ids, and the field stays None until it is done.")
     true_peak_db: float | None = Field(default=None, le=0, description="v0.11.10: the same mix's true peak (dBTP, 4x oversampled; club ceiling -1.0).")
     sections: list[RemixSection] | None = Field(default=None, description="v0.11.9: this take's own arrangement, your edits included. Saved when you switch away (a PATCH to another seed); None until then.")
     lanes: list[RemixLane] | None = Field(default=None, description="v0.11.9: as `sections`. BUILD at this seed restores the saved arrangement instead of rebuilding.")
@@ -1272,13 +1304,107 @@ class MaskInfo(Model):
     id: str
     name: str = Field(min_length=1, max_length=80)
     kind: Literal["builtin", "user"]
-    format: Literal["svg", "png", "webp"]
+    format: Literal["svg", "png", "webp", "recipe"] = Field(description="v0.13 adds 'recipe': a MASKS character-creator mask; /image then serves its PNG thumbnail.")
     width: int = Field(gt=0, le=4096)
     height: int = Field(gt=0, le=4096)
     size_bytes: int = Field(ge=0, le=16 * 1024 * 1024, description="SVG <= 2 MB; PNG/WebP <= 16 MB.")
     created_at: str
 
 
+class MaskRename(Model):
+    """PATCH /api/masks/{id} (v0.15.2) -> MaskInfo: renames a user mask, image or recipe. Built-ins are read-only (409).
+    The MASKS page's MY MASKS RENAME uses it for image masks, which have no recipe to PUT."""
+
+    name: str = Field(min_length=1, max_length=80)
+
+
+class MaskRecipeSave(Model):
+    """POST /api/masks/recipes -> MaskInfo, and PUT /api/masks/{id}/recipe (v0.13): a MASKS character-creator mask.
+    `recipe` is the renderer's versioned JSON (opaque to the server beyond 'is a JSON object <= 256 KB'; the renderer
+    normalises it on load). `thumbnail_png_b64` is a <= 512 px PNG for the picker (served at GET /api/masks/{id}/image).
+    GET /api/masks/{id}/recipe returns {"recipe": {...}}. DELETE /api/masks/{id} as for image masks."""
+
+    name: str = Field(min_length=1, max_length=80)
+    recipe: dict = Field(description="Versioned JSON from the MASKS page (S1's maskRecipe).")
+    thumbnail_png_b64: str | None = Field(default=None, max_length=1_000_000)
+
+
 Song.model_rebuild()  # v0.9/v0.10: Song refers to SongStem and SongStructure, defined after it
 ExportRequest.model_rebuild()  # v0.7: ExportRequest.bake refers to SongPlacement, defined above
 Arrange.model_rebuild()  # v0.8: Arrange.chop_slots refers to ChopSlot, defined after it
+
+
+class RekordboxEntry(Model):
+    """One track of an uploaded rekordbox.xml (v0.12). `id` is opaque (a hash of its Location); paths never cross the API."""
+
+    id: str
+    title: str
+    artist: str | None = None
+    duration_s: float = Field(default=0.0, ge=0)
+    bpm: float | None = Field(default=None, gt=0)
+    key: str | None = Field(default=None, description="Normalised, e.g. 'Am' (Camelot parsed).")
+    grid: Literal["fixed", "variable", "none"] = "none"
+    cues: int = Field(default=0, ge=0)
+    available: bool = Field(default=True, description="False: the file isn't on this Mac or isn't a readable audio type.")
+    song_id: str | None = Field(default=None, description="Already imported as this Song.")
+
+
+class RekordboxPlaylist(Model):
+    name: str
+    folders: list[str] = Field(default_factory=list, description="Breadcrumb folder names.")
+    track_ids: list[str] = Field(default_factory=list)
+
+
+class RekordboxLibrary(Model):
+    """POST /api/rekordbox/library (v0.12): multipart `file` = the rekordbox.xml bytes (the app reads the user-chosen file).
+    Parsed and kept for 30 min under `id`. 400 bad_xml; 413 over 100 MB."""
+
+    id: str
+    tracks: list[RekordboxEntry] = Field(default_factory=list)
+    playlists: list[RekordboxPlaylist] = Field(default_factory=list)
+    missing: int = Field(default=0, ge=0)
+
+
+class RekordboxImportRequest(Model):
+    """POST /api/rekordbox/import (v0.12) -> Job (rekordbox_import). 404 library_expired: re-upload the XML.
+    v0.12.1: the job reports per track, with one JobItem each (label = the title): done with result_ids [song_id], or
+    error with error.code = missing | unsupported | too_long | too_large | unreadable. Job.result_ids = every song
+    imported or refreshed (the listing's song_id tells new from refreshed)."""
+
+    library_id: str
+    track_ids: list[str] = Field(min_length=1, max_length=2000)
+
+
+DrumRole = Literal["kick", "snare", "clap", "hat", "open_hat", "cymbal", "reverse", "impact", "perc"]
+
+
+class SamplePackAdd(Model):
+    """POST /api/sample-packs (v0.15) -> Job (sample_scan): add a folder of your own drum one-shots to the kit's sample
+    layers (M3.9). Only Electron's main process sends it, with the folder picked in the OS dialog. The engine reads the
+    files where they are (the Rekordbox import's path gate), copies nothing, and never returns or logs the path.
+    The job has one JobItem per audio file (label = the file's name): done, or error with error.code = not_one_shot |
+    unreadable | unsupported. Job.result_ids = [the pack id]. 400 not_a_folder, 404 missing."""
+
+    folder: str = Field(min_length=1, max_length=4096)
+    name: str | None = Field(default=None, min_length=1, max_length=80, description="None = the folder's name.")
+
+
+class SamplePack(Model):
+    """GET /api/sample-packs (v0.15) lists them; POST /api/sample-packs/{id}/rescan -> Job (sample_scan) re-reads one.
+    A file's role comes from its name first, then its sound, so renaming a file (e.g. 'Kick 01.wav') and RESCAN corrects
+    it. Enabled packs replace FoxBox's own CC0 one-shots for the roles they cover. DELETE forgets a pack; its files are
+    never touched."""
+
+    id: str
+    name: str
+    enabled: bool = True
+    available: bool = Field(default=True, description="False while the folder is missing (e.g. an unplugged drive); FoxBox's own one-shots stand in.")
+    counts: dict[DrumRole, int] = Field(default_factory=dict, description="One-shots found per role.")
+    created_at: str
+
+
+class SamplePackUpdate(Model):
+    """PATCH /api/sample-packs/{id} (v0.15) -> SamplePack."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    enabled: bool | None = None

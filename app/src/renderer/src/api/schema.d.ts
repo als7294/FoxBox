@@ -252,6 +252,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rekordbox/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Rekordbox Library
+         * @description v0.12: the user's rekordbox.xml (its bytes: no path crosses the API): its tracks with an opaque id each, their
+         *     grid, key and cues and whether the file is on this Mac, and its playlists. Kept 30 min for POST
+         *     /rekordbox/import. 400 bad_xml; 413 over 100 MB.
+         */
+        post: operations["readRekordboxLibrary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rekordbox/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Rekordbox Tracks
+         * @description v0.12: the chosen tracks become Songs with their Rekordbox grid, key and cues (a rekordbox_import job; the
+         *     result lists imported, updated and skipped). 404 library_expired: choose the XML again.
+         */
+        post: operations["importRekordboxTracks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/songs": {
         parameters: {
             query?: never;
@@ -268,6 +311,72 @@ export interface paths {
          *     the background (analysis_state); poll GET /songs/{id}.
          */
         post: operations["uploadSong"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sample-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sample Packs
+         * @description v0.15: your drum sample packs. Enabled ones replace FoxBox's own one-shots for the roles they cover.
+         */
+        get: operations["listSamplePacks"];
+        put?: never;
+        /**
+         * Add Sample Pack
+         * @description v0.15: a folder of your one-shots (from the OS folder picker, main process only), read where it is (a
+         *     sample_scan job, one item per audio file). 400 not_a_folder, 404 missing.
+         */
+        post: operations["addSamplePack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sample-packs/{pack_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Sample Pack
+         * @description v0.15: forget the pack; its files are never touched.
+         */
+        delete: operations["deleteSamplePack"];
+        options?: never;
+        head?: never;
+        /** Update Sample Pack */
+        patch: operations["updateSamplePack"];
+        trace?: never;
+    };
+    "/api/sample-packs/{pack_id}/rescan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rescan Sample Pack
+         * @description v0.15: read the pack's folder again (rename a file, e.g. 'Kick 01.wav', then RESCAN to correct its role).
+         */
+        post: operations["rescanSamplePack"];
         delete?: never;
         options?: never;
         head?: never;
@@ -293,6 +402,51 @@ export interface paths {
          *     <= 16 MB and <= 4096 px a side (read from its header).
          */
         post: operations["uploadMask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/masks/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Mask Recipe
+         * @description v0.13: a MASKS character-creator mask: its recipe JSON (<= 256 KB, stored as-is, never evaluated) and a PNG
+         *     thumbnail (<= 512 px, <= 1 MB) served at /image. 413 over a limit; 415 a thumbnail that isn't a PNG.
+         */
+        post: operations["saveMaskRecipe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/masks/{mask_id}/recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mask Recipe
+         * @description v0.13: {"recipe": {...}} as saved. 409 for an image mask.
+         */
+        get: operations["getMaskRecipe"];
+        /**
+         * Update Mask Recipe
+         * @description v0.13: replace a character's name and recipe (and its thumbnail, when one is sent). 409 for an image mask.
+         */
+        put: operations["updateMaskRecipe"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -336,7 +490,12 @@ export interface paths {
         delete: operations["deleteMask"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Rename Mask
+         * @description v0.15.2: rename a user mask, image or recipe (only its name changes). 404 for an id the server doesn't hold
+         *     (the built-ins are the app's), 409 for a mask that isn't the user's.
+         */
+        patch: operations["renameMask"];
         trace?: never;
     };
     "/api/songs/{song_id}": {
@@ -1298,6 +1457,11 @@ export interface components {
              */
             playlist?: string | null;
         };
+        /** Body_readRekordboxLibrary */
+        Body_readRekordboxLibrary: {
+            /** File */
+            file: string;
+        };
         /** Body_uploadMask */
         Body_uploadMask: {
             /** File */
@@ -1345,6 +1509,38 @@ export interface components {
             index: number;
             /** Beat */
             beat: number;
+        };
+        /**
+         * Chord
+         * @description A bar's chord (v0.14): the harmony REMIX's engine voices follow (basses, growls and the 808 on its root, a grid's '3'
+         *     as its third). Spelled as FoxBox spells keys. v0.15.1: '5' is a power chord (root and fifth): voices play no third on it. No chord (drums only, silence) is quality 'N' with root None; a None root
+         *     always means no chord.
+         */
+        Chord: {
+            /** Root */
+            root?: ("C" | "C#" | "D" | "Eb" | "E" | "F" | "F#" | "G" | "Ab" | "A" | "Bb" | "B") | null;
+            /**
+             * Quality
+             * @default N
+             * @enum {string}
+             */
+            quality: "maj" | "min" | "5" | "sus4" | "7" | "m7" | "N";
+            /**
+             * Confidence
+             * @description The analysis's confidence; 1.0 for a chord you set or a progression BUILD chose.
+             * @default 1
+             */
+            confidence: number;
+            /**
+             * Root2
+             * @description v0.15.1: when the bar changes chord halfway (a turnaround or a tension half-bar), the second half's root; None = one chord for the whole bar.
+             */
+            root2?: ("C" | "C#" | "D" | "Eb" | "E" | "F" | "F#" | "G" | "Ab" | "A" | "Bb" | "B") | null;
+            /**
+             * Quality2
+             * @description v0.15.1: the second half's quality, with root2.
+             */
+            quality2?: ("maj" | "min" | "5" | "sus4" | "7" | "m7" | "N") | null;
         };
         /**
          * DrumKit
@@ -1718,7 +1914,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis" | "song_stems" | "song_lyrics" | "remix_build" | "remix_prepare" | "remix_export";
+            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis" | "song_stems" | "song_lyrics" | "remix_build" | "remix_prepare" | "remix_export" | "rekordbox_import" | "sample_scan" | "take_loudness";
             /**
              * State
              * @enum {string}
@@ -2073,9 +2269,10 @@ export interface components {
             kind: "builtin" | "user";
             /**
              * Format
+             * @description v0.13 adds 'recipe': a MASKS character-creator mask; /image then serves its PNG thumbnail.
              * @enum {string}
              */
-            format: "svg" | "png" | "webp";
+            format: "svg" | "png" | "webp" | "recipe";
             /** Width */
             width: number;
             /** Height */
@@ -2087,6 +2284,35 @@ export interface components {
             size_bytes: number;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * MaskRecipeSave
+         * @description POST /api/masks/recipes -> MaskInfo, and PUT /api/masks/{id}/recipe (v0.13): a MASKS character-creator mask.
+         *     `recipe` is the renderer's versioned JSON (opaque to the server beyond 'is a JSON object <= 256 KB'; the renderer
+         *     normalises it on load). `thumbnail_png_b64` is a <= 512 px PNG for the picker (served at GET /api/masks/{id}/image).
+         *     GET /api/masks/{id}/recipe returns {"recipe": {...}}. DELETE /api/masks/{id} as for image masks.
+         */
+        MaskRecipeSave: {
+            /** Name */
+            name: string;
+            /**
+             * Recipe
+             * @description Versioned JSON from the MASKS page (S1's maskRecipe).
+             */
+            recipe: {
+                [key: string]: unknown;
+            };
+            /** Thumbnail Png B64 */
+            thumbnail_png_b64?: string | null;
+        };
+        /**
+         * MaskRename
+         * @description PATCH /api/masks/{id} (v0.15.2) -> MaskInfo: renames a user mask, image or recipe. Built-ins are read-only (409).
+         *     The MASKS page's MY MASKS RENAME uses it for image masks, which have no recipe to PUT.
+         */
+        MaskRename: {
+            /** Name */
+            name: string;
         };
         /** MaskStrength */
         MaskStrength: {
@@ -2497,6 +2723,95 @@ export interface components {
             /** Macros */
             macros: components["schemas"]["MacroSpec"][];
         };
+        /**
+         * RekordboxEntry
+         * @description One track of an uploaded rekordbox.xml (v0.12). `id` is opaque (a hash of its Location); paths never cross the API.
+         */
+        RekordboxEntry: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Artist */
+            artist?: string | null;
+            /**
+             * Duration S
+             * @default 0
+             */
+            duration_s: number;
+            /** Bpm */
+            bpm?: number | null;
+            /**
+             * Key
+             * @description Normalised, e.g. 'Am' (Camelot parsed).
+             */
+            key?: string | null;
+            /**
+             * Grid
+             * @default none
+             * @enum {string}
+             */
+            grid: "fixed" | "variable" | "none";
+            /**
+             * Cues
+             * @default 0
+             */
+            cues: number;
+            /**
+             * Available
+             * @description False: the file isn't on this Mac or isn't a readable audio type.
+             * @default true
+             */
+            available: boolean;
+            /**
+             * Song Id
+             * @description Already imported as this Song.
+             */
+            song_id?: string | null;
+        };
+        /**
+         * RekordboxImportRequest
+         * @description POST /api/rekordbox/import (v0.12) -> Job (rekordbox_import). 404 library_expired: re-upload the XML.
+         *     v0.12.1: the job reports per track, with one JobItem each (label = the title): done with result_ids [song_id], or
+         *     error with error.code = missing | unsupported | too_long | too_large | unreadable. Job.result_ids = every song
+         *     imported or refreshed (the listing's song_id tells new from refreshed).
+         */
+        RekordboxImportRequest: {
+            /** Library Id */
+            library_id: string;
+            /** Track Ids */
+            track_ids: string[];
+        };
+        /**
+         * RekordboxLibrary
+         * @description POST /api/rekordbox/library (v0.12): multipart `file` = the rekordbox.xml bytes (the app reads the user-chosen file).
+         *     Parsed and kept for 30 min under `id`. 400 bad_xml; 413 over 100 MB.
+         */
+        RekordboxLibrary: {
+            /** Id */
+            id: string;
+            /** Tracks */
+            tracks?: components["schemas"]["RekordboxEntry"][];
+            /** Playlists */
+            playlists?: components["schemas"]["RekordboxPlaylist"][];
+            /**
+             * Missing
+             * @default 0
+             */
+            missing: number;
+        };
+        /** RekordboxPlaylist */
+        RekordboxPlaylist: {
+            /** Name */
+            name: string;
+            /**
+             * Folders
+             * @description Breadcrumb folder names.
+             */
+            folders?: string[];
+            /** Track Ids */
+            track_ids?: string[];
+        };
         /** RekordboxRequest */
         RekordboxRequest: {
             /** Export Ids */
@@ -2802,6 +3117,11 @@ export interface components {
              * @default 1
              */
             from_start_bar: number;
+            /**
+             * Chords
+             * @description v0.14: one chord per bar of this section, in order; the engine voices follow them. BUILD fills them (the source's chords under the section, moved with a MASHUP's key shift, or the take's chosen progression); edit them to re-voice a bar. Bars past the end of the list follow the source.
+             */
+            chords?: components["schemas"]["Chord"][];
         };
         /** RemixSource */
         RemixSource: {
@@ -2846,7 +3166,7 @@ export interface components {
             rating: -1 | 0 | 1;
             /**
              * Short Term Max Lufs
-             * @description v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0).
+             * @description v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0). v0.15.3: filled by the take's own low-priority loudness job (kind take_loudness) after PREPARE; PREPARE's Job lists that job's id in result_ids, and the field stays None until it is done.
              */
             short_term_max_lufs?: number | null;
             /**
@@ -3024,6 +3344,66 @@ export interface components {
              * @default true
              */
             auto_export: boolean;
+        };
+        /**
+         * SamplePack
+         * @description GET /api/sample-packs (v0.15) lists them; POST /api/sample-packs/{id}/rescan -> Job (sample_scan) re-reads one.
+         *     A file's role comes from its name first, then its sound, so renaming a file (e.g. 'Kick 01.wav') and RESCAN corrects
+         *     it. Enabled packs replace FoxBox's own CC0 one-shots for the roles they cover. DELETE forgets a pack; its files are
+         *     never touched.
+         */
+        SamplePack: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Available
+             * @description False while the folder is missing (e.g. an unplugged drive); FoxBox's own one-shots stand in.
+             * @default true
+             */
+            available: boolean;
+            /**
+             * Counts
+             * @description One-shots found per role.
+             */
+            counts?: {
+                [key: string]: number;
+            };
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * SamplePackAdd
+         * @description POST /api/sample-packs (v0.15) -> Job (sample_scan): add a folder of your own drum one-shots to the kit's sample
+         *     layers (M3.9). Only Electron's main process sends it, with the folder picked in the OS dialog. The engine reads the
+         *     files where they are (the Rekordbox import's path gate), copies nothing, and never returns or logs the path.
+         *     The job has one JobItem per audio file (label = the file's name): done, or error with error.code = not_one_shot |
+         *     unreadable | unsupported. Job.result_ids = [the pack id]. 400 not_a_folder, 404 missing.
+         */
+        SamplePackAdd: {
+            /** Folder */
+            folder: string;
+            /**
+             * Name
+             * @description None = the folder's name.
+             */
+            name?: string | null;
+        };
+        /**
+         * SamplePackUpdate
+         * @description PATCH /api/sample-packs/{id} (v0.15) -> SamplePack.
+         */
+        SamplePackUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
         };
         /**
          * ScriptPreview
@@ -3231,6 +3611,11 @@ export interface components {
              * @enum {string}
              */
             lyrics_state: "none" | "queued" | "running" | "done" | "error";
+            /**
+             * Cues
+             * @description v0.12: cues imported from Rekordbox.
+             */
+            cues?: components["schemas"]["SongCue"][];
         };
         /**
          * SongAnalysis
@@ -3270,6 +3655,48 @@ export interface components {
              * @default 4
              */
             beats_per_bar: number;
+            /**
+             * Source
+             * @description v0.12: 'rekordbox' when the grid and key came from a Rekordbox import.
+             * @default foxbox
+             * @enum {string}
+             */
+            source: "foxbox" | "rekordbox";
+            /**
+             * Tuning Cents
+             * @description v0.15.1: the source's tuning against A=440 in cents (a 432 Hz track is -31.8); every REMIX voice, repitched one-shot, kick and snare is tuned by it. None until measured.
+             */
+            tuning_cents?: number | null;
+        };
+        /**
+         * SongCue
+         * @description A cue from Rekordbox (v0.12): POSITION_MARK Type 0 (cue) / 4 (loop); Num -1 is a memory cue, 0-7 a hot cue.
+         */
+        SongCue: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "hot" | "memory" | "loop";
+            /** Start S */
+            start_s: number;
+            /**
+             * End S
+             * @description Loops only.
+             */
+            end_s?: number | null;
+            /**
+             * Num
+             * @description Hot-cue slot A-H as 0-7.
+             */
+            num?: number | null;
+            /** Color */
+            color?: string | null;
         };
         /**
          * SongLyrics
@@ -3436,6 +3863,11 @@ export interface components {
              * @default false
              */
             from_stems: boolean;
+            /**
+             * Chords
+             * @description v0.14: one chord per song bar from bar 1 (the downbeat), in order, read from the stems; empty until stems exist.
+             */
+            chords?: components["schemas"]["Chord"][];
         };
         /**
          * SongUpdate
@@ -5003,6 +5435,162 @@ export interface operations {
             };
         };
     };
+    readRekordboxLibrary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_readRekordboxLibrary"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RekordboxLibrary"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    importRekordboxTracks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RekordboxImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listSongs: {
         parameters: {
             query?: never;
@@ -5097,6 +5685,388 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Song"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSamplePacks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SamplePack"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    addSamplePack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SamplePackAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteSamplePack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pack_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateSamplePack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pack_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SamplePackUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SamplePack"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rescanSamplePack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pack_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
                 };
             };
             /** @description Bad Request */
@@ -5307,6 +6277,244 @@ export interface operations {
             };
         };
     };
+    saveMaskRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaskRecipeSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskInfo"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMaskRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mask_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateMaskRecipe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mask_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaskRecipeSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskInfo"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getMaskImage: {
         parameters: {
             query?: never;
@@ -5402,6 +6610,86 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    renameMask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mask_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaskRename"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskInfo"];
+                };
             };
             /** @description Bad Request */
             400: {

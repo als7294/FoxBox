@@ -219,3 +219,102 @@ def parse_rekordbox_xml(data: bytes | str) -> dict[str, Any]:
         "tracks": tracks,
         "playlists": playlists,
     }
+
+
+# --------------------------------------------------------------------------------------------- import (v0.12)
+
+AUDIO_EXTS = {".wav", ".aif", ".aiff", ".flac", ".mp3", ".m4a", ".aac", ".ogg"}
+
+
+def entry_id(location: str) -> str:
+    """An imported track's opaque id: a hash of its Location (the path never crosses the API)."""
+    import hashlib
+
+    return "rbe_" + hashlib.sha1(location.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+
+
+def local_audio_path(location: str) -> tuple[Path | None, str]:
+    """(the regular audio file a Location names on this Mac, "") or (None, why: 'unsupported' | 'missing'). Only local
+    file:// URIs; symlinks resolved, then the resolved file must still be a regular file with an audio extension."""
+    parsed = urlparse(location or "")
+    if parsed.scheme != "file" or parsed.netloc not in ("", "localhost") or not parsed.path.startswith("/"):
+        return None, "unsupported"  # network shares, relative or non-file Locations
+    raw = Path(unquote(parsed.path))
+    if raw.suffix.lower() not in AUDIO_EXTS:
+        return None, "unsupported"
+    try:
+        path = raw.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None, "missing"
+    if path.suffix.lower() not in AUDIO_EXTS or not path.is_file():  # a symlink to something else
+        return None, "unsupported"
+    return path, ""
+
+
+def grid_of(tempo: Sequence[dict[str, str]]) -> tuple[str, float | None, float | None]:
+    """(fixed | variable | none, bpm, bar 1 in s) from a track's TEMPO marks: Inizio is a beat numbered Battito 1-4,
+    so bar 1 sits (Battito - 1) beats before it (a bar later when that's before 0)."""
+    marks = [(float(t.get("Inizio", "0")), float(t.get("Bpm", "0")), int(float(t.get("Battito", "1") or 1)))
+             for t in tempo if float(t.get("Bpm", "0") or 0) > 0]
+    if not marks:
+        return "none", None, None
+    start, bpm, beat = marks[0]
+    down = start - (beat - 1) * 60.0 / bpm
+    while down < 0:
+        down += 240.0 / bpm
+    bpms = [b for _, b, _ in marks]
+    return ("fixed" if max(bpms) - min(bpms) <= 0.01 else "variable"), bpm, round(down, 6)
+
+
+def cues_of(marks: Sequence[dict[str, str]]) -> list[dict[str, Any]]:
+    """SongCue dicts from POSITION_MARKs: Type 0 a cue (Num -1 memory, 0-7 hot), 4 a loop; fades and load marks skipped."""
+    out = []
+    for m in marks:
+        kind, num = m.get("Type", "0"), int(float(m.get("Num", "-1") or -1))
+        if kind not in ("0", "4"):
+            continue
+        cue: dict[str, Any] = {"name": (m.get("Name") or "")[:200], "start_s": max(0.0, float(m.get("Start", "0") or 0)),
+                               "kind": "loop" if kind == "4" else ("hot" if 0 <= num <= 7 else "memory"),
+                               "num": num if 0 <= num <= 7 else None}
+        if kind == "4" and m.get("End"):
+            cue["end_s"] = max(0.0, float(m["End"]))
+        rgb = [m.get(c) for c in ("Red", "Green", "Blue")]
+        if all(v is not None and v.isdigit() and int(v) < 256 for v in rgb):
+            cue["color"] = "#" + "".join(f"{int(v):02X}" for v in rgb)
+        out.append(cue)
+    return out
+
+
+def read_library(data: bytes) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """(tracks, playlists) of a rekordbox.xml for the import: every TRACK with its attributes, TEMPO and POSITION_MARKs
+    (whatever its Location), and every playlist with its folder breadcrumbs and track Locations. Raises ValueError when
+    it isn't one. (expat has billion-laughs protection and ElementTree resolves no external entities.)"""
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise ValueError(str(exc)) from None
+    if root.tag != "DJ_PLAYLISTS":
+        raise ValueError(f"root element is {root.tag}, expected DJ_PLAYLISTS")
+    collection = root.find("COLLECTION")
+    tracks, by_id = [], {}
+    for el in collection.findall("TRACK") if collection is not None else []:
+        t = {**el.attrib, "tempo": [dict(x.attrib) for x in el.findall("TEMPO")],
+             "marks": [dict(x.attrib) for x in el.findall("POSITION_MARK")]}
+        tracks.append(t)
+        by_id[t.get("TrackID")] = t.get("Location", "")
+    playlists = []
+
+    def walk(node: ET.Element, folders: list[str]) -> None:
+        for child in node.findall("NODE"):
+            if child.get("Type") == "1":
+                by_location = child.get("KeyType") == "1"
+                locations = [k.get("Key", "") if by_location else by_id.get(k.get("Key"), "") for k in child.findall("TRACK")]
+                playlists.append({"name": child.get("Name", ""), "folders": list(folders),
+                                  "locations": [loc for loc in locations if loc]})
+            else:
+                walk(child, folders + ([child.get("Name", "")] if child.get("Name") != "ROOT" else []))
+
+    pl = root.find("PLAYLISTS")
+    if pl is not None:
+        walk(pl, [])
+    return tracks, playlists

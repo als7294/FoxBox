@@ -885,6 +885,91 @@ export class MockEngine {
     return job
   }
 
+  // ------------------------------------------------------------------------------ Rekordbox import (v0.12)
+
+  private readonly rbLibraries = new Map<string, { tracks: { id: string; title: string; seconds: number; bpm: number | null }[] }>()
+
+  /** POST rekordbox/library: the TRACK and playlist NODE tags of any rekordbox.xml (the mock reads files from nowhere). */
+  readRekordbox(xml: string) {
+    const attr = (tag: string, a: string) => new RegExp(`\\b${a}="([^"]*)"`).exec(tag)?.[1] ?? null
+    const tracks = [...xml.matchAll(/<TRACK\b[^>]*\bTrackID="[^"]*"[^>]*>/g)].map((m) => {
+      const t = m[0]
+      return {
+        id: attr(t, 'TrackID')!,
+        title: attr(t, 'Name') ?? 'Untitled',
+        artist: attr(t, 'Artist'),
+        seconds: Number(attr(t, 'TotalTime') ?? 180),
+        bpm: attr(t, 'AverageBpm') ? Number(attr(t, 'AverageBpm')) : null,
+        key: attr(t, 'Tonality'),
+      }
+    })
+    const lib = { id: id('rbl'), tracks }
+    this.rbLibraries.set(lib.id, lib)
+    const playlists = [...xml.matchAll(/<NODE\b[^>]*\bType="1"[^>]*>([\s\S]*?)<\/NODE>/g)].map((m) => ({
+      name: /\bName="([^"]*)"/.exec(m[0])?.[1] ?? 'Playlist',
+      folders: [],
+      track_ids: [...m[1]!.matchAll(/\bKey="([^"]*)"/g)].map((k) => k[1]!),
+    }))
+    return {
+      id: lib.id,
+      tracks: tracks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        duration_s: t.seconds,
+        bpm: t.bpm,
+        key: t.key,
+        grid: t.bpm ? ('fixed' as const) : ('none' as const),
+        cues: 0,
+        available: true,
+        song_id: [...this.songs.values()].find((s) => s.name === t.title)?.id ?? null,
+      })),
+      playlists,
+      missing: 0,
+    }
+  }
+
+  /** POST rekordbox/import: one item per track, each a short demo song under the track's title. */
+  importRekordbox(libraryId: string, trackIds: string[]): Job {
+    const lib = this.rbLibraries.get(libraryId)
+    if (!lib) throw new MockError(404, 'not_found', `library '${libraryId}' not found`)
+    const picked = lib.tracks.filter((t) => trackIds.includes(t.id))
+    type ImportJob = Job & { startedAt: number; items: NonNullable<Job['items']>; result_ids: string[] }
+    const job: ImportJob = {
+      id: id('job'),
+      kind: 'rekordbox_import',
+      state: 'queued',
+      progress: 0,
+      message: null,
+      items: picked.map((t, index) => ({ index, label: t.title, state: 'queued', progress: 0, error: null, result_ids: [] })),
+      result_ids: [],
+      error: null,
+      created_at: now(),
+      updated_at: now(),
+      startedAt: Date.now(),
+    }
+    this.jobs.set(job.id, job)
+    void (async () => {
+      job.state = 'running'
+      for (const [i, t] of picked.entries()) {
+        const item = job.items[i]!
+        item.state = 'running'
+        await new Promise((r) => setTimeout(r, this.latencyMs))
+        const sr = 22050
+        const tone = new Float32Array(sr * 8).map((_, n) => 0.3 * Math.sin((2 * Math.PI * 55 * n) / sr))
+        const song = this.uploadSong(encodeWav({ sampleRate: sr, channels: [tone] }, 16), t.title, `${t.title}.wav`)
+        item.state = 'done'
+        item.progress = 1
+        item.result_ids = [song.id]
+        job.result_ids.push(song.id)
+        job.progress = (i + 1) / picked.length
+      }
+      job.state = 'done'
+      job.updated_at = now()
+    })()
+    return structuredClone(job)
+  }
+
   job(jobId: string): Job {
     const j = this.jobs.get(jobId)
     if (!j) throw new MockError(404, 'not_found', `job '${jobId}' not found`)
@@ -938,7 +1023,16 @@ export class MockEngine {
     if (s.analysis_state !== 'done' && Date.now() >= s.readyAt) {
       // Plausible and fixed (the mock doesn't listen), in the engine's spelling.
       s.analysis_state = 'done'
-      s.analysis = { bpm: 128, bpm_confidence: 0.9, key: 'Ebm', camelot: '2A', key_confidence: 0.6, downbeat_s: 0.12, beats_per_bar: 4 }
+      s.analysis = {
+        bpm: 128,
+        bpm_confidence: 0.9,
+        key: 'Ebm',
+        camelot: '2A',
+        key_confidence: 0.6,
+        downbeat_s: 0.12,
+        beats_per_bar: 4,
+        source: 'foxbox',
+      }
     } else if (s.analysis_state === 'queued') {
       s.analysis_state = 'running'
     }

@@ -1,0 +1,40 @@
+/* 2 PEOPLE IN FRAME?: amber, inline in the panel (not a dialog), slides in. */
+.ask {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: var(--vb-r2);
+  background: rgba(var(--vb-amber-rgb), 0.08);
+  font: 500 var(--vb-text-min) / 1.45 var(--vb-font-mono);
+  color: var(--vb-dim);
+  animation: askIn 0.26s var(--vb-ease) both;
+}
+.ask p {
+  margin: 0;
+}
+.ask b {
+  margin-right: 6px;
+  color: var(--vb-amber);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.row {
+  display: flex;
+  gap: 6px;
+}
+@keyframes askIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask {
+    animation: none;
+  }
+}

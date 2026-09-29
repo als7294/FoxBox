@@ -3,9 +3,10 @@ for growls.render_growl ("riddim" = R1, "yoi" = R2). One note each, mono, the LF
 
   R1 "square-FM wub"  a 50 % square phase-modulated by a sine (FM 2>1): rasp
                       ~20 % at rest, swept to 45-90 % by the LFO (AXES); a +12 st click over the first ~30 ms; Comb+ (70 %
-                      feedback, 60 % mix) swept +-12 st by the LFO; a 24 dB low-pass, the muffled top (5 kHz, or
-                      following the LFO from 1.25 kHz: AXES);
-                      a flanger whose mix follows a second LFO at half the rate; drive (4x oversampled) and OTT; the amp
+                      feedback, 60 % mix) on the note's octave nearest the take's 330 / 440 / 600 Hz (a comb is a
+                      pitch: REMIX_HARMONY §1.4), swept by the LFO from an octave under to a 12th over (both in key); a 24 dB low-pass, the muffled top (5 kHz, or
+                      following the LFO, 600 Hz - 6 kHz: AXES); as an option (riddim.shift), a +-20-80 Hz freq shift
+                      with a 1/64 echo at 25 %; a flanger whose mix follows a second LFO at half the rate; drive (4x oversampled) and OTT; the amp
                       wubs 60-100 %. The LFO is an exponential saw-down: open at each cycle's start, shut for its last
                       30 %. The variant is the LFO rate: 1/4, 1/4T, 1/8, 1/8T, one per note from the take's pool
                       (rate_variants(axes): riddim's "wonky" rate switching).
@@ -25,10 +26,10 @@ for growls.render_growl ("riddim" = R1, "yoi" = R2). One note each, mono, the LF
 from __future__ import annotations
 
 import numpy as np
-from scipy import signal
+from scipy import ndimage, signal
 
 from .foxsynth import sync_hz
-from .midbus import pick
+from .midbus import freq_shift, harmonic_of, harmonic_shift, moving_comb, octave_of, pick
 
 R1_RATES = ("1/4", "1/4T", "1/8", "1/8T")
 # The choices sources disagree on (plan v2 §4: "there isn't always a correct answer"): BUILD resolves them per take
@@ -36,13 +37,14 @@ R1_RATES = ("1/4", "1/4T", "1/8", "1/8T")
 AXES: dict[str, dict[str, float]] = {
     "riddim.r1_rates": {"all": 0.5, "straight": 0.25, "triplet": 0.25},  # the pool each note's LFO rate comes from
     "riddim.r1_throat": {"1": 0.6, "0.5": 0.4},  # R1's osc2 : osc1 (FM 2>1; 0.5 is throatier)
-    "riddim.r1_comb_hz": {"330": 0.3, "440": 0.4, "600": 0.3},  # R1's Comb+ centre (the Sound Bible's 300-900 Hz)
+    "riddim.r1_comb_hz": {"330": 0.3, "440": 0.4, "600": 0.3},  # R1's Comb+ register (the Bible's 300-900 Hz): midbus.octave_of
     # R1's timbre movement per beat (the bible's §5 check wants >= 150 Hz on the riddim bus): the recipe's FM peak
     # (~40 %) and static top barely move the centroid (6-14 Hz a beat), so a stronger sweep and a top that follows
     # the LFO are the likelier takes; the recipe's own stays an option.
     "riddim.r1_fm_peak": {"0.45": 0.3, "0.7": 0.4, "0.9": 0.3},  # R1's FM depth at the LFO's peak (at rest 0.1-0.2)
     "riddim.r1_top": {"lfo": 0.6, "static": 0.4},  # R1's 24 dB top: follows the LFO (1.25 -> 5 kHz), or 5 kHz
     "riddim.r2_blend": {"0.3": 0.3, "0.4": 0.4, "0.5": 0.3},  # R2's gain under R1
+    "riddim.shift": {"off": 0.5, "on": 0.5},  # R1 through FP's freq shift + a short delay (M1.4a); a tie keeps "off"
 }
 RATE_POOLS = {"all": (0, 1, 2, 3), "straight": (0, 2), "triplet": (1, 3)}  # variants (R1_RATES indices)
 
@@ -76,20 +78,11 @@ def saw_down(t: np.ndarray, div: str, bpm: float) -> np.ndarray:
     return np.where(ph < 0.7, (1 - ph / 0.7) ** 2, 0.0)
 
 
-def moving_comb(x: np.ndarray, hz: np.ndarray, fb: float, sr: int) -> np.ndarray:
-    """A feedback comb (Comb+) whose delay (1/hz, interpolated) moves, run in blocks shorter than the delay."""
-    n = len(x)
-    d = sr / np.clip(hz, 50.0, sr / 4)
-    step = max(1, int(d.min()) - 1)  # every read in a block lands before it
-    y = np.zeros(n)
-    idx = np.arange(n)
-    for i in range(0, n, step):
-        r = idx[i:i + step] - d[i:i + step]
-        k = np.floor(r).astype(int)
-        a = r - k
-        past = np.where(k >= 0, (1 - a) * y[np.maximum(k, 0)] + a * y[np.maximum(k + 1, 0)], 0.0)
-        y[i:i + step] = x[i:i + step] + fb * past
-    return y * (1 - fb)
+def eased(lfo: np.ndarray, sr: int, ms: float = 5.0) -> np.ndarray:
+    """A riddim LFO whose restarts rise over ~`ms` (a one-pole from its own start): a timbre stepped in one sample at a
+    restart mid-note is a click."""
+    a = np.exp(-1 / (ms / 1000 * sr))
+    return signal.lfilter([1 - a], [1, -a], lfo, zi=[a * lfo[0]])[0] if len(lfo) else lfo
 
 
 def r1(f: np.ndarray, t: np.ndarray, sr: int, bpm: float, v: int, f0: float, axes: dict[str, str] | None = None) -> np.ndarray:
@@ -101,15 +94,37 @@ def r1(f: np.ndarray, t: np.ndarray, sr: int, bpm: float, v: int, f0: float, axe
     rasp = min(0.2, peak / 3) + (peak - min(0.2, peak / 3)) * lfo
     ratio = float(option(axes, "riddim.r1_throat"))
     ph = np.cumsum(f / sr) + 1.2 * rasp * np.sin(2 * np.pi * np.cumsum(f * ratio / sr))  # FM 2>1, in cycles
-    x = _square(ph % 1.0, np.maximum(np.abs(np.gradient(ph)), 1e-6))  # polyBLEP on the real phase step
-    x = 0.4 * x + 0.6 * moving_comb(x, float(option(axes, "riddim.r1_comb_hz")) * 2 ** (2 * lfo - 1), 0.7, sr)  # +-12 st
-    top = 5000.0 * (0.25 + 0.75 * lfo) if option(axes, "riddim.r1_top") == "lfo" else np.full(len(t), 5000.0)
+    # The 0.5 throat's FM swings the phase backward, where the polyBLEP square (which assumes it runs forward) leaves
+    # hard steps: HF ticks (S2's riddim flip: 163 clicks/min). There, a soft square (tanh of the sine) that is smooth
+    # whichever way the phase runs.
+    if ratio < 1:
+        x = np.tanh(5.0 * np.sin(2 * np.pi * ph))
+    else:
+        # The FM's peak (right after each restart) swings the phase back too, for a moment: the soft square there,
+        # blended in as the phase slows below a third of the note's speed (S2's riddim flip: the rest of its clicks).
+        step = np.gradient(ph)
+        hard = _square(ph % 1.0, np.maximum(np.abs(step), 1e-6))  # polyBLEP on the real phase step
+        w = np.clip((0.35 - step * sr / f) / 0.25, 0.0, 1.0)
+        x = hard + w * (np.tanh(5.0 * np.sin(2 * np.pi * ph)) - hard)
+    # The comb on the note (HARMONY 1.4): the option's centre moved to the nearest octave of f0, swept from an octave
+    # under to a 12th over (x0.5 .. x3: both ends harmonics of f0)
+    comb_hz = octave_of(float(option(axes, "riddim.r1_comb_hz")), f0)
+    x = 0.4 * x + 0.6 * moving_comb(x, comb_hz * 0.5 * 6 ** lfo, 0.7, sr)  # -12 .. +19 st
+    # The top follows the LFO, 600 Hz shut to 6 kHz open (the Bible's 4-6 kHz LP), opening over ~5 ms (a one-sample step at
+    # a restart mid-note clicked; the wider range keeps the sweep the clean square no longer fakes with aliasing).
+    top = 6000.0 * (0.1 + 0.9 * eased(lfo, sr)) if option(axes, "riddim.r1_top") == "lfo" else np.full(len(t), 5000.0)
     x = _lowpass(_lowpass(x, top, 0.8, sr), top, 0.8, sr)
-    # The flanger (2 ms +-1, feedback 0.7), its mix on a second LFO at half the rate.
+    if option(axes, "riddim.shift") == "on":  # FP: a freq shift (+-20-80 Hz, by rate) at 25 %, with a 1/64 echo
+        wet = freq_shift(x, sr, harmonic_shift((20.0, -40.0, 60.0, -80.0)[v], f0))  # m f0 / 2: a held wub stays harmonic
+        d = int(round(15.0 / bpm / 4 * sr))
+        x = x + 0.25 * (wet + 0.4 * np.concatenate([np.zeros(d), wet[:-d]]))
+    # The flanger (2 ms +-1, feedback 0.7), its mix on a second LFO at half the rate. It never rests on a pitch (a
+    # continuous 0.4 Hz sweep), so it isn't key-tracked like the Comb+ (HARMONY 1.4 is about a comb at rest).
     flange = moving_comb(x, 1 / (0.002 + 0.001 * np.sin(2 * np.pi * 0.4 * t)), 0.7, sr)
-    x = x + 0.5 * saw_down(t, R1_RATES[v], bpm / 2) * (flange - x)
+    x = x + 0.5 * eased(saw_down(t, R1_RATES[v], bpm / 2), sr) * (flange - x)  # eased: its restart stepped the mix
     x = _ott(_os(lambda y: np.tanh(1.2 * y), x), sr, 0.25)  # lighter than the growls: the sweep has to survive it
-    return x * (0.6 + 0.4 * lfo)  # the wub
+    # The wub, still hard: a 1.5 ms rise, not one sample (a 0.6 -> 1 step at a restart clicked on some roots, F2).
+    return x * (0.6 + 0.4 * eased(lfo, sr, 1.5))
 
 
 def r2(f: np.ndarray, t: np.ndarray, sr: int, bpm: float, v: int, f0: float) -> np.ndarray:
@@ -127,7 +142,8 @@ def r2(f: np.ndarray, t: np.ndarray, sr: int, bpm: float, v: int, f0: float) -> 
     for j, gain in enumerate((1.0, 0.8)):
         a = np.array([FORMANTS[path[i]][j] for i in lo], float)
         b = np.array([FORMANTS[path[i + 1]][j] for i in lo], float)
-        x += gain * _bandpass(src, a + (b - a) * frac, 9.0, sr)
+        fc = ndimage.uniform_filter1d(harmonic_of(a + (b - a) * frac, f0), int(0.003 * sr), mode="nearest")
+        x += gain * _bandpass(src, fc, 9.0, sr)  # Q 9 rings a pitch: on the saw's harmonic nearest the formant, 3 ms glides
     # Half the plain saw under the vowels: a steady top, so the growl post's grit doesn't tick on the formant peaks.
     return _ott(_os(lambda y: np.tanh(3.0 * y), x + 0.5 * src), sr, 0.3)
 

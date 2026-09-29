@@ -362,6 +362,19 @@
   font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
+/* BETA (REMIX in 1.5.1): sized like WIP, in the ice of VISUALS' DEPTH GLITCH BETA chip. */
+.railBeta {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 0 2px;
+  line-height: 1.25;
+  border: 1px solid rgba(124, 200, 255, 0.55);
+  border-radius: 3px;
+  color: var(--vb-ice);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
 .railItem[aria-current='page'] {
   color: var(--vb-ink);
 }
@@ -638,10 +651,10 @@
   border-right: 1px solid var(--vb-line);
   -webkit-app-region: drag;
 }
-.shell[data-screen='remix'] > .main {
+.shell:is([data-screen='remix'], [data-screen='masks']) > .main {
   grid-row: 1 / -1;
 }
-.shell[data-screen='remix']:has(> [data-update-bar]) > .main {
+.shell:is([data-screen='remix'], [data-screen='masks']):has(> [data-update-bar]) > .main {
   grid-row: 3;
 }
 .railStatus {

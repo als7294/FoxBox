@@ -128,3 +128,15 @@ def test_prints_are_cached_by_content_once_the_synth_is_configured(tmp_path, mon
     monkeypatch.setattr(growls, "PRINT_CAP_BYTES", 1)
     growls._prune(tmp_path / "prints")
     assert not list((tmp_path / "prints").glob("*.npy"))  # over the cap: pruned, oldest first
+
+
+def test_a_low_notes_two_period_buzz_is_not_clicks():
+    from fvwks_synth.growls import clicks
+    e, at, k = np.zeros(SR * 2), 0.1, 0  # HF power: an edge every 2 periods of C#1 (57.8 ms, +-5 % comb wobble)
+    while at < 1.5:
+        e[int(at * SR)] = 1.0
+        at += 2 / 34.65 * (1 + 0.05 * np.sin(k))
+        k += 1
+    assert clicks(e, SR) == 0  # S1's R1 buzz (remix_qa._clicks is held to the same case)
+    e[int(1.8 * SR)] = 1.0
+    assert clicks(e, SR) == 1

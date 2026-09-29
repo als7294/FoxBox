@@ -70,8 +70,9 @@ export interface RemixState {
   remix: Remix | null
   progress: { label: string; value: number } | null
   error: string | null
-  /** The context panel; null = follow the recipe. */
+  /** The context panel; null = follow the recipe. `panelMin` folds it to a 46px rail (a MASHUP BUILD does, for timeline). */
   panel: RemixPanel | null
+  panelMin: boolean
   /** Selected section index and lane id on the timeline. */
   section: number | null
   lane: string | null
@@ -125,6 +126,7 @@ export const useRemix = create<RemixState>(() => ({
   progress: null,
   error: null,
   panel: null,
+  panelMin: false,
   section: null,
   lane: null,
   exportOpen: false,
@@ -283,6 +285,21 @@ async function runBuild(r: Remix, vipDrop: boolean, quiet = false, fresh = false
 }
 
 /** PREPARE: renders every clip without audio. `quiet`: see runBuild. */
+/**
+ * v0.15.3: a take's LUFS · dBTP come from its own low-priority job after PREPARE (listed in PREPARE's result_ids); the
+ * readouts show "…" until it's done, then the Remix is fetched again.
+ */
+async function followLoudness(jobId: string, remixId: string) {
+  try {
+    const j = await unwrap(api.GET('/api/jobs/{job_id}', { params: { path: { job_id: jobId } } }))
+    if ((j.kind as string) !== 'take_loudness') return
+    await waitJob(j, undefined, 1000)
+    adopt(await remixApi.get(remixId))
+  } catch {
+    // the readout stays "…"; the next PREPARE tries again
+  }
+}
+
 async function prepareClips(quiet: boolean) {
   const r = get().remix
   if (!r) return
@@ -290,7 +307,7 @@ async function prepareClips(quiet: boolean) {
   try {
     // Clips gain audio as the job advances: refetch the Remix on each step, so they play as soon as they're ready.
     let seen = -1
-    await waitJob(await remixApi.prepare(r.id), (j) => {
+    const job = await waitJob(await remixApi.prepare(r.id), (j) => {
       set({ progress: { label: j.message ? `PREPARING · ${j.message}` : 'PREPARING', value: j.progress } })
       if (quiet || j.progress === seen) return
       seen = j.progress
@@ -299,6 +316,7 @@ async function prepareClips(quiet: boolean) {
     const done = await remixApi.get(r.id)
     remember(done)
     if (!quiet || get().switching === done.seed) adopt(done)
+    for (const id of job.result_ids ?? []) void followLoudness(id, r.id)
   } catch (err) {
     set({ error: message(err) })
   } finally {
@@ -360,7 +378,7 @@ export const remix = {
     if (!s.slotA || s.progress) return
     const sources = sourcesOf(s)
     const mash = s.recipe === 'mashup' && s.match?.song_id === s.slotB ? s.match : null
-    set({ progress: { label: 'BUILDING', value: 0 }, error: null })
+    set({ progress: { label: 'BUILDING', value: 0 }, error: null, ...(s.recipe === 'mashup' ? { panelMin: true } : {}) })
     try {
       await chain
       await ensureStems(sources.map((x) => x.song_id))

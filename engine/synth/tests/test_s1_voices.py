@@ -22,6 +22,26 @@ def test_riddim_voices_restart_their_lfo_and_never_click():
                 assert growls.qa(x, SR)["clicks"] == 0, (style, v, midi, beats)
 
 
+def test_riddim_throat_has_no_fm_ticks():
+    """R1's 0.5 throat swings its FM phase backward: a hard (polyBLEP) square there ticked on most notes of S2's riddim
+    flip (32-36 clicks in 16 beats of mixed 1/4-1 beat notes; the default throat ~6). 16 beats of such notes on every
+    rate, counted as the loop QA counts: as clean as the default throat."""
+    from scipy import signal
+
+    sr = 44_100
+    rng = np.random.default_rng(1)
+    bus = np.zeros(int(17 * 60 / BPM * sr))
+    t = 0.0
+    while t < 16:
+        beats = float(rng.choice([0.25, 0.5, 0.75, 1.0]))
+        x = growls.render_growl("riddim", 37, beats, BPM, sr, int(rng.integers(4)), sub=False, axes={"riddim.r1_throat": "0.5", "riddim.r1_comb_hz": "600"})
+        i = int(round(t * 60 / BPM * sr))
+        bus[i:i + x.shape[1]] += x.mean(axis=0)
+        t += beats
+    hf = signal.sosfiltfilt(signal.butter(4, 4000, "highpass", fs=sr, output="sos"), bus) ** 2
+    assert growls.clicks(hf, sr) <= 3
+
+
 def test_yoi_loop_has_no_grit_ticks():
     """The growl post's grit folded yoi's formant swells into HF ticks (32 in this loop at drive 2): a 4-bar loop, the
     voice alone, counted the way the loop QA does (clicks() on the power above 4 kHz)."""
@@ -98,6 +118,16 @@ def test_squeak_and_late_delay():
     assert growls.qa(d, SR)["clicks"] == 0
 
 
+def test_riddim_comb_rings_in_key():
+    from fvwks_synth.midbus import octave_of
+
+    for midi in (30, 37, 44.31):  # 44.31: a source 31 cents sharp (the caller's midi carries it)
+        f0 = growls._hz(midi)
+        for near in (330.0, 440.0, 600.0):
+            octaves = np.log2(octave_of(near, f0) / f0)
+            assert abs(octaves - round(octaves)) < 1e-9 and abs(np.log2(octave_of(near, f0) / near)) <= 0.5  # the nearest octave
+
+
 def test_riddim_and_808_choices_come_from_the_take():
     from fvwks_synth import riddim
 
@@ -110,6 +140,12 @@ def test_riddim_and_808_choices_come_from_the_take():
     plain = growls.render_growl("riddim", 40, 1.0, BPM, sub=False)
     throat = growls.render_growl("riddim", 40, 1.0, BPM, sub=False, axes={"riddim.r1_throat": "0.5", "riddim.r1_comb_hz": "600"})
     assert not np.allclose(plain, throat) and growls.qa(throat, SR)["clicks"] == 0
+    # M1.4a: FP's freq shift + a short delay, off unless the take picks it; inharmonic, and still click-free.
+    assert riddim.option(None, "riddim.shift") == "off"
+    for v in range(4):
+        shifted = growls.render_growl("riddim", 40, 1.0, BPM, variant=v, sub=False, axes={"riddim.shift": "on"})
+        base = growls.render_growl("riddim", 40, 1.0, BPM, variant=v, sub=False)
+        assert not np.allclose(base, shifted) and growls.qa(shifted, SR)["clicks"] == 0, v
     # 808: a lazier glide and a smaller drop, by the take.
     line = [(0, 1.5, 33), (1.25, 1.0, 40)]
     k = int(1.25 * 60 / BPM * SR) + int(0.085 * SR)
@@ -118,6 +154,21 @@ def test_riddim_and_808_choices_come_from_the_take():
     mid = k - int(0.035 * SR)  # 50 ms into the glide
     assert abs(bible[k] - 40) < 0.05 and lazy[mid] < bible[mid] - 0.8  # 80 ms is done by 85 ms; the lazy one lags
     assert abs(lazy[0] - 36) < 0.01
+
+
+def test_bass_dna_becomes_an_808_line():
+    """M1.12a: C# minor. Off-grid starts land on 1/16s; 36.7 rounds to C#2 (37) and folds to C#1; D (off the scale)
+    snaps down to C#; same-pitch neighbours merge; only the source's glide overlaps (render_808_line glides there)."""
+    from types import SimpleNamespace as N
+
+    groove = [N(beat=0.02, beats=1.9, midi=36.7, glide_to=None), N(beat=2.0, beats=0.5, midi=37.0, glide_to=None),
+              N(beat=2.6, beats=0.9, midi=40.2, glide_to=44.0), N(beat=3.5, beats=0.5, midi=44.0, glide_to=None),
+              N(beat=4.1, beats=0.3, midi=38.0, glide_to=None), N(beat=4.5, beats=3.0, midi=33.0, glide_to=None)]
+    line = bass808.line_from_groove(groove, root_pc=1)
+    assert line == [(0.0, 2.5, 25.0), (2.5, 1.125, 28.0), (3.5, 0.5, 32.0), (4.0, 0.5, 25.0), (4.5, 3.0, 33.0)]
+    assert all(25 <= m < 37 for _, _, m in line)  # the octave above the root, C#1
+    x = bass808.render_808_line(line, BPM, SR)
+    assert x.shape[1] == round(7.5 * 60 / BPM * SR) and growls.qa(x, SR)["clicks"] == 0
 
 
 def beat_movement(x: np.ndarray, bpm: float = BPM) -> float:
@@ -153,3 +204,17 @@ def test_trap_hybrid_voices_move_and_never_click():
 def test_riddim_r1_moves_within_a_beat():
     moves = [beat_movement(growls.render_growl("riddim", 44, 4.0, BPM, variant=v, sub=False)) for v in range(4)]
     assert np.median(moves) >= 100, moves  # the default takes: a real sweep, not just the amp wub (was 6-14 Hz)
+
+
+def test_a_tuned_kick_keeps_its_pitch_across_seeds():
+    from fvwks_synth.drums import render_drum
+
+    def hz(x: np.ndarray, sr: int = SR) -> float:  # the body's pitch from its zero crossings, 150-290 ms
+        y = x[0, int(0.15 * sr):int(0.29 * sr)]
+        z = np.flatnonzero((y[:-1] < 0) & (y[1:] >= 0))
+        z = z + y[z] / (y[z] - y[z + 1])
+        return float(sr * (len(z) - 1) / (z[-1] - z[0]))
+
+    cents = lambda fs: 1200 * np.log2(max(fs) / min(fs))
+    assert cents([hz(render_drum("kick", SR, seed=s, root_hz=49.0)) for s in range(6)]) < 2  # on the key, every hit
+    assert cents([hz(render_drum("kick", SR, seed=s)) for s in range(6)]) > 5  # untuned hits still vary

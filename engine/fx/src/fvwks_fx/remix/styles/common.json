@@ -23,6 +23,20 @@
    "4+8": 0.75,
    "8": 0.25,
    "bar": 0.0
+  },
+  "kit.layer": {
+   "both": 0.65,
+   "synth": 0.2,
+   "sample": 0.15
+  },
+  "drop.tension": {
+   "off": 1.0,
+   "on": 0.0
+  },
+  "vocals.arrangement": {
+   "keep": 0.4,
+   "chops": 0.6,
+   "hook_move": 0.0
   }
  }
 }

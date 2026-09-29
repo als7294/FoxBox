@@ -9,6 +9,8 @@ dark long first hit. Complete renders, not growl engines: mono, click-free, (2, 
       and a gentle low-pass over the attack. Variants: 0 held (S 90 %, R 150 ms), 1 a trap one-shot (a ~3 s decay),
       2 held and dirtier, 3 a short one-shot. Parallel saturation: the dirty path 4x oversampled, low-passed at
       400 Hz, mixed 0.6, so it reads on small speakers.
+  line_from_groove(notes, root_pc, minor=True)
+      BASS DNA's groove notes as that line (M1.12a): on the 1/16 grid, in the key's scale, the root in C1-B1.
   render_808(midi, beats, bpm, sr=48000, variant=0)
       one note of that: render_growl's shape.
   render_darkhit(midi, beats, bpm, sr=48000, variant=0)
@@ -82,6 +84,41 @@ def pitch_line(notes: list[tuple[float, float, float]], bpm: float, sr: int, var
             p[k:k + g] = (midi - step) + step * ease[: len(p[k:k + g])]
             prev = float(midi)
         out.append((a, p))
+    return out
+
+
+MINOR = (0, 2, 3, 5, 7, 8, 10)
+MAJOR = (0, 2, 4, 5, 7, 9, 11)
+
+
+def line_from_groove(notes, root_pc: int, minor: bool = True) -> list[tuple[float, float, float]]:
+    """BASS DNA -> an 808 line for render_808_line (plan v2 M1.12a). `notes`: the groove's notes (GrooveNote: .beat,
+    .beats, .midi, .glide_to). Starts on the 1/16 grid, at least a 1/16 long; each pitch snapped to the key's scale (a
+    tie goes down) and folded into the octave above the root (C1-B1, like the engine's 808); same-pitch neighbours
+    that touch merge into one held note, and held notes stay held; a note glides into the next only where the source
+    glided (glide_to), else it stops where the next starts.
+    ponytail: no split at bar lines (I6) yet; the sequencer splits if a drum grid needs it."""
+    q = 0.25
+    root = 24 + root_pc % 12
+    scale = [(root_pc + d) % 12 for d in (MINOR if minor else MAJOR)]
+    line: list[list] = []
+    for nt in sorted(notes, key=lambda nt: nt.beat):
+        a = round(nt.beat / q) * q
+        b = max(a + q, round((nt.beat + nt.beats) / q) * q)
+        m = round(nt.midi)
+        m += min((((s - m) % 12 + 6) % 12 - 6 for s in scale), key=lambda d: (abs(d), d))  # the nearest degree; a tie goes down
+        m = root + (m - root) % 12
+        glide = getattr(nt, "glide_to", None) is not None
+        if line and (a == line[-1][0] or (m == line[-1][2] and a <= line[-1][1])):  # one note: same start, or held on
+            line[-1][1] = max(line[-1][1], b)
+            line[-1][3] = glide
+            continue
+        line.append([a, b, m, glide])
+    out = []
+    for i, (a, b, m, glide) in enumerate(line):
+        if i + 1 < len(line):
+            b = max(b, line[i + 1][0] + q / 2) if glide else min(b, line[i + 1][0])  # render_808_line glides on overlap
+        out.append((a, b - a, float(m)))
     return out
 
 

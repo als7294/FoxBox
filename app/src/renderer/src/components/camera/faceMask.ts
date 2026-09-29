@@ -24,7 +24,7 @@ import {
 } from 'three'
 import { theme } from '@/visuals/theme'
 import { smoothstep } from './camMath'
-import { CANON_TRIS, CANON_UV } from './faceMeshData'
+import { CANON_POS, CANON_TRIS, CANON_UV } from './faceMeshData'
 import type { FaceShapes } from './vision'
 
 /** The user's masks by id: where to get each picture (the engine). */
@@ -38,7 +38,7 @@ export function addMask(id: string, url: () => Promise<string>): void {
 const TEX = 1024
 /** The largest side rendered (the result is scaled onto the canvas). */
 const MAX_PX = 640
-const FACE = 468 // the canonical face; the landmarker's last 10 points are the irises
+export const FACE = 468 // the canonical face; the landmarker's last 10 points are the irises
 
 // ------------------------------------------------------------------------------------------------ the rigged mesh
 
@@ -47,13 +47,13 @@ const OVAL = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93,
   234, 127, 162, 21, 54, 103, 67, 109,
 ]
-const RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-const LEFT_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]
+export const RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+export const LEFT_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]
 const INNER_LIPS = new Set([78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191])
-const VERTS = FACE + OVAL.length
+export const VERTS = FACE + OVAL.length
 
 /** UVs: the canonical face's, then the skirt's (its outline point's, a little inside the art's edge). */
-const UV = new Float32Array(VERTS * 2)
+export const UV = new Float32Array(VERTS * 2)
 UV.set(CANON_UV.subarray(0, FACE * 2))
 OVAL.forEach((i, k) => {
   UV[(FACE + k) * 2] = CANON_UV[i * 2]! + (0.5 - CANON_UV[i * 2]!) * 0.03
@@ -61,7 +61,7 @@ OVAL.forEach((i, k) => {
 })
 
 /** Triangles: the canonical face's, then the skirt's band. */
-const TRIS = new Uint16Array(CANON_TRIS.length + OVAL.length * 6)
+export const TRIS = new Uint16Array(CANON_TRIS.length + OVAL.length * 6)
 TRIS.set(CANON_TRIS)
 OVAL.forEach((a, k) => {
   const b = OVAL[(k + 1) % OVAL.length]!
@@ -71,7 +71,7 @@ OVAL.forEach((a, k) => {
 })
 
 /** The mouth's inside (between the inner lips): drawn black, so an open jaw shows a mouth. */
-const MOUTH = Uint16Array.from(
+export const MOUTH = Uint16Array.from(
   Array.from({ length: CANON_TRIS.length / 3 }, (_, t) => [CANON_TRIS[t * 3]!, CANON_TRIS[t * 3 + 1]!, CANON_TRIS[t * 3 + 2]!])
     .filter((t) => t.every((i) => INNER_LIPS.has(i)))
     .flat(),
@@ -319,4 +319,29 @@ export function drawFaceMask(ctx: CanvasRenderingContext2D, id: string, face: Fl
   } catch {
     return false
   }
+}
+
+/** How far the jaw drops each point (0-1): below the mouth, most at the chin's middle. */
+const JAW_W = Float32Array.from({ length: CANON_POS.length / 3 }, (_, i) => {
+  const u = CANON_UV[i * 2]!
+  const v = CANON_UV[i * 2 + 1]!
+  return smoothstep(0.64, 0.74, v) * (1 - smoothstep(0.18, 0.34, Math.abs(u - 0.5)))
+})
+
+/** The canonical head at (cx, cy) on a canvas, `s` px a cm, turned by `yaw` and `pitch` (radians) with the jaw open
+ *  `jaw` (0-1, up to 1.4 cm): 478 points, x / y / z px (z smaller is nearer), as the landmarker gives them. */
+export function posedFace(cx: number, cy: number, s: number, yaw: number, pitch: number, jaw = 0): Float32Array {
+  const m = new Float32Array(478 * 3)
+  const [cyaw, syaw, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)]
+  for (let i = 0; i < CANON_POS.length / 3; i++) {
+    const x = CANON_POS[i * 3]!
+    const y = CANON_POS[i * 3 + 1]! - 1.4 * jaw * JAW_W[i]!
+    const z = CANON_POS[i * 3 + 2]!
+    const x1 = x * cyaw + z * syaw
+    const z1 = -x * syaw + z * cyaw
+    m[i * 3] = cx + s * x1
+    m[i * 3 + 1] = cy - s * (y * cp - z1 * sp)
+    m[i * 3 + 2] = -s * (y * sp + z1 * cp)
+  }
+  return m
 }

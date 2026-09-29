@@ -194,7 +194,8 @@ export function orthonormalize(m: Float32Array): Float32Array {
 /**
  * The One Euro filter (Casiez et al., 2012) over n values at once: steady when still (a `min` Hz cutoff), quick when
  * moving (the cutoff rises `beta` Hz per unit/s of speed). The face mesh and the head's matrix go through it.
- * `filter` returns its own buffer: copy it to keep it.
+ * `size` scales the speed (MediaPipe's value scaling: the mesh's speed in face widths a second, so a small far face
+ * isn't over-smoothed and a close one doesn't shake). `filter` returns its own buffer: copy it to keep it.
  */
 export class OneEuro {
   private x: Float32Array | null = null
@@ -207,7 +208,7 @@ export class OneEuro {
     private readonly dmin = 1,
   ) {}
 
-  filter(v: ArrayLike<number>, ms: number): Float32Array {
+  filter(v: ArrayLike<number>, ms: number, size = 1): Float32Array {
     if (!this.x || this.x.length !== v.length) {
       this.x = Float32Array.from(v)
       this.dx = new Float32Array(v.length)
@@ -220,7 +221,7 @@ export class OneEuro {
     const ad = alpha(this.dmin)
     for (let i = 0; i < v.length; i++) {
       this.dx[i]! += ad * ((v[i]! - this.x[i]!) / dt - this.dx[i]!)
-      this.x[i]! += alpha(this.min + this.beta * Math.abs(this.dx[i]!)) * (v[i]! - this.x[i]!)
+      this.x[i]! += alpha(this.min + (this.beta * Math.abs(this.dx[i]!)) / size) * (v[i]! - this.x[i]!)
     }
     return this.x
   }
@@ -375,4 +376,47 @@ export function heat(v: number): [number, number, number] {
   const a = HEAT[i]!
   const b = HEAT[i + 1]!
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]
+}
+
+// ------------------------------------------------------------------------------------------------ the body's head
+
+/** A body keypoint from the pose model: 0-1 across the frame, and how visible (0-1). */
+export interface BodyPt extends Pt {
+  v: number
+}
+
+/**
+ * The head from BlazePose's first 13 keypoints (0 nose, 2 / 5 eyes, 7 / 8 ears, 11 / 12 shoulders; 0-1 of the frame):
+ * a face-sized box round the ears' line (camera px), its turn and tilt, and how sure (the least visible point used).
+ * It holds where the face finders don't: looking down at the decks, a big turn, a hand in front, a dark frame. The
+ * width is the ears' span, or 0.45 of the shoulders' when the ears aren't both seen (`ears` false: a rougher box, as
+ * the frame can cut the shoulders off). `pitch` is raw (the caller zeroes it against the landmarker's). Null without a
+ * head to go on.
+ */
+export function headFromPose(
+  body: readonly BodyPt[] | null | undefined,
+  vw: number,
+  vh: number,
+): { box: { x: number; y: number; w: number; h: number }; pose: HeadPose; score: number; ears: boolean } | null {
+  if (!body || body.length < 13) return null
+  const P = (i: number) => ({ x: body[i]!.x * vw, y: body[i]!.y * vh, v: body[i]!.v })
+  const [nose, eyeA, eyeB, earA, earB, shA, shB] = [P(0), P(2), P(5), P(7), P(8), P(11), P(12)]
+  const ears = earA.v >= 0.3 && earB.v >= 0.3
+  const shoulders = shA.v >= 0.3 && shB.v >= 0.3
+  if (nose.v < 0.5 && !ears) return null
+  const earSpan = ears ? Math.hypot(earB.x - earA.x, earB.y - earA.y) : 0
+  const w = Math.max(1.1 * earSpan, shoulders ? 0.45 * Math.hypot(shB.x - shA.x, shB.y - shA.y) : 0)
+  if (!(w > 8)) return null
+  const c = ears ? { x: (earA.x + earB.x) / 2, y: (earA.y + earB.y) / 2 } : { x: nose.x, y: nose.y }
+  const [l, r] = eyeA.x < eyeB.x ? [eyeA, eyeB] : [eyeB, eyeA]
+  return {
+    box: { x: c.x - w / 2, y: c.y - 0.65 * w, w, h: 1.25 * w }, // brow to chin round the ears' line
+    pose: {
+      yaw: ears ? Math.max(-1, Math.min(1, (nose.x - c.x) / (earSpan / 2 || 1))) : 0,
+      roll: Math.atan2(r.y - l.y, r.x - l.x),
+      pitch: Math.max(-1, Math.min(1, ((c.y - nose.y) / w) * 2)),
+    },
+    score: Math.min(nose.v, ears ? Math.min(earA.v, earB.v) : 1),
+    ears,
+  }
 }

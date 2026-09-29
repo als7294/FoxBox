@@ -160,6 +160,13 @@ def song_structure(audio: np.ndarray, sr: int, analysis: SongAnalysis, *, stems:
 
     starts = [sec.start_bar for sec in sections[1:]]
     phrase_bars = 16 if starts and all((sb - 1) % 16 == 0 for sb in starts) else PHRASE_BARS
+    chords = []
+    if stems and "bass" in stems:  # v0.14: the song's chords bar by bar (the harmony REMIX's voices follow)
+        from .harmony import chords as read_chords, to_contract
+
+        chords = [to_contract(c) for c in read_chords(stems, sr, analysis.bpm, analysis.downbeat_s, analysis.key,
+                                                       analysis.tuning_cents).bars]
     return SongStructure(sections=sections, drops_s=drops, builds=builds, phrase_bars=phrase_bars, energy_fps=ENERGY_FPS,
+                         chords=chords,
                          energy_b64=base64.b64encode(np.round(energy * 255).astype(np.uint8).tobytes()).decode("ascii"),
                          from_stems=from_stems)

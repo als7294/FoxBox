@@ -164,6 +164,37 @@ def flanger(x: np.ndarray, sr: int, delay_ms: float = 2.0, depth_ms: float = 1.0
     return out.reshape(x.shape)
 
 
+def moving_comb(x: np.ndarray, hz: np.ndarray, fb: float, sr: int) -> np.ndarray:
+    """A feedback comb (Comb+; riddim R1, the growls' comb, chain A) whose delay (1/hz, interpolated) moves, run in blocks shorter than the delay."""
+    n = len(x)
+    d = sr / np.clip(hz, 50.0, sr / 4)
+    step = max(1, int(d.min()) - 1)  # every read in a block lands before it
+    y = np.zeros(n)
+    idx = np.arange(n)
+    for i in range(0, n, step):
+        r = idx[i:i + step] - d[i:i + step]
+        k = np.floor(r).astype(int)
+        a = r - k
+        past = np.where(k >= 0, (1 - a) * y[np.maximum(k, 0)] + a * y[np.maximum(k + 1, 0)], 0.0)
+        y[i:i + step] = x[i:i + step] + fb * past
+    return y * (1 - fb)
+
+
+def octave_of(hz: float, f0: float) -> float:
+    """f0 times the power of 2 nearest `hz` (k = 1, 2, 4 ...): a comb's pitch on the note (REMIX_HARMONY 1.4)."""
+    return f0 * 2.0 ** max(0, round(np.log2(hz / f0)))
+
+
+def harmonic_of(hz, f0: float):
+    """The harmonic of f0 nearest `hz` (per sample too): where a high-Q resonator may ring (REMIX_HARMONY 1.4)."""
+    return np.maximum(1, np.round(np.asarray(hz) / f0)) * f0
+
+
+def harmonic_shift(hz: float, f0: float) -> float:
+    """The shift nearest `hz` (its sign kept) that keeps a held note harmonic: m f0 / 2 (REMIX_HARMONY 1.4)."""
+    return float(np.sign(hz) * max(1, round(abs(hz) / (f0 / 2))) * f0 / 2)
+
+
 def freq_shift(x: np.ndarray, sr: int, shift_hz: np.ndarray | float) -> np.ndarray:
     """Single-sideband frequency shift (every partial moved by `shift_hz`, per sample or constant): inharmonic."""
     t = np.arange(x.shape[-1]) / sr
@@ -278,18 +309,26 @@ def pick(rng: np.random.Generator, axis: str, weights: dict | None = None) -> st
     return keys[int(rng.choice(len(keys), p=p / p.sum()))]
 
 
-def chain_a(x: np.ndarray, sr: int, rng: np.random.Generator, bpm: float = 145.0, movement: str | None = None) -> np.ndarray:
+def chain_a(x: np.ndarray, sr: int, rng: np.random.Generator, bpm: float = 145.0, movement: str | None = None,
+            f0: float | None = None) -> np.ndarray:
     """One pass of tearout chain A, steps 2-7 (fingerprints §2): an asymmetric drive 12-18 dB (4x) → HP 90 Hz, +3 dB at
     1-1.5 kHz, -3 dB at 400 Hz → a movement stage (a frequency shift ±30-200 Hz, a 2-8 ms comb at feedback 0.7, or a
-    1/2-rate phaser at 60 %, 50 % mix) → OTT 0.4 → a hard clip 6-12 dB into the ceiling (4x) → -1 dBFS."""
+    1/2-rate phaser at 60 %, 50 % mix) → OTT 0.4 → a hard clip 6-12 dB into the ceiling (4x) → -1 dBFS. With the note's
+    `f0` (a held print) the shift is m f0 / 2 and the comb on an octave of f0, so it stays in key; without (a shot of
+    1/8 or less) they're free."""
     y = distort(x, float(rng.uniform(12, 18)), "diode")
     y = _peak(_peak(lr4(y, 90.0, sr, "highpass"), sr, float(rng.uniform(1000, 1500)), 3.0, 1.0), sr, 400.0, -3.0, 1.0)
     move = movement or pick(rng, "resample.movement")
     if move == "shift":
-        y = freq_shift(y, sr, float(rng.choice([-1, 1]) * rng.uniform(30, 200)))
+        hz = float(rng.choice([-1, 1]) * rng.uniform(30, 200))
+        y = freq_shift(y, sr, harmonic_shift(hz, f0) if f0 else hz)
     elif move == "comb":
         d = int(rng.uniform(0.002, 0.008) * sr)
-        y = _match(signal.lfilter([1.0], np.r_[1.0, np.zeros(d - 1), -0.7], y, axis=-1), y)
+        if f0:
+            hz = np.full(y.shape[-1], octave_of(sr / d, f0))
+            y = _match(np.stack([moving_comb(c, hz, 0.7, sr) for c in y.reshape(-1, y.shape[-1])]).reshape(y.shape), y)
+        else:
+            y = _match(signal.lfilter([1.0], np.r_[1.0, np.zeros(d - 1), -0.7], y, axis=-1), y)
     else:
         y = _match(phaser(y, sr, bpm / 60 / 2, 0.6, 0.5), y)
     y = clip(_match(ott(y, sr, 0.4), y), float(rng.uniform(6, 12)))
@@ -310,20 +349,22 @@ def stretch(x: np.ndarray, factor: float, n_fft: int = 2048, hop: int = 256) -> 
 
 
 def resample_chain(x: np.ndarray, sr: int, seed: int = 0, passes: int | None = None, chain=chain_a,
-                   mangle: str | None = None, bpm: float = 145.0, movement: str | None = None) -> list[np.ndarray]:
+                   mangle: str | None = None, bpm: float = 145.0, movement: str | None = None,
+                   f0: float | None = None) -> list[np.ndarray]:
     """Marauda's resampling (chain A steps 2-9): `chain` run on its own output `passes` times (3 or 5 by the seed),
     returning EVERY generation (the variant family for bars 9-16), then one mangle of the last: a 2-4x phase-vocoder
-    stretch (cut back to length) or a pitch shift of ±3-7 st without formant correction (varispeed). Each output is
+    stretch (cut back to length) or a pitch shift by a just 4th or 5th, up or down, without formant correction
+    (varispeed: a power interval, in key; `f0` goes to the chain). Each output is
     resonance-notched, HP 120 Hz and at -1 dBFS. Offline: print one-shot banks with it, not per note."""
     rng = np.random.default_rng(seed)
     gens, y = [], x
     for _ in range(passes or int(pick(rng, "resample.passes"))):
-        y = chain(y, sr, rng, bpm, movement)
+        y = chain(y, sr, rng, bpm, movement, f0)
         gens.append(y)
     if (mangle or pick(rng, "resample.mangle")) == "stretch":
         m = stretch(y, float(rng.uniform(2, 4)))[..., : y.shape[-1]]
     else:
-        up, down = (int(round(100 * 2 ** (float(rng.choice([-1, 1]) * rng.uniform(3, 7)) / 12))), 100)
+        up, down = [(3, 2), (4, 3), (3, 4), (2, 3)][int(rng.integers(4))]  # the pitch times up / down
         m = signal.resample_poly(y, down, up, axis=-1)[..., : y.shape[-1]]  # higher = shorter, formants move with it
     gens.append(m)
     out = []

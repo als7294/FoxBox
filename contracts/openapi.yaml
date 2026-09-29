@@ -845,6 +845,126 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: Internal Server Error
+  /api/rekordbox/library:
+    post:
+      tags:
+      - songs
+      summary: Read Rekordbox Library
+      description: 'v0.12: the user''s rekordbox.xml (its bytes: no path crosses the API): its tracks with an opaque id each,
+        their
+
+        grid, key and cues and whether the file is on this Mac, and its playlists. Kept 30 min for POST
+
+        /rekordbox/import. 400 bad_xml; 413 over 100 MB.'
+      operationId: readRekordboxLibrary
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_readRekordboxLibrary'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RekordboxLibrary'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/rekordbox/import:
+    post:
+      tags:
+      - songs
+      summary: Import Rekordbox Tracks
+      description: 'v0.12: the chosen tracks become Songs with their Rekordbox grid, key and cues (a rekordbox_import job;
+        the
+
+        result lists imported, updated and skipped). 404 library_expired: choose the XML again.'
+      operationId: importRekordboxTracks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RekordboxImportRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/songs:
     get:
       tags:
@@ -954,6 +1074,288 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/sample-packs:
+    get:
+      tags:
+      - remix
+      summary: List Sample Packs
+      description: 'v0.15: your drum sample packs. Enabled ones replace FoxBox''s own one-shots for the roles they cover.'
+      operationId: listSamplePacks
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SamplePack'
+                type: array
+                title: Response Listsamplepacks
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags:
+      - remix
+      summary: Add Sample Pack
+      description: 'v0.15: a folder of your one-shots (from the OS folder picker, main process only), read where it is (a
+
+        sample_scan job, one item per audio file). 400 not_a_folder, 404 missing.'
+      operationId: addSamplePack
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SamplePackAdd'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/sample-packs/{pack_id}:
+    patch:
+      tags:
+      - remix
+      summary: Update Sample Pack
+      operationId: updateSamplePack
+      parameters:
+      - name: pack_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Pack Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SamplePackUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamplePack'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - remix
+      summary: Delete Sample Pack
+      description: 'v0.15: forget the pack; its files are never touched.'
+      operationId: deleteSamplePack
+      parameters:
+      - name: pack_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Pack Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/sample-packs/{pack_id}/rescan:
+    post:
+      tags:
+      - remix
+      summary: Rescan Sample Pack
+      description: 'v0.15: read the pack''s folder again (rename a file, e.g. ''Kick 01.wav'', then RESCAN to correct its
+        role).'
+      operationId: rescanSamplePack
+      parameters:
+      - name: pack_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Pack Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
   /api/masks:
     get:
       tags:
@@ -1065,6 +1467,189 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/masks/recipes:
+    post:
+      tags:
+      - camera
+      summary: Save Mask Recipe
+      description: 'v0.13: a MASKS character-creator mask: its recipe JSON (<= 256 KB, stored as-is, never evaluated) and
+        a PNG
+
+        thumbnail (<= 512 px, <= 1 MB) served at /image. 413 over a limit; 415 a thumbnail that isn''t a PNG.'
+      operationId: saveMaskRecipe
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaskRecipeSave'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/masks/{mask_id}/recipe:
+    put:
+      tags:
+      - camera
+      summary: Update Mask Recipe
+      description: 'v0.13: replace a character''s name and recipe (and its thumbnail, when one is sent). 409 for an image
+        mask.'
+      operationId: updateMaskRecipe
+      parameters:
+      - name: mask_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mask Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaskRecipeSave'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    get:
+      tags:
+      - camera
+      summary: Get Mask Recipe
+      description: 'v0.13: {"recipe": {...}} as saved. 409 for an image mask.'
+      operationId: getMaskRecipe
+      parameters:
+      - name: mask_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mask Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties: true
+                title: Response Getmaskrecipe
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
   /api/masks/{mask_id}/image:
     get:
       tags:
@@ -1123,6 +1708,71 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: Internal Server Error
   /api/masks/{mask_id}:
+    patch:
+      tags:
+      - camera
+      summary: Rename Mask
+      description: 'v0.15.2: rename a user mask, image or recipe (only its name changes). 404 for an id the server doesn''t
+        hold
+
+        (the built-ins are the app''s), 409 for a mask that isn''t the user''s.'
+      operationId: renameMask
+      parameters:
+      - name: mask_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mask Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaskRename'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskInfo'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
     delete:
       tags:
       - camera
@@ -4329,6 +4979,16 @@ components:
       required:
       - lines
       title: BatchRequest
+    Body_readRekordboxLibrary:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_readRekordboxLibrary
     Body_uploadMask:
       properties:
         file:
@@ -4418,6 +5078,89 @@ components:
         in
 
         order, from 0; `beat` is the start in beats from the file''s first downbeat.'
+    Chord:
+      properties:
+        root:
+          anyOf:
+          - type: string
+            enum:
+            - C
+            - C#
+            - D
+            - Eb
+            - E
+            - F
+            - F#
+            - G
+            - Ab
+            - A
+            - Bb
+            - B
+          - type: 'null'
+          title: Root
+        quality:
+          type: string
+          enum:
+          - maj
+          - min
+          - '5'
+          - sus4
+          - '7'
+          - m7
+          - N
+          title: Quality
+          default: N
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+          description: The analysis's confidence; 1.0 for a chord you set or a progression BUILD chose.
+          default: 1.0
+        root2:
+          anyOf:
+          - type: string
+            enum:
+            - C
+            - C#
+            - D
+            - Eb
+            - E
+            - F
+            - F#
+            - G
+            - Ab
+            - A
+            - Bb
+            - B
+          - type: 'null'
+          title: Root2
+          description: 'v0.15.1: when the bar changes chord halfway (a turnaround or a tension half-bar), the second half''s
+            root; None = one chord for the whole bar.'
+        quality2:
+          anyOf:
+          - type: string
+            enum:
+            - maj
+            - min
+            - '5'
+            - sus4
+            - '7'
+            - m7
+            - N
+          - type: 'null'
+          title: Quality2
+          description: 'v0.15.1: the second half''s quality, with root2.'
+      additionalProperties: false
+      type: object
+      title: Chord
+      description: 'A bar''s chord (v0.14): the harmony REMIX''s engine voices follow (basses, growls and the 808 on its root,
+        a grid''s ''3''
+
+        as its third). Spelled as FoxBox spells keys. v0.15.1: ''5'' is a power chord (root and fifth): voices play no third
+        on it. No chord (drums only, silence) is quality ''N'' with root None; a None root
+
+        always means no chord.'
     DrumKit:
       properties:
         id:
@@ -4993,6 +5736,9 @@ components:
           - remix_build
           - remix_prepare
           - remix_export
+          - rekordbox_import
+          - sample_scan
+          - take_loudness
           title: Kind
         state:
           type: string
@@ -5576,7 +6322,9 @@ components:
           - svg
           - png
           - webp
+          - recipe
           title: Format
+          description: 'v0.13 adds ''recipe'': a MASKS character-creator mask; /image then serves its PNG thumbnail.'
         width:
           type: integer
           maximum: 4096.0
@@ -5609,6 +6357,54 @@ components:
       - created_at
       title: MaskInfo
       description: A face mask (v0.11.6). GET /api/masks lists built-ins and user masks; the image is at GET /api/masks/{id}/image.
+    MaskRecipeSave:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        recipe:
+          additionalProperties: true
+          type: object
+          title: Recipe
+          description: Versioned JSON from the MASKS page (S1's maskRecipe).
+        thumbnail_png_b64:
+          anyOf:
+          - type: string
+            maxLength: 1000000
+          - type: 'null'
+          title: Thumbnail Png B64
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - recipe
+      title: MaskRecipeSave
+      description: 'POST /api/masks/recipes -> MaskInfo, and PUT /api/masks/{id}/recipe (v0.13): a MASKS character-creator
+        mask.
+
+        `recipe` is the renderer''s versioned JSON (opaque to the server beyond ''is a JSON object <= 256 KB''; the renderer
+
+        normalises it on load). `thumbnail_png_b64` is a <= 512 px PNG for the picker (served at GET /api/masks/{id}/image).
+
+        GET /api/masks/{id}/recipe returns {"recipe": {...}}. DELETE /api/masks/{id} as for image masks.'
+    MaskRename:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: MaskRename
+      description: 'PATCH /api/masks/{id} (v0.15.2) -> MaskInfo: renames a user mask, image or recipe. Built-ins are read-only
+        (409).
+
+        The MASKS page''s MY MASKS RENAME uses it for image masks, which have no recipe to PUT.'
     MaskStrength:
       properties:
         level:
@@ -6253,6 +7049,143 @@ components:
       - modules
       - macros
       title: RackDescriptor
+    RekordboxEntry:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          type: string
+          title: Title
+        artist:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Artist
+        duration_s:
+          type: number
+          minimum: 0.0
+          title: Duration S
+          default: 0.0
+        bpm:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+          description: Normalised, e.g. 'Am' (Camelot parsed).
+        grid:
+          type: string
+          enum:
+          - fixed
+          - variable
+          - none
+          title: Grid
+          default: none
+        cues:
+          type: integer
+          minimum: 0.0
+          title: Cues
+          default: 0
+        available:
+          type: boolean
+          title: Available
+          description: 'False: the file isn''t on this Mac or isn''t a readable audio type.'
+          default: true
+        song_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Song Id
+          description: Already imported as this Song.
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - title
+      title: RekordboxEntry
+      description: One track of an uploaded rekordbox.xml (v0.12). `id` is opaque (a hash of its Location); paths never cross
+        the API.
+    RekordboxImportRequest:
+      properties:
+        library_id:
+          type: string
+          title: Library Id
+        track_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 2000
+          minItems: 1
+          title: Track Ids
+      additionalProperties: false
+      type: object
+      required:
+      - library_id
+      - track_ids
+      title: RekordboxImportRequest
+      description: 'POST /api/rekordbox/import (v0.12) -> Job (rekordbox_import). 404 library_expired: re-upload the XML.
+
+        v0.12.1: the job reports per track, with one JobItem each (label = the title): done with result_ids [song_id], or
+
+        error with error.code = missing | unsupported | too_long | too_large | unreadable. Job.result_ids = every song
+
+        imported or refreshed (the listing''s song_id tells new from refreshed).'
+    RekordboxLibrary:
+      properties:
+        id:
+          type: string
+          title: Id
+        tracks:
+          items:
+            $ref: '#/components/schemas/RekordboxEntry'
+          type: array
+          title: Tracks
+        playlists:
+          items:
+            $ref: '#/components/schemas/RekordboxPlaylist'
+          type: array
+          title: Playlists
+        missing:
+          type: integer
+          minimum: 0.0
+          title: Missing
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      title: RekordboxLibrary
+      description: 'POST /api/rekordbox/library (v0.12): multipart `file` = the rekordbox.xml bytes (the app reads the user-chosen
+        file).
+
+        Parsed and kept for 30 min under `id`. 400 bad_xml; 413 over 100 MB.'
+    RekordboxPlaylist:
+      properties:
+        name:
+          type: string
+          title: Name
+        folders:
+          items:
+            type: string
+          type: array
+          title: Folders
+          description: Breadcrumb folder names.
+        track_ids:
+          items:
+            type: string
+          type: array
+          title: Track Ids
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      title: RekordboxPlaylist
     RekordboxRequest:
       properties:
         export_ids:
@@ -6742,6 +7675,14 @@ components:
           title: From Start Bar
           description: Where this block comes from in that source song.
           default: 1
+        chords:
+          items:
+            $ref: '#/components/schemas/Chord'
+          type: array
+          title: Chords
+          description: 'v0.14: one chord per bar of this section, in order; the engine voices follow them. BUILD fills them
+            (the source''s chords under the section, moved with a MASHUP''s key shift, or the take''s chosen progression);
+            edit them to re-voice a bar. Bars past the end of the list follow the source.'
       additionalProperties: false
       type: object
       required:
@@ -6809,7 +7750,8 @@ components:
           - type: 'null'
           title: Short Term Max Lufs
           description: 'v0.11.10: the take''s prepared mix, short-term (3 s) max, as on STUDIO''s cartridge; filled when PREPARE
-            finishes (club target -7.0).'
+            finishes (club target -7.0). v0.15.3: filled by the take''s own low-priority loudness job (kind take_loudness)
+            after PREPARE; PREPARE''s Job lists that job''s id in result_ids, and the field stays None until it is done.'
         true_peak_db:
           anyOf:
           - type: number
@@ -7155,6 +8097,106 @@ components:
       required:
       - source_id
       title: RenderRequest
+    SamplePack:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        available:
+          type: boolean
+          title: Available
+          description: False while the folder is missing (e.g. an unplugged drive); FoxBox's own one-shots stand in.
+          default: true
+        counts:
+          additionalProperties:
+            type: integer
+          propertyNames:
+            enum:
+            - kick
+            - snare
+            - clap
+            - hat
+            - open_hat
+            - cymbal
+            - reverse
+            - impact
+            - perc
+          type: object
+          title: Counts
+          description: One-shots found per role.
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - created_at
+      title: SamplePack
+      description: 'GET /api/sample-packs (v0.15) lists them; POST /api/sample-packs/{id}/rescan -> Job (sample_scan) re-reads
+        one.
+
+        A file''s role comes from its name first, then its sound, so renaming a file (e.g. ''Kick 01.wav'') and RESCAN corrects
+
+        it. Enabled packs replace FoxBox''s own CC0 one-shots for the roles they cover. DELETE forgets a pack; its files are
+
+        never touched.'
+    SamplePackAdd:
+      properties:
+        folder:
+          type: string
+          maxLength: 4096
+          minLength: 1
+          title: Folder
+        name:
+          anyOf:
+          - type: string
+            maxLength: 80
+            minLength: 1
+          - type: 'null'
+          title: Name
+          description: None = the folder's name.
+      additionalProperties: false
+      type: object
+      required:
+      - folder
+      title: SamplePackAdd
+      description: 'POST /api/sample-packs (v0.15) -> Job (sample_scan): add a folder of your own drum one-shots to the kit''s
+        sample
+
+        layers (M3.9). Only Electron''s main process sends it, with the folder picked in the OS dialog. The engine reads the
+
+        files where they are (the Rekordbox import''s path gate), copies nothing, and never returns or logs the path.
+
+        The job has one JobItem per audio file (label = the file''s name): done, or error with error.code = not_one_shot |
+
+        unreadable | unsupported. Job.result_ids = [the pack id]. 400 not_a_folder, 404 missing.'
+    SamplePackUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 80
+            minLength: 1
+          - type: 'null'
+          title: Name
+        enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enabled
+      additionalProperties: false
+      type: object
+      title: SamplePackUpdate
+      description: PATCH /api/sample-packs/{id} (v0.15) -> SamplePack.
     ScriptPreview:
       properties:
         segments:
@@ -7446,6 +8488,12 @@ components:
           title: Lyrics State
           description: 'v0.10: lyrics transcription, started with POST /api/songs/{id}/lyrics.'
           default: none
+        cues:
+          items:
+            $ref: '#/components/schemas/SongCue'
+          type: array
+          title: Cues
+          description: 'v0.12: cues imported from Rekordbox.'
       additionalProperties: false
       type: object
       required:
@@ -7500,12 +8548,75 @@ components:
           minimum: 1.0
           title: Beats Per Bar
           default: 4
+        source:
+          type: string
+          enum:
+          - foxbox
+          - rekordbox
+          title: Source
+          description: 'v0.12: ''rekordbox'' when the grid and key came from a Rekordbox import.'
+          default: foxbox
+        tuning_cents:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 50.0
+            minimum: -50.0
+          - type: 'null'
+          title: Tuning Cents
+          description: 'v0.15.1: the source''s tuning against A=440 in cents (a 432 Hz track is -31.8); every REMIX voice,
+            repitched one-shot, kick and snare is tuned by it. None until measured.'
       additionalProperties: false
       type: object
       required:
       - bpm
       title: SongAnalysis
       description: Tempo, key and grid of an imported song (v0.7). Produced by the sound engine (FxAPI.analyze_song).
+    SongCue:
+      properties:
+        name:
+          type: string
+          title: Name
+          default: ''
+        kind:
+          type: string
+          enum:
+          - hot
+          - memory
+          - loop
+          title: Kind
+        start_s:
+          type: number
+          minimum: 0.0
+          title: Start S
+        end_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: End S
+          description: Loops only.
+        num:
+          anyOf:
+          - type: integer
+            maximum: 7.0
+            minimum: 0.0
+          - type: 'null'
+          title: Num
+          description: Hot-cue slot A-H as 0-7.
+        color:
+          anyOf:
+          - type: string
+            pattern: ^#[0-9A-Fa-f]{6}$
+          - type: 'null'
+          title: Color
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - start_s
+      title: SongCue
+      description: 'A cue from Rekordbox (v0.12): POSITION_MARK Type 0 (cue) / 4 (loop); Num -1 is a memory cue, 0-7 a hot
+        cue.'
     SongLyrics:
       properties:
         song_id:
@@ -7721,6 +8832,13 @@ components:
           title: From Stems
           description: True once refined with stems (drums/bass entries).
           default: false
+        chords:
+          items:
+            $ref: '#/components/schemas/Chord'
+          type: array
+          title: Chords
+          description: 'v0.14: one chord per song bar from bar 1 (the downbeat), in order, read from the stems; empty until
+            stems exist.'
       additionalProperties: false
       type: object
       required:

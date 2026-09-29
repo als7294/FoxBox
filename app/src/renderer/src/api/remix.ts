@@ -87,6 +87,18 @@ export const remixApi = {
   mashScan: (body: MashScanRequest) => unwrap(api.POST('/api/mash/scan', { body })) as Promise<MashScanResult>,
 }
 
+export type SamplePack = S['SamplePack']
+export type DrumRole = keyof SamplePack['counts']
+
+/** v0.15 your drum sample packs. Adding one goes through main (bridge().samplePacks): the page never holds a path. */
+export const samplePacksApi = {
+  list: (): Promise<SamplePack[]> => unwrap(api.GET('/api/sample-packs')),
+  update: (id: string, body: S['SamplePackUpdate']): Promise<SamplePack> =>
+    unwrap(api.PATCH('/api/sample-packs/{pack_id}', { params: { path: { pack_id: id } }, body })),
+  forget: (id: string) => unwrap(api.DELETE('/api/sample-packs/{pack_id}', { params: { path: { pack_id: id } } })),
+  rescan: (id: string): Promise<Job> => unwrap(api.POST('/api/sample-packs/{pack_id}/rescan', { params: { path: { pack_id: id } } })),
+}
+
 /**
  * PATCH at the remix's rev. A stale rev (409) means someone else saved first: the fresh remix comes back instead,
  * with `conflict`, and the edit is dropped (the user redoes it on what's there now).

@@ -260,7 +260,14 @@ function usePreview() {
  * The song as a mini waveform with its name, the drop as an amber marker at its bar (drag it, or click a spot; it snaps
  * to bars; ← → on it), the beat drop ticked, and while previewing the span it plays and a playhead.
  */
-function Clip(p: { grid: SongGrid | null; placement: Placement; dropS: number | null; status: string | null; error: boolean; preview: Preview | null }) {
+function Clip(p: {
+  grid: SongGrid | null
+  placement: Placement
+  dropS: number | null
+  status: string | null
+  error: boolean
+  preview: Preview | null
+}) {
   const { grid, placement, dropS, status, error, preview } = p
   const song = useSong((s) => s.song)
   const buffer = useSong((s) => s.buffer)
@@ -349,7 +356,9 @@ function Clip(p: { grid: SongGrid | null; placement: Placement; dropS: number | 
           />
         </svg>
       )}
-      {grid && hit != null && <div className={styles.hit} style={{ left: pct(hit) }} title={`The song's beat drop (${formatClock(hit)})`} />}
+      {grid && hit != null && (
+        <div className={styles.hit} style={{ left: pct(hit) }} title={`The song's beat drop (${formatClock(hit)})`} />
+      )}
       <span className={styles.name} title={song?.name}>
         {song?.name ?? ''}
       </span>
@@ -423,7 +432,11 @@ function BpmChip({ bpm, detected }: { bpm: number | null; detected: number | nul
       type="button"
       className={styles.chip}
       data-unset={bpm == null || undefined}
-      title={bpm != null ? `The song's tempo${detected != null && Math.abs(bpm - detected) >= 0.005 ? ` (yours; detected ${Math.round(detected * 100) / 100})` : ''}. Click to change it.` : 'No tempo yet. Click to set it (bar 1 at 0 s).'}
+      title={
+        bpm != null
+          ? `The song's tempo${detected != null && Math.abs(bpm - detected) >= 0.005 ? ` (yours; detected ${Math.round(detected * 100) / 100})` : ''}. Click to change it.`
+          : 'No tempo yet. Click to set it (bar 1 at 0 s).'
+      }
       onClick={() => setDraft(shown)}
     >
       {bpm != null ? `${Math.round(bpm * 10) / 10} BPM` : 'SET BPM'}
@@ -432,7 +445,16 @@ function BpmChip({ bpm, detected }: { bpm: number | null; detected: number | nul
 }
 
 /** A level in dB as a small horizontal slider: drag sideways (Shift: fine), ← → (Shift: 3 dB), double-click resets. */
-function Level({ label, min, max, def, what, value, disabled, onChange }: (typeof LEVELS)[number] & { value: number; disabled: boolean; onChange(v: number): void }) {
+function Level({
+  label,
+  min,
+  max,
+  def,
+  what,
+  value,
+  disabled,
+  onChange,
+}: (typeof LEVELS)[number] & { value: number; disabled: boolean; onChange(v: number): void }) {
   const drag = useRef<{ x: number; v: number } | null>(null)
   const set = (v: number) => {
     const next = Math.max(min, Math.min(max, Math.round(v * 2) / 2))
@@ -440,7 +462,16 @@ function Level({ label, min, max, def, what, value, disabled, onChange }: (typeo
   }
   const onKey = (e: KeyboardEvent) => {
     const step = { ArrowLeft: -0.5, ArrowDown: -0.5, ArrowRight: 0.5, ArrowUp: 0.5 }[e.key]
-    const to = e.key === 'Home' ? min : e.key === 'End' ? max : e.key === 'Delete' || e.key === 'Backspace' ? def : step != null ? value + step * (e.shiftKey ? 6 : 1) : null
+    const to =
+      e.key === 'Home'
+        ? min
+        : e.key === 'End'
+          ? max
+          : e.key === 'Delete' || e.key === 'Backspace'
+            ? def
+            : step != null
+              ? value + step * (e.shiftKey ? 6 : 1)
+              : null
     if (to == null) return
     e.preventDefault()
     e.stopPropagation()

@@ -102,6 +102,15 @@ def folder_name(text: str, fallback: str = "Setlist") -> str:
     return name[:64].rstrip(" .-_") or fallback
 
 
+def remix_file_stem(text: str, fallback: str = "Remix") -> str:
+    """A remix export's file stem (1.5.1), the design's "NIGHTSHIFT (RIDDIM VIP - TAKE 2)" intact: ASCII-folded,
+    FAT32 / exFAT-safe (no \\ / : * ? " < > | or control characters), parentheses allowed, no leading or trailing dots or
+    spaces, at most 120 characters (CDJs show the title from the tags)."""
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", ascii_fold(text))
+    name = re.sub(r"\s+", " ", name).strip(" .")
+    return name[:120].rstrip(" .") or fallback
+
+
 def _token(text: str) -> str:
     return re.sub(r"-{2,}", "-", re.sub(r"[^A-Za-z0-9#-]+", "-", ascii_fold(text))).strip("-")
 

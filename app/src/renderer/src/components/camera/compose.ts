@@ -7,7 +7,7 @@
 import type { Peaks } from '@/api/types'
 import { theme } from '@/visuals/theme'
 import type { Box } from './faceTrack'
-import { drawStyle, type StyleFx, type StyleName } from './faceStyles'
+import { drawStyle, onMesh, type StyleFx, type StyleName } from './faceStyles'
 import { subtitleAt, type Subtitle, type SubWord } from './subtitles'
 
 export type ClipFormat = 'vertical' | 'horizontal'
@@ -26,8 +26,8 @@ export interface Layout {
   wave: Rect
 }
 
-/** `mask:<id>`: a mask the user imported (faceMask.ts). */
-export type MaskStyle = 'mosaic' | 'blur' | 'solid' | StyleName | `mask:${string}`
+/** `mask:<id>`: a mask the user imported (faceMask.ts); `recipe:<id>`: a MASKS mask (maskFace.ts). */
+export type MaskStyle = 'mosaic' | 'blur' | 'solid' | StyleName | `mask:${string}` | `recipe:${string}`
 
 /** Every way a face can be hidden, in the MASK panel's order (1.5 adds the eight after SOLID: faceStyles.ts). */
 export const MASK_STYLES: readonly { value: MaskStyle; label: string; beta?: true }[] = [
@@ -39,6 +39,7 @@ export const MASK_STYLES: readonly { value: MaskStyle; label: string; beta?: tru
   { value: 'redacted', label: 'REDACTED' },
   { value: 'lowpoly', label: 'LOW-POLY' },
   { value: 'depthglitch', label: 'DEPTH GLITCH', beta: true },
+  { value: 'popups', label: 'POP-UPS' },
   { value: 'fox', label: 'FOX MASK' },
   { value: 'static', label: 'STATIC' },
   { value: 'halftone', label: 'HALFTONE' },
@@ -136,15 +137,20 @@ export function maskRegion(
   wholeFrame = false,
   fx?: Partial<StyleFx>,
 ): void {
+  // The whole frame hidden (no detector yet, a detection threw, HIDE WHOLE FRAME): a mesh style has no face to draw on,
+  // so the privacy grid covers the frame instead (fail closed).
+  if (wholeFrame && onMesh(mask.style)) mask = { ...mask, style: 'mosaic' }
   if (mask.style !== 'mosaic' && mask.style !== 'blur' && mask.style !== 'solid') {
     const f: StyleFx = {
       t: fx?.t ?? performance.now() / 1000,
       pulse: fx?.pulse ?? 0,
+      drop: fx?.drop ?? null,
       seed: fx?.seed ?? 1,
       pose: fx?.pose,
       mesh: fx?.mesh,
       shapes: fx?.shapes,
       alpha: fx?.alpha,
+      person: fx?.person,
     }
     drawStyle(mask.style, ctx, source, src, dst, mosaicBlocks(mask.strength, wholeFrame), f)
     return

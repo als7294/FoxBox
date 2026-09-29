@@ -77,7 +77,11 @@ export function VisualsStage({
     if (!b) return
     void b.visuals.getState().then(setOutput)
     void b.visuals.displays().then(setDisplays)
-    return b.visuals.onState(setOutput)
+    // Main sends the state on every display change too (a projector plugged in or out): the list follows it.
+    return b.visuals.onState((st) => {
+      setOutput(st)
+      void b.visuals.displays().then(setDisplays)
+    })
   }, [b])
 
   const feed = useMemo(() => {
@@ -182,6 +186,11 @@ export function VisualsStage({
             >
               {output.open ? '■ OUTPUT ON' : '▸ OUTPUT'}
             </button>
+            {output.unplugged && !output.open && (
+              <span className={styles.unplugged} role="alert" title="The output reopens when the projector is back">
+                ▲ PROJECTOR UNPLUGGED
+              </span>
+            )}
           </div>
         )}
       </div>

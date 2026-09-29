@@ -1,8 +1,37 @@
 # S1 VOICE + CAMERA: status
 
-Updated 2026-09-29. Current work: REMIX on `help/s1-als` (from session/s4-app a8dce76). 1.5 "SMART VISUALS" is merged. I own
-`engine/voice/` and the camera/clip files (`app/src/renderer/src/components/camera/`, `components/clips/`). S4 owns
-the VISUALS page, the compositor and `visuals/live/bases/*`.
+Updated 2026-09-29 (afternoon). 1.5 is frozen: my camera sha is `help/s1-camfix` a01e5f1. 1.5.1 work is on
+`help/s1-151`. I own `engine/voice/` and the camera/clip files (`app/src/renderer/src/components/camera/`,
+`components/clips/`). S4 owns the VISUALS page, the compositor and `visuals/live/bases/*`.
+
+## Camera for 1.5 (help/s1-camfix a01e5f1, from s4-app b444d59)
+
+- **Face crop** (`vision.ts` `nextRoi`): held while the face stays inside it; whole frame for big faces (in at 85 %
+  of the height, out at 70 %). A crop that glided every frame made the VIDEO-mode landmarker search afresh each time
+  (3x the worker time on small faces, jitter ~45 % of a face width): that was the face-01/02 regression.
+- **Drawing** (`smartCamera.ts`): one primary face; a second one needs the detector at >= 0.7 and a plausible size;
+  each face on one box; the mesh anchored on the per-frame detector box; held 300 ms, then a 200 ms fade.
+- **Styles** (`faceStyles.ts`): LOW-POLY facets lit by their normals, the rim reaching out over glasses at eye level
+  (back 5 cm along the head's forward axis, out 2.6 cm); DEPTH GLITCH (new, BETA tag on its chip) beside GLITCH.
+- **Numbers:** `out/mask-audition/v2/README.txt` in this worktree (5 stock DJ clips, before/after).
+- **Open:** the glasses rim isn't checked on the clips yet (a 2-clip heavy slot after the RC). QA harness lessons:
+  Chromium throttles a covered test window (use `--disable-backgrounding-occluded-windows` and
+  `setBackgroundThrottling(false)`); a quit can hang on either build, so quit by PID after 15 s.
+
+## REMIX 1.5.1 (help/s1-151; help/s1-c11 stops at e0f905b, merged by S3)
+
+- **yoi buzz** (e0f905b, in 1.5): the growl post's grit fold (mid x drive into sin(3y)) ticked on yoi's formant
+  swells. `growls._GRIT_DRIVE` puts S1's yoi, riddim and dswub at 1.5 (S3's voices stay at 2). HF clicks per
+  4-bar loop: yoi 60 -> 0, riddim 28 -> 16, dswub 8 -> 0.
+- **M1.4a** (103a403): `riddim.shift` (off / on, a tie keeps off): R1 through a +-20-80 Hz freq shift with a 1/64
+  echo at 25 %.
+- **M1.12a** (bad0597): `bass808.line_from_groove(notes, root_pc, minor)`: BASS DNA's groove as an 808 line (1/16
+  grid, the key's scale, the root in C1-B1, legato only where the source glided). S2 wired it on help/s2-m114.
+- **Gate loops** (L4, L5, L9): `out/growl-audition-s1/` in this worktree, 22 MP3s and a README.
+- **Next:** re-voicing after the listening round. If R1's remaining HF ticks are heard (0-12 per loop, most at
+  1/8T): they start in the FM'd square itself, ~21 ms after each LFO restart (not the grit, not the LFO's step: easing
+  the LFO made them worse), so tame `riddim.r1_fm_peak` or low-pass the square before the comb; the grit at 1.2 only
+  trims what's left.
 
 ## REMIX sound design (help/s1-riddim, 2026-09-29)
 

@@ -204,6 +204,10 @@
    "whack": 1.0,
    "quarter_seesaw": 0.0,
    "backbeat_seesaw": 0.0
+  },
+  "top.hook": {
+   "squeak": 0.0,
+   "none": 1.0
   }
  },
  "synth": {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SongDeck } from '@/audio/live'
 import { Button } from '@/components/common/Button'
+import { RekordboxButton } from '@/components/song/RekordboxImport'
 import { useSongFile } from '@/components/song/SongStrip'
 import { scheduleRender } from '@/state/renderController'
 import { beatDropFromPeaks, songGrid, songKey, useSong } from '@/state/song'
@@ -29,7 +30,7 @@ export function LiveSongStrip({
   const grid = songGrid(song)
   const key = songKey(song)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const file = useSongFile({ open: false })
+  const file = useSongFile({ open: false, hold: () => Boolean(deck?.isPlaying) })
   const drop = deck?.dropAtS ?? beatDrop ?? (song ? beatDropFromPeaks(song.peaks) : null)
   // PLAY waits for the next bar: `pending` shows it's coming until the deck is actually playing.
   const [pending, setPending] = useState(false)
@@ -43,6 +44,10 @@ export function LiveSongStrip({
     return () => window.clearInterval(t)
   }, [deck])
   const playing = Boolean(deck?.isPlaying) || pending
+  // LS8: a song dropped mid-set waits for the track to stop (the strip's tick re-renders while it plays).
+  useEffect(() => {
+    if (file.queued && !deck?.isPlaying) file.flush()
+  })
 
   // The song's shape, the drop and (while the deck plays) the playhead.
   useEffect(() => {
@@ -100,6 +105,7 @@ export function LiveSongStrip({
         <Button size="sm" onClick={file.choose} disabled={Boolean(busy)}>
           ♪ PICK A SONG
         </Button>
+        <RekordboxButton className={styles.songRekordbox} open={false} />
         {file.input}
       </section>
     )
@@ -175,6 +181,11 @@ export function LiveSongStrip({
       {file.error && (
         <span className={styles.songEmpty} data-error>
           {file.error}
+        </span>
+      )}
+      {file.queued && (
+        <span className={styles.songEmpty} role="status">
+          NEXT: {file.queued.name.replace(/\.[^.]+$/, '')} · LOADS ON STOP
         </span>
       )}
       {file.input}

@@ -260,14 +260,17 @@ def _loudness_to_target(y: np.ndarray, sr: int, target: float, ceiling_db: float
             z = z * db_to_lin(trim_to - tp)
         return g, meter(z, sr), z
 
+    g0 = target - cur  # loudness before limiting; limiting eats some of it back
+    near = hint is not None or abs(g0) < 1.0  # a hint, or already there (REMIX's mixdown clips to the target first)
     if hint:
         gains = [hint[0], hint[0] - 0.4, hint[0] + 0.4]
+    elif near:
+        gains = [g0, g0 - 0.4, g0 + 0.4]
     else:
-        g0 = target - cur  # loudness before limiting; limiting eats some of it back
         gains = [g0, g0 + 3.0, g0 + 7.0]
     results: list[tuple[float, float, np.ndarray]] = []
     rounds = 0
-    spread = 0.4 if hint else 1.0
+    spread = 0.4 if near else 1.0
     for rounds in range(1, (4 if final else 3) + 1):
         results += list(EVAL_POOL.map(evaluate, gains))
         best = min(results, key=lambda r: abs(target - r[1]))

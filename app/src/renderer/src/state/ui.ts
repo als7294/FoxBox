@@ -1,18 +1,22 @@
 import { create } from 'zustand'
 import { reducedMotion } from '@/visuals/motion'
 
-export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live' | 'remix'
+export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live' | 'masks' | 'remix'
 
-/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes). */
-export const SCREENS: { id: Screen; label: string; code: string; wip?: string }[] = [
-  { id: 'studio', label: 'STUDIO', code: '01' },
-  { id: 'live', label: 'VISUALS', code: '02' },
-  { id: 'remix', label: 'REMIX', code: '03' },
-  { id: 'vault', label: 'VAULT', code: '04' },
-  { id: 'setlist', label: 'PROD', code: '05', wip: 'Production: next update' },
-  { id: 'voices', label: 'VOICES', code: '06' },
-  { id: 'settings', label: 'SETTINGS', code: '07' },
-]
+/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes); `beta`: a BETA badge (REMIX in
+ *  1.5.1, the user's call). Numbered in rail order. */
+export const SCREENS: { id: Screen; label: string; code: string; wip?: string; beta?: boolean }[] = (
+  [
+    { id: 'studio', label: 'STUDIO' },
+    { id: 'live', label: 'VISUALS' },
+    { id: 'masks', label: 'MASKS' },
+    { id: 'remix', label: 'REMIX', beta: true },
+    { id: 'vault', label: 'VAULT' },
+    { id: 'setlist', label: 'PROD', wip: 'Production: next update' },
+    { id: 'voices', label: 'VOICES' },
+    { id: 'settings', label: 'SETTINGS' },
+  ] as { id: Screen; label: string; wip?: string; beta?: boolean }[]
+).map((n, i) => ({ ...n, code: String(i + 1).padStart(2, '0') }))
 
 export interface Wipe {
   t0: number

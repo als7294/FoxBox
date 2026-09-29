@@ -68,7 +68,8 @@ describe('App', () => {
     // PROD (05) is WIP: greyed out and not reachable.
     expect(within(nav).getByRole('button', { name: /^PROD/ })).toHaveAttribute('aria-disabled', 'true')
     for (const name of ['REMIX', 'VAULT', 'VOICES', 'SETTINGS', 'STUDIO']) {
-      fireEvent.click(within(nav).getByRole('button', { name }))
+      // REMIX is BETA in 1.5.1: its badge is in its name.
+      fireEvent.click(within(nav).getByRole('button', { name: name === 'REMIX' ? 'REMIX, beta' : name }))
       // REMIX is lazy-loaded (its own chunk): give the import time.
       if (name !== 'STUDIO') expect(await screen.findByRole('heading', { level: 1, name }, { timeout: 10_000 })).toBeInTheDocument()
     }

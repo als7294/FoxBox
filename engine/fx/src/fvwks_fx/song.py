@@ -9,6 +9,7 @@ Analysis runs on a mono mixdown at 22.05 kHz:
 - bar phase: which of the 4 beats carries the low-end (kick / bass) accent and the harmonic change, with a small
   nudge towards the first beat the music starts on; bar 1 is the first downbeat once the music has started;
 - key: harmonic chroma (time-median-filtered STFT) against the Krumhansl-Schmuckler major / minor profiles.
+- tuning: the sustained peaks' deviation from equal temperament, a circular mean in cents (_tuning).
 """
 
 from __future__ import annotations
@@ -262,6 +263,38 @@ def _downbeat(x: np.ndarray, e_low: np.ndarray, e_full: np.ndarray, period: floa
     return float(ok[0]) if ok.size else float(downs[0])
 
 
+def _tuning(x: np.ndarray) -> float | None:
+    """The track's tuning against A=440 in cents (REMIX_HARMONY 6.1; a 432 Hz track reads -31.8): in its 45 s with the
+    most energy, the sustained spectral peaks (100-2000 Hz, within 40 dB of their frame's loudest; a time median keeps
+    the held notes), refined parabolically, their deviation from the nearest semitone as a magnitude-weighted circular
+    mean. None with no tonal material."""
+    win = int(45 * AN_SR)
+    if x.size > win:
+        e = np.concatenate([[0.0], np.cumsum(x.astype(np.float64) ** 2)])
+        starts = np.arange(0, x.size - win, AN_SR)
+        a = int(starts[int(np.argmax(e[starts + win] - e[starts]))])
+        x = x[a : a + win]
+    f, _, z = signal.stft(x, AN_SR, nperseg=8192, noverlap=8192 - 2048)
+    mag = ndimage.median_filter(np.abs(z).T, size=(5, 1), mode="nearest")
+    lo, hi = int(np.searchsorted(f, 100.0)), int(np.searchsorted(f, 2000.0))
+    df = f[1] - f[0]
+    acc = 0j
+    for m in mag:
+        b = m[lo - 1 : hi + 1]
+        k = np.flatnonzero((b[1:-1] > b[:-2]) & (b[1:-1] >= b[2:]) & (b[1:-1] > m.max() * 10 ** (-40 / 20))) + 1
+        if not k.size:
+            continue
+        la, lb, lc = (np.log(b[k + d] + 1e-12) for d in (-1, 0, 1))
+        p = 0.5 * (la - lc) / np.where(np.abs(la - 2 * lb + lc) > 1e-12, la - 2 * lb + lc, 1e-12)
+        fk = (lo - 1 + k + np.clip(p, -0.5, 0.5)) * df
+        dev = (1200 * np.log2(fk / 440.0) + 50) % 100 - 50
+        acc += np.sum(b[k] * np.exp(2j * np.pi * dev / 100))
+    if abs(acc) < 1e-9:
+        return None
+    theta = 100 / (2 * np.pi) * float(np.angle(acc))
+    return round(min(max(theta, -50.0), 49.9), 1)
+
+
 def analyze_song(audio: np.ndarray, sr: int) -> SongAnalysis:
     """Tempo, key and bar-1 position of a song. ``audio`` is (channels, n) float32 at ``sr`` (the file's own rate)."""
     x = _mono_an(audio, sr)
@@ -281,7 +314,7 @@ def analyze_song(audio: np.ndarray, sr: int) -> SongAnalysis:
     down = _downbeat(x, e_low, e_full, period, phase, ch, ch_fps)
     return SongAnalysis(bpm=round(bpm, 2), bpm_confidence=round(bpm_conf, 3), key=key, camelot=camelot,
                         key_confidence=round(key_conf, 3), downbeat_s=round(max(0.0, down), 4),
-                        beats_per_bar=BEATS_PER_BAR)
+                        beats_per_bar=BEATS_PER_BAR, tuning_cents=_tuning(x))
 
 
 # --------------------------------------------------------------------------- mix

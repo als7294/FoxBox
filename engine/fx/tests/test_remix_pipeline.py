@@ -86,3 +86,55 @@ def test_mashup_uses_line_it_up_else_picks():
     assert r.mash == chosen and all(s.from_slot == "A" for s in r.sections)  # B's vocals over A's drop: A's sections
     voc = [c for lane in r.lanes if lane.role == "vocals" for c in lane.clips if c.src.slot == "B"]
     assert len(voc) == 1 and voc[0].at_beat == 32 and voc[0].src.start_beat == 64 and voc[0].shift_st == 1
+
+
+def test_any_track_renders():  # M2.3: no drop found, a drop as the very first section, no key, 4 bars, half tempo
+    base = _source()
+    bar = 240 / 140
+    layouts = {"no drop": (("intro", 0, 24),), "drop first": (("drop", 0, 16), ("outro", 16, 8)),
+               "4 bars": (("build", 0, 2), ("drop", 2, 2)), "half tempo": (("intro", 0, 4), ("drop", 4, 8))}
+    for name, layout in layouts.items():
+        secs = [SongSection(kind=k, start_s=a * bar, end_s=(a + n) * bar, start_bar=a + 1, energy=0.5) for k, a, n in layout]
+        st = SongStructure.model_construct(sections=secs, drops_s=[], builds=[], phrase_bars=8, from_stems=False)
+        bpm = 70.0 if name == "half tempo" else 140.0  # an analysis an octave low
+        song = base.song.model_copy(update={"structure": st, "analysis": SongAnalysis(bpm=bpm, downbeat_s=0.0, key=None)})
+        n = int(4 * bar * SR) if name == "4 bars" else base.stems["bass"].shape[1]
+        src = {"A": SongInput(song, {k: v[..., :n] for k, v in base.stems.items()}, SR)}
+        for recipe, kw in (("vip", {"bass_patch_id": "hybrid:tearout"}),
+                           ("flip", {"flip": FlipSettings(style_id="riddim", kit_id="foxbox")})):
+            r = Remix(id="r", name="r", recipe=recipe, sources=[{"slot": "A", "song_id": "s"}], bpm=140, created_at="",
+                      updated_at="", **kw)
+            y = run(r, src, stage="mixdown", sr=SR, master=Master(sample_rate=48000)).mix
+            assert y.shape[1] > 0 and np.isfinite(y).all() and np.abs(y).max() > 1e-3, (name, recipe)
+
+
+def test_kit_keys_follow_the_sample_bank():  # v0.15: a changed pack re-prepares the layered kit clips
+    from fvwks_contracts.models import RemixTake, TakeChoice
+    from fvwks_synth import layers
+
+    src = {"A": _source()}
+    r = run(Remix(id="r", name="r", recipe="flip", sources=[{"slot": "A", "song_id": "s"}], bpm=140, created_at="",
+                  updated_at="", flip=FlipSettings(style_id="halftime", kit_id="foxbox")), src, stage="build").remix
+    kit = next(c for lane in r.lanes for c in lane.clips if c.src.kind == "kit")
+    for layer in ("synth", "both"):
+        rl = r.model_copy(update={"takes": [RemixTake(seed=r.seed, style="halftime", created_at="",
+                                                      choices=[TakeChoice(axis="kit.layer", option=layer)])]})
+        before = clip_key(kit, rl, src)
+        saved, layers._USER = dict(layers._USER), {"kick": "/nowhere/kick.wav"}
+        try:
+            after = clip_key(kit, rl, src)
+        finally:
+            layers._USER = saved
+        assert (before == after) == (layer == "synth"), layer  # only a layered take hears the bank
+
+
+def test_a_quiet_source_pre_drop_keeps_its_own_gap():  # the user's 1 beat: our gap never stacks on the source's
+    from fvwks_fx.remix.pipeline import own_gaps
+
+    src = _source()
+    assert own_gaps(src) == set()  # the tone runs into both drops
+    beat = int(60 / 140 * SR)
+    for k in src.stems:  # the source goes quiet 3 beats before the first drop (bar 9)
+        src.stems[k] = src.stems[k].copy()  # (_tracks may be shared)
+        src.stems[k][..., 32 * beat - 3 * beat : 32 * beat] = 0
+    assert own_gaps(src) == {9}

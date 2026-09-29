@@ -6,7 +6,8 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--vb-rack);
-  border: 1px solid var(--vb-rack-edge);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-top-color: rgba(var(--vb-ink-rgb), 0.18);
   border-radius: var(--vb-rack-radius);
   box-shadow: var(--vb-rack-inset);
 }
@@ -14,46 +15,153 @@
   outline: 2px solid var(--vb-amber);
   outline-offset: 2px;
 }
+/* The recipe tabs (54px): number, name and what it makes; a lit card with an ember underline glides to the selected one. */
 .tabs {
   position: relative;
   display: flex;
-  height: 40px;
+  align-items: stretch;
+  height: 54px;
   flex: none;
   border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+  background: #0d0d0f;
 }
-.tabs > button {
+.tabRow {
+  display: flex;
   flex: 1;
-  height: 100%;
-  padding: 0 6px;
+  min-width: 0;
+  padding: 6px 0 6px 6px;
+}
+.tabRow > button {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 10px;
   border: 0;
   background: none;
   color: var(--vb-dim);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.08em;
-  white-space: nowrap;
+  text-align: left;
   transition: color 0.2s;
 }
-.tabs > button:hover,
-.tabs > button[aria-selected='true'] {
+.tabRow > button:hover,
+.tabRow > button[aria-selected='true'] {
   color: var(--vb-ink);
 }
-/* The ember indicator glides under the selected tab. */
+.tabHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.tabHead > span {
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+  transition: color 0.2s;
+}
+[aria-selected='true'] > .tabHead > span {
+  color: var(--vb-accent);
+}
+.tabHead > b {
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.tabSub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
 .tabBar {
   position: absolute;
-  bottom: -1px;
-  width: 33.33%;
-  height: 2px;
-  display: flex;
-  justify-content: center;
-  transition: left 0.35s var(--vb-ease-glide);
+  top: 6px;
+  bottom: 6px;
+  width: calc(29.33% - 4px);
+  border-radius: 3px;
+  background: #18181b;
+  box-shadow:
+    inset 0 1px 0 rgba(var(--vb-ink-rgb), 0.08),
+    0 0 0 1px rgba(var(--vb-ink-rgb), 0.1);
+  transition: left 0.38s cubic-bezier(0.2, 1.1, 0.3, 1);
   pointer-events: none;
 }
 .tabBar::after {
   content: '';
-  width: 70%;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
   height: 2px;
+  border-radius: 1px;
   background: var(--vb-accent);
-  box-shadow: 0 0 8px var(--vb-accent);
+  box-shadow: 0 0 10px var(--vb-accent);
+}
+.fold {
+  width: 30px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+  background: none;
+  color: var(--vb-dim);
+  font: 700 13px var(--vb-font-mono);
+}
+.fold:hover {
+  color: var(--vb-ink);
+  background: rgba(var(--vb-ink-rgb), 0.04);
+}
+/* Folded: a 46px rail, ‹ and the recipes on their side. */
+.sideMin {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: var(--vb-rack);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-radius: var(--vb-rack-radius);
+  animation: rise 0.25s ease-out;
+}
+.sideMin :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.unfold {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+  color: var(--vb-ink);
+  font: 700 13px var(--vb-font-mono);
+}
+.unfold:hover {
+  background: rgba(var(--vb-ink-rgb), 0.14);
+}
+.minTab {
+  width: 32px;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.minTab[data-on] {
+  background: rgba(var(--vb-accent-rgb), 0.14);
+  color: var(--vb-ink);
 }
 .body {
   flex: 1;
@@ -204,6 +312,57 @@
 }
 
 /* ---------------------------------------------------------------- BASS DNA */
+/* BASS DNA before the groove is read: a dark well, the pitch rows, a sweep (amber and quick while reading), a status. */
+.well {
+  position: relative;
+  height: clamp(150px, 20cqh, 190px);
+  flex: none;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well-deep);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+.well > svg {
+  position: absolute;
+  inset: 12px 10px 34px;
+  width: calc(100% - 20px);
+  height: calc(100% - 46px);
+}
+.wellScan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(var(--vb-ink-rgb), 0.06), transparent);
+  animation: sweep 3.2s linear infinite;
+}
+.well[data-reading] .wellScan {
+  background: linear-gradient(90deg, transparent, rgba(var(--vb-amber-rgb), 0.35), transparent);
+  animation-duration: 1.1s;
+}
+.wellFoot {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wellFoot > b {
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+}
+.wellFoot > span {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.well[data-reading] .wellFoot > span {
+  color: var(--vb-amber);
+}
 .target {
   display: flex;
   align-items: baseline;
@@ -215,9 +374,9 @@
   letter-spacing: 0.1em;
   white-space: nowrap;
 }
-.target > span {
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-  color: var(--vb-dim);
+.target > button {
+  height: 24px;
+  padding: 0 8px;
   white-space: nowrap;
 }
 .dna {
@@ -300,6 +459,118 @@
 }
 
 /* PatchPicker / KitPicker: sound rows with an LED, the name, the engine tag and a 2 s audition. */
+/* SOUND, and what a pick does. */
+.soundHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.soundHead > span:last-child {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+/* Sound and kit cards, two across: LED and name, the family's hits, the engine tag, ▶ 2s along the bottom. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well);
+  box-shadow: inset 0 1px 0 rgba(var(--vb-ink-rgb), 0.04);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.12s;
+  animation: pop 0.3s var(--vb-ease-snap) both;
+}
+.card:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+  transform: translateY(-1px);
+}
+.card[data-on] {
+  border-color: rgba(var(--vb-amber-rgb), 0.75);
+  background: linear-gradient(180deg, rgba(var(--vb-amber-rgb), 0.1), rgba(var(--vb-amber-rgb), 0.02));
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--vb-amber-rgb), 0.6),
+    0 0 16px rgba(var(--vb-amber-rgb), 0.12);
+}
+.card[data-off] {
+  opacity: 0.45;
+}
+.cardPick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 9px 9px 7px;
+  border: 0;
+  background: none;
+  color: var(--vb-ink);
+  text-align: left;
+}
+.cardName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.cardName > b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.05em;
+}
+.cardName > .soundLed {
+  height: 12px;
+}
+.card[data-on] .soundLed {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px var(--vb-accent);
+}
+.cardPick > svg {
+  display: block;
+  width: 100%;
+  height: 18px;
+  fill: rgba(var(--vb-ink-rgb), 0.42);
+}
+.card[data-on] .cardPick > svg {
+  fill: rgba(var(--vb-amber-rgb), 0.85);
+}
+.cardPick > span:last-child {
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.cardAud {
+  height: 26px;
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.6);
+  background: rgba(var(--vb-ink-rgb), 0.04);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+}
+.cardAud:hover:not(:disabled) {
+  background: rgba(var(--vb-ink-rgb), 0.1);
+}
+.cardAud[data-on] {
+  color: var(--vb-amber);
+}
+.cardAud:disabled {
+  opacity: 0.45;
+}
 .families {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -310,7 +581,7 @@
   background: var(--vb-well);
 }
 .families > button {
-  height: 24px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: 2px;
@@ -382,6 +653,7 @@
   gap: 3px;
 }
 .soundPick > b {
+  text-transform: uppercase; /* the engine's names come in mixed case ("Gun shot"); the design sets them in caps */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -419,6 +691,96 @@
   background: var(--vb-amber);
   transform-origin: left;
   animation: aud 2s linear forwards;
+}
+
+/* SAMPLE LAYERS (M3.9): FOXBOX CC0, then your packs (on/off, counts, FOLDER MISSING), their actions, the scan. */
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  margin: 0 -6px;
+  border: 1px dashed transparent;
+  border-radius: var(--vb-ctl-radius);
+}
+.layers[data-over] {
+  border-color: rgba(var(--vb-accent-rgb), 0.6);
+  background: rgba(var(--vb-accent-rgb), 0.06);
+}
+.layersHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pack {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.packName {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.3);
+  border-radius: 2px;
+  background: #000;
+  color: var(--vb-ink);
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.missing {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.6);
+  border-radius: 2px;
+  color: var(--vb-amber);
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+}
+.packActions {
+  display: flex;
+  gap: 4px;
+  padding-left: 13px;
+}
+.packActions > button {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.packActions > button:disabled {
+  opacity: 0.45;
+}
+.packActions > .forget {
+  margin-left: auto;
+  color: var(--vb-dim);
+}
+.packActions > .forget[data-armed] {
+  border-color: rgba(var(--vb-accent-rgb), 0.8);
+  color: var(--vb-accent);
+}
+.scan {
+  position: relative;
+  padding: 6px 8px 8px;
+  border-radius: 2px;
+  background: var(--vb-well);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.scan > i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--vb-amber);
+  transition: width 0.3s;
+}
+.hint {
+  margin: 0;
+  font: 500 var(--vb-text-min) / 1.45 var(--vb-font-mono);
+  color: var(--vb-dim);
 }
 
 /* ---------------------------------------------------------------- MASH RADAR */
@@ -535,137 +897,306 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
+/* A style card: name and tempo, its first bar's kick / snare / hats, what it does; a light steps along the selected one. */
 .flip {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  padding: 8px 10px;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 10px 9px;
+  overflow: hidden;
   text-align: left;
   border: 1px solid var(--vb-rack-edge);
   border-radius: var(--vb-ctl-radius);
   background: var(--vb-well);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
   color: var(--vb-ink);
   transition:
     border-color 0.2s,
-    box-shadow 0.2s;
+    box-shadow 0.2s,
+    transform 0.12s;
+  animation: pop 0.32s var(--vb-ease-snap) both;
 }
 .flip:hover {
   border-color: rgba(var(--vb-ink-rgb), 0.35);
+  transform: translateY(-1px);
 }
 .flip[aria-checked='true'] {
   border-color: var(--vb-accent);
-  box-shadow: inset 0 0 14px rgba(var(--vb-accent-rgb), 0.18);
+  background: #141417;
+  box-shadow:
+    inset 0 0 0 1px var(--vb-accent),
+    0 0 16px rgba(var(--vb-accent-rgb), 0.22);
 }
-.flip > b {
-  font: 800 14px/1 var(--vb-font-display);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-}
-.flip > span {
-  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
-  color: var(--vb-dim);
-}
-.steps {
-  display: grid;
-  grid-template-columns: repeat(16, 5px);
-  grid-auto-rows: 4px;
-  gap: 2px;
-}
-.steps > span {
-  background: rgba(var(--vb-ink-rgb), 0.1);
-}
-.steps > span[data-hit] {
-  background: var(--vb-ink);
-}
-.steps > span[data-hit='ghost'] {
-  background: rgba(var(--vb-ink-rgb), 0.4);
-}
-.flip[aria-checked='true'] .steps > span[data-hit=''] {
-  background: var(--vb-accent);
-}
-.fader {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 8px;
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-}
-.fader > input {
-  width: 100%;
-  accent-color: var(--vb-amber);
-}
-.fader > output {
-  text-align: right;
-}
-.heat {
-  display: grid;
-  grid-template-columns: 18px repeat(16, minmax(0, 1fr));
-  gap: 2px;
-  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
-}
-.heat > span {
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 1px;
-  letter-spacing: -0.04em;
-}
-.heat > [data-head] {
-  height: auto;
-  font-weight: 500;
-  color: var(--vb-dim);
-}
-
-/* ---------------------------------------------------------------- docked SWAP SOUND (glass: the one popover-like card) */
-.swap {
-  position: relative;
+.flipHead {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 6px;
-  padding: 8px;
-  background: linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.1), rgba(var(--vb-ink-rgb), 0.04)), rgba(20, 20, 23, 0.94);
-  backdrop-filter: blur(14px) saturate(150%);
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
-  border-top-color: rgba(var(--vb-ink-rgb), 0.3);
-  border-radius: var(--vb-rack-radius);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  animation: rise 0.22s ease-out;
 }
-.swapHead {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.swapHead > div {
-  flex: 1;
+.flipHead > b {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.swapHead b {
-  font: 800 15px/1 var(--vb-font-display);
-  letter-spacing: 0.14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.05em;
 }
-.swapHead span {
+.flipHead > span {
+  flex: none;
+  font: 700 17px/1 var(--vb-font-display);
+  color: var(--vb-dim);
+}
+.flip[aria-checked='true'] .flipHead > span {
+  color: var(--vb-accent);
+}
+.flipSub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
   color: var(--vb-dim);
 }
+.steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  grid-auto-rows: 5px;
+  gap: 2px;
+}
+.steps > span {
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.steps > [data-v='0'][data-hit] {
+  background: rgba(var(--vb-ink-rgb), 0.6);
+}
+.steps > [data-v='1'][data-hit] {
+  background: rgba(var(--vb-amber-rgb), 0.5);
+}
+.steps > [data-v='2'][data-hit] {
+  background: rgba(124, 200, 255, 0.3);
+}
+.steps > [data-hit='ghost'] {
+  opacity: 0.5;
+}
+.flip[aria-checked='true'] .steps > [data-v='0'][data-hit] {
+  background: var(--vb-ink);
+}
+.flip[aria-checked='true'] .steps > [data-v='1'][data-hit] {
+  background: var(--vb-amber);
+}
+.flip[aria-checked='true'] .steps > [data-v='2'][data-hit] {
+  background: rgba(124, 200, 255, 0.7);
+}
+.steps > i {
+  display: none;
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 0;
+  width: 6.25%;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.18);
+  box-shadow: 0 0 6px rgba(var(--vb-ink-rgb), 0.3);
+  animation: step 1.72s steps(16) infinite;
+}
+.flip[aria-checked='true'] .steps > i {
+  display: block;
+}
+/* The first kit (the house kit) spans the row. */
+.cards[data-kits] > :first-child {
+  grid-column: 1 / -1;
+}
+.big {
+  font: 700 17px/1 var(--vb-font-display);
+}
+/* SWING: 16 steps in a well, the off-beats pushed late by the swing; a native range on top takes keys and drags. */
+.swing {
+  position: relative;
+  height: 30px;
+  border-radius: 2px;
+  background: var(--vb-well);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.swing > span {
+  position: absolute;
+  top: 9px;
+  width: 3px;
+  height: 12px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.45);
+  transition: left 0.15s;
+}
+.swing > span[data-beat] {
+  top: 6px;
+  height: 18px;
+  background: var(--vb-ink);
+}
+.swing > i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--vb-amber);
+  transform-origin: left;
+}
+.swing > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+.swing:has(> input:focus-visible) {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.heat {
+  display: grid;
+  grid-template-columns: 16px repeat(16, minmax(0, 1fr));
+  gap: 2px;
+  padding: 8px;
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well-deep);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7);
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+}
+.heat > span {
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 1px;
+  color: var(--vb-dim);
+  letter-spacing: -0.04em;
+}
+.heat > span[data-on] {
+  color: var(--vb-ink);
+}
+.heat > [data-head] {
+  height: 12px;
+}
+[data-tag='▲'] {
+  color: var(--vb-amber);
+}
+[data-tag='○'] {
+  color: var(--vb-ice);
+}
+.legend {
+  display: flex;
+  gap: 14px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- docked SWAP SOUND: it covers the panel (tabs hide) */
+.swap {
+  margin: -12px;
+  min-height: calc(100% + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 14px;
+  background: var(--vb-rack);
+  animation: slideIn 0.34s var(--vb-ease-glide);
+}
+.swap > :not(.swapHead) {
+  margin: 0 14px;
+}
+.swapHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  flex: none;
+  padding: 0 8px 0 6px;
+  border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+}
 .swapHead > button {
-  height: 24px;
-  padding: 0 6px;
+  height: 28px;
+  padding: 0 10px;
   flex: none;
   border: 0;
   border-radius: 2px;
   background: var(--vb-ctl-fill);
   color: var(--vb-ink);
   font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
   white-space: nowrap;
+}
+.swapHead > button:hover {
+  background: var(--vb-ctl-fill-hi);
+}
+.swapHead > b {
+  flex: 1;
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
+}
+.swapHead > span {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+/* The sound on the clip now: big, its family and engine in ember, its hits. */
+.swapNow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well-deep);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+.swapNow > b {
+  font: 800 clamp(34px, 5cqh, 46px) / 0.9 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  animation: rise 0.3s var(--vb-ease-snap);
+}
+.swapNow > span {
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-accent);
+}
+.swapNow > svg {
+  display: block;
+  width: 100%;
+  height: 44px;
+  fill: rgba(var(--vb-ink-rgb), 0.8);
+}
+.swapMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+}
+.swapMeta > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vb-ok);
+}
+.swapMeta i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.swapMeta [data-prep] {
+  color: var(--vb-amber);
+}
+.swapMeta [data-prep] i {
+  animation: blink 0.56s steps(1) infinite;
 }
 
 @keyframes rise {
@@ -684,6 +1215,36 @@
   }
   to {
     left: 100%;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes step {
+  to {
+    transform: translateX(1600%);
+  }
+}
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0.3;
   }
 }
 @keyframes aud {

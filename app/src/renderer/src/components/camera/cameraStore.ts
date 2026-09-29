@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { DEFAULT_MASK, type ClipFormat, type FaceMask } from './compose'
-import { PAD } from './faceTrack'
+import { PAD, type People } from './faceTrack'
 
 /** How clips look and sound (kept while the app runs). */
 export interface CameraSettings {
@@ -15,6 +15,8 @@ export interface CameraSettings {
   passThrough: boolean
   /** 1.5: a camera wider than the output (16:9 into 9:16) follows the person. */
   autoFrame: boolean
+  /** 1.5.1: one person (only the main face is masked) unless the user says two (the 2 PEOPLE prompt, or PEOPLE). */
+  people: People
 }
 
 interface CameraState {
@@ -25,6 +27,10 @@ interface CameraState {
   settings: CameraSettings
   /** The camera video filmed with each take (by take id). In memory only, and only ever used masked. */
   takeVideos: Record<string, Blob>
+  /** A second person has been in frame a moment: ask (2 PEOPLE IN FRAME?). */
+  twoFaces: boolean
+  /** The user said JUST ME (or picked 1 PERSON): no second mask and no asking, this session. */
+  justMe: boolean
 }
 
 export const useCamera = create<CameraState>(() => ({
@@ -38,8 +44,11 @@ export const useCamera = create<CameraState>(() => ({
     sound: 'drop',
     passThrough: true,
     autoFrame: true,
+    people: 1,
   },
   takeVideos: {},
+  twoFaces: false,
+  justMe: false,
 }))
 
 export const camera = {
@@ -47,6 +56,11 @@ export const camera = {
   setLiveMode: (liveMode: 'live' | 'drop') => useCamera.setState({ liveMode }),
   set: (patch: Partial<CameraSettings>) => useCamera.setState((s) => ({ settings: { ...s.settings, ...patch } })),
   keepTakeVideo: (id: string, video: Blob) => useCamera.setState((s) => ({ takeVideos: { ...s.takeVideos, [id]: video } })),
+  /** From the draw loops: only a change re-renders. */
+  setTwoFaces: (twoFaces: boolean) => useCamera.getState().twoFaces !== twoFaces && useCamera.setState({ twoFaces }),
+  /** The prompt's answer, or PEOPLE: 2 masks both; 1 is JUST ME (no second mask, no asking). */
+  setPeople: (people: People) =>
+    useCamera.setState((s) => ({ settings: { ...s.settings, people }, justMe: people === 1, twoFaces: false })),
 }
 
 /**

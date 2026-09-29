@@ -1,0 +1,367 @@
+/* PickStart: LINEUP (app/design/masks README). A card's colour comes in as --led (its preset's glowColor), its place
+   as --i (the entrance stagger). Buttons restate their font with !important over `.page button` (masks.module.css). */
+
+.pick {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: vbRise 0.35s ease-out;
+}
+
+/* ---------------------------------------------------------------- heading */
+.top {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+.heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kicker {
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.h {
+  margin: 0;
+  font: 800 clamp(44px, 7cqh, 72px) / 0.86 var(--vb-font-display);
+  letter-spacing: 0.04em;
+}
+.sub {
+  margin: 0;
+  font: 500 12px/1.4 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.mine {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.1em;
+}
+.mine:hover {
+  background: #18181b;
+}
+
+/* ---------------------------------------------------------------- roster */
+.stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.roster {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+}
+.card {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+  background: #0b0b0c;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  text-align: left;
+  transform-origin: 50% 0;
+  transition:
+    flex-grow 0.5s var(--vb-mk-ease-lineup),
+    border-color 0.2s;
+  animation: vbSlot var(--vb-mk-dur-slot) var(--vb-mk-ease-lineup) both;
+  animation-delay: calc(0.08s + var(--i) * 0.075s);
+}
+.card[data-on] {
+  flex-grow: 4.4;
+  border-color: var(--vb-ink);
+}
+
+/* The entrance: a glowColor scan line sweeps down, and the top LED draws in left to right. */
+.scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 3;
+  height: 12%;
+  background: linear-gradient(180deg, transparent, var(--led) 85%, #fff);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  animation: vbScanDown 0.7s cubic-bezier(0.4, 0, 0.6, 1) both;
+  animation-delay: calc(0.3s + var(--i) * 0.075s);
+}
+.led {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: var(--led);
+  box-shadow: 0 0 10px var(--led);
+  opacity: 0.35;
+  transform-origin: 0 50%;
+  animation: vbLed 0.9s var(--vb-mk-ease-lineup) both;
+  animation-delay: calc(0.08s + var(--i) * 0.075s);
+}
+.card[data-on] .led {
+  opacity: 1;
+}
+.num {
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  font: 700 13px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  color: var(--vb-dim);
+  pointer-events: none;
+}
+.card[data-on] .num {
+  color: var(--vb-ink);
+}
+.featured {
+  position: absolute;
+  left: 34px;
+  top: 11px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 178, 62, 0.65);
+  border-radius: 2px;
+  background: rgba(20, 16, 10, 0.9);
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: var(--vb-amber);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* A slice: the dim picture under a black fade, the name running up. */
+.shut {
+  position: absolute;
+  inset: 0;
+}
+.thumb {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: 190%;
+  height: 62%;
+  transform: translateX(-50%);
+  background: center / contain no-repeat;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, #0b0b0c 22%, rgba(11, 11, 12, 0.2) 60%, rgba(11, 11, 12, 0.7));
+}
+.vname {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+.vname > span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font: 800 clamp(20px, 3cqh, 28px) / 1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+  color: var(--vb-ink);
+  white-space: nowrap;
+}
+
+/* The open card: the live stage over its name and trait chips. */
+.open {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 62% at 50% 40%, #1c1c21 0%, #0d0d0f 60%, #080809 100%);
+}
+.holder {
+  position: absolute;
+  inset: 0 0 88px 0;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.info {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  animation: vbRise 0.35s ease-out;
+}
+.big {
+  font: 800 clamp(36px, 6.4cqh, 60px) / 0.88 var(--vb-font-display);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  padding: 4px 7px;
+  border: 1px solid rgba(233, 229, 218, 0.2);
+  border-radius: 2px;
+  background: rgba(11, 11, 12, 0.8);
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.drag {
+  position: absolute;
+  right: 16px;
+  top: 44px;
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- bottom bar */
+.bar {
+  flex: none;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 16px;
+}
+.pips {
+  display: flex;
+  gap: 4px;
+}
+.pips > span {
+  width: 18px;
+  height: 4px;
+  border-radius: 1px;
+  background: rgba(233, 229, 218, 0.14);
+}
+.pips > span[data-on] {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px var(--vb-accent);
+}
+.keys {
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.base {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(233, 229, 218, 0.24);
+  border-radius: 3px;
+  background: #111113;
+  font: 800 16px var(--vb-font-display) !important;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.base:hover {
+  border-color: var(--vb-ink);
+  background: #18181b;
+}
+.go {
+  height: 48px;
+  padding: 0 22px;
+  font: 800 21px/1 var(--vb-font-display) !important;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- motion */
+@keyframes vbRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* A card drops in from above, stretched and blown out, clip-revealed top to bottom; overshoots, glitches two frames. */
+@keyframes vbSlot {
+  0% {
+    opacity: 0;
+    transform: translateY(-110%) scaleY(1.6);
+    filter: brightness(3) saturate(0);
+    clip-path: inset(0 0 100% 0);
+  }
+  35% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+  55% {
+    transform: translateY(4%) scaleY(0.96);
+    filter: brightness(1.8) saturate(0.4);
+  }
+  62% {
+    transform: translateY(0) scaleY(1);
+    filter: brightness(1);
+  }
+  66% {
+    transform: translateX(-5px);
+    filter: hue-rotate(90deg) brightness(1.6);
+  }
+  69% {
+    transform: translateX(4px);
+  }
+  72% {
+    transform: none;
+    filter: none;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes vbScanDown {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(900%);
+    opacity: 0;
+  }
+}
+@keyframes vbLed {
+  0%,
+  40% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pick,
+  .pick * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

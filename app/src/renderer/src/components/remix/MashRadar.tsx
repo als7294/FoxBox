@@ -5,6 +5,7 @@ import type { Song } from '@/api/types'
 import { barTime, songGrid } from '@/state/song'
 import { Note } from './BassDnaPanel'
 import css from './panel.module.css'
+import { TrackPicker, useTrackDrop } from './Sources'
 import { audition, keyLabel, remix as actions, songBpm, songKeyOf, useRemix, useSongs } from './store'
 
 const PARTS: MashPart[] = ['build', 'drop', 'vocals']
@@ -21,6 +22,7 @@ const scanFor = (borrow: MashPart): Pick<MashScanRequest, 'part' | 'borrow'> =>
 export function MashRadar({ songA }: { songA: Song | undefined }) {
   const bpm = songBpm(songA)
   const songs = useSongs()
+  const pickA = useTrackDrop('A')
   const [borrow, setBorrow] = useState<MashPart>('drop')
   const [styles, setStyles] = useState<BassStyle[]>(STYLES)
   const [range, setRange] = useState<[number, number]>(() => (bpm ? [Math.round(bpm * 0.94), Math.round(bpm * 1.06)] : [120, 160]))
@@ -60,7 +62,12 @@ export function MashRadar({ songA }: { songA: Song | undefined }) {
   if (!songA)
     return (
       <div className={css.pane}>
-        <Note title="MASH RADAR">It finds a partner for track A among your own tracks. Nothing leaves the Mac.</Note>
+        <Note
+          title="MASH RADAR"
+          action={<TrackPicker slot="A" className={css.ctl} label="PICK A TRACK FOR A" onFiles={(f) => void pickA.take(f)} />}
+        >
+          It finds a partner for track A among your own tracks. Nothing leaves the Mac.
+        </Note>
       </div>
     )
   const total = songs.data?.length ?? 0

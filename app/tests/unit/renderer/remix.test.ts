@@ -1,15 +1,23 @@
 import { setupServer } from 'msw/node'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { Remix, RemixTake } from '../../../src/renderer/src/api/remix'
+import type { Remix, RemixLane, RemixTake } from '../../../src/renderer/src/api/remix'
+import type { Song } from '../../../src/renderer/src/api/types'
 import { remixApi, saveRemix, waitJob } from '../../../src/renderer/src/api/remix'
 import {
   beatToSec,
   deleteSection,
+  displayLanes,
   duplicateSection,
+  isPlaceholder,
+  laneOpen,
   moveSection,
+  originalRemix,
+  pickupBeats,
   planDrop,
   remixAccepts,
   remixBeats,
+  rulerBars,
+  sectionBeat,
   secToBeat,
   sourceSeconds,
 } from '../../../src/renderer/src/components/remix/arrangement'
@@ -71,10 +79,91 @@ const tiles = (r: Pick<Remix, 'sections'>) =>
   r.sections.every((s, i) => s.start_bar === (i ? r.sections[i - 1]!.start_bar + r.sections[i - 1]!.bars : 1))
 
 describe('REMIX arrangement maths', () => {
+  it("puts the ruler's bar 1 on the ORIGINAL's first downbeat (after its pickup)", () => {
+    expect(rulerBars(16, 4, 0, 1).map(([k]) => k)).toEqual([0, 1, 2, 3])
+    // 1.5 beats of pickup: bar 1 at beat 1.5, no bar before it; 5.5 beats of pickup: one pre-roll bar (no number).
+    expect(rulerBars(16, 4, 1.5, 1)).toEqual([
+      [0, 1.5],
+      [1, 5.5],
+      [2, 9.5],
+      [3, 13.5],
+    ])
+    expect(rulerBars(16, 4, 5.5, 2).map(([k]) => k)).toEqual([0, 2])
+    expect(rulerBars(16, 4, 5.5, 1)[0]).toEqual([-1, 1.5])
+  })
   it('maps beats, seconds and px', () => {
     expect(beatToSec(140, 140)).toBe(60)
     expect(secToBeat(beatToSec(37, 128), 128)).toBeCloseTo(37)
     expect(remixBeats(r0)).toBe(128)
+  })
+
+  it('lists all 7 lanes in order, a missing role as an empty placeholder; empty KIT and TOP (all empty in a MASHUP) closed', () => {
+    const lane = (id: string, role: RemixLane['role'], slot: 'A' | 'B' | null, n = 1): RemixLane => ({
+      id,
+      role,
+      slot,
+      gain_db: 0,
+      mute: false,
+      solo: false,
+      clips: Array.from({ length: n }, (_, i) => clip(`${id}${i}`, i * 4, 4)),
+    })
+    const shown = displayLanes([lane('k', 'kit', null), lane('b', 'bass', 'A', 0), lane('d2', 'drums', 'B'), lane('d1', 'drums', 'A')])
+    expect(shown.map((l) => `${l.role}:${isPlaceholder(l) ? '-' : l.id}`)).toEqual([
+      'drums:d1',
+      'drums:d2',
+      'top:-',
+      'synth_bass:-',
+      'bass:b',
+      'vocals:-',
+      'other:-',
+      'kit:k',
+    ])
+    expect(shown.map((l) => laneOpen(l, {}))).toEqual([true, true, false, true, true, true, true, true])
+    expect(shown.map((l) => laneOpen(l, {}, true))).toEqual([true, true, false, false, false, false, false, true])
+    expect(shown.every((l) => laneOpen(l, {}, false, true))).toBe(true) // the ORIGINAL: every row
+    expect(laneOpen(shown[4]!, { 'bass:A': true }, true)).toBe(true)
+    expect(laneOpen(shown[0]!, { 'drums:A': false })).toBe(false)
+  })
+
+  it('shows the ORIGINAL before a BUILD: its sections on the audio (after the pickup), its stems, else the full mix', () => {
+    const sec = (kind: 'intro' | 'drop' | 'outro', start_bar: number, start_s: number, end_s: number) => ({
+      kind,
+      start_bar,
+      start_s,
+      end_s,
+    })
+    // 120 BPM: a bar is 2 s; the first downbeat at 1 s is half a bar in.
+    const song = {
+      id: 's',
+      name: 'Nightshift',
+      duration_s: 50,
+      audio_id: 'mix',
+      bpm_override: 120,
+      downbeat_override_s: 1,
+      analysis: { key: 'C#m' },
+      stems: [
+        { name: 'drums', audio_id: 'd' },
+        { name: 'bass', audio_id: 'b' },
+      ],
+      structure: { sections: [sec('intro', 1, 1, 17), sec('drop', 9, 17, 33), sec('outro', 17, 33, 49)] },
+    } as unknown as Song
+    const o = originalRemix(song, 'vip')
+    expect(o.sections.map((s) => [s.kind, s.start_bar, s.bars, s.from_start_bar])).toEqual([
+      ['intro', 1.5, 8, 1],
+      ['drop', 9.5, 8, 9],
+      ['outro', 17.5, 8, 17],
+    ])
+    expect(remixBeats(o)).toBe(98) // (17.5 − 1 + 8) × 4
+    expect(pickupBeats(o)).toBe(2) // the ruler's bar 1 sits on the downbeat
+    expect(o.lanes.map((l) => [l.role, l.clips[0]!.audio_id, l.clips[0]!.at_beat, l.clips[0]!.beats])).toEqual([
+      ['drums', 'd', 0, 98],
+      ['bass', 'b', 0, 98],
+    ])
+    expect([o.bpm, o.key, o.takes.length]).toEqual([120, 'C#m', 0])
+    // A beat's time is the song's own: drop 1 starts at 17 s.
+    expect(beatToSec(sectionBeat(o.sections[1]!, 4), o.bpm)).toBe(17)
+    const bare = originalRemix({ ...song, stems: [], structure: null }, 'mashup')
+    expect(bare.lanes.map((l) => [l.id, l.role, l.clips[0]!.audio_id, l.clips[0]!.beats])).toEqual([['original:mix', 'other', 'mix', 100]])
   })
 
   it('moves, duplicates and deletes sections, keeping a tiling and moving their clips', () => {
@@ -270,5 +359,20 @@ describe('REMIX against the mock engine', () => {
     const out = await remixApi.exportResult(r.id)
     expect(out.files.map((f) => f.format)).toEqual(['aiff', 'mp3'])
     expect(out.als_path).toMatch(/\.als$/)
+  })
+})
+
+describe('EXPORT file names (S3 c780942)', () => {
+  it('names files "<song> (<STYLE> <RECIPE> - TAKE n)", file-safe', async () => {
+    const { exportStem } = await import('../../../src/renderer/src/components/remix/exportName')
+    const take = (seed: number, style: string) => ({ seed, style }) as RemixTake
+    const vip = { name: 'NIGHTSHIFT VIP', recipe: 'vip' as const, seed: 2, takes: [take(1, 'riddim'), take(2, 'riddim')] }
+    expect(exportStem(vip, '')).toBe('NIGHTSHIFT (RIDDIM VIP - TAKE 2)')
+    expect(exportStem({ ...vip, recipe: 'flip', seed: 1, takes: [take(1, 'trap_hybrid')] }, 'Song')).toBe(
+      'Song (TRAP HYBRID FLIP - TAKE 1)',
+    )
+    expect(exportStem({ ...vip, takes: [] }, 'Song')).toBe('Song (VIP)')
+    expect(exportStem({ ...vip, seed: 1, takes: [take(1, 'vip')] }, 'My VIP')).toBe('My (VIP - TAKE 1)')
+    expect(exportStem({ ...vip, takes: [] }, 'Café: “Déjà” / vu')).toBe('Cafe- -Deja- - vu (VIP)') // quotes fold to " and then go, like : and /
   })
 })

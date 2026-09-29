@@ -2,7 +2,8 @@
 
 Each `<style>.json` holds a GENRE FLIP style's drum patterns (`drums`: option -> {hits, alt}, [beat, voice, vel] rows),
 its engine axes (`axes`: {axis: {option: default weight}}) and which of the voices' own axes it passes down (`synth`:
-{patch prefix: [axis ids from fvwks_synth.growls.AXES]}). `common.json` holds the axes every style shares (drop.*).
+{patch prefix: [axis ids from fvwks_synth.growls.AXES]}; `synth_weights` holds any of their options at 0 while it
+fails the QA). `common.json` holds the axes every style shares (drop.*).
 A weight of 0 is declared but inactive (an option waiting on the corpus QA).
 
 resolve(remix, style, patch, choose) -> [TakeChoice]: every axis once per take. `choose(axis, {option: weight}) ->
@@ -47,6 +48,24 @@ def pattern(style: str, drums: str | None = None) -> dict:
     return {k: [tuple(h) for h in v] for k, v in p.items()}
 
 
+def grid(style: str) -> list[dict]:
+    """A flip card's preview (FlipStyle.grid, v0.11.12): the default drums option's first 2 bars as 16-step strings per
+    voice, 'x' a hit, 'g' a ghost (vel < 0.5), '-' a rest (a triplet lands on its nearest 16th)."""
+    p = pattern(style)
+    out = []
+    for voice in ("kick", "snare", "hats"):
+        rows = []
+        for hits in (p["hits"], p.get("alt", p["hits"])):
+            steps = ["-"] * 16
+            for b, v, vel in hits:
+                k = min(15, int(round(b * 4)))
+                if v == voice and steps[k] != "x":
+                    steps[k] = "x" if vel >= 0.5 else "g"
+            rows.append("".join(steps))
+        out.append({"voice": voice, "bars": rows})
+    return out
+
+
 def axes(style: str, patch: str | None = None) -> dict[str, dict[str, float]]:
     """The take-level axes for a style (and bass patch): the shared drop axes, the style's own, the voices' it uses."""
     out = {**load("common").get("axes", {}), **load(style).get("axes", {})}
@@ -56,7 +75,8 @@ def axes(style: str, patch: str | None = None) -> dict[str, dict[str, float]]:
             from fvwks_synth.growls import AXES
         except ImportError:
             AXES = {}
-        out.update({a: AXES[a] for a in synth if a in AXES})
+        held = load(style).get("synth_weights", {})  # an option failing the QA held at 0 until it's fixed (plan 4.1)
+        out.update({a: {**AXES[a], **held.get(a, {})} for a in synth if a in AXES})
     return out
 
 
@@ -74,19 +94,21 @@ def take_style(remix: Remix) -> str:
     return {"riddim": "riddim", "hybrid": "hybrid", "808": "trap_hybrid", "resample": arg or "trap_hybrid"}.get(kind, remix.recipe)
 
 
-def resolve(remix: Remix, style: str, patch: str | None = None, choose: Choose | None = None) -> list[TakeChoice]:
+def resolve_one(remix: Remix, axis: str, opts: dict[str, float], choose: Choose | None = None) -> TakeChoice:
+    """One axis, as resolve() does it: the server's choose, else the kept take's record, else the seeded draw."""
     kept = next((t for t in remix.takes if t.seed == remix.seed), None)
-    rec = {c.axis: c.option for c in kept.choices} if kept else {}
-    out = []
-    for axis, opts in axes(style, patch).items():
-        if choose is not None:
-            opt = choose(axis, dict(opts))
-        elif rec.get(axis) in opts:
-            opt = rec[axis]
-        else:
-            opt = _draw(remix.seed, axis, opts)
-        out.append(TakeChoice(axis=axis, option=str(opt)))
-    return out
+    rec = next((c.option for c in (kept.choices if kept else ()) if c.axis == axis), None)
+    if choose is not None:
+        opt = choose(axis, dict(opts))
+    elif rec in opts:
+        opt = rec
+    else:
+        opt = _draw(remix.seed, axis, opts)
+    return TakeChoice(axis=axis, option=str(opt))
+
+
+def resolve(remix: Remix, style: str, patch: str | None = None, choose: Choose | None = None) -> list[TakeChoice]:
+    return [resolve_one(remix, axis, opts, choose) for axis, opts in axes(style, patch).items()]
 
 
 def record(remix: Remix, style: str, choices: list[TakeChoice]) -> list[RemixTake]:

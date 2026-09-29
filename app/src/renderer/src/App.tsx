@@ -17,6 +17,7 @@ import { toggleRecordingShortcut } from '@/components/source/takes'
 import { bridge } from '@/env'
 import { isTextTarget, matchShortcut, type ShortcutAction } from '@/lib/shortcuts'
 import { LiveScreen } from '@/screens/LiveScreen'
+import { MasksScreen } from '@/screens/MasksScreen'
 import { SetlistScreen } from '@/screens/SetlistScreen'
 import { SettingsScreen } from '@/screens/SettingsScreen'
 import { StudioScreen } from '@/screens/StudioScreen'
@@ -52,7 +53,7 @@ function useCommands(presets: readonly Preset[]) {
     const run = (action: ShortcutAction | MenuCommand) => {
       const ui = useUi.getState()
       if (typeof action === 'object') {
-        if (ui.screen === 'remix') return // 1–6 are REMIX's takes; 7 means nothing there
+        if (ui.screen === 'remix' || ui.screen === 'masks') return // 1–6 are REMIX's takes; 7 means nothing there (nor on MASKS)
         const p = ordered.current[action.preset - 1]
         if (p) {
           // VISUALS applies the preset in place (its voice panel lists them): leaving mid-set would freeze the output.
@@ -203,6 +204,7 @@ function Screens() {
         {screen === 'setlist' && <SetlistScreen />}
         {screen === 'voices' && <VoicesScreen />}
         {screen === 'settings' && <SettingsScreen />}
+        {screen === 'masks' && <MasksScreen />}
         {screen === 'remix' && (
           <Suspense fallback={null}>
             <RemixScreen />

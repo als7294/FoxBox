@@ -1,13 +1,13 @@
 /**
  * The smart camera's models, off the main thread (a classic worker: MediaPipe loads its WASM with importScripts).
- * `init` brings the bundle's asset URLs; each `frame` is an ImageBitmap of one camera frame, answered with `seen`.
- * The face detector that decides what's hidden stays on the main thread (faceDetector.ts); this only adds pose,
- * hands and the person mask, a frame or so late.
+ * `init` brings the bundle's asset URLs; each `frame` is an ImageBitmap of one camera frame. The face goes back first
+ * (`face`), then the extras (`extras`: hands on even frames, the body's head and the person on odd ones), each with the
+ * frame's capture time. The face detector that decides what's hidden stays on the main thread (faceDetector.ts).
  */
-import { FaceDetector, FaceLandmarker, GestureRecognizer, ImageSegmenter } from '@/vendor/mediapipe/vision_bundle.mjs'
-import type { FaceShapes, HandGesture, Seen } from './vision'
+import { FaceDetector, FaceLandmarker, GestureRecognizer, ImageSegmenter, PoseLandmarker } from '@/vendor/mediapipe/vision_bundle.mjs'
+import type { BodyPoint, FaceShapes, HandGesture, Seen } from './vision'
 
-type Urls = { loader: string; wasm: string; face: string; hands: string; seg: string; far: string }
+type Urls = { loader: string; wasm: string; face: string; hands: string; seg: string; far: string; pose: string }
 
 const GESTURES: Record<string, HandGesture> = {
   Closed_Fist: 'fist',
@@ -22,11 +22,14 @@ const GESTURES: Record<string, HandGesture> = {
 let face: FaceLandmarker | null = null
 let hands: GestureRecognizer | null = null
 let seg: ImageSegmenter | null = null
+/** BlazePose lite: the head's keypoints (nose, eyes, ears, mouth, shoulders) from the body, when the face is lost. */
+let pose: PoseLandmarker | null = null
+let people = 1
 /** MediaPipe's full-range face detector (faces up to ~5 m): where to look when the landmarker has no face. */
 let far: FaceDetector | null = null
 let ts = 0
 let n = 0
-let last: Seen = { faces: [], hands: [], person: null }
+let last: Seen = { faces: [], hands: [], person: null, body: null }
 
 async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>): Promise<T | null> {
   try {
@@ -43,18 +46,18 @@ async function load(u: Urls): Promise<void> {
     runningMode: 'VIDEO',
     minDetectionConfidence: 0.4,
   }).catch(() => null)
-  ;[face, hands, seg] = await Promise.all([
+  ;[face, hands, seg, pose] = await Promise.all([
     gpuThenCpu((delegate) =>
       FaceLandmarker.createFromOptions(files, {
         baseOptions: { modelAssetPath: u.face, delegate },
-        // VIDEO: it tracks from where the face was in the last image, so the crop glides (nextRoi), never jumps,
-        // while it tracks. (IMAGE mode, a fresh find per crop, cost 1.7-7 results a second on the DJ clips.)
+        // VIDEO: it tracks from where the face was in the last image. One face: its graph then skips its own detector
+        // while it tracks and runs MediaPipe's One Euro (scaled by the face's size); PEOPLE 2 asks for two (setOptions).
         runningMode: 'VIDEO',
-        numFaces: 2,
-        // Stricter than the face detector (which hides faces at 0.35): the landmarker adds pose and outlines, and
-        // its false faces would only add stray covers.
+        numFaces: 1,
+        // Stricter than the face detector (which hides faces at 0.35) to find a face; kept while present at 0.25 (a
+        // pitched face at the decks stays tracked, wobbly but placed: the main thread drops one off the body's head).
         minFaceDetectionConfidence: 0.5,
-        minFacePresenceConfidence: 0.4,
+        minFacePresenceConfidence: 0.25,
         minTrackingConfidence: 0.3,
         outputFacialTransformationMatrixes: true,
         outputFaceBlendshapes: true,
@@ -78,6 +81,13 @@ async function load(u: Urls): Promise<void> {
         outputCategoryMask: false,
       }),
     ),
+    gpuThenCpu((delegate) =>
+      PoseLandmarker.createFromOptions(files, {
+        baseOptions: { modelAssetPath: u.pose, delegate },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+      }),
+    ),
   ])
 }
 
@@ -96,12 +106,10 @@ function shapes(cats: readonly { categoryName: string; score: number }[] | undef
   }
 }
 
-/** One camera frame: the face crop for the landmarker, the whole frame (640 px) for hands and the person. Gestures on
- *  every other frame (they're the dearest). Never throws. */
-function run(crop: ImageBitmap, frame: ImageBitmap, now: number): Seen {
-  ts = Math.max(ts + 1, Math.floor(now))
-  const out: Seen = { faces: last.faces, hands: last.hands, person: null, ms: { face: 0, hands: 0, seg: 0 } }
-  let t0 = performance.now()
+/** The face on the crop, and where the full-range detector sees a lost one. Never throws. */
+function runFace(crop: ImageBitmap, frame: ImageBitmap): Pick<Seen, 'faces' | 'hint' | 'ms'> {
+  const out: Pick<Seen, 'faces' | 'hint' | 'ms'> = { faces: [], ms: { face: 0, hands: 0, seg: 0 } }
+  const t0 = performance.now()
   try {
     if (face) {
       const r = face.detectForVideo(crop, ts)
@@ -131,20 +139,35 @@ function run(crop: ImageBitmap, frame: ImageBitmap, now: number): Seen {
     }
   }
   out.ms!.face = performance.now() - t0
-  t0 = performance.now()
-  try {
-    if (hands && n++ % 2 === 0) {
-      const r = hands.recognizeForVideo(frame, ts)
-      out.hands = r.landmarks.map((pts, i) => {
-        const g = r.gestures[i]?.[0]
-        return { points: pts.map((p) => ({ x: p.x, y: p.y })), gesture: g && g.score >= 0.6 ? (GESTURES[g.categoryName] ?? null) : null }
-      })
+  return out
+}
+
+/** The extras on the whole frame (640 px), alternating so a cycle stays under a camera frame: hands on even frames,
+ *  the body's head and the person on odd ones (the rest keep their last). Never throws. */
+function runExtras(frame: ImageBitmap): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
+  const out: Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> = { hands: last.hands, person: null, body: last.body, ms: { face: 0, hands: 0, seg: 0 } }
+  const t0 = performance.now()
+  if (n++ % 2 === 0) {
+    try {
+      if (hands) {
+        const r = hands.recognizeForVideo(frame, ts)
+        out.hands = r.landmarks.map((pts, i) => {
+          const g = r.gestures[i]?.[0]
+          return { points: pts.map((p) => ({ x: p.x, y: p.y })), gesture: g && g.score >= 0.6 ? (GESTURES[g.categoryName] ?? null) : null }
+        })
+      }
+    } catch {
+      out.hands = []
     }
-  } catch {
-    out.hands = []
+    out.ms!.hands = performance.now() - t0
+    return out
   }
-  out.ms!.hands = performance.now() - t0
-  t0 = performance.now()
+  try {
+    // The head's 13 keypoints (nose, eyes, ears, mouth, shoulders) with their visibility.
+    out.body = pose ? (pose.detectForVideo(frame, ts).landmarks[0]?.slice(0, 13).map((p): BodyPoint => ({ x: p.x, y: p.y, v: p.visibility ?? 0 })) ?? null) : null
+  } catch {
+    out.body = null
+  }
   try {
     if (seg) {
       const r = seg.segmentForVideo(frame, ts)
@@ -156,21 +179,31 @@ function run(crop: ImageBitmap, frame: ImageBitmap, now: number): Seen {
     out.person = null
   }
   out.ms!.seg = performance.now() - t0
-  last = { ...out, person: null } // the mask's buffer goes to the main thread
   return out
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number }
+  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number }
   if (m.type === 'init') {
     void load(m.urls).then(() =>
-      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg } }),
+      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose } }),
     )
     return
   }
-  const seen = run(m.face, m.scene, m.now)
+  if (m.people !== people && face) {
+    people = m.people
+    void face.setOptions({ numFaces: people })
+  }
+  ts = Math.max(ts + 1, Math.floor(m.now))
+  // A worker's postMessage (the DOM lib types `self` as a window). The face first, with its crop (the points are in
+  // its frame) and the frame's capture time; then the extras.
+  const post = (msg: object, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(msg, transfer)
+  const f = runFace(m.face, m.scene)
+  last = { ...last, faces: f.faces }
+  post({ type: 'face', seen: f, roi: m.roi, at: m.at })
+  const x = runExtras(m.scene)
+  last = { ...last, hands: x.hands, body: x.body }
   m.face.close()
   m.scene.close()
-  // A worker's postMessage (the DOM lib types `self` as a window). The crop goes back with it (faces are in its frame).
-  ;(self as unknown as Worker).postMessage({ type: 'seen', seen, roi: m.roi }, seen.person ? [seen.person.data.buffer as ArrayBuffer] : [])
+  post({ type: 'extras', seen: x, at: m.at }, x.person ? [x.person.data.buffer as ArrayBuffer] : [])
 }

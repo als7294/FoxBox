@@ -4,6 +4,37 @@ Branch `session/s2-sound`, which owns `engine/fx/`. **State: wrapped up (2026-09
 `main`: the rack, the 7 factory presets, v0.4/v0.5 arrange and motion, v1.0 QA fixes, v0.7 songs (analyze_song /
 mix_song) and the low-confidence key → None rule. Local audition packs in `out/` are git-ignored and stay local.
 
+## REMIX 1.5.1 harmony + the set3 / set4 verdicts: PARKED (2026-09-29, the user: "pause dev on it for now")
+
+Branch `help/s2-151-wip` (worktree `.claude/worktrees/confident-saha-1e7c0f`), everything committed; S3's QA and M2.5
+merged in. Renders stay local in `out/` (remix-harmony-set, -set2, -set3, remix-verdict-set4; ~1.9 GB each, only set4
+still needed).
+
+Verdicts so far (via the PM):
+- Set 1.5.1: "They're all bad you need to study chord progressions etc".
+- Set3: "the only good one is #1" (song-1 VIP hybrid tearout: a C#m7 pedal, its own held 808, designed growls, no
+  melody); the melodies were "cartoony", "the songs arent properly mixed", and "It should be able to move around
+  vocals too".
+- Set4: "its meh. will work on it later"; chops beat hook_move; the mix and the drop arrangement still off.
+
+In (on the branch): the harmonic plan per drop (BASS DNA half-bar roots, bent notes and pickups don't vote; trap /
+halftime play the source as is; tearout's VI-VII fallback), grid.json harmonic QA inputs, every drop on the -7 club
+target (`_contrast`), the source's own pre-drop gap kept on VIPs, cartoon hooks at weight 0, growls pedal on the tonic
+(turnarounds only) with `drop.tension` off, `vocals.arrangement` (keep | chops | hook_move) with phrase clips, the
+snare gate on recurring snares only, clean source-kit shots.
+
+Next, when it's picked up again:
+1. The staccato kept 808 (ncs-01): drop its sub band and let the engine's held root_line sub play under it. It drives
+   ncs-01's held_bars, sub_mid_db, sub_corr, beat_pauses and sub_root. The measured drop coverage (share of the time
+   BASS DNA notes sound) is song-1 bar 25 0.86 and bar 61 0.63; ncs-01 bar 9 0.53, bar 25 0.68 and bar 73 0.24. A
+   threshold near 0.6 keeps song-1's held 808 as it is.
+2. build_vs_drop on ncs-01 (2.0-2.5 LU); the chops take vocal energy out of the drop.
+3. The PM's REMIX_SOUND_OSS §3.3 / §3.4 (docs/REMIX_SOUND_OSS.md on main): the Airwindows Console9 mix bus
+   (+ ButterComp2 / ClipOnly2 on the bass-mid, Acceleration2 on top / vocal), remix/match.py tonal_match (Matchering's
+   method re-implemented, synth and kit lanes only), vocal-aware EQ, and the chop engine (a VocalChopSrc proposal first
+   if it needs a contract). The user preferred chops to hook_move.
+4. S3's help/s3-surge (the cartoon trims as synth axes, then the Surge recipes) merges when S3 sends the sha.
+
 ## 1.5 SMART VISUALS handoff (S2 AUDIO), in progress on help/s2-smart
 
 Worktree `.claude/worktrees/confident-saha-1e7c0f`, branch `help/s2-smart` (main + v0.10 /

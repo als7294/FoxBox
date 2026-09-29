@@ -28,6 +28,7 @@ import {
   type Remix,
   type RemixClip,
   type RemixLane,
+  type RemixRecipe,
   type RemixSection,
   type SectionKind,
 } from '@/api/remix'
@@ -39,7 +40,19 @@ import { PatchPicker } from './BassDnaPanel'
 import { meterTap } from './meters'
 import { EditToolbar, ShortcutsOverlay, ZOOMS, zoomStep } from './EditToolbar'
 import { KitPicker } from './FlipCards'
-import { beatToSec, moveSection, remixBeats, secToBeat, sectionBeat } from './arrangement'
+import {
+  beatToSec,
+  displayLanes,
+  isPlaceholder,
+  laneKey,
+  laneOpen,
+  moveSection,
+  pickupBeats,
+  remixBeats,
+  rulerBars,
+  secToBeat,
+  sectionBeat,
+} from './arrangement'
 import { cutSections, duplicateSections, loopRegion, nudgeSections, snapBeat, splitSection } from './edit'
 import { dropMarkers, type DropMark } from './markers'
 import pageCss from './page.module.css'
@@ -67,13 +80,13 @@ const ROLE_LABEL: Record<RemixLane['role'], string> = {
   bass: 'BASS',
   vocals: 'VOCALS',
   other: 'OTHER',
-  synth_bass: 'SYNTH BASS',
   top: 'TOP',
+  synth_bass: 'SYNTH BASS',
   kit: 'KIT',
 }
-/** Top to bottom: short hits above the long held 808. */
-const LANE_ORDER: RemixLane['role'][] = ['drums', 'top', 'synth_bass', 'bass', 'vocals', 'other', 'kit']
+/** How to fill an empty lane (a collapsed row says it). */
 const EMPTY_HINT: Partial<Record<RemixLane['role'], string>> = {
+  top: 'EMPTY · turn on ARP, POWER-UP or COIN in BASS DNA',
   synth_bass: 'EMPTY · BUILD a VIP take, or SWAP BASS → BASS DNA',
   kit: 'EMPTY · GENRE FLIP, or SWAP DRUMS → FLIP KIT',
 }
@@ -114,7 +127,7 @@ const Buffers = createContext<Record<string, AudioBuffer>>({})
 function laneTracks(r: Remix, buffers: Record<string, AudioBuffer>): ClipTrack[] {
   return r.lanes.map((l) => ({
     id: l.id,
-    name: ROLE_LABEL[l.role],
+    name: laneName(l, r.recipe === 'mashup'),
     muted: l.mute,
     soloed: l.solo,
     volume: dbToGain(l.gain_db),
@@ -143,6 +156,9 @@ function laneTracks(r: Remix, buffers: Record<string, AudioBuffer>): ClipTrack[]
  * The playlist provider (playback only: its own waveform view isn't mounted, playback doesn't need it) around the
  * centre column, and the decoded clips for the timeline's waveforms.
  */
+/** The app's audio rate; 44.1 kHz where there's no Web Audio (tests), so the page never falls over for want of one. */
+const SAMPLE_RATE = (): number => (typeof AudioContext === 'undefined' ? 44100 : audioContext().sampleRate)
+
 export function RemixPlaylist({ remix, children }: { remix: Remix; children: ReactNode }) {
   const buffers = useClipBuffers(remix)
   const tracks = useMemo(() => laneTracks(remix, buffers), [remix, buffers])
@@ -150,7 +166,7 @@ export function RemixPlaylist({ remix, children }: { remix: Remix; children: Rea
     <div className={pageCss.center}>
       <WaveformPlaylistProvider
         tracks={tracks}
-        sampleRate={audioContext().sampleRate}
+        sampleRate={SAMPLE_RATE()}
         effects={meterTap}
         // The detail goes to the log; the page says it plainly.
         onError={(e) => {
@@ -166,21 +182,29 @@ export function RemixPlaylist({ remix, children }: { remix: Remix; children: Rea
 
 // ------------------------------------------------------------------------------------------------ stepped-bar waveforms
 
-/** Peak (0–1) per step over the clip's first `secs` of audio, cached per buffer. */
-const peakCache = new WeakMap<AudioBuffer, Map<string, Float32Array>>()
-function peaks(b: AudioBuffer, secs: number, n: number): Float32Array {
+/**
+ * Loudness (0–1) per step over the clip's first `secs` of audio, cached per buffer: each step's RMS on a −42…−6 dB
+ * scale, so a loud stem isn't a solid wall and quiet sections read lower (peaks would pin every bar at the top).
+ */
+const levelCache = new WeakMap<AudioBuffer, Map<string, Float32Array>>()
+function levels(b: AudioBuffer, secs: number, n: number): Float32Array {
   const key = `${secs}:${n}`
-  const hit = peakCache.get(b)?.get(key)
+  const hit = levelCache.get(b)?.get(key)
   if (hit) return hit
   const data = b.getChannelData(0)
   const len = Math.min(data.length, Math.round(secs * b.sampleRate))
   const out = new Float32Array(n)
   const per = len / n
-  const stride = Math.max(1, Math.floor(per / 256)) // ~256 reads a step is plenty for a bar's height
-  for (let i = 0; i < n; i++)
-    for (let s = Math.floor(i * per), end = Math.floor((i + 1) * per); s < end; s += stride) out[i] = Math.max(out[i]!, Math.abs(data[s]!))
-  if (!peakCache.has(b)) peakCache.set(b, new Map())
-  peakCache.get(b)!.set(key, out)
+  const stride = Math.max(1, Math.floor(per / 512)) // ~512 reads a step is plenty for a bar's height
+  for (let i = 0; i < n; i++) {
+    let sum = 0
+    let count = 0
+    for (let s = Math.floor(i * per), end = Math.floor((i + 1) * per); s < end; s += stride, count++) sum += data[s]! * data[s]!
+    const db = 10 * Math.log10(sum / Math.max(1, count) + 1e-12)
+    out[i] = clamp(0, (db + 42) / 36, 1)
+  }
+  if (!levelCache.has(b)) levelCache.set(b, new Map())
+  levelCache.get(b)!.set(key, out)
   return out
 }
 
@@ -190,23 +214,19 @@ const bar = (x: number, w: number, h: number) =>
 
 type WaveKind = 'bars' | 'held' | 'blips'
 function wavePath(b: AudioBuffer, secs: number, bars: number, kind: WaveKind): string {
-  // bars: two steps a bar (8–160) · held: one block a bar · blips: a step a beat, only the hits that stand out
+  // bars: two steps a bar, each 70% of its cell, centred · held: one block a bar · blips: a step a beat, only the hits
+  // that stand out. Steps start on the clip's bar lines, so touching clips continue one strip.
   const n =
-    kind === 'held'
-      ? Math.max(1, Math.round(bars))
-      : kind === 'blips'
-        ? Math.max(4, Math.round(bars * 4))
-        : clamp(8, Math.round(bars * 2), 160)
-  const p = peaks(b, secs, n)
+    kind === 'held' ? Math.max(1, Math.round(bars)) : Math.max(kind === 'blips' ? 4 : 2, Math.round(bars * (kind === 'blips' ? 4 : 2)))
+  const v = levels(b, secs, n)
   const w = 100 / n
-  const loud = Math.max(...p) * 0.35
+  const loud = Math.max(...v) * 0.7
   let d = ''
   for (let i = 0; i < n; i++) {
-    const v = Math.sqrt(p[i]!) // perceived loudness reads better than raw peaks
-    if (kind === 'held') d += bar(i * w + 0.4, w - 0.8, Math.max(1, v * 5))
+    if (kind === 'held') d += bar(i * w + 0.4, w - 0.8, Math.max(1.5, v[i]! * 5))
     else if (kind === 'blips')
-      d += p[i]! > loud ? `M${(i * w).toFixed(2)},${(8 - v * 6).toFixed(1)}h${(w * 0.6).toFixed(2)}v3h${(-w * 0.6).toFixed(2)}Z` : ''
-    else d += bar(i * w + w * 0.15, w * 0.7, Math.max(0.5, Math.min(1, v) * 8.5))
+      d += v[i]! > loud ? `M${(i * w).toFixed(2)},${(8 - v[i]! * 6).toFixed(1)}h${(w * 0.6).toFixed(2)}v3h${(-w * 0.6).toFixed(2)}Z` : ''
+    else d += bar(i * w + w * 0.15, w * 0.7, Math.max(0.5, v[i]! * 8.5))
   }
   return d
 }
@@ -239,10 +259,6 @@ function useGrooveNotes(r: Remix, src: RemixClip['src'], on: boolean) {
 
 // ------------------------------------------------------------------------------------------------ the timeline
 
-const sortLanes = (lanes: RemixLane[]) =>
-  [...lanes].sort((a, b) => LANE_ORDER.indexOf(a.role) - LANE_ORDER.indexOf(b.role) || (a.slot ?? '').localeCompare(b.slot ?? ''))
-const laneKey = (l: RemixLane) => `${l.role}:${l.slot ?? ''}`
-
 /** 'DROP 2' (drops are numbered), else the kind. */
 export function sectionName(r: Remix, i: number): string {
   const s = r.sections[i]!
@@ -251,17 +267,34 @@ export function sectionName(r: Remix, i: number): string {
 
 const fmtLen = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
 
-export function RemixTimeline({ remix }: { remix: Remix }) {
+/** Before a BUILD, what BUILD will change, in ember: the head's line, and each planned section's new part. */
+const PLAN: Record<RemixRecipe, { part: string; status(drops: number): string; all?: boolean }> = {
+  vip: { part: 'NEW BASS', status: (n) => `${n} DROP${n === 1 ? ' GETS' : 'S GET'} NEW BASS · PRESS BUILD` },
+  mashup: { part: 'B’S DROP', status: () => 'B’S DROPS COME IN HERE' },
+  flip: { part: 'NEW DRUMS', status: () => 'THE DRUMS GET RE-PROGRAMMED', all: true },
+}
+/** A section BUILD rebuilds under `plan`: the drops, or every section for a FLIP. */
+const planned = (plan: RemixRecipe | undefined, s: RemixSection) => plan != null && (PLAN[plan].all || s.kind === 'drop')
+
+export function RemixTimeline({
+  remix,
+  plan,
+}: {
+  remix: Remix
+  /** The ORIGINAL before a BUILD (read-only), with what this recipe's BUILD will change. */
+  plan?: RemixRecipe
+}) {
   const zoom = useRemix((s) => s.zoom)
   const progress = useRemix((s) => s.progress)
   const section = useRemix((s) => s.section)
   const sectionSel = useRemix((s) => s.sectionSel)
-  const sel = selectedSections({ section, sectionSel })
-  const lanes = sortLanes(remix.lanes)
+  const readOnly = plan != null
+  const sel = readOnly ? [] : selectedSections({ section, sectionSel })
+  const lanes = displayLanes(remix.lanes)
   const beats = remixBeats(remix)
   const bpb = remix.beats_per_bar
   const take = remix.takes.find((t) => t.seed === remix.seed)
-  const marks = useMemo(() => dropMarkers(remix, take), [remix, take])
+  const marks = useMemo(() => (readOnly ? [] : dropMarkers(remix, take)), [remix, take, readOnly])
 
   // The view's width is the FIT; zoom multiplies it.
   const view = useRef<HTMLDivElement>(null)
@@ -390,9 +423,9 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
     if (!box || !el) return
     setBox(null)
     const [x0, x1, y0, y1] = [Math.min(box.x0, box.x1), Math.max(box.x0, box.x1), Math.min(box.y0, box.y1), Math.max(box.y0, box.y1)]
-    if (x1 - x0 < 4 && y1 - y0 < 4) {
+    if (readOnly || (x1 - x0 < 4 && y1 - y0 < 4)) {
       if (pxPerBeat) seekTo(beatToSec(Math.max(0, x0 / pxPerBeat), remix.bpm))
-      return useRemix.setState({ clips: [], section: null, lane: box.lane })
+      return useRemix.setState({ clips: [], section: null, lane: readOnly ? null : box.lane })
     }
     const r = el.getBoundingClientRect()
     const hit = [...el.querySelectorAll<HTMLElement>('[data-clip]')].filter((c) => {
@@ -406,7 +439,9 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
   }
 
   const unprepared = remix.lanes.reduce((n, l) => n + l.clips.filter((c) => !c.audio_id).length, 0)
-  const status = progress?.label ?? (unprepared ? `PREPARING ${unprepared}` : '')
+  const status =
+    progress?.label ??
+    (plan ? PLAN[plan].status(remix.sections.filter((x) => x.kind === 'drop').length) : unprepared ? `PREPARING ${unprepared}` : '')
   const [loopA, loopB] = loopRegion(
     remix,
     useRemix((s) => s.loopBeats),
@@ -420,13 +455,13 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
         c.at_beat < sectionBeat(remix.sections[i]!, bpb) + remix.sections[i]!.bars * bpb,
     )
   return (
-    <section className={css.panel} aria-label="Remix timeline" data-testid="remix-timeline">
+    <section className={css.panel} aria-label="Remix timeline" data-testid="remix-timeline" data-original={readOnly || undefined}>
       <div className={css.head}>
         <span className={css.title}>TIMELINE</span>
-        <span className={css.status} role="status" data-busy={progress ? '' : undefined}>
+        <span className={css.status} role="status" data-busy={progress ? '' : undefined} data-plan={(plan && !progress) || undefined}>
           {status}
         </span>
-        <EditToolbar />
+        <EditToolbar bars={Math.round(remixBeats(remix) / remix.beats_per_bar)} />
       </div>
       {sel.length > 0 && <SectionTools remix={remix} sel={sel} playBeat={playBeat} />}
       <KeysTooFar remix={remix} />
@@ -436,7 +471,7 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
           <div className={css.headBar}>BAR</div>
           <div className={css.headSections}>SECTIONS {sel.length > 0 && <b>{sel.length} SEL</b>}</div>
           {lanes.map((l) => (
-            <LaneHead key={l.id} remix={remix} lane={l} />
+            <LaneHead key={l.id} remix={remix} lane={l} readOnly={readOnly} />
           ))}
         </div>
         <div ref={view} className={css.viewport} onScroll={syncMap}>
@@ -449,29 +484,33 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
               marks={marks}
               onSeek={(beat) => seekTo(beatToSec(beat, remix.bpm))}
             />
-            <SectionLane key={`${remix.id}:${remix.seed}`} remix={remix} pxPerBeat={pxPerBeat} sel={sel} nowRef={now} dragging={dragging} />
+            <SectionLane
+              key={`${remix.id}:${remix.seed}`}
+              remix={remix}
+              pxPerBeat={pxPerBeat}
+              sel={sel}
+              nowRef={now}
+              dragging={dragging}
+              readOnly={readOnly}
+              plan={plan}
+            />
             <div
               ref={lanesRef}
               className={css.lanes}
               onPointerDown={(e) => {
                 const at = e.target as Element
-                if (e.button !== 0 || at.closest('[data-clip]')) return
+                if (e.button !== 0 || (!readOnly && at.closest('[data-clip]'))) return
                 e.currentTarget.setPointerCapture(e.pointerId)
                 const p = local(e)
-                setBox({
-                  x0: p.x1,
-                  y0: p.y1,
-                  ...p,
-                  add: e.shiftKey,
-                  lane: at.closest('[data-lane-id]')?.getAttribute('data-lane-id') ?? null,
-                })
+                const lane = at.closest('[data-lane-id]')?.getAttribute('data-lane-id')
+                setBox({ x0: p.x1, y0: p.y1, ...p, add: e.shiftKey, lane: lane && !lane.startsWith('empty:') ? lane : null })
               }}
               onPointerMove={(e) => box && setBox({ ...box, ...local(e) })}
               onPointerUp={marqueeUp}
               onPointerCancel={() => setBox(null)}
             >
               {lanes.map((l, i) => (
-                <StemLane key={l.id} remix={remix} lane={l} index={i} pxPerBeat={pxPerBeat} hi={hi} />
+                <StemLane key={l.id} remix={remix} lane={l} index={i} pxPerBeat={pxPerBeat} readOnly={readOnly} hi={hi} />
               ))}
               {box && (
                 <div
@@ -491,6 +530,16 @@ export function RemixTimeline({ remix }: { remix: Remix }) {
                 <span key={b} className={css.phrase} data-32={b % 32 === 0 || undefined} style={{ left: b * bpb * pxPerBeat }} />
               ))}
               {loopOn && <span className={css.loopBand} style={{ left: loopA * pxPerBeat, width: (loopB - loopA) * pxPerBeat }} />}
+              {remix.sections.map(
+                (x, i) =>
+                  planned(plan, x) && (
+                    <span
+                      key={i}
+                      className={css.planBand}
+                      style={{ left: sectionBeat(x, bpb) * pxPerBeat, width: x.bars * bpb * pxPerBeat }}
+                    />
+                  ),
+              )}
               <span ref={flash} className={css.flash} />
             </div>
             <div ref={head} className={css.playhead} aria-hidden="true" />
@@ -617,7 +666,7 @@ function KeysTooFar({ remix }: { remix: Remix }) {
         <b>{Math.abs(st)} ST APART.</b> B is shifted {st > 0 ? '+' : '−'}
         {Math.abs(st)} st to meet A: that far, it sounds chipmunked. A B closer in key works better.
       </span>
-      <button type="button" className={css.btn} onClick={() => useRemix.setState({ panel: 'radar' })}>
+      <button type="button" className={css.btn} onClick={() => useRemix.setState({ panel: 'radar', panelMin: false, swapClip: null })}>
         FIND ANOTHER IN RADAR
       </button>
     </div>
@@ -668,10 +717,9 @@ export function BarRuler({
   onSeek(beat: number): void
 }) {
   const bpb = remix.beats_per_bar
-  const bars = Math.ceil(beats / bpb)
   const tickEvery = zoom < 2 ? 4 : 1
   const labelEvery = zoom >= 8 ? 1 : zoom >= 4 ? 4 : zoom >= 2 ? 8 : 16
-  const ticks = Array.from({ length: Math.ceil(bars / tickEvery) }, (_, i) => i * tickEvery)
+  const ticks = rulerBars(beats, bpb, pickupBeats(remix), tickEvery)
   const snap = useRemix((s) => s.snap)
   const section = useRemix((s) => s.section)
   const loopOn = useRemix((s) => s.loopOn)
@@ -707,13 +755,13 @@ export function BarRuler({
       }}
       onPointerCancel={end}
     >
-      {ticks.map((bar) => (
-        <span key={bar} className={css.tick} data-phrase={bar % 8 === 0 || undefined} style={{ left: bar * bpb * pxPerBeat }} />
+      {ticks.map(([bar, beat]) => (
+        <span key={bar} className={css.tick} data-phrase={bar % 8 === 0 || undefined} style={{ left: beat * pxPerBeat }} />
       ))}
       {ticks
-        .filter((bar) => bar % labelEvery === 0)
-        .map((bar) => (
-          <span key={bar} className={css.barNo} style={{ left: bar * bpb * pxPerBeat }}>
+        .filter(([bar]) => bar >= 0 && bar % labelEvery === 0)
+        .map(([bar, beat]) => (
+          <span key={bar} className={css.barNo} style={{ left: beat * pxPerBeat }}>
             {bar + 1}
           </span>
         ))}
@@ -807,6 +855,9 @@ export function SectionLane(p: {
   sel: number[]
   nowRef: RefObject<HTMLSpanElement | null>
   dragging: RefObject<boolean>
+  /** The ORIGINAL: blocks to look at, not to select or move. */
+  readOnly: boolean
+  plan?: RemixRecipe
 }) {
   const { remix, pxPerBeat, sel } = p
   const bpb = remix.beats_per_bar
@@ -863,8 +914,9 @@ export function SectionLane(p: {
           selected={sel.includes(i)}
           dx={drag?.i === i ? drag.dx : null}
           delay={delays.current!.get(keys[i]!) ?? 0}
+          part={p.plan && (planned(p.plan, s) ? PLAN[p.plan].part : null)}
           onPointerDown={(e) => {
-            if (e.button !== 0) return
+            if (e.button !== 0 || p.readOnly) return
             e.currentTarget.setPointerCapture(e.pointerId)
             down.current = { i, x: e.clientX, shift: e.shiftKey }
           }}
@@ -881,6 +933,7 @@ export function SectionLane(p: {
             setDrag(null)
           }}
           onKeyDown={(e) => {
+            if (p.readOnly) return
             if (e.key === 'Enter' || e.key === ' ') select(i, e.shiftKey)
             else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') nudge(i, e.key === 'ArrowLeft' ? -1 : 1)
             else return
@@ -895,7 +948,10 @@ export function SectionLane(p: {
   )
 }
 
-/** One section: LED stripe, name, source, and the bar count when there's room for it. */
+/**
+ * One section: LED stripe, name, source, and the bar count when there's room for it. Before a BUILD a planned section is
+ * dashed ember with its new part (NEW BASS), the rest fade back.
+ */
 export function SectionBlock(p: {
   remix: Remix
   index: number
@@ -905,6 +961,8 @@ export function SectionBlock(p: {
   /** Being dragged: how far it has followed the pointer. */
   dx: number | null
   delay: number
+  /** Before a BUILD: this section's new part (planned), or null (not planned). */
+  part?: string | null
   onPointerDown(e: ReactPointerEvent<HTMLDivElement>): void
   onPointerMove(e: ReactPointerEvent<HTMLDivElement>): void
   onPointerUp(): void
@@ -914,13 +972,18 @@ export function SectionBlock(p: {
   const s = p.remix.sections[p.index]!
   const name = sectionName(p.remix, p.index)
   // The bar count only where it fits beside the name (Big Shoulders 14px ≈ 8.2px a letter, plus the stripe and gaps).
-  const showBars = p.width - 22 >= name.length * 8.2 + 26
+  const showBars = !p.part && p.width - 22 >= name.length * 8.2 + 26
   return (
     <div
       className={css.block}
       role="option"
       aria-selected={p.selected}
-      aria-label={`${name}, ${s.bars} bars, from ${s.from_slot} bar ${s.from_start_bar}. Drag, or select and use the arrow keys.`}
+      aria-label={
+        p.part
+          ? `${name}: BUILD rebuilds this`
+          : `${name}, ${s.bars} bars, from ${s.from_slot} bar ${s.from_start_bar}. Drag, or select and use the arrow keys.`
+      }
+      data-plan={p.part ? '' : p.part === null ? 'dim' : undefined}
       tabIndex={0}
       data-drag={p.dx != null || undefined}
       style={{ left: p.left, width: p.width, '--delay': `${p.delay}ms`, '--dx': `${p.dx ?? 0}px` } as CSSProperties}
@@ -936,9 +999,7 @@ export function SectionBlock(p: {
           <span className={css.blockName}>{name}</span>
           {showBars && <span className={css.blockBars}>{s.bars}</span>}
         </span>
-        <span className={css.blockSrc}>
-          {s.from_slot} · {s.from_start_bar}
-        </span>
+        <span className={css.blockSrc}>{p.part ?? (s.from_slot === 'B' ? `B · ${s.from_start_bar}` : '')}</span>
       </div>
     </div>
   )
@@ -949,26 +1010,31 @@ export function SectionBlock(p: {
 const setLane = (r: Remix, laneId: string, patch: (l: RemixLane) => RemixLane) =>
   actions.save({ lanes: r.lanes.map((l) => (l.id === laneId ? patch(l) : l)) })
 
-/** Open when it has clips, unless the user closed it (or opened an empty one). */
-const useLaneOpen = (lane: RemixLane) => useRemix((s) => s.laneOpen[laneKey(lane)] ?? lane.clips.length > 0)
+const useLaneOpen = (remix: Remix, lane: RemixLane, original: boolean) =>
+  useRemix((s) => laneOpen(lane, s.laneOpen, remix.recipe === 'mashup', original))
 /** Muted, or another lane is soloed: the lane goes quiet (.35). */
 const quiet = (r: Remix, lane: RemixLane) => lane.mute || (!lane.solo && r.lanes.some((l) => l.solo))
-const laneName = (l: RemixLane) => `${ROLE_LABEL[l.role]}${l.slot ? ` · ${l.slot}` : ''}`
+/**
+ * A lane's label: its role, and in a MASHUP its slot; S2's first-hit lane (the drop's 2-beat 808 first hit, trap's
+ * dive) says so.
+ */
+const laneName = (l: RemixLane, mash: boolean) =>
+  `${l.id.startsWith('first_hit') ? 'FIRST HIT' : l.id === 'vocals-chops' ? 'VOCAL CHOPS' : l.id === 'original:mix' ? 'FULL MIX' : ROLE_LABEL[l.role]}${mash && l.slot ? ` · ${l.slot}` : ''}`
 const laneSrc = (l: RemixLane) => (l.role === 'synth_bass' || l.role === 'kit' || l.role === 'top' ? 'fox' : (l.slot ?? 'A'))
 
-/** A lane's row in the header column: ▾, source dot, name, M and S; when it's the picked lane, SWAP ALL ▾ and its gain. */
-function LaneHead({ remix, lane }: { remix: Remix; lane: RemixLane }) {
+/**
+ * A lane's row in the header column: ▾, source dot, name, M and S; when it's the picked lane, SWAP ALL ▾ and its gain.
+ * A placeholder row (a role the remix has no lane for) and the ORIGINAL are read-only: just ▾ and the name.
+ */
+function LaneHead({ remix, lane, readOnly }: { remix: Remix; lane: RemixLane; readOnly: boolean }) {
   const selected = useRemix((s) => s.lane === lane.id)
-  const open = useLaneOpen(lane)
+  const open = useLaneOpen(remix, lane, readOnly)
+  const fixed = readOnly || isPlaceholder(lane)
   const [gain, setGain] = useState(lane.gain_db)
   useEffect(() => setGain(lane.gain_db), [lane.gain_db])
-  const name = laneName(lane)
+  const name = laneName(lane, remix.recipe === 'mashup')
   const commitGain = () => gain !== lane.gain_db && void setLane(remix, lane.id, (l) => ({ ...l, gain_db: gain }))
-  const pick = () =>
-    useRemix.setState({
-      lane: selected ? null : lane.id,
-      panel: lane.role === 'synth_bass' || lane.role === 'bass' ? 'bass' : lane.role === 'kit' || lane.role === 'drums' ? 'flip' : null,
-    })
+  const pick = () => useRemix.setState({ lane: selected ? null : lane.id })
   return (
     <div className={css.laneHead} aria-selected={selected} data-closed={!open || undefined}>
       <div className={css.laneRow}>
@@ -982,30 +1048,36 @@ function LaneHead({ remix, lane }: { remix: Remix; lane: RemixLane }) {
           ▾
         </button>
         <span className={css.dot} data-src={laneSrc(lane)} aria-hidden="true" />
-        <button type="button" className={css.laneName} aria-pressed={selected} title={`Pick ${name}`} onClick={pick}>
-          {name}
-        </button>
-        <button
-          type="button"
-          className={css.ms}
-          aria-pressed={lane.mute}
-          aria-label={`Mute ${name}`}
-          onClick={() => setLane(remix, lane.id, (l) => ({ ...l, mute: !l.mute }))}
-        >
-          M
-        </button>
-        <button
-          type="button"
-          className={css.ms}
-          data-solo=""
-          aria-pressed={lane.solo}
-          aria-label={`Solo ${name}`}
-          onClick={() => setLane(remix, lane.id, (l) => ({ ...l, solo: !l.solo }))}
-        >
-          S
-        </button>
+        {fixed ? (
+          <span className={css.laneName}>{name}</span>
+        ) : (
+          <>
+            <button type="button" className={css.laneName} aria-pressed={selected} title={`Pick ${name}`} onClick={pick}>
+              {name}
+            </button>
+            <button
+              type="button"
+              className={css.ms}
+              aria-pressed={lane.mute}
+              aria-label={`Mute ${name}`}
+              onClick={() => setLane(remix, lane.id, (l) => ({ ...l, mute: !l.mute }))}
+            >
+              M
+            </button>
+            <button
+              type="button"
+              className={css.ms}
+              data-solo=""
+              aria-pressed={lane.solo}
+              aria-label={`Solo ${name}`}
+              onClick={() => setLane(remix, lane.id, (l) => ({ ...l, solo: !l.solo }))}
+            >
+              S
+            </button>
+          </>
+        )}
       </div>
-      {selected && open && (
+      {selected && open && !fixed && (
         <div className={css.laneCtl}>
           <SwapMenu remix={remix} lane={lane} />
           <input
@@ -1029,14 +1101,26 @@ function LaneHead({ remix, lane }: { remix: Remix; lane: RemixLane }) {
   )
 }
 
+/** A clip's source for merging: the stem's slot, or the sound it plays. */
+const srcKey = (c: RemixClip) =>
+  c.src.kind === 'stem' ? `stem:${c.src.slot}:${c.shift_st}` : c.src.kind === 'groove' ? `groove:${c.src.patch_id}` : `kit:${c.src.kit_id}`
+
 /**
- * A lane's clips. Neighbouring clips from the same source read as one strip (square inner corners, one tag); a BASS
- * clip under a SYNTH BASS clip in a drop is the held 808 there.
+ * A lane's clips. Neighbouring clips from the same source read as one strip: one tag for the run (a gap under a bar,
+ * like a drop's pause, doesn't start a new one), and touching clips join with square corners and no border between.
+ * Each clip stays its own target. A BASS clip under a SYNTH BASS clip in a drop is the held 808 there.
  */
-export function StemLane(p: { remix: Remix; lane: RemixLane; index: number; pxPerBeat: number; hi(c: RemixClip): boolean }) {
+export function StemLane(p: {
+  remix: Remix
+  lane: RemixLane
+  index: number
+  pxPerBeat: number
+  readOnly: boolean
+  hi(c: RemixClip): boolean
+}) {
   const { remix, lane } = p
   const selected = useRemix((s) => s.lane === lane.id)
-  const open = useLaneOpen(lane)
+  const open = useLaneOpen(remix, lane, p.readOnly)
   const bpb = remix.beats_per_bar
   const synth = remix.lanes.filter((l) => l.role === 'synth_bass').flatMap((l) => l.clips)
   const drops = remix.sections.filter((s) => s.kind === 'drop').map((s) => [sectionBeat(s, bpb), sectionBeat(s, bpb) + s.bars * bpb])
@@ -1045,17 +1129,14 @@ export function StemLane(p: { remix: Remix; lane: RemixLane; index: number; pxPe
     drops.some(([a, b]) => c.at_beat >= a! && c.at_beat < b!) &&
     synth.some((g) => g.at_beat < c.at_beat + c.beats && c.at_beat < g.at_beat + g.beats)
   const clips = [...lane.clips].sort((a, b) => a.at_beat - b.at_beat)
-  const joins = (a: RemixClip | undefined, b: RemixClip | undefined) =>
-    a != null &&
-    b != null &&
-    a.src.kind === 'stem' &&
-    b.src.kind === 'stem' &&
-    a.src.slot === b.src.slot &&
-    Math.abs(a.at_beat + a.beats - b.at_beat) < 1e-6 &&
-    !a.shift_st &&
-    !b.shift_st &&
-    !held(a) &&
-    !held(b)
+  /** The gap from a to b in beats, when they're the same source (else null). */
+  const gap = (a: RemixClip | undefined, b: RemixClip | undefined) =>
+    a && b && srcKey(a) === srcKey(b) && held(a) === held(b) ? b.at_beat - (a.at_beat + a.beats) : null
+  const touch = (a: RemixClip | undefined, b: RemixClip | undefined) => Math.abs(gap(a, b) ?? 1) < 1e-6
+  const run = (a: RemixClip | undefined, b: RemixClip | undefined) => {
+    const g = gap(a, b)
+    return g != null && g > -1e-6 && g < bpb
+  }
   return (
     <div
       className={css.lane}
@@ -1065,7 +1146,7 @@ export function StemLane(p: { remix: Remix; lane: RemixLane; index: number; pxPe
       data-quiet={quiet(remix, lane) || undefined}
       role="listbox"
       aria-multiselectable="true"
-      aria-label={`${laneName(lane)} clips`}
+      aria-label={`${laneName(lane, remix.recipe === 'mashup')} clips`}
     >
       {!lane.clips.length && <span className={css.hint}>{EMPTY_HINT[lane.role] ?? 'EMPTY'}</span>}
       {open &&
@@ -1079,8 +1160,10 @@ export function StemLane(p: { remix: Remix; lane: RemixLane; index: number; pxPe
             delay={p.index * 50}
             held={held(c)}
             hi={p.hi(c)}
-            joinPrev={joins(clips[i - 1], c)}
-            joinNext={joins(c, clips[i + 1])}
+            readOnly={p.readOnly}
+            tagged={!run(clips[i - 1], c)}
+            joinPrev={touch(clips[i - 1], c)}
+            joinNext={touch(c, clips[i + 1])}
           />
         ))}
     </div>
@@ -1101,6 +1184,10 @@ export function Clip(p: {
   delay: number
   held: boolean
   hi: boolean
+  /** The ORIGINAL: nothing to select or drag (a click moves the playhead, like empty lane space). */
+  readOnly: boolean
+  /** The first clip of its strip: it carries the tag and badges. */
+  tagged: boolean
   joinPrev: boolean
   joinNext: boolean
 }) {
@@ -1114,14 +1201,20 @@ export function Clip(p: {
   const slot = src.kind === 'kit' ? null : src.slot
   const srcBpm = src.kind === 'stem' ? songBpm(songs?.find((s) => s.id === remix.sources.find((x) => x.slot === slot)?.song_id)) : null
   const ratio = srcBpm ? remix.bpm / srcBpm : 1
-  const px = clip.beats * p.pxPerBeat
+  // A FIRST HIT is 2 beats: at FIT that's a few px, so it keeps a 14 px minimum and a ◆ while it's that narrow. A sung
+  // phrase (the vocals lane's clips, 0.5-9 beats) keeps 5 px so it can be seen and dragged; chops sit edge to edge as a strip.
+  const firstHit = lane.id.startsWith('first_hit')
+  const phrase = lane.role === 'vocals' && lane.id !== 'vocals-chops' && !p.readOnly
+  const px = Math.max(clip.beats * p.pxPerBeat, firstHit ? 14 : phrase ? 5 : 0)
   const sound =
     src.kind === 'groove'
       ? patchName(patches, src.patch_id)
       : src.kind === 'kit'
         ? (kits.find((k) => k.id === src.kit_id)?.name ?? src.kit_id)
         : null
-  const tag = sound == null ? (src.kind === 'stem' ? src.slot : '') : src.kind === 'kit' && px < 130 ? shortKit(sound) : sound
+  // Stems from A go untagged (the design's rule); B's say B, and the engine's clips name their sound.
+  const tag =
+    sound == null ? (src.kind === 'stem' && src.slot === 'B' ? 'B' : '') : src.kind === 'kit' && px < 130 ? shortKit(sound) : sound
   const badges =
     px < 112
       ? []
@@ -1145,11 +1238,12 @@ export function Clip(p: {
       data-src={sound == null ? (slot ?? 'A') : 'fox'}
       data-held={p.held || undefined}
       data-hi={p.hi || undefined}
+      data-hit={firstHit || undefined}
       data-join-prev={p.joinPrev || undefined}
       data-join-next={p.joinNext || undefined}
       style={{ left: (clip.at_beat + drag) * p.pxPerBeat, width: px }}
       onPointerDown={(e) => {
-        if (e.button !== 0) return
+        if (e.button !== 0 || p.readOnly) return
         if (e.shiftKey) return actions.selectClips([clip.id], true, lane.id)
         e.currentTarget.setPointerCapture(e.pointerId)
         down.current = { x: e.clientX, moved: false }
@@ -1181,7 +1275,12 @@ export function Clip(p: {
     >
       <div>
         <ClipWave remix={remix} lane={lane} clip={clip} held={p.held} delay={p.delay} />
-        {!p.joinPrev && (tag || badges.length > 0) && (
+        {firstHit && px < 40 && (
+          <span className={css.hitGlyph} aria-hidden="true">
+            ◆
+          </span>
+        )}
+        {p.tagged && (tag || badges.length > 0) && (
           <span className={css.tags}>
             {tag && (
               <span className={css.tag} data-src={sound == null ? (slot ?? 'A') : 'fox'}>

@@ -9,6 +9,9 @@
    "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD0075.WAV",
    "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD2550.WAV",
    "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  },
+  "pitch_hz": {
+   "kick": 49.64
   }
  },
  {
@@ -21,6 +24,9 @@
    "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD2525.WAV",
    "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD5050.WAV",
    "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  },
+  "pitch_hz": {
+   "kick": 49.54
   }
  },
  {
@@ -33,6 +39,9 @@
    "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD5050.WAV",
    "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD0000.WAV",
    "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  },
+  "pitch_hz": {
+   "kick": 49.64
   }
  },
  {
@@ -45,6 +54,9 @@
    "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD7525.WAV",
    "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD7575.WAV",
    "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  },
+  "pitch_hz": {
+   "kick": 49.55
   }
  }
 ]

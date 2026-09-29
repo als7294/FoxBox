@@ -1,10 +1,11 @@
 /**
  * On-device face detection for the camera clip: MediaPipe Tasks Vision's FaceDetector with the BlazeFace
- * short-range model, all loaded from the app bundle (vendor/mediapipe, Apache-2.0). The setup and the
+ * full-range model (faces up to ~5 m: a DJ behind the decks; short-range is for selfies under 2 m), all loaded from the
+ * app bundle (vendor/mediapipe, Apache-2.0). The setup and the
  * detectForVideo loop follow Google's face_detector sample (google-ai-edge/mediapipe-samples, Apache-2.0).
  */
 import { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
-import modelUrl from '@/vendor/mediapipe/blaze_face_short_range.tflite?url'
+import modelUrl from '@/vendor/mediapipe/blaze_face_full_range.tflite?url'
 import loaderUrl from '@/vendor/mediapipe/vision_wasm_internal.js?url'
 import wasmUrl from '@/vendor/mediapipe/vision_wasm_internal.wasm?url'
 import type { Box } from './faceTrack'

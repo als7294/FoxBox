@@ -87,3 +87,24 @@ def test_engine_bass_paths_and_seeds():
     kit = RemixClip(id="k", at_beat=0, beats=4, src={"kind": "kit", "kit_id": "source", "hits": [
         {"beat": 0, "voice": "kick", "vel": 1}, {"beat": 2, "voice": "snare", "vel": 1}]})
     assert np.abs(prepare_clip(kit, rmx, src, SR)).max() > 0.01  # the song's own drums
+
+
+def test_first_hit_carrier_lifts_against_the_bass_bus():
+    from fvwks_contracts.models import Remix
+    from fvwks_fx.remix.dropfx import carries_first, lift_first
+
+    groove = lambda cid, at, beats, patch: {"id": cid, "at_beat": at, "beats": beats,  # noqa: E731
+                                            "src": {"kind": "groove", "slot": "A", "start_bar": 1, "bars": 1, "patch_id": patch}}
+    r = Remix(id="r", name="r", recipe="vip", sources=[{"slot": "A", "song_id": "a"}], bpm=120, created_at="", updated_at="",
+              sections=[{"kind": "build", "start_bar": 1, "bars": 1}, {"kind": "drop", "start_bar": 2, "bars": 4}],
+              lanes=[{"id": "first_hit-A", "role": "synth_bass", "clips": [groove("h", 4, 2, "808:dark")]},
+                     {"id": "synth_bass-A", "role": "synth_bass", "clips": [groove("g", 4, 16, "hybrid:tearout")]}])
+    clip = lambda cid: next(c for lane in r.lanes for c in lane.clips if c.id == cid)  # noqa: E731
+    assert carries_first(clip("h"), r) and not carries_first(clip("g"), r)  # one carrier: the first-hit lane's
+    sr, beat_n = 16000, 8000
+    bus = np.random.default_rng(0).standard_normal((2, 16 * beat_n)).astype(np.float32)
+    bus[:, beat_n:] *= 2.0  # the other lanes make every later beat 6 dB louder than the first hit alone
+    y = bus[:, :2 * beat_n].copy()
+    lift_first(y, bus, [(0, bus.shape[1])], beat_n, sr, 3.0)
+    lifted = 20 * np.log10(np.abs(y[:, : beat_n // 2]).mean() / np.abs(bus[:, : beat_n // 2]).mean())
+    assert 8.5 < lifted < 9.5  # 6 dB behind + 3 dB over: the whole bus's loudest beat, not the clip's own (capped at 9)

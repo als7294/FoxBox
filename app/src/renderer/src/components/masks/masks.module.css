@@ -1,0 +1,184 @@
+/* MASKS (Phase 2, app/design/masks): the shared HARDWARE pieces and the page's layout. Components keep their own
+   styles in their own modules and compose these (import css from './masks.module.css'). */
+
+/* ---------------------------------------------------------------- the page */
+.page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vb-mk-gap);
+  container-type: size;
+  color: var(--vb-ink);
+  font: 500 12px/1.4 var(--vb-font-mono);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.page :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.page button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.page button:disabled {
+  cursor: not-allowed;
+}
+.page input::placeholder {
+  color: var(--vb-dim);
+  opacity: 1;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--vb-mk-tabs-w) minmax(0, 1fr) var(--vb-mk-opts-w);
+  gap: var(--vb-mk-gap);
+}
+/* MY MASKS spans the preview and options columns. */
+.span {
+  grid-column: 2 / 4;
+}
+.flex {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- surfaces */
+.panel {
+  min-width: 0;
+  min-height: 0;
+  background: #101012;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 2px 10px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(233, 229, 218, 0.05);
+}
+.head {
+  flex: none;
+  height: var(--vb-mk-head-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(233, 229, 218, 0.06);
+}
+.title {
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.18em;
+}
+.well {
+  background: #0b0b0c;
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 3px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.label {
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.dim {
+  color: var(--vb-dim);
+}
+
+/* Segmented: a well; on = ink fill. */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: #0b0b0c;
+  border: 1px solid rgba(233, 229, 218, 0.14);
+  border-radius: 3px;
+}
+.seg > button {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--vb-dim) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.seg > button[aria-checked='true'],
+.seg > button[aria-pressed='true'] {
+  background: var(--vb-ink);
+  color: #0b0b0c !important;
+}
+.seg > button:disabled {
+  opacity: 0.45;
+}
+
+/* Buttons: secondary, ink primary, outline, ember primary. */
+.btn,
+.ink,
+.outline {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(233, 229, 218, 0.07);
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: rgba(233, 229, 218, 0.14);
+}
+.ink {
+  background: var(--vb-ink);
+  color: #0b0b0c !important;
+}
+.ink:hover:not(:disabled) {
+  background: #fff;
+}
+.outline {
+  background: #111113;
+  border: 1px solid rgba(233, 229, 218, 0.24);
+}
+.outline:hover:not(:disabled) {
+  border-color: var(--vb-ink);
+}
+.ember {
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #ff5a3c, #e8431f);
+  color: #0b0b0c !important;
+  box-shadow:
+    0 0 18px rgba(255, 75, 43, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+  transition: box-shadow 0.2s;
+}
+.ember:hover:not(:disabled) {
+  box-shadow:
+    0 0 30px rgba(255, 75, 43, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+.btn:disabled,
+.ink:disabled,
+.outline:disabled,
+.ember:disabled {
+  opacity: 0.45;
+}
+
+/* Amber: automatic, beat or warning. */
+.amber {
+  border: 1px solid rgba(255, 178, 62, 0.55);
+  background: rgba(255, 178, 62, 0.08);
+  color: var(--vb-amber) !important;
+}
+/* A 3px LED stripe; its colour comes from `color`. */
+.led {
+  width: 3px;
+  flex: none;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}

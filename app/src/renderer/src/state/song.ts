@@ -175,6 +175,25 @@ function remember(id: string | null): void {
   }
 }
 
+/** Loads an engine song (its audio decoded here for the drop's placement), then waits out its analysis. */
+async function loadSong(id: string, g: number): Promise<void> {
+  const song = await unwrap(api.GET('/api/songs/{song_id}', { params: { path: { song_id: id } } }))
+  const res = await fetch(audioUrl(song.audio_id))
+  if (!res.ok) throw new Error(`song audio ${res.status}`)
+  const buffer = await decodeSong(audioContext(), await res.arrayBuffer())
+  if (g !== gen) return
+  set({
+    song,
+    buffer,
+    beatDrop: findBeatDrop(channelsOf(buffer), buffer.sampleRate),
+    placement: DEFAULT_PLACEMENT,
+    busy: null,
+    error: null,
+  })
+  if (song.analysis_state === 'done' || song.analysis_state === 'error') analysed(song)
+  else void poll(song.id, g)
+}
+
 export const songs = {
   /** IMPORT SONG: decode, upload (as-is when the engine reads it, else a 24-bit WAV), then poll the analysis. Opens the
    *  SONG drawer unless `open: false` (the camera). */
@@ -220,16 +239,21 @@ export const songs = {
     if (!id || get().song || get().busy) return
     const g = ++gen
     try {
-      const song = await unwrap(api.GET('/api/songs/{song_id}', { params: { path: { song_id: id } } }))
-      const res = await fetch(audioUrl(song.audio_id))
-      if (!res.ok) throw new Error(`song audio ${res.status}`)
-      const buffer = await decodeSong(audioContext(), await res.arrayBuffer())
-      if (g !== gen) return
-      set({ song, buffer, beatDrop: findBeatDrop(channelsOf(buffer), buffer.sampleRate), placement: DEFAULT_PLACEMENT, busy: null, error: null })
-      if (song.analysis_state === 'done' || song.analysis_state === 'error') analysed(song)
-      else void poll(song.id, g)
+      await loadSong(id, g)
     } catch {
       if (g === gen) remember(null)
+    }
+  },
+
+  /** A song already on the engine (IMPORT FROM REKORDBOX): loaded like a restore, then remembered. */
+  async pick(songId: string, opts: { open?: boolean } = {}): Promise<void> {
+    const g = ++gen
+    set({ busy: 'READING…', error: null, ...(opts.open === false ? {} : { open: true }) })
+    try {
+      await loadSong(songId, g)
+      remember(songId)
+    } catch (err) {
+      if (g === gen) set({ busy: null, error: message(err) })
     }
   },
 

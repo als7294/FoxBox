@@ -16,7 +16,7 @@ import {
 import styles from './takeRating.module.css'
 
 /**
- * TakeRating: ▲ UP / ▼ DOWN on a take. `rating` is the take's own (RemixTake.rating). A click toggles; on the current
+ * TakeRating: ▲ / ▼ on a take. `rating` is the take's own (RemixTake.rating). A click toggles; on the current
  * take + and − rate it from the keyboard (not with ⌘, which zooms). Inline only.
  */
 export function TakeRating({
@@ -55,7 +55,7 @@ export function TakeRating({
         title={current ? 'Rate up (+): ROLL leans toward takes like this' : 'Rate up: ROLL leans toward takes like this'}
         onClick={() => takeFeedback.rate(take, 1, true, shown)}
       >
-        ▲ UP
+        ▲
       </button>
       <button
         type="button"
@@ -67,7 +67,7 @@ export function TakeRating({
         title={current ? 'Rate down (−): ROLL leans away from takes like this' : 'Rate down: ROLL leans away from takes like this'}
         onClick={() => takeFeedback.rate(take, -1, true, shown)}
       >
-        ▼ DOWN
+        ▼
       </button>
     </div>
   )

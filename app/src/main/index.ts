@@ -19,7 +19,7 @@ import {
 } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, realpath, rename, statfs, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rename, stat, statfs, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,6 +32,7 @@ import {
   type EngineResponse,
   type EngineStatus,
   type MicAccess,
+  type SamplePackAddResult,
   type SetupCompleteResult,
   type SetupInfo,
   type UpdateState,
@@ -335,10 +336,37 @@ function confirmStopOutput(parent: BrowserWindow | null): boolean {
   return outputStopConfirmed
 }
 
+/** The display the output was opened on, and the one it lost to an unplug (it reopens when a display comes back). */
+let outputDisplayId: number | null = null
+let unpluggedDisplayId: number | null = null
+
 const outputState = (): VisualsOutputState => ({
   open: Boolean(outputWindow && !outputWindow.isDestroyed()),
   displayId: outputWindow && !outputWindow.isDestroyed() ? screen.getDisplayMatching(outputWindow.getBounds()).id : null,
+  unplugged: unpluggedDisplayId != null,
 })
+
+/**
+ * LS10: the projector unplugged mid-set closes the output (macOS would move it over the controls, cursor hidden); when
+ * a display comes back (the same one, or another external), the output reopens there. VISUALS hears every change.
+ */
+function watchDisplays(): void {
+  screen.on('display-removed', (_e, d) => {
+    if (outputWindow && !outputWindow.isDestroyed() && outputDisplayId === d.id) {
+      unpluggedDisplayId = d.id
+      log('visuals output: its display was unplugged; closed until a display comes back')
+      outputWindow.close()
+    }
+    broadcast(IPC.visualsState, outputState())
+  })
+  screen.on('display-added', (_e, d) => {
+    const primary = screen.getPrimaryDisplay().id
+    if (unpluggedDisplayId != null && d.id !== primary && !(outputWindow && !outputWindow.isDestroyed())) {
+      log('visuals output: a display came back; reopening the output on it')
+      openOutput(d.id)
+    } else broadcast(IPC.visualsState, outputState())
+  })
+}
 
 function displays(): DisplayInfo[] {
   const primary = screen.getPrimaryDisplay().id
@@ -371,6 +399,8 @@ function openOutput(displayId: number | null): VisualsOutputState {
   const target = all.find((d) => d.id === displayId) ?? all.find((d) => d.id !== primary.id) ?? primary
   const external = target.id !== primary.id
   if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
+  outputDisplayId = target.id
+  unpluggedDisplayId = null
   const b = target.bounds
   const win = new BrowserWindow({
     x: external ? b.x : b.x + 80,
@@ -418,8 +448,8 @@ function openOutput(displayId: number | null): VisualsOutputState {
     void win.loadFile(join(RENDERER_DIR, 'index.html'), { query: { window: 'output' } })
   }
   log(`visuals output on ${external ? 'an external display' : 'the main display (windowed)'} ${target.size.width}×${target.size.height}`)
-  broadcast(IPC.visualsState, { open: true, displayId: target.id })
-  return { open: true, displayId: target.id }
+  broadcast(IPC.visualsState, { open: true, displayId: target.id, unplugged: false })
+  return { open: true, displayId: target.id, unplugged: false }
 }
 
 /** Required models still missing, per the engine itself (so the marker is only written once they're installed). */
@@ -852,6 +882,48 @@ function registerIpc(): void {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
 
+  // v0.15 sample packs: main POSTs the folder itself, so the page only ever gets the scan job's ids (and nothing logs
+  // the path). The picker, or a folder dropped on SAMPLE LAYERS (its path resolved by the preload, never the page).
+  const addSamplePack = async (folder: string): Promise<SamplePackAddResult> => {
+    if (!supervisor?.isReady) return { error: { code: 'engine_offline', message: 'The engine is not running.' } }
+    try {
+      const res = await supervisor.request('/api/sample-packs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: Buffer.from(JSON.stringify({ folder })),
+      })
+      const body = (await res.json()) as Record<string, unknown>
+      if (res.ok) return { job: body as { id: string; state: string; progress: number } }
+      const err = (body.error ?? {}) as { code?: unknown; message?: unknown; hint?: unknown }
+      return {
+        error: {
+          code: String(err.code ?? 'error'),
+          message: String(err.message ?? 'The folder could not be added.'),
+          hint: typeof err.hint === 'string' ? err.hint : null,
+        },
+      }
+    } catch {
+      return { error: { code: 'engine_unreachable', message: 'The engine did not answer.' } }
+    }
+  }
+  ipcMain.handle(IPC.samplePackAdd, async (event) => {
+    if (!trusted(event)) return null
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const opts: Electron.OpenDialogOptions = { title: 'Choose a folder of drum one-shots', properties: ['openDirectory'] }
+    const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    const folder = result.canceled ? null : (result.filePaths[0] ?? null)
+    return folder ? addSamplePack(folder) : null
+  })
+  ipcMain.handle(IPC.samplePackDrop, async (event, raw: unknown) => {
+    if (!trusted(event) || typeof raw !== 'string' || !raw) return null
+    try {
+      if (!(await stat(raw)).isDirectory()) return { error: { code: 'not_a_folder', message: 'Drop a folder of one-shots, not a file.' } }
+    } catch {
+      return { error: { code: 'missing', message: "That folder isn't there." } }
+    }
+    return addSamplePack(raw)
+  })
+
   ipcMain.handle(IPC.askMic, async (event) => {
     if (!trusted(event)) return false
     if (FAKE_MIC || process.platform !== 'darwin') return true
@@ -904,6 +976,7 @@ function registerIpc(): void {
     if (!trusted(event)) return outputState()
     // Esc in the output window closes a windowed preview, never a fullscreen projector mid-set.
     if (event.sender === outputWindow?.webContents && outputWindow.isFullScreen()) return outputState()
+    unpluggedDisplayId = null // closed on purpose: nothing to reopen
     if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
     return { open: false, displayId: null }
   })
@@ -1081,6 +1154,7 @@ if (!app.requestSingleInstanceLock()) {
   registerIpc()
 
   void app.whenReady().then(async () => {
+    watchDisplays()
     log(`starting ${app.getName()} ${app.getVersion()} (packaged=${app.isPackaged}, mock=${MOCK}, engine=${ENGINE_DIR})`)
     lockDownPermissions()
     handleDownloads()

@@ -58,7 +58,7 @@
   }
 }
 
-/* ---------------------------------------------------------------- top row (64px): recipe · BUILD · ROLL · takes */
+/* ---------------------------------------------------------------- top row (64px): BUILD · ROLL · takes */
 /* Empty space in the row drags the window (REMIX has no top bar). */
 .top {
   display: flex;
@@ -70,16 +70,6 @@
   -webkit-app-region: drag;
 }
 .top > * {
-  -webkit-app-region: no-drag;
-}
-.recipeCol {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  flex: none;
-  -webkit-app-region: drag;
-}
-.recipeCol > * {
   -webkit-app-region: no-drag;
 }
 .segmented {
@@ -115,62 +105,77 @@
 .segmented button:disabled {
   opacity: 0.45;
 }
-.buildWhy {
-  max-width: 380px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
-  letter-spacing: 0.06em;
-  color: var(--vb-dim);
-}
-.buildWhy[data-warn] {
-  color: var(--vb-amber);
-}
-
-/* BUILD: the page's one ember primary. Its LEDs are dark on the ember. */
+/* BUILD: the page's one ember primary, a top-half gloss and dark LEDs. Armed (no take yet) it pulses and a light runs
+   along the LEDs; blocked it goes dark ember. */
 .build {
-  --led-on: rgba(11, 11, 12, 0.85);
-  --vb-led-off: rgba(11, 11, 12, 0.22);
+  --led-on: #0b0b0c;
+  --vb-led-off: rgba(11, 11, 12, 0.25);
+  --led-h: 5px;
   position: relative;
   overflow: hidden;
-  width: 148px;
+  width: 176px;
   flex: none;
   border: 0;
-  border-radius: var(--vb-ctl-radius);
-  background: linear-gradient(180deg, #ff5a3c, #e8431f);
+  border-radius: var(--vb-rack-radius);
+  background: linear-gradient(180deg, #ff6a4a 0%, var(--vb-accent) 46%, #d8391b 100%);
   color: var(--vb-well);
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   justify-content: center;
-  gap: 7px;
-  padding: 0 14px;
+  gap: 9px;
+  padding: 0 14px 0 16px;
   box-shadow:
-    0 0 18px rgba(var(--vb-accent-rgb), 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+    0 0 0 1px rgba(0, 0, 0, 0.65),
+    0 0 18px rgba(var(--vb-accent-rgb), 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
   transition:
-    box-shadow 0.2s,
-    opacity 0.2s;
+    opacity 0.2s,
+    transform 0.08s;
+}
+.build::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 .build:hover:not(:disabled) {
-  box-shadow:
-    0 0 30px rgba(var(--vb-accent-rgb), 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+  filter: brightness(1.08);
 }
-.build:active:not(:disabled),
-.roll:active:not(:disabled) {
-  transform: translateY(1px);
+.build:active:not(:disabled) {
+  transform: translateY(2px);
+  filter: brightness(0.95);
 }
-.build:disabled {
-  opacity: 0.45;
-  box-shadow: none;
+.build[data-state='armed'] {
+  animation: arm 1.8s ease-in-out infinite;
+}
+.build[data-state='blocked'] {
+  background: linear-gradient(180deg, #5a2a20, #3a1a14);
+  opacity: 0.6;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 .buildLabel {
-  font: 800 21px/1 var(--vb-font-display);
-  letter-spacing: 0.16em;
+  position: relative;
+  font: 800 26px/0.9 var(--vb-font-display);
+  letter-spacing: 0.18em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.buildLeds {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  padding: 2px;
+  border-radius: 2px;
+  background: rgba(11, 11, 12, 0.35);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.ledRun {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 26%;
+  background: linear-gradient(90deg, transparent, rgba(255, 236, 220, 0.85), transparent);
+  animation: ledRun 1.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 
 .roll {
@@ -193,6 +198,9 @@
 .roll:hover:not(:disabled) {
   border-color: var(--vb-ink);
   background: #18181b;
+}
+.roll:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .roll:disabled {
   opacity: 0.45;
@@ -225,10 +233,20 @@
   align-items: center;
   overflow: hidden;
 }
-.takesHint {
-  padding: 0 8px;
-  font: 500 var(--vb-text-min) / 1.4 var(--vb-font-mono);
-  color: var(--vb-dim);
+/* No take yet: six dashed slots. */
+.slot {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 196px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px dashed rgba(var(--vb-ink-rgb), 0.1);
+  border-radius: var(--vb-ctl-radius);
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  color: rgba(var(--vb-ink-rgb), 0.14);
 }
 .take {
   position: relative;
@@ -308,23 +326,13 @@
   border-radius: 1px;
   color: var(--vb-ice);
 }
-.takeKey {
-  font-weight: 500;
-  color: var(--vb-dim);
-}
-.takeStyle,
-.takeMeta {
+.takeStyle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
 }
-.takeMeta {
-  font-weight: 500;
-  color: var(--vb-dim);
-}
-.take[data-state='preparing'] .takeStyle,
-.take[data-state='preparing'] .takeMeta {
+.take[data-state='preparing'] .takeStyle {
   opacity: 0.25;
 }
 .shimmer {
@@ -350,34 +358,76 @@
   color: var(--vb-amber);
 }
 
-/* ---------------------------------------------------------------- the take's rating line (30px) */
-.rateRow {
+/* The current take's ▲ ▼ ☆ ✕, at the strip's end. */
+.rate {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.08);
+}
+.keepBtn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 13px var(--vb-font-mono);
+}
+.keepBtn[data-on] {
+  color: var(--vb-amber);
+}
+.delBtn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 6px;
+  margin-left: 8px;
+  border: 1px solid rgba(var(--vb-accent-rgb), 0.35);
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-accent);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.delBtn[data-armed] {
+  border-color: var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.14);
+}
+
+/* ---------------------------------------------------------------- WHY? (28px): the reasons once a take is rated */
+.why {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
+  height: 28px;
   flex: none;
   min-width: 0;
   padding: 0 2px;
+  animation: rise 0.2s ease-out;
 }
-.takeName {
-  width: 96px;
-  height: 26px;
+.whyLabel {
   flex: none;
-  padding: 0 8px;
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-rate-up);
+}
+.whyLabel[data-rate='down'] {
+  color: var(--vb-rate-down);
+}
+.whyDone {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
   border-radius: 2px;
-  background: var(--vb-well);
+  background: rgba(var(--vb-ink-rgb), 0.08);
   color: var(--vb-ink);
   font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.06em;
 }
-.takeName::placeholder {
-  color: var(--vb-dim);
-}
-.btn,
-.abBtn,
-.danger {
+.btn {
   flex: none;
   height: 26px;
   padding: 0 9px;
@@ -391,30 +441,6 @@
 }
 .btn:hover {
   background: var(--vb-ctl-fill-hi);
-}
-.btn[data-tone='amber'] {
-  color: var(--vb-amber);
-}
-.btn[data-armed] {
-  color: var(--vb-accent);
-}
-.abBtn {
-  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
-  background: none;
-}
-.abBtn[aria-pressed='true'] {
-  border-color: var(--vb-ice);
-  color: var(--vb-ice);
-}
-.danger {
-  padding: 0 8px;
-  border: 1px solid rgba(var(--vb-accent-rgb), 0.35);
-  background: none;
-  color: var(--vb-accent);
-}
-.danger[data-armed] {
-  border-color: var(--vb-accent);
-  background: rgba(var(--vb-accent-rgb), 0.12);
 }
 
 /* ---------------------------------------------------------------- engine offline (inline, never a modal) */
@@ -474,6 +500,9 @@
   grid-template-columns: minmax(0, 1fr) clamp(316px, 23cqw, 348px);
   gap: 10px;
 }
+.body[data-min] {
+  grid-template-columns: minmax(0, 1fr) 46px;
+}
 .col {
   position: relative;
   display: flex;
@@ -496,19 +525,6 @@
   gap: 10px;
   flex: none;
   min-width: 0;
-}
-.waiting {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--vb-rack-edge);
-  border-radius: var(--vb-rack-radius);
-  background: var(--vb-rack);
-  box-shadow: var(--vb-rack-inset);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.16em;
-  color: var(--vb-dim);
 }
 
 /* ---------------------------------------------------------------- REMIX ALL queue (above the transport) */
@@ -589,6 +605,7 @@
 
 /* ---------------------------------------------------------------- transport (52px) */
 .transport {
+  container: transport / inline-size;
   position: relative;
   flex: none;
   display: flex;
@@ -725,7 +742,7 @@
 /* The status display: every notification on REMIX, else the live position or the keys. */
 .lcd {
   flex: 1;
-  min-width: 150px;
+  min-width: 120px;
   height: 36px;
   display: flex;
   align-items: center;
@@ -799,6 +816,15 @@
 .lcdIdle[data-soon] {
   color: var(--vb-amber);
 }
+/* Two takes marked for COMPARE in a narrow transport (a window under ~1600 px): T1 · T2, so EXPORT stays in. */
+@container transport (max-width: 1100px) {
+  .segmented:has(> :nth-child(3)) .wide {
+    display: none;
+  }
+  .segmented:has(> :nth-child(3)) .compact {
+    display: inline;
+  }
+}
 .exportBtn {
   height: 36px;
   padding: 0 14px;
@@ -831,6 +857,31 @@
   z-index: 2;
 }
 
+@keyframes arm {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.65),
+      0 0 16px rgba(var(--vb-accent-rgb), 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.65),
+      0 0 34px rgba(var(--vb-accent-rgb), 0.62),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+  }
+}
+@keyframes ledRun {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(420%);
+  }
+}
 @keyframes card {
   0% {
     opacity: 0;

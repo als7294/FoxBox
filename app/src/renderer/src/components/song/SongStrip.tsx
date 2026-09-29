@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { camelot, KEY_OPTIONS, normalizeKey } from '@/lib/keys'
 import { songGrid, songKey, songs, useSong } from '@/state/song'
+import { RekordboxButton } from './RekordboxImport'
 import styles from './song.module.css'
 
 // Camelot order: 1A–12A (minor), then 1B–12B (major).
-const WHEEL = [...KEY_OPTIONS].sort((a, b) => a.camelot.slice(-1).localeCompare(b.camelot.slice(-1)) || parseInt(a.camelot) - parseInt(b.camelot))
+const WHEEL = [...KEY_OPTIONS].sort(
+  (a, b) => a.camelot.slice(-1).localeCompare(b.camelot.slice(-1)) || parseInt(a.camelot) - parseInt(b.camelot),
+)
 
 /** The song's key as a chip ("D#m · 2A", or SET KEY when there's none); it opens the 24-key picker → key_override. */
 export function KeyChip({ up = false }: { up?: boolean }) {
@@ -79,19 +82,30 @@ export const isSongFile = (f: { name: string; type: string }): boolean =>
  * Hidden file input + drop handling shared by the strip, the drawer, the panel and VISUALS' TRACK (`open: false`:
  * no drawer). A file it can't read shows `error` inline (never a modal).
  */
-export function useSongFile(opts: { open?: boolean } = {}) {
+export function useSongFile(opts: { open?: boolean; hold?: () => boolean } = {}) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const take = (f: File | undefined) => {
+  // A drop while `hold()` (a song playing mid-set) waits here: it loads on stop, never over the playing track.
+  const [queued, setQueued] = useState<File | null>(null)
+  const take = (f: File | undefined, dropped = false) => {
     if (!f) return
     if (!isSongFile(f)) return setError(`Can't read ${f.name}: use WAV, AIFF, FLAC, MP3 or M4A.`)
     setError(null)
+    if (dropped && opts.hold?.()) return setQueued(f)
     void songs.importFile(f, opts)
+  }
+  // The caller runs this when it can load (the track stopped); a queued drop loads then.
+  const flush = () => {
+    if (!queued || opts.hold?.()) return
+    setQueued(null)
+    void songs.importFile(queued, opts)
   }
   return {
     over,
     error,
+    queued,
+    flush,
     choose: () => input.current?.click(),
     dropProps: {
       onDragOver: (e: DragEvent) => {
@@ -102,7 +116,7 @@ export function useSongFile(opts: { open?: boolean } = {}) {
       onDrop: (e: DragEvent) => {
         e.preventDefault()
         setOver(false)
-        take(e.dataTransfer.files[0])
+        take(e.dataTransfer.files[0], true)
       },
     },
     input: (
@@ -143,6 +157,7 @@ export function SongStrip() {
           <button type="button" className={styles.importBtn} onClick={file.choose}>
             ♪ IMPORT SONG
           </button>
+          <RekordboxButton className={styles.importBtn} />
         </>
       )}
       {(song || busy) && (

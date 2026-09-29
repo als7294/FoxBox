@@ -21,6 +21,8 @@ eight08, source_kit                               the 808 hits, a kit clip on th
 
 from __future__ import annotations
 
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import numpy as np
@@ -36,6 +38,26 @@ from .groove import extract_groove
 MIN_SHOT_S = 0.08
 # the drop's balance (peak-normalised parts): the growls lead, the sub under them, the drums punching through
 GROWL, SUB, DRUMS, EXTRA = 1.25, 0.45, 0.9, 0.3
+NOTES: list[dict] | None = None  # set to [] to trace every note the engine voices place (auditions, harmonic QA)
+_TRACE = threading.local()  # the clip being prepared: its remix beat and id (prepare's trace())
+
+
+@contextmanager
+def trace(clip_id: str, at_beat: float):
+    """Notes placed inside are traced at the clip's remix beats (when NOTES is a list)."""
+    _TRACE.clip, _TRACE.at = clip_id, at_beat
+    try:
+        yield
+    finally:
+        _TRACE.clip, _TRACE.at = "", 0.0
+
+
+def _note(beat: float, beats: float, midi: float, degree: str, lane: str) -> None:
+    if NOTES is not None:
+        NOTES.append({"beat": round(getattr(_TRACE, "at", 0.0) + beat, 4), "beats": round(float(beats), 4),
+                      "midi": round(float(midi), 2), "degree": degree, "lane": lane, "clip": getattr(_TRACE, "clip", "")})
+
+
 MID_HP = 150.0  # a designed mid's high-pass (Sound Bible 1.1: 100-150): its lows off the sub bus (sub purity)
 RIDDIM_MID_DB = -1.0  # riddim's mid bus re its sub, RMS over the clip (Sound Bible 5: -4..+2)
 
@@ -99,7 +121,7 @@ def slice_bass(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: int
 
 def drum_shots(drums: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: int, bars: int) -> dict[str, np.ndarray]:
     """The song's kick, snare and hat as one-shots: in those bars, the loudest hit of each voice with no other voice
-    within 60 ms (so the slice is clean)."""
+    within 60 ms and no second transient in its window (so the slice is clean; else the loudest, cut before it)."""
     x = _stereo(drums)
     beat = 60.0 / analysis.bpm
     b0, b1 = (start_bar - 1) * 4, (start_bar - 1 + bars) * 4
@@ -110,10 +132,26 @@ def drum_shots(drums: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: in
         clean = [h for h in mine if not any(o.kind != kind and abs(o.beat - h.beat) * beat < 0.06 for o in hits)] or mine
         if not clean:
             continue
-        h = max(clean, key=lambda h: h.vel)
-        a = int(round((analysis.downbeat_s + h.beat * beat) * sr)) - int(0.005 * sr)  # keep the hit's own onset
-        out[kind] = _fade(x[:, max(0, a) : max(0, a) + int(secs * sr)], sr, 0.003, 0.03)
+        cut = []  # the loudest few, each cut at a second transient: the loudest that keeps 4/5 of its window, else the loudest
+        for h in sorted(clean, key=lambda h: -h.vel)[:12]:
+            a = int(round((analysis.downbeat_s + h.beat * beat) * sr)) - int(0.005 * sr)  # keep the hit's own onset
+            cut.append(_own_hit(x[:, max(0, a) : max(0, a) + int(secs * sr)], sr))
+        whole = [y for y in cut if y.shape[1] >= 0.8 * secs * sr]
+        out[kind] = _fade((whole or cut)[0], sr, 0.003, 0.03)
     return out
+
+
+def _own_hit(y: np.ndarray, sr: int) -> np.ndarray:
+    """A shot cut before a second transient in its window (a flam, the next hat, bleed): its own peak is in its first
+    30 ms, and anything back within 3 dB of it past 40 ms is another hit; cut at the quietest point between (song-1's
+    snare shot carried a louder hit 137 ms in, which became the kit's snare peak)."""
+    env = ndimage.uniform_filter1d(np.abs(y).max(axis=0), max(1, int(0.005 * sr)))
+    p = int(np.argmax(env[: int(0.03 * sr)]))
+    late = np.flatnonzero(env[p + int(0.04 * sr):] > env[p] * 10 ** (-3 / 20))
+    if not len(late):
+        return y
+    q = p + int(0.04 * sr) + int(late[0])
+    return y[:, : p + int(np.argmin(env[p:q]))]
 
 
 def _pitched(s: OneShot, target: float | None, max_beats: float, beat: float, sr: int) -> np.ndarray:
@@ -127,35 +165,66 @@ def _pitched(s: OneShot, target: float | None, max_beats: float, beat: float, sr
     return _fade(y[:, : max(1, int(max_beats * beat * sr))], sr)
 
 
-def _near(root_pc: int, midi: float | None) -> float | None:
-    """The root in the one-shot's own octave (the smallest repitch)."""
+def _near(root_pc: int, midi: float | None, tune: float = 0.0) -> float | None:
+    """The root in the one-shot's own octave (the smallest repitch), on the track's tuning (`tune` semitones: its
+    offset from A=440; a snap to whole semitones threw that away)."""
     if midi is None:
         return None
-    return midi + ((root_pc - midi + 6) % 12 - 6)
+    return midi + ((root_pc + tune - midi + 6) % 12 - 6)
 
 
-# (beat in the bar, beats long, scale step in semitones, "call" or "resp"); nothing within 1/16 of the snare on 2.0
-# (the chequerboard, Sound Bible 1.4: the mix gates the mid there anyway)
-RIDDIM = [(0.0, 0.75, 0, "call"), (1.0, 1 / 3, 0, "call"), (4 / 3, 1 / 3, 0, "call"),
-          (2.25, 5 / 12, 0, "resp"), (2 + 2 / 3, 0.5, 0, "resp"), (2 + 4 / 3, 0.5, 3, "resp")]
-RIDDIM_SWITCH = [(k / 3, 1 / 3, s, "call") for k, s in enumerate((0, 0, 3, 3, 5, 7))] + [(3.0, 1.0, 0, "resp")]
-HALFTIME = [(0.0, 1.0, 0, "call"), (1.5, 0.25, 0, "call"), (1.75, 0.25, 7, "call"), (2.5, 0.5, 0, "resp"),
-            (3.25, 0.5, 3, "resp")]
-HALFTIME_SWITCH = [(0.0, 0.5, 0, "call"), (0.75, 0.5, 3, "call"), (1.5, 0.5, 5, "resp"), (2.5, 1.5, 7, "resp")]
-TEAROUT = [(0.0, 0.5, 0, "call"), (0.75, 0.25, 0, "call"), (1.0, 0.5, 5, "call"), (1.5, 0.25, 0, "call"),
-           (2.5, 0.25, 0, "resp"), (2.75, 0.25, 3, "resp"), (3.0, 0.5, 0, "resp"),
-           (3.5, 0.5, 7, "resp")]
-TEAROUT_SWITCH = [(k / 4, 0.25, s, "call") for k, s in enumerate((0, 0, 0, 3, 0, 0, 5, 7))] + [(3.0, 1.0, 0, "resp")]
-STYLES = {"riddim": (RIDDIM, RIDDIM_SWITCH), "halftime": (HALFTIME, HALFTIME_SWITCH), "tearout": (TEAROUT, TEAROUT_SWITCH),
-          # the song's own 808 chopped on the call / 1/8T / response grid: the user heard trap / hybrid, not riddim
-          "trap_hybrid": (RIDDIM, RIDDIM_SWITCH)}
+# The bass grids as degree templates (REMIX_HARMONY 2.5): (beat in the bar, beats long, degree, "call" or "resp"), two
+# bars each, every degree resolved against the bar's chord (_deg: "3" is its own third; a power chord's falls back to the
+# 5th). Nothing starts between beats 1.75 and 2.25 (the snare window). Gestures ("8>R-12", "R>next") play their start
+# degree on the one-shot path (it can't glide yet). The switch bars keep their rhythm on R R 5 8 b7 R.
+RIDDIM_H = [[(0.0, .75, "R", "call"), (1.0, 1 / 3, "R", "call"), (4 / 3, 1 / 3, "8", "call"),
+             (2.25, 5 / 12, "R", "resp"), (2 + 2 / 3, .5, "8", "resp"), (3.5, .25, "R", "resp")],
+            [(0.0, .75, "R", "call"), (1.0, .5, "b7", "call"),
+             (2.25, .5, "R", "resp"), (2.75, .5, "8", "resp"), (3.5, .25, "b2", "resp")]]
+TEAROUT_H = [[(0.0, .5, "R", "call"), (.75, .25, "R", "call"), (1.0, .5, "5", "call"), (1.5, .25, "8", "call"),
+              (2.5, .25, "R", "resp"), (2.75, .25, "b2", "resp"), (3.0, .5, "R", "resp"), (3.5, .5, "8>R-12", "resp")],
+             [(0.0, .25, "R", "call"), (.25, .25, "R", "call"), (.5, .25, "b5", "call"), (.75, .25, "8", "call"),
+              (1.0, .75, "R", "call"), (2.25, .25, "8", "resp"), (2.5, .25, "b7", "resp"), (2.75, .25, "8", "resp"),
+              (3.0, 1.0, "R", "resp")]]
+HALFTIME_H = [[(0.0, 1.0, "R", "call"), (1.5, .25, "R", "call"), (1.75 - 1 / 16, 1 / 16, "5", "call"),
+               (2.5, .5, "8", "resp"), (3.25, .5, "b7", "resp")],
+              [(0.0, .5, "R", "call"), (.75, .5, "8", "call"), (2.5, .5, "8", "resp"), (3.0, 1.0, "R>next", "resp")]]
+EIGHT08_H = [[(0.0, 1.75, "R", "call"), (2.5, .5, "R", "resp"), (3.0, .5, "5", "resp"), (3.5, .5, "8>R", "resp")]]
+_SW = ("R", "R", "5", "8", "b7", "R")
+RIDDIM_SWITCH = [[(k / 3, 1 / 3, _SW[k], "call") for k in range(6)] + [(3.0, 1.0, "R", "resp")]]
+HALFTIME_SWITCH = [[(0.0, 0.5, "R", "call"), (0.75, 0.5, "R", "call"), (1.5, 0.25, "5", "resp"), (2.5, 1.5, "8", "resp")]]
+TEAROUT_SWITCH = [[(k / 4, 0.25, _SW[min(k, 5)], "call") for k in range(8)] + [(3.0, 1.0, "R", "resp")]]
+DEG = {"R": 0, "5": 7, "8": 12, "b7": 10, "b2": 1, "b5": 6, "R-12": -12}
+TENSION = {"b2": "R", "b5": "R", "b7": "8"}  # the take's drop.tension off (the default): the root and octave instead
+
+
+def _plain(degree: str, tension: bool) -> str:
+    """A template degree as played: without drop.tension the tension slots fall to the root / octave (the user's set3:
+    motion from rhythm and sound, not notes)."""
+    if tension:
+        return degree
+    d, sep, rest = degree.partition(">")
+    return TENSION.get(d, d) + sep + rest
+
+
+def _deg(degree: str, third: int) -> int:
+    """A template degree in semitones over the bar's root: "3" is the chord's own third (3 / 4, 5 on sus4, 7 on a power
+    chord); a gesture ("8>R-12") its start."""
+    d = degree.split(">")[0]
+    return third if d == "3" else DEG[d]
+
+
+STYLES = {"riddim": (RIDDIM_H, RIDDIM_SWITCH), "halftime": (HALFTIME_H, HALFTIME_SWITCH), "tearout": (TEAROUT_H, TEAROUT_SWITCH),
+          # the song's own 808 chopped on the 808 degrees (root, 5th, octave; REMIX_HARMONY 2.5 EIGHT08_H)
+          "trap_hybrid": (EIGHT08_H, RIDDIM_SWITCH)}
 DESIGN_FOR = {"riddim": "riddim", "tearout": "tearout", "halftime": "riddim", "trap_hybrid": "riddim", None: "growl"}  # growl.PATCHES
 
 
-def sequence(shots: list[OneShot], style: str, bars: int, bpm: float, sr: int, root_pc: int, switch_every: int = 4
-             ) -> tuple[np.ndarray, list[tuple[float, float, float]]]:
+def sequence(shots: list[OneShot], style: str, bars: int, bpm: float, sr: int, root_pc: int, switch_every: int = 4,
+             chord=None, tune: float = 0.0, tension: bool = False) -> tuple[np.ndarray, list[tuple[float, float, float]]]:
     """The one-shots on the style's grid (see the module doc), the switch grid ending every `switch_every` bars (the
-    take's drop.cadence): the growl bus (2, n) and the hits (midi, beat, beats)."""
+    take's drop.cadence), each bar on its chord (`chord(bar) -> (root pc, third)`, the source's harmony) else on
+    `root_pc`: the growl bus (2, n) and the hits (midi, beat, beats)."""
     beat = 60.0 / bpm
     n = int(round(bars * 4 * beat * sr))
     bus = np.zeros((2, n), np.float32)
@@ -167,19 +236,23 @@ def sequence(shots: list[OneShot], style: str, bars: int, bpm: float, sr: int, r
     grid, switch = STYLES[style]
     for bar in range(bars):
         block = bar // 4
-        pat = switch if bar % switch_every == switch_every - 1 else grid
+        tbl = switch if bar % switch_every == switch_every - 1 else grid
+        pat = tbl[bar % len(tbl)]
         pick = {"call": ranked[(2 * block) % len(ranked)], "resp": ranked[(2 * block + 1) % len(ranked)]}
         for b, beats, step, role in pat:
+            step = _plain(step, tension)
+            rp, third = chord(bar, b) if chord else (root_pc, 3)
             s = pick[role]
-            base = _near(root_pc, s.midi)
-            target = None if base is None else base + step
+            base = _near(rp, s.midi, tune)
+            target = None if base is None else base + _deg(step, third) + (12 if bar % 8 == 6 else 0)  # 5.2: bar 7 escalates
             y = _pitched(s, target, beats, beat, sr)
             a = int(round((bar * 4 + b) * beat * sr))
             m = min(y.shape[1], n - a)
             if m > 0:
                 bus[:, a : a + m] += y[:, :m]
-            midi = (target if target is not None else root_pc + 36.0)
+            midi = (target if target is not None else rp + 36.0 + tune)
             hits.append((midi, bar * 4 + b, beats))
+            _note(bar * 4 + b, beats, midi, step, "mid")
     return bus, hits
 
 
@@ -192,18 +265,45 @@ def _sub_hz(midi: float) -> float:
     return hz
 
 
-def sub_line(hits: list[tuple[float, float, float]], bpm: float, sr: int, n: int) -> np.ndarray:
-    """A clean mono sine under every hit, the hit's note in the sub octave (28-56 Hz), 5 ms in, 40 ms out."""
+def sub_line(hits: list[tuple[float, float, float]], bpm: float, sr: int, n: int, fold: bool = True) -> np.ndarray:
+    """A clean mono sine under every hit, the hit's note in the sub octave (28-56 Hz; `fold` False: as given), 5 ms
+    in, 40 ms out."""
     beat = 60.0 / bpm
     freq = np.zeros(n)
     gate = np.zeros(n)
     for midi, b, beats in sorted(hits, key=lambda h: h[1]):
         a, e = int(b * beat * sr), min(n, int((b + beats) * beat * sr))
-        freq[a:] = _sub_hz(midi)  # held through the release
+        freq[a:] = _sub_hz(midi) if fold else 440 * 2 ** ((midi - 69) / 12)  # held through the release
         gate[a:e] = 1.0
     env = signal.lfilter([1 - np.exp(-1 / (0.04 * sr))], [1, -np.exp(-1 / (0.04 * sr))], gate)
     env = np.maximum(env, signal.lfilter([1 - np.exp(-1 / (0.005 * sr))], [1, -np.exp(-1 / (0.005 * sr))], gate))
     return (np.sin(2 * np.pi * np.cumsum(freq) / sr) * env).astype(np.float32)
+
+
+def _fold_sub(pc: float, prev: float | None) -> float:
+    """A root (pitch class + tuning) as a sub note in B0-B1 (MIDI 23-35, 30.9-61.7 Hz; REMIX_HARMONY 2.6): the octave
+    nearest the previous sub note, the first in C1-B1."""
+    cands = [pc % 12 + 12 * k for k in range(1, 4) if 23 <= pc % 12 + 12 * k <= 35.99]
+    if prev is None:
+        return next(m for m in cands if m >= 24) if any(m >= 24 for m in cands) else cands[0]
+    return min(cands, key=lambda m: abs(m - prev))
+
+
+def root_line(root_at, bars: int, bpm: float, sr: int, n: int, tune: float = 0.0, restrike: int = 2) -> np.ndarray:
+    """The sub (REMIX_HARMONY 2.1): the current chord root only (`root_at(bar, beat) -> pc`, read per half-bar), never
+    the mid's passing notes; held, re-struck on a change and every `restrike` bars (the held weight), a 1/16 breath
+    before each re-strike; in B0-B1, nearest the previous note. (n,) mono."""
+    segs: list[list] = []
+    for h in range(2 * bars):
+        pc = root_at(h // 2, 2.0 * (h % 2))
+        if not segs or pc != segs[-1][0] or h - segs[-1][1] >= 2 * restrike:
+            segs.append([pc, h])
+    hits, prev = [], None
+    for (pc, h), nxt in zip(segs, [s[1] for s in segs[1:]] + [2 * bars]):
+        prev = _fold_sub(pc + tune, prev)
+        hits.append((prev, 2.0 * h, 2.0 * (nxt - h) - 0.25))
+        _note(2.0 * h, 2.0 * (nxt - h) - 0.25, prev, "R", "sub")
+    return sub_line(hits, bpm, sr, n, fold=False)
 
 
 def _upward(x: np.ndarray, sr: int, thr_db: float, ratio: float, max_db: float) -> np.ndarray:
@@ -265,13 +365,6 @@ def root_pc(shots: list[OneShot]) -> int:
     return int(np.argmax(w)) if w.any() else 1
 
 
-# riddim (Level Up): one note plus rests, a 2-bar motif, each hit with its own LFO rate (beat, beats, div)
-RIDDIM_MOTIF = [
-    [(0.0, 1.0, "1/8T"), (1.5, 0.25, "1/4"), (2.75, 0.5, "1/8")],
-    [(0.0, 0.5, "1/4T"), (0.75, 0.75, "1/8T"), (2.5, 1.0, "1/8T")],
-]
-
-
 # ---------------------------------------------------------------------------------------------- per-clip renders
 # The engine path (prepare.py dispatches groove clips by patch_id prefix, kit clips by kit_id): each renders one lane's
 # audio for one clip; drums, ducking, the impact and the loudness belong to the other lanes and to mixdown.
@@ -302,7 +395,8 @@ def eight08(midi: float, beats: float, bpm: float, sr: int, blip_st: float = 5.0
 
 
 def resample_bass(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: int, bars: int, style: str, bpm: float,
-                  rng: np.random.Generator, with_sub: bool = True, switch_every: int = 4) -> np.ndarray:
+                  rng: np.random.Generator, with_sub: bool = True, switch_every: int = 4, chord=None,
+                  tune: float = 0.0, mid_chord=None, tension: bool = False) -> np.ndarray:
     """The resample path for one clip: the source's one-shots from those bars (designed growls when it has none),
     re-sequenced on the style's grid (its switch bar every `switch_every`), printed and chained; the clean sub under
     them unless another lane owns the low end (`with_sub`). The seed turns which shots call and answer. (2, n), not
@@ -317,10 +411,10 @@ def resample_bass(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: 
     shots = source if has_growls(bass, sr, t0, max(8, bars) * 240.0 / analysis.bpm) else design_shots(DESIGN_FOR[style], rp, bpm, sr)
     k = int(rng.integers(len(shots))) if shots else 0
     shots = [print_shot(s, sr) for s in shots[k:] + shots[:k]]
-    bus, hits = sequence(shots, style, bars, bpm, sr, rp, switch_every)
+    bus, hits = sequence(shots, style, bars, bpm, sr, rp, switch_every, mid_chord or chord, tune, tension)
     out = GROWL * drop_chain(bus, sr)
-    if with_sub:
-        sub = sub_line(hits, bpm, sr, n)
+    if with_sub:  # the sub on the chord roots, not on the one-shots' notes (REMIX_HARMONY 2.1)
+        sub = root_line((lambda b, beat: chord(b, beat)[0]) if chord else (lambda b, beat: rp), bars, bpm, sr, n, tune)
         out = out / max(float(np.abs(out).max()), EPS) + SUB * np.stack([sub, sub])
     return out.astype(np.float32)
 
@@ -368,7 +462,8 @@ def _voice(style: str):
 
 
 def hybrid_growls(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: int, bars: int, growl: str, bpm: float,
-                  rng: np.random.Generator, switch_every: int = 4, axes: dict[str, str] | None = None) -> np.ndarray:
+                  rng: np.random.Generator, switch_every: int = 4, axes: dict[str, str] | None = None,
+                  chord=None, tune: float = 0.0, with_sub: bool = False, mid_chord=None, tension: bool = False) -> np.ndarray:
     """The headline hybrid's growls for one clip (Sound Bible 2.5): designed growls answering the source's held 808
     every half bar (the 808 calls on beats 1-2, the growls on 3-4; the whole second half of every 4th bar is the
     tearout switch-up), each hit on the 808's note of the moment. With S3's tearout voices each window opens with a
@@ -392,13 +487,21 @@ def hybrid_growls(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: 
     k = 0
     for bar in range(bars):
         first = True
-        for bb, beats, step, _ in (TEAROUT_SWITCH if bar % switch_every == switch_every - 1 else TEAROUT):
+        for bb, beats, step, _ in (TEAROUT_SWITCH[0] if bar % switch_every == switch_every - 1 else TEAROUT_H[bar % 2]):
             if bb < 2.0:  # the 808's half
                 continue
+            step = _plain(step, tension)
             x = 4 * bar + bb
-            target = grow(pitch_at(x)) + step
+            if chord:  # the bar's chord (the source's harmony): its root in the growl octave, its own third
+                rp_bar, third = (mid_chord or chord)(bar, bb)
+                target = 36 + rp_bar + _deg(step, third) + tune
+            else:
+                target = grow(pitch_at(x)) + _deg(step, 3) + tune
+            target += 12 if bar % 8 == 6 else 0  # 5.2: bar 7 escalates (an octave up)
             if call and answer:
-                y = _clean_hit(call if first else answer, "chomp" if first else "talker", target, beats, bpm, sr,
+                # 5.2: bars 9-16 a new patch family (S3's pwm calls, disperser answers), bars 1-8 chomp / talker
+                pair = ("pwm", "disperser") if bar >= 8 and _voice("pwm") and _voice("disperser") else ("chomp", "talker")
+                y = _clean_hit(call if first else answer, pair[0] if first else pair[1], target, beats, bpm, sr,
                                variant, k, axes)
             else:
                 s = shots[order[k % len(order)]]
@@ -407,6 +510,7 @@ def hybrid_growls(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: 
             y = _fade(y, sr, 0.004, 0.012)  # butted hits: a 4 ms rise (a loud growl rising in 2 ms reads as a click)
             first = False
             k += 1
+            _note(x, beats, target, step, "mid")
             a = int(round(x * beat * sr))
             m = min(y.shape[1], n - a)
             if m > 0:
@@ -415,13 +519,18 @@ def hybrid_growls(bass: np.ndarray, sr: int, analysis: SongAnalysis, start_bar: 
         out = signal.sosfilt(signal.butter(4, MID_HP, "high", fs=sr, output="sos"), bus, axis=-1).astype(np.float32)
     else:
         out = drop_chain(bus, sr)
-    return (GROWL * out).astype(np.float32)
+    out = GROWL * out
+    if with_sub:  # no source 808 under it (the plan moved off the source's roots): the sub on the plan's roots
+        sub = root_line((lambda b, beat: chord(b, beat)[0]) if chord else (lambda b, beat: rp), bars, bpm, sr, n, tune)
+        out = 0.5 * out / max(float(np.abs(out).max()), EPS) + 0.9 * np.stack([sub, sub])
+    return out.astype(np.float32)
 
 
 def riddim_bass(sr: int, bpm: float, bars: int, root: int, rng: np.random.Generator, switch_every: int = 4,
-                axes: dict[str, str] | None = None) -> np.ndarray:
-    """Riddim's bass for one clip: one note (the root) plus rests on RIDDIM_MOTIF, each hit its own LFO rate (the seed
-    picks which motif bar leads), developing over every 4 bars (the filter opening) with an octave accent ending every
+                axes: dict[str, str] | None = None, chord=None, tune: float = 0.0, mid_chord=None,
+                tension: bool = False) -> np.ndarray:
+    """Riddim's bass for one clip: RIDDIM_H's degrees on each bar's chord (REMIX_HARMONY 2.5), each hit its own LFO rate by
+    its length (the seed picks which template bar leads), developing over every 4 bars (the filter opening) with an octave accent ending every
     `switch_every` bars (the take's drop.cadence), over a held sub. The voice: S1's R1 square-FM wub
     (render_growl("riddim"), its LFO rate by variant; the take's `axes`), the formant "yoi" R2 under it at the take's
     riddim.r2_blend, when installed, else this module's placeholder wub. (2, n)."""
@@ -432,7 +541,6 @@ def riddim_bass(sr: int, bpm: float, bars: int, root: int, rng: np.random.Genera
     bus = np.zeros((2, n), np.float32)
     hits: list[tuple[float, float, float]] = []
     lead = int(rng.integers(2))
-    midi = 36 + root
     r1, r2 = _voice("riddim"), _voice("yoi")
     try:
         from fvwks_synth.riddim import r2_blend
@@ -443,13 +551,16 @@ def riddim_bass(sr: int, bpm: float, bars: int, root: int, rng: np.random.Genera
     rate = {"1/4": 0, "1/4T": 1, "1/8": 2, "1/8T": 3}
     for bar in range(bars):
         k = bar % 4
-        motif = RIDDIM_MOTIF[(bar + lead) % 2]
-        for j, (b, beats, div) in enumerate(motif):
-            accent = bar % switch_every == switch_every - 1 and j == len(motif) - 1
-            m = midi + (12 if accent else 0)
+        motif = RIDDIM_H[(bar + lead) % 2]  # the degree template (REMIX_HARMONY 2.5), each note on the bar's chord
+        for j, (b, beats, degree, _) in enumerate(motif):
+            degree = _plain(degree, tension)
+            rp, third = (mid_chord or chord)(bar, b) if chord else (root, 3)
+            accent = bar % switch_every == switch_every - 1 and j == len(motif) - 1  # the phrase end an octave up
+            m = 36 + rp + tune + _deg(degree, third) + (12 if (accent and degree == "R") or bar % 8 == 6 else 0)
+            div = "1/8T" if beats >= 0.75 else "1/4" if beats >= 0.5 else "1/4T" if beats > 1 / 3 else "1/8"  # by length
             if r1 is not None:
                 y = r1("riddim", m, beats, bpm, sr=sr, variant=rate[div], sub=False, axes=axes)
-                if r2 is not None and (accent or j == 0):
+                if r2 is not None and (accent or j == 0 or bar >= 8):  # 5.2: bars 9-16, the yoi under every note
                     y = y + blend * r2("yoi", m, beats, bpm, sr=sr, variant=(bar // 4) % 4, sub=False, axes=axes)[:, : y.shape[1]]
             else:
                 y = wub(m, beats, bpm, sr, div, open_oct=2.4 + 0.35 * k, variant=(bar // 4) % 3)
@@ -457,10 +568,12 @@ def riddim_bass(sr: int, bpm: float, bars: int, root: int, rng: np.random.Genera
             mm = min(y.shape[1], n - a)
             if mm > 0:
                 bus[:, a : a + mm] += y[:, :mm]
-                hits.append((float(midi), 4 * bar + b, beats))
-    # the sub holds (plan C6 / the user's held weight): the root re-struck every 2 bars, only ducked (by mixdown)
-    held = [(float(midi), float(b), min(8.0, 4.0 * bars - b) - 0.25) for b in np.arange(0.0, 4.0 * bars, 8.0)]
-    sub = np.stack([sub_line(held, bpm, sr, n)] * 2)
+                hits.append((float(m), 4 * bar + b, beats))
+                _note(4 * bar + b, beats, m, degree, "mid")
+    # the sub holds (plan C6 / the user's held weight): the root re-struck on a chord change or every 2 bars, only
+    # ducked (by mixdown)
+    sub = np.stack([root_line((lambda b, beat: chord(b, beat)[0]) if chord else (lambda b, beat: root), bars, bpm, sr, n,
+                              tune)] * 2)
     chained = bus if r1 is not None else drop_chain(bus, sr)  # S1's voices come chained
     lr4 = signal.butter(2, 180, "high", fs=sr, output="sos")  # off the sub's band: the wub's C2 fundamental too (LR4)
     chained = signal.sosfilt(lr4, signal.sosfilt(lr4, chained, axis=-1), axis=-1)

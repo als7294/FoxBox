@@ -209,3 +209,63 @@
   --vb-dur-reveal: 0.75s;  /* Clip waveform print-in, left → right */
   --vb-dur-prepare: 1.3s;  /* shimmer period */
 }
+
+/* MASKS 1.5.1 (Phase 2): app/design/masks/masks-tokens.css */
+:root {
+  /* layout (1512×982; compact floor 1280×800; main is a size container) */
+  --vb-mk-tabs-w: clamp(174px, 13.6cqw, 196px);     /* CategoryTabs column */
+  --vb-mk-opts-w: clamp(316px, 26cqw, 372px);       /* options column */
+  --vb-mk-bar-h: clamp(58px, 7.2cqh, 68px);         /* SaveBar strip */
+  --vb-mk-row-h: 46px;                              /* CategoryTabs slot min height (max 66px, rows flex) */
+  --vb-mk-head-h: 48px;                             /* preview + options panel heads */
+  --vb-mk-gap: 10px;
+
+  /* surfaces */
+  --vb-mk-sel: #18181b;                             /* selected tile / slot / card fill */
+  --vb-mk-sel-ring: rgba(var(--vb-ink-rgb), 0.5);   /* selected slot border */
+  --vb-mk-thumb-bg: radial-gradient(ellipse 60% 62% at 50% 45%, #1d1d22, #0b0b0c 72%);
+  --vb-mk-stage-bg: radial-gradient(ellipse 52% 58% at 50% 40%, #1a1a1e 0%, #0d0d0f 58%, #080809 100%);
+  --vb-mk-stage-floor: radial-gradient(ellipse at center, rgba(var(--vb-accent-rgb), 0.09), transparent 65%);
+  --vb-mk-bracket: rgba(var(--vb-ink-rgb), 0.25);   /* viewport corner brackets, 16px, 1px */
+  --vb-mk-overlay: rgba(11, 11, 12, 0.88);          /* chips/bars floating on the 3D viewport */
+  --vb-mk-slot-value: #bdb8ac;                      /* unselected slot value text (AA on #0b0b0c) */
+
+  /* switches (FxModule) */
+  --vb-mk-switch-w: 34px;
+  --vb-mk-switch-h: 20px;
+  --vb-mk-switch-on-bg: rgba(var(--vb-amber-rgb), 0.14);
+  --vb-mk-switch-on-edge: rgba(var(--vb-amber-rgb), 0.6);
+
+  /* 3D stage: three.js reads these through cssVar() */
+  --vb-mk-dummy-wire: #7cc8ff;                      /* wireframe dummy lines (opacity .3; head .08) */
+  --vb-mk-dummy-core: #0a0a0d;                      /* occluding dark core under the wire */
+  --vb-mk-light-key: #fff1e0;                       /* key, 2.4, from front-left-top (-2.5, 3, 4) */
+  --vb-mk-light-rim: #ff4b2b;                       /* rim, 3.4, from back-right (3.5, 1.5, -3) */
+  --vb-mk-light-fill: #7cc8ff;                      /* fill, 1.2, from back-left (-4, .5, -2) */
+  --vb-mk-hemi-sky: #2a2a33;
+  --vb-mk-hemi-ground: #050505;
+  --vb-mk-edge-dash: 0.14;                          /* marching crease lines (world units) */
+  --vb-mk-edge-gap: 0.22;
+  --vb-mk-glitch-r: #ff3b3b;                        /* RGB-split ghosts */
+  --vb-mk-glitch-c: #3be4ff;
+  --vb-mk-wave-build: rgba(var(--vb-ink-rgb), 0.26);  /* demo-drop waveform behind the dummy (editor only) */
+  --vb-mk-wave-drop: rgba(var(--vb-accent-rgb), 0.34);
+
+  /* finishes: fill opacity + edge-line strength (edges also × (0.55 + EDGE GLOW × 0.45)) */
+  --vb-mk-fin-wire-fill: 0.16;   --vb-mk-fin-wire-edge: 1;
+  --vb-mk-fin-glass-fill: 0.55;  --vb-mk-fin-glass-edge: 0.85;
+  --vb-mk-fin-holo-fill: 0.4;    --vb-mk-fin-holo-edge: 0.7;
+  --vb-mk-fin-poly-fill: 1;      --vb-mk-fin-poly-edge: 0.35;
+  --vb-mk-fin-glitch-fill: 0.94; --vb-mk-fin-glitch-edge: 0.6;
+
+  /* safety (UX audit) */
+  --vb-mk-flash-max: 3;          /* flashes per second, hard cap */
+  --vb-mk-demo-bpm: 128;         /* demo track: 8 bars build + 8 bars drop, loops */
+
+  /* motion */
+  --vb-mk-dur-slot: 0.75s;       /* lineup card entrance (vbSlot), 75ms stagger */
+  --vb-mk-dur-scan: 0.6s;        /* one scan line down the mask on every change */
+  --vb-mk-dur-roll: 1s;          /* RANDOMIZE: 3 part-only shuffles at 0/330/660ms, final at 1000ms */
+  --vb-mk-dur-status: 3.6s;      /* status display message lifetime */
+  --vb-mk-ease-lineup: cubic-bezier(0.2, 0.9, 0.2, 1);  /* lineup flex-grow .5s */
+}

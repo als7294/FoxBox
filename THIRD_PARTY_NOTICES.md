@@ -57,7 +57,7 @@ bundled: the app downloads them at first run or on request, under each model's o
 | Project | Use | License |
 |---|---|---|
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 1.0.1 (vendored in `vendor/mediapipe`) | On-device face detection, face and hand landmarks, person segmentation | Apache-2.0 |
-| MediaPipe models: BlazeFace short-range, BlazeFace full-range (`blaze_face_full_range.tflite`, for small and far faces; pinned by sha256), Face Landmarker, Gesture Recognizer (hand landmarks + named gestures), Selfie Segmenter (float16, pinned by sha256) | Hiding faces, depth pass-through, hand signals, auto-framing | Apache-2.0 |
+| MediaPipe models: BlazeFace full-range (`blaze_face_full_range.tflite`, the face detector: small and far faces; pinned by sha256), Face Landmarker, Gesture Recognizer (hand landmarks + named gestures), Selfie Segmenter, Pose Landmarker lite (BlazePose GHUM, `pose_landmarker_lite.task`) (float16, pinned by sha256) | Hiding faces (the pose's head keeps a face covered when the face finders lose it), depth pass-through, hand signals, auto-framing | Apache-2.0 |
 
 ## LIVE and visuals (1.3–1.5)
 | Project | Use | License |
@@ -83,6 +83,17 @@ bundled: the app downloads them at first run or on request, under each model's o
 | Surge XT factory bass patches by A.Liv, qb and Kinsey Dulcet (12, each tagged CC0 in its own metadata) | REMIX bass sounds | CC0-1.0 |
 | [TR-808 samples by Michael Fischer (Technopolis)](https://github.com/tidalcycles/sounds-tr808-fischer), sampled from a real Roland TR-808 in 1994, via tidalcycles | GENRE FLIP drum kits | CC0-1.0 |
 | An empty Ableton Live 11 set skeleton (`fvwks_server/als_live11.xml`): default track, clip, scene and master structure only, normalized from a test fixture in [ableton-inspector](https://github.com/owenbush/ableton-inspector) (Owen Bush) | REMIX: the Ableton Live export (BETA), when Live isn't installed | MIT |
+
+## REMIX (1.5.1)
+The drum layers: a recorded one-shot under each synthesized kit hit (51 files, 1.5 MB, in `fvwks_synth/samples`; every
+file's source, author and licence are in its `manifest.json`).
+
+| Project | Use | License |
+|---|---|---|
+| [Sonic Pi](https://github.com/sonic-pi-net/sonic-pi)'s sample set (`etc/samples`): drum one-shots from [Freesound](https://freesound.org) by DWSD, Dolfeus, Northern_Monkey, Peram, Rodrigo The Mad, SoundCollectah, Zajo, cubix, hullum, looppool, menegass and zgump (23 files) | REMIX drum layers (kick, snare, clap, hat, open hat, impact, cymbal) | CC0-1.0 |
+| [VSCO-2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Versilian Studios: anvil, brake-drum and metal hits (7 files) | REMIX drum layers (metal percussion) | CC0-1.0 |
+| [Impact Sounds 1.0](https://kenney.nl/assets/impact-sounds) by Kenney (5 files) | REMIX drum layers (metal percussion, impacts) | CC0-1.0 |
+| [Gogodze Phu Vol II](https://github.com/sfzinstruments/karoryfer.gogodze-phu-vol-ii) by Karoryfer Samples, via sfzinstruments: acoustic snare hits, the close mic mixed with the overheads and the room as recorded (16 files) | REMIX drum layers (the snare's transient and room) | CC0-1.0 |
 
 The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
 Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that

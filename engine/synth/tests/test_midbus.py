@@ -59,6 +59,18 @@ def test_resample_chain_keeps_every_generation_dense_and_without_aliasing():
     assert 10 * np.log10(spec[~harm & (f > 100)].sum() / spec[harm].sum()) < -60
 
 
+def test_a_held_print_stays_on_its_notes_harmonics():
+    """REMIX_HARMONY 1.4: with the note's f0 chain A shifts by m f0 / 2 and combs on an octave of f0."""
+    assert abs(mb.octave_of(440.0, 65.41) - 523.28) < 0.01 and mb.harmonic_shift(-60.0, 32.7) == -65.4
+    assert list(mb.harmonic_of(np.array([900.0, 20.0]), 110.0)) == [880.0, 110.0]
+    f0, t = 98.0, np.arange(SR) / SR
+    for seed in range(3):
+        y = mb.chain_a(0.8 * np.sin(2 * np.pi * 4 * f0 * t), SR, np.random.default_rng(seed), movement="shift", f0=f0)
+        spec, f = np.abs(np.fft.rfft(y * np.hanning(len(y)))), np.fft.rfftfreq(len(y), 1 / SR)
+        for peak in f[np.argsort(spec)[-5:]]:  # the loudest partials sit on the f0 / 2 grid
+            assert abs(peak / (f0 / 2) - round(peak / (f0 / 2))) * f0 / 2 < 2.0, (seed, peak)
+
+
 def test_the_resonance_notch_takes_down_the_tallest_2_4_khz_peak():
     rng = np.random.default_rng(0)
     x = rng.standard_normal(SR) * 0.1 + 0.3 * np.sin(2 * np.pi * 2900 * T)  # a whistle over a flat bed

@@ -764,12 +764,31 @@
   transition: box-shadow 0.2s;
 }
 
+/* FIRST HIT: a 2-beat hit, in the marker's ember, with a ◆ while it's narrow (at FIT). */
+.clip[data-hit] > div {
+  border-color: var(--vb-mk-first-hit);
+}
+
+.hitGlyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--vb-mk-first-hit);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Touching clips from one source are one strip: square inner corners, no border between them. */
 .clip[data-join-prev] > div {
+  border-left: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
 .clip[data-join-next] > div {
+  border-right: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -817,6 +836,38 @@
 
 .clip[data-state='preparing'] .wave {
   opacity: var(--vb-tl-wave-preparing-opacity);
+}
+
+/* The ORIGINAL before a BUILD: the stems read dim; what BUILD will change is dashed ember (the plan). */
+.panel[data-original] .wave {
+  opacity: 0.32;
+}
+.panel[data-original] .block {
+  cursor: default;
+}
+.status[data-plan] {
+  color: var(--vb-accent);
+}
+.block[data-plan=''] > div {
+  background: rgba(var(--vb-accent-rgb), 0.07);
+  border: 1px dashed rgba(var(--vb-accent-rgb), 0.75);
+  box-shadow: 0 0 18px rgba(var(--vb-accent-rgb), 0.18);
+}
+.block[data-plan=''] .blockSrc {
+  color: var(--vb-accent);
+}
+.block[data-plan='dim'] > div {
+  opacity: 0.45;
+}
+/* Under a planned section, through the lanes. */
+.planBand {
+  position: absolute;
+  top: 46px;
+  bottom: 0;
+  background: rgba(var(--vb-accent-rgb), 0.045);
+  border-left: 1px dashed rgba(var(--vb-accent-rgb), 0.4);
+  border-right: 1px dashed rgba(var(--vb-accent-rgb), 0.4);
+  animation: plan 2.4s ease-in-out infinite;
 }
 
 .tags {
@@ -1147,5 +1198,14 @@
   }
   to {
     opacity: 0;
+  }
+}
+@keyframes plan {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
   }
 }

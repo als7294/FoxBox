@@ -16,8 +16,8 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
   const wiping = useUi((s) => Boolean(s.wipe))
   const navigate = useUi((s) => s.navigate)
   const setShortcutsOpen = useUi((s) => s.setShortcutsOpen)
-  // REMIX has no top bar (design/remix): its transport has BPM, key and loudness; the mark and engine status sit in the rail.
-  const bare = screen === 'remix'
+  // REMIX and MASKS have no top bar (design/remix, design/masks): the mark and engine status sit in the rail.
+  const bare = screen === 'remix' || screen === 'masks'
   return (
     <div className={styles.shell} data-screen={screen} data-wipe={wiping || undefined}>
       {bare ? <div className={styles.railTop} /> : <TopBar />}
@@ -29,7 +29,7 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
             type="button"
             className={styles.railItem}
             aria-current={screen === n.id ? 'page' : undefined}
-            aria-label={n.wip ? `${n.label}: ${n.wip}` : n.label}
+            aria-label={n.wip ? `${n.label}: ${n.wip}` : n.beta ? `${n.label}, beta` : n.label}
             aria-disabled={n.wip ? true : undefined}
             data-wip={n.wip ? '' : undefined}
             title={n.wip}
@@ -42,6 +42,11 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
             {n.wip && (
               <span className={styles.railWip} aria-hidden="true">
                 WIP
+              </span>
+            )}
+            {n.beta && (
+              <span className={styles.railBeta} aria-hidden="true">
+                BETA
               </span>
             )}
           </button>

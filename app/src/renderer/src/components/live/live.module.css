@@ -711,3 +711,19 @@
     display: none;
   }
 }
+
+/* FROM REKORDBOX beside PICK A SONG (1.5.1). */
+.songRekordbox {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: var(--vb-r2);
+  background: none;
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.songRekordbox:hover {
+  background: var(--vb-fill-1);
+}

@@ -20,9 +20,11 @@ const barNo = (beat: number, bpb: number) => +(beat / bpb + 1).toFixed(2)
 /**
  * Play/stop (SPACE), loop (L: the region dragged on the ruler, else the selected section, else the whole remix), A/B
  * (A = source A's original at the matching bar, B = the remix), the BPM/key readout and the EXPORT drawer toggle. Lives
- * inside the timeline's playlist provider.
+ * inside the timeline's playlist provider. Before a BUILD it plays the ORIGINAL (EXPORT waits for a take); `idle` (no
+ * track yet) shows the whole bar disabled, with that line in the status display; `note` (why BUILD is blocked) shows
+ * there instead of the key hints, with the bar live.
  */
-export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | undefined }) {
+export function RemixTransport({ remix, songA, idle, note }: { remix: Remix; songA: Song | undefined; idle?: string; note?: string }) {
   const { play, stop, setLoopEnabled, setLoopRegion } = usePlaylistControls()
   const { isPlaying } = usePlaybackAnimation()
   const currentTime = usePlayhead()
@@ -74,6 +76,7 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
   }
   const playing = isPlaying || origPlaying
   const toggle = () => {
+    if (idle != null) return
     if (playing) return stopAll()
     const at = loop ? region[0] : currentTime
     if (side === 'A') startOriginal(at)
@@ -138,6 +141,7 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
         className={css.play}
         data-on={playing || undefined}
         onClick={toggle}
+        disabled={idle != null}
         aria-pressed={playing}
         aria-keyshortcuts="Space"
       >
@@ -149,6 +153,7 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
         aria-pressed={loop}
         aria-keyshortcuts="L"
         title={`Loop (L): ${loopBeats ? `bars ${barNo(a, bpb)}–${barNo(b, bpb)}` : sel ? 'the selected section' : 'the whole remix'}; drag on the bar ruler to set the region`}
+        disabled={idle != null}
         onClick={() => useRemix.setState({ loopOn: !loop })}
       >
         ⟲ LOOP
@@ -166,7 +171,8 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
       <span className={css.clock}>
         <b>{clock(currentTime)}</b>
         <span>
-          BAR {Math.floor(beat / bpb) + 1}.{Math.floor(beat % bpb) + 1} / {bars}
+          BAR {Math.floor(beat / bpb) + 1}.{Math.floor(beat % bpb) + 1}
+          {bars > 0 && ` / ${bars}`}
         </span>
       </span>
       <span className={css.beats} aria-hidden="true">
@@ -177,18 +183,18 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
       <LevelMeters playing={playing} measured={lufs} />
       <StatusDisplay
         live={playing ? livePosition(remix, beat, bpb) : undefined}
-        idle="SPACE PLAYS · R ROLLS · ? KEYS"
-        idleShort="SPACE · R · ?"
+        idle={idle ?? note ?? (takes.length ? 'SPACE PLAYS · R ROLLS · ? KEYS' : 'PRESS BUILD')}
+        idleShort={idle ?? note ?? (takes.length ? 'SPACE · R · ?' : 'PRESS BUILD')}
       />
       <span className={css.readout}>
-        <b>{Math.round(remix.bpm)}</b>BPM
+        <b>{idle != null ? '—' : Math.round(remix.bpm)}</b>BPM
       </span>
       <span className={css.readout}>
-        <b>{keyLabel(remix.key)}</b>
+        <b>{idle != null ? '—' : keyLabel(remix.key)}</b>
       </span>
       <span className={css.segmented} role="radiogroup" aria-label="Compare">
         {compare.map((c) => (
-          <button key={c.id} type="button" role="radio" aria-checked={c.on} onClick={c.pick}>
+          <button key={c.id} type="button" role="radio" aria-checked={c.on} disabled={idle != null} onClick={c.pick}>
             <span className={css.wide}>{c.label}</span>
             <span className={css.compact}>{c.short}</span>
           </button>
@@ -198,6 +204,8 @@ export function RemixTransport({ remix, songA }: { remix: Remix; songA: Song | u
         type="button"
         className={css.exportBtn}
         aria-expanded={exportOpen}
+        disabled={!takes.length}
+        title={takes.length ? undefined : 'BUILD a take to export it'}
         onClick={() => useRemix.setState({ exportOpen: !exportOpen })}
       >
         EXPORT {exportOpen ? '▾' : '▴'}
@@ -221,7 +229,7 @@ function LevelMeters({ playing, measured }: { playing: boolean; measured: number
     if (playing) return
     resetMeters()
     if (l.current && r.current) l.current.style.transform = r.current.style.transform = 'scaleX(0)'
-    if (text.current) text.current.textContent = measured != null ? db(measured) : '—'
+    if (text.current) text.current.textContent = measured === null ? '…' : measured != null ? db(measured) : '—'
   }, [playing, measured])
   useFrame((now) => {
     if (!playing) return
@@ -248,7 +256,8 @@ function LevelMeters({ playing, measured }: { playing: boolean; measured: number
         className={css.lufs}
         title={`Short-term LUFS, live while playing (club-safe is −7).${measured != null ? ` This take measured ${db(measured)} LUFS when it was prepared.` : ''}`}
       >
-        <b ref={text}>{measured != null ? db(measured) : '—'}</b> LUFS
+        {/* null: the take's loudness job is still running (v0.15.3); undefined: no take yet. */}
+        <b ref={text}>{measured === null ? '…' : measured != null ? db(measured) : '—'}</b> LUFS
       </span>
     </>
   )

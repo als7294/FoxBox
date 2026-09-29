@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import type { MashMatch, RemixRecipe } from '@/api/remix'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
+import type { MashMatch } from '@/api/remix'
 import type { Song } from '@/api/types'
 import { camelot, normalizeKey } from '@/lib/keys'
 import { useSong } from '@/state/song'
 import { REMIX_ALL, remixAll, useRemixAll } from './remixAll'
 import css from './sources.module.css'
+import { RekordboxImport } from '@/components/song/RekordboxImport'
 import { remix as actions, songBpm, songKeyOf, useRemix, useSongs } from './store'
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
@@ -13,22 +14,6 @@ const ACCEPT = '.wav,.aif,.aiff,.flac,.mp3,.m4a,.aac,audio/wav,audio/aiff,audio/
 
 /** Only file drags (Finder, rekordbox) count: section drags on the timeline pass through. */
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files')
-
-export const RECIPES: { id: RemixRecipe; label: string; short: string; line: string }[] = [
-  {
-    id: 'vip',
-    label: 'VIP / DROP SWAP',
-    short: 'VIP',
-    line: 'Keep the track. Rebuild its drops so the held 808 stays and new growls answer it.',
-  },
-  { id: 'mashup', label: 'MASHUP', short: 'MASHUP', line: 'A’s build or vocals into B’s drop, with key and tempo matched.' },
-  {
-    id: 'flip',
-    label: 'GENRE FLIP',
-    short: 'FLIP',
-    line: 'The same track as trap-hybrid, riddim, half-time, 140, four-on-the-floor or DnB.',
-  },
-]
 
 /**
  * A drop target for tracks: `target` fills that slot, none = the page (A first, then B). Highlights only while files
@@ -69,7 +54,7 @@ export function useTrackDrop(target?: 'A' | 'B') {
  * YOUR TRACKS → A: a light-dismiss list under its button (a native popover, no modal): the Studio's song first, then
  * yours, then ADD A FILE….
  */
-function TrackPicker({
+export function TrackPicker({
   slot,
   label,
   className,
@@ -82,6 +67,8 @@ function TrackPicker({
 }) {
   const songs = useSongs().data ?? []
   const studio = useSong((s) => s.song)
+  const qc = useQueryClient()
+  const [rekordbox, setRekordbox] = useState(false)
   const current = useRemix((s) => (slot === 'A' ? s.slotA : s.slotB))
   const recipe = useRemix((s) => s.recipe)
   const picked = useRemixAll((s) => s.picked)
@@ -103,54 +90,72 @@ function TrackPicker({
         popover="auto"
         className={css.picker}
         style={{ positionAnchor: `--tracks-${id}` } as object}
-        role="listbox"
+        role={rekordbox ? 'region' : 'listbox'}
         aria-label={`Your tracks → ${slot}`}
+        onToggle={(e) => e.newState === 'closed' && setRekordbox(false)}
       >
-        <span className={css.pickerHead}>YOUR TRACKS → {slot}</span>
-        {studio && (
-          <button type="button" role="option" aria-selected={studio.id === current} onClick={() => pick(studio.id)}>
-            <b>{studio.name}</b>
-            <span>STUDIO SONG</span>
-          </button>
-        )}
-        {songs
-          .filter((s) => s.id !== studio?.id)
-          .map((s) => (
-            <div key={s.id} className={css.pickRow}>
-              {slot === 'A' && REMIX_ALL && (
-                <button
-                  type="button"
-                  role="checkbox"
-                  className={css.tick}
-                  aria-checked={picked.includes(s.id)}
-                  aria-label={`${s.name}: remix it with REMIX ALL`}
-                  onClick={() => remixAll.toggle(s.id)}
-                />
-              )}
-              <button type="button" role="option" aria-selected={s.id === current} onClick={() => pick(s.id)}>
-                <b>{s.name}</b>
-                <span>{facts(s)}</span>
-              </button>
-            </div>
-          ))}
-        {picked.length > 0 && (
-          <button
-            type="button"
-            className={css.all}
-            disabled={recipe === 'mashup'}
-            title={recipe === 'mashup' ? 'MASHUP needs a B for each track: pick VIP or GENRE FLIP' : undefined}
-            onClick={() => {
-              remixAll.start()
-              list.current?.hidePopover()
+        {rekordbox ? (
+          <RekordboxImport
+            onClose={() => setRekordbox(false)}
+            onImported={(ids) => {
+              void qc.invalidateQueries({ queryKey: ['remix', 'songs'] })
+              if (ids[0]) pick(ids[0]) // the first import lands in the slot; the rest wait in your tracks
+              setRekordbox(false)
             }}
-          >
-            REMIX ALL ({picked.length}) · ONE TAKE EACH
-          </button>
+          />
+        ) : (
+          <>
+            <span className={css.pickerHead}>YOUR TRACKS → {slot}</span>
+            {studio && (
+              <button type="button" role="option" aria-selected={studio.id === current} onClick={() => pick(studio.id)}>
+                <b>{studio.name}</b>
+                <span>STUDIO SONG</span>
+              </button>
+            )}
+            {songs
+              .filter((s) => s.id !== studio?.id)
+              .map((s) => (
+                <div key={s.id} className={css.pickRow}>
+                  {slot === 'A' && REMIX_ALL && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      className={css.tick}
+                      aria-checked={picked.includes(s.id)}
+                      aria-label={`${s.name}: remix it with REMIX ALL`}
+                      onClick={() => remixAll.toggle(s.id)}
+                    />
+                  )}
+                  <button type="button" role="option" aria-selected={s.id === current} onClick={() => pick(s.id)}>
+                    <b>{s.name}</b>
+                    <span>{facts(s)}</span>
+                  </button>
+                </div>
+              ))}
+            {picked.length > 0 && (
+              <button
+                type="button"
+                className={css.all}
+                disabled={recipe === 'mashup'}
+                title={recipe === 'mashup' ? 'MASHUP needs a B for each track: pick VIP or GENRE FLIP' : undefined}
+                onClick={() => {
+                  remixAll.start()
+                  list.current?.hidePopover()
+                }}
+              >
+                REMIX ALL ({picked.length}) · ONE TAKE EACH
+              </button>
+            )}
+            <button type="button" onClick={() => file.current?.click()}>
+              <b>ADD A FILE…</b>
+              <span>WAV · AIFF · FLAC · MP3 · M4A</span>
+            </button>
+            <button type="button" onClick={() => setRekordbox(true)}>
+              <b>IMPORT FROM REKORDBOX…</b>
+              <span>tracks, grids and cues</span>
+            </button>
+          </>
         )}
-        <button type="button" onClick={() => file.current?.click()}>
-          <b>ADD A FILE…</b>
-          <span>WAV · AIFF · FLAC · MP3 · M4A</span>
-        </button>
         <input
           ref={file}
           type="file"
@@ -180,7 +185,7 @@ function facts(song: Song): string {
     .join(' · ')
 }
 
-/** One source, one 52px row: the letter, title and facts, its bar waveform with builds and drops, STEMS, CHANGE, ✕. */
+/** One source, one 52px row: the letter, title and length, its bar waveform with builds and drops, CHANGE, ✕. */
 export function SourceSlot({ slot, songId }: { slot: 'A' | 'B'; songId: string | null }) {
   const songs = useSongs()
   const busy = useRemix((s) => s.slotBusy[slot])
@@ -203,9 +208,9 @@ export function SourceSlot({ slot, songId }: { slot: 'A' | 'B'; songId: string |
         <span className={css.meta}>ADDING {busy.toUpperCase()}…</span>
       ) : song ? (
         <>
-          <span className={css.title}>
+          <span className={css.title} title={facts(song)}>
             <b>{song.name}</b>
-            <span>{facts(song)}</span>
+            <span>{mmss(song.duration_s)}</span>
           </span>
           <Wave song={song} />
           <Stems song={song} />
@@ -257,20 +262,14 @@ function Wave({ song }: { song: Song }) {
   )
 }
 
-/** STEMS ✓ once split; splitting shows as it goes; a failed split says so (BUILD tries again). */
+/** A split in progress shows; a failed split says so (BUILD tries again). Split or not yet (BUILD splits): nothing. */
 function Stems({ song }: { song: Song }) {
   const s = song.stems_state
-  if (s === 'done') return <span className={css.stems}>STEMS ✓</span>
+  if (s === 'done' || s === 'none') return null
   if (s === 'error')
     return (
       <span className={css.stems} data-tone="bad" title="BUILD tries the split again">
         ▲ STEM SPLIT FAILED
-      </span>
-    )
-  if (s === 'none')
-    return (
-      <span className={css.stems} data-tone="dim" title="The stems split on BUILD">
-        STEMS ON BUILD
       </span>
     )
   return (
@@ -280,34 +279,154 @@ function Stems({ song }: { song: Song }) {
   )
 }
 
-/** No track yet: one big drop zone, and the three recipes (a click picks one). */
+const GLYPHS = '#%&@$▮▯01<>/\\=+'
+const rnd = (i: number) => {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453
+  return x - Math.floor(x)
+}
+/** The deck's 96 idle bars: a height and an EQ wobble's length and phase each (seeded, so they hold between renders). */
+const EQ = Array.from({ length: 96 }, (_, i) => ({
+  h: 18 + Math.abs(Math.sin(i * 0.37)) * 40 + rnd(i) * 20,
+  d: `${(1.6 + rnd(i + 96) * 1.8).toFixed(2)}s`,
+  dl: `${(-rnd(i + 192) * 3).toFixed(2)}s`,
+}))
+/** A track's peaks as 96 bar heights (0–1). */
+const shape = (song: Song) => {
+  const max = song.peaks.max
+  const top = Math.max(1e-6, ...max)
+  const step = max.length / 96
+  return EQ.map((_, i) => Math.max(0, ...max.slice(Math.floor(i * step), Math.ceil((i + 1) * step))) / top)
+}
+
+/**
+ * No track yet: DECK A, one big drop zone. Idle bars breathe in ice; a file over it turns them ember (LET GO); a pick
+ * from your six newest tracks scrambles its title in, then loads it. While the track uploads and reads, the deck shows it.
+ */
 export function RemixEmpty() {
-  const recipe = useRemix((s) => s.recipe)
+  const songs = useSongs().data
+  const slotA = useRemix((s) => s.slotA)
+  const busy = useRemix((s) => s.slotBusy.A)
+  const error = useRemix((s) => s.slotError.A)
   const { over, take, dropProps } = useTrackDrop('A')
+  const [ins, setIns] = useState<{ id: string; text: string; done: boolean } | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const song = songs?.find((x) => x.id === slotA)
+  const recent = useMemo(() => [...(songs ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6), [songs])
+  const state = over ? 'hot' : ins || busy || (slotA && !song) ? 'loading' : song ? 'reading' : 'idle'
+  const bars = useMemo(() => (song ? shape(song) : null), [song])
+  const insert = (x: Song) => {
+    if (ins) return
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return actions.setSlot('A', x.id)
+    const T = x.name.toUpperCase()
+    let k = 0
+    const tick = () => {
+      const n = Math.floor((T.length * ++k) / 16)
+      if (k < 16) {
+        const text = [...T].map((c, j) => (c === ' ' || j < n ? c : GLYPHS[Math.floor(Math.random() * GLYPHS.length)])).join('')
+        setIns({ id: x.id, text, done: false })
+        timer.current = setTimeout(tick, 45)
+      } else {
+        setIns({ id: x.id, text: T, done: true })
+        timer.current = setTimeout(() => {
+          setIns(null)
+          actions.setSlot('A', x.id)
+        }, 320)
+      }
+    }
+    tick()
+  }
+  const title = ins?.text ?? song?.name ?? busy?.replace(/\.[^.]+$/, '') ?? 'TRACK A'
+  const [t1, t2] = state === 'hot' ? ['LET', 'GO'] : state === 'idle' ? ['DROP', 'A TRACK'] : [title, '']
+  const bpm = songBpm(song)
+  const key = songKeyOf(song)
   return (
-    <section className={css.empty} aria-label="Drop a track" data-over={over || undefined} {...dropProps}>
-      <span className={css.kicker}>SOURCE A</span>
-      <h2>{over ? 'RELEASE' : 'DROP A TRACK'}</h2>
-      <p>WAV · AIFF · FLAC · MP3 · M4A. Drop two and they fill A, then B.</p>
-      <TrackPicker slot="A" className={css.btn} label="PICK FROM YOUR TRACKS ▾" onFiles={(f) => void take(f)} />
-      <div className={css.recipes}>
-        {RECIPES.map((r, i) => (
-          <button
-            key={r.id}
-            type="button"
-            className={css.recipe}
-            aria-pressed={recipe === r.id}
-            style={{ animationDelay: `${i * 80}ms` }}
-            onClick={() => actions.setRecipe(r.id)}
-          >
-            <span className={css.recipeLed} aria-hidden="true" />
-            <span className={css.recipeName}>
-              <span>0{i + 1}</span>
-              <b>{r.label}</b>
-            </span>
-            <span className={css.recipeLine}>{r.line}</span>
-          </button>
+    <section className={css.deck} aria-label="Drop a track" data-state={state} {...dropProps}>
+      <div className={css.deckBars} aria-hidden="true">
+        {EQ.map((b, i) => (
+          <span
+            key={i}
+            style={
+              state === 'reading'
+                ? { height: `${8 + bars![i]! * 88}%`, transitionDelay: `${i * 8}ms` }
+                : state === 'loading'
+                  ? { height: '4%' }
+                  : ({ height: `${Math.min(100, state === 'hot' ? b.h * 1.35 : b.h)}%`, '--d': b.d, '--dl': b.dl } as CSSProperties)
+            }
+          />
         ))}
+      </div>
+      {state === 'reading' && <span className={css.readSweep} aria-hidden="true" />}
+      <div className={css.deckShade} aria-hidden="true" />
+      <div className={css.deckLine} aria-hidden="true" />
+      <div className={css.deckHead}>
+        <span role="status">
+          <i aria-hidden="true" />
+          {{ idle: 'DECK A · INTAKE', hot: 'DECK A · RELEASE', loading: 'DECK A · LOADING', reading: 'DECK A · READING' }[state]}
+        </span>
+        <span>WAV · AIFF · FLAC · MP3 · M4A</span>
+      </div>
+      <div className={css.deckHero}>
+        <b className={css.t1} data-slam={ins?.done || undefined}>
+          {t1}
+        </b>
+        {t2 && <b className={css.t2}>{t2}</b>}
+        {error && state === 'idle' ? (
+          <span className={css.deckSub} data-tone="bad" role="alert">
+            ▲ CAN&apos;T READ {error.replace(/^Can't read this file: /, '').toUpperCase()} · USE WAV, AIFF, FLAC, MP3 OR M4A
+          </span>
+        ) : (
+          <span className={css.deckSub}>
+            {
+              {
+                idle: 'FROM FINDER, REKORDBOX, OR PICK ONE BELOW',
+                hot: 'RELEASE TO LOAD INTO DECK A',
+                loading: 'LOADING',
+                reading: 'READING DROPS · BASS DNA · DRUMS',
+              }[state]
+            }
+          </span>
+        )}
+        {song && (
+          <span className={css.deckStats}>
+            <span>
+              BPM <b>{bpm ? Math.round(bpm) : '…'}</b>
+            </span>
+            <span>
+              KEY <b>{key ? `${key} · ${camelot(normalizeKey(key))}` : '…'}</b>
+            </span>
+            <span>
+              LENGTH <b>{mmss(song.duration_s)}</b>
+            </span>
+            <span>
+              DROPS <b>{song.structure?.drops_s?.length ?? '…'}</b>
+            </span>
+          </span>
+        )}
+      </div>
+      {/* ALL TRACKS ▾ even with none yet: on a first run it's the way to ADD A FILE… or IMPORT FROM REKORDBOX… */}
+      <div className={css.crate} role="group" aria-label="Your newest tracks">
+        <TrackPicker slot="A" className={css.allBtn} label="ALL TRACKS ▾" onFiles={(f) => void take(f)} />
+        {recent.map((x, i) => {
+          const b = songBpm(x)
+          const k = songKeyOf(x)
+          return (
+            <button
+              key={x.id}
+              type="button"
+              data-me={ins?.id === x.id || undefined}
+              data-dim={(ins && ins.id !== x.id) || undefined}
+              style={{ animationDelay: `${200 + i * 60}ms` }}
+              onClick={() => insert(x)}
+            >
+              <span>{String(i + 1).padStart(2, '0')}</span>
+              <b>{x.name}</b>
+              <span>
+                {b ? Math.round(b) : '—'} · {k ?? '—'}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </section>
   )

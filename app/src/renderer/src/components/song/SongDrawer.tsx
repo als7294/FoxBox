@@ -56,7 +56,9 @@ export function SongDrawer() {
     if (!s.song || !g || !r || !placed) return
     setLoading(true)
     try {
-      const p = hq ? await previewHq({ grid: g, placement: placed, render: r }) : await previewLocal({ song: s.song, buffer: s.buffer, grid: g, placement: s.placement, render: r })
+      const p = hq
+        ? await previewHq({ grid: g, placement: placed, render: r })
+        : await previewLocal({ song: s.song, buffer: s.buffer, grid: g, placement: s.placement, render: r })
       setPreview(p)
       void p.ended.then(() => setPreview((cur) => (cur === p ? null : cur)))
     } catch (err) {
@@ -83,7 +85,15 @@ export function SongDrawer() {
   }
 
   return (
-    <div id="song-drawer" role="region" aria-label="Song" className={styles.drawer} onKeyDown={(e) => e.key === 'Escape' && songs.setOpen(false)} {...file.dropProps} data-over={file.over || undefined}>
+    <div
+      id="song-drawer"
+      role="region"
+      aria-label="Song"
+      className={styles.drawer}
+      onKeyDown={(e) => e.key === 'Escape' && songs.setOpen(false)}
+      {...file.dropProps}
+      data-over={file.over || undefined}
+    >
       <div className={styles.drawerHead}>
         <span className={styles.drawerTitle}>SONG</span>
         <span className={styles.drawerName} title={song?.name}>
@@ -91,7 +101,8 @@ export function SongDrawer() {
         </span>
         {song && (
           <span className={styles.drawerMeta}>
-            {formatClock(song.duration_s).replace(/\.\d+$/, '')} · {(song.sample_rate / 1000).toFixed(1)} kHz · {song.channels === 1 ? 'MONO' : 'STEREO'}
+            {formatClock(song.duration_s).replace(/\.\d+$/, '')} · {(song.sample_rate / 1000).toFixed(1)} kHz ·{' '}
+            {song.channels === 1 ? 'MONO' : 'STEREO'}
           </span>
         )}
         <span className={styles.flex} />
@@ -118,7 +129,12 @@ export function SongDrawer() {
       <div className={styles.drawerBody}>
         {(busy || error || (song && !grid)) && (
           <p className={styles.note} data-error={error ? true : undefined} role="status">
-            {busy ?? (error ? `▲ ${error}` : song?.analysis_state === 'error' ? 'Analysis failed: set the BPM below (bar 1 starts at 0 s).' : 'ANALYSING… tempo, key and bar 1.')}
+            {busy ??
+              (error
+                ? `▲ ${error}`
+                : song?.analysis_state === 'error'
+                  ? 'Analysis failed: set the BPM below (bar 1 starts at 0 s).'
+                  : 'ANALYSING… tempo, key and bar 1.')}
           </p>
         )}
 
@@ -128,11 +144,23 @@ export function SongDrawer() {
             <div className={styles.field}>
               <span className={styles.fieldLabel}>BAR 1</span>
               <div className={styles.nudge}>
-                <button type="button" aria-label="Bar 1 earlier" title="10 ms earlier (Shift: 100 ms)" disabled={!grid} onClick={(e) => nudge(-1, e.shiftKey)}>
+                <button
+                  type="button"
+                  aria-label="Bar 1 earlier"
+                  title="10 ms earlier (Shift: 100 ms)"
+                  disabled={!grid}
+                  onClick={(e) => nudge(-1, e.shiftKey)}
+                >
                   ◀
                 </button>
                 <span className={styles.nudgeValue}>{grid ? `${downbeat.toFixed(3)} s` : '—'}</span>
-                <button type="button" aria-label="Bar 1 later" title="10 ms later (Shift: 100 ms)" disabled={!grid} onClick={(e) => nudge(1, e.shiftKey)}>
+                <button
+                  type="button"
+                  aria-label="Bar 1 later"
+                  title="10 ms later (Shift: 100 ms)"
+                  disabled={!grid}
+                  onClick={(e) => nudge(1, e.shiftKey)}
+                >
                   ▶
                 </button>
               </div>
@@ -147,7 +175,13 @@ export function SongDrawer() {
               <KeyChip />
             </div>
             <span className={styles.flex} />
-            <button type="button" className={styles.useBtn} disabled={!grid} onClick={useTempoAndKey} title="Set the Studio's BPM and key from the song, and re-render">
+            <button
+              type="button"
+              className={styles.useBtn}
+              disabled={!grid}
+              onClick={useTempoAndKey}
+              title="Set the Studio's BPM and key from the song, and re-render"
+            >
               USE SONG TEMPO &amp; KEY
             </button>
           </div>
@@ -165,12 +199,37 @@ export function SongDrawer() {
                 </button>
               </div>
               <div className={styles.knobs}>
-                <Knob label="DUCK" value={placement.duckDb} min={-24} max={0} step={0.5} unit="dB" defaultValue={-6}
-                  description="Song level under the drop" onChange={(duckDb) => songs.setPlacement({ duckDb })} />
-                <Knob label="SONG" value={placement.songGainDb} min={-24} max={6} step={0.5} unit="dB" defaultValue={0}
-                  onChange={(songGainDb) => songs.setPlacement({ songGainDb })} />
-                <Knob label="DROP" value={placement.dropGainDb} min={-24} max={6} step={0.5} unit="dB" defaultValue={0}
-                  onChange={(dropGainDb) => songs.setPlacement({ dropGainDb })} />
+                <Knob
+                  label="DUCK"
+                  value={placement.duckDb}
+                  min={-24}
+                  max={0}
+                  step={0.5}
+                  unit="dB"
+                  defaultValue={-6}
+                  description="Song level under the drop"
+                  onChange={(duckDb) => songs.setPlacement({ duckDb })}
+                />
+                <Knob
+                  label="SONG"
+                  value={placement.songGainDb}
+                  min={-24}
+                  max={6}
+                  step={0.5}
+                  unit="dB"
+                  defaultValue={0}
+                  onChange={(songGainDb) => songs.setPlacement({ songGainDb })}
+                />
+                <Knob
+                  label="DROP"
+                  value={placement.dropGainDb}
+                  min={-24}
+                  max={6}
+                  step={0.5}
+                  unit="dB"
+                  defaultValue={0}
+                  onChange={(dropGainDb) => songs.setPlacement({ dropGainDb })}
+                />
               </div>
               <div className={styles.previewBox}>
                 <button
@@ -235,7 +294,19 @@ function BpmField({ value, detected, overridden }: { value: number | null; detec
  * The song's waveform (loudness when decoded here, else the engine's peaks) on its bar ruler, the drop as a block that
  * snaps to bars (drag it, click a bar, or arrows / Page keys), the beat drop marked, and the preview's playhead.
  */
-function Lane({ grid, dropS, beatDrop, shapeFrom, preview }: { grid: SongGrid; dropS: number | null; beatDrop: number | null; shapeFrom: AudioBuffer | null; preview: Preview | null }) {
+function Lane({
+  grid,
+  dropS,
+  beatDrop,
+  shapeFrom,
+  preview,
+}: {
+  grid: SongGrid
+  dropS: number | null
+  beatDrop: number | null
+  shapeFrom: AudioBuffer | null
+  preview: Preview | null
+}) {
   const song = useSong((s) => s.song)!
   const placement = useSong((s) => s.placement)
   const lane = useRef<HTMLDivElement>(null)
@@ -319,7 +390,17 @@ function Lane({ grid, dropS, beatDrop, shapeFrom, preview }: { grid: SongGrid; d
         <svg className={styles.wave} viewBox={`0 0 ${shape.length} 100`} preserveAspectRatio="none" aria-hidden="true">
           {bars.map((b) => {
             const x = ((barTime(grid, b) / dur) * shape.length).toFixed(2)
-            return <line key={b} x1={x} x2={x} y1={0} y2={100} className={(b - 1) % labelEvery === 0 ? styles.barMajor : styles.barLine} vectorEffect="non-scaling-stroke" />
+            return (
+              <line
+                key={b}
+                x1={x}
+                x2={x}
+                y1={0}
+                y2={100}
+                className={(b - 1) % labelEvery === 0 ? styles.barMajor : styles.barLine}
+                vectorEffect="non-scaling-stroke"
+              />
+            )
           })}
           <path
             className={styles.wavePath}
@@ -327,7 +408,9 @@ function Lane({ grid, dropS, beatDrop, shapeFrom, preview }: { grid: SongGrid; d
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        {hit != null && <div className={styles.hit} style={{ left: pct(hit) }} title={`The song's first big beat drop (${formatClock(hit)})`} />}
+        {hit != null && (
+          <div className={styles.hit} style={{ left: pct(hit) }} title={`The song's first big beat drop (${formatClock(hit)})`} />
+        )}
         <div
           role="slider"
           tabIndex={0}

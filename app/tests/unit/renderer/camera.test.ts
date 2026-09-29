@@ -20,7 +20,7 @@ import {
   TAIL_S,
   voiceEndOf,
 } from '../../../src/renderer/src/state/song'
-import { HOLD_MS, iou, mergeBoxes, pad, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
+import { FacePicker, HOLD_MS, iou, mergeBoxes, onePerHead, pad, SECOND_MS, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
 import { clipName, extensionOf, pickMimeType } from '../../../src/renderer/src/components/camera/recording'
 import { box, concat, defragment, fullBox, u32 } from '../../../src/renderer/src/components/camera/remux'
 import { filmTime, onsetOf } from '../../../src/renderer/src/components/camera/filmSync'
@@ -351,5 +351,74 @@ describe('mergeBoxes', () => {
     const mesh = { x: 406, y: 90, w: 123, h: 141 }
     const other = { x: 177, y: 291, w: 156, h: 156 }
     expect(mergeBoxes([det, other, mesh])).toEqual([{ x: 406, y: 90, w: 136, h: 145 }, other])
+  })
+})
+
+describe('ONE mask a head, whatever draws it', () => {
+  const face = { box: { x: 400, y: 200, w: 300, h: 360 }, meshed: true, at: 100 }
+  const cup = { box: { x: 620, y: 260, w: 260, h: 320 }, meshed: false } // the headphone cup beside the face
+  const other = { box: { x: 1000, y: 200, w: 200, h: 240 }, meshed: false } // someone else
+  it('a mesh over a stray box on the same head; a separate head kept; boxes alone each kept', () => {
+    expect(onePerHead([face, cup, other])).toEqual([face, other])
+    expect(onePerHead([cup, face, other])).toEqual([face, other]) // whatever the order
+    expect(onePerHead([cup, other])).toEqual([cup, other])
+  })
+  it('two meshes on one head (an old one held, a new one): only the freshest', () => {
+    const old = { ...face, box: { ...face.box, x: 430 }, at: 60 }
+    expect(onePerHead([old, face])).toEqual([face])
+  })
+  it('two boxes on one head: the largest; a box style: one box covering both', () => {
+    const small = { box: { x: 420, y: 220, w: 120, h: 140 }, meshed: false }
+    const big = { ...cup, box: { x: 400, y: 200, w: 320, h: 380 } }
+    expect(onePerHead([small, big])).toEqual([big])
+    expect(onePerHead([face, cup], true)).toEqual([{ ...face, box: { x: 400, y: 200, w: 480, h: 380 } }])
+  })
+  it('never two overlapping masks, from any mix', () => {
+    const rnd = (k: number) => ((Math.sin(k * 12.9898) * 43758.5453) % 1 + 1) % 1
+    for (let n = 0; n < 200; n++) {
+      const items = Array.from({ length: 2 + Math.floor(rnd(n) * 5) }, (_, i) => ({
+        box: { x: rnd(n * 7 + i) * 900, y: rnd(n * 11 + i) * 400, w: 80 + rnd(n * 13 + i) * 300, h: 100 + rnd(n * 17 + i) * 300 },
+        meshed: rnd(n * 19 + i) < 0.5,
+        at: rnd(n * 23 + i) * 1000,
+      }))
+      // One kept a head: the heads' covers never overlap, and a mesh style keeps exactly one mask each.
+      const heads = onePerHead(items, true)
+      for (const a of heads) for (const b of heads) if (a !== b) expect(iou(a.box, b.box)).toBeLessThanOrEqual(0.1)
+      expect(onePerHead(items, false)).toHaveLength(heads.length)
+    }
+  })
+})
+
+describe('FacePicker: one person unless the user says two', () => {
+  const t = (x: number, w: number): Track => ({ box: { x, y: 100, w, h: w }, seen: 0 })
+  const det = (x: number, score: number) => ({ box: { x, y: 150, w: 80, h: 80 }, score })
+  it('masks the main face only: a stray box gets no mask and never asks', () => {
+    const r = new FacePicker().pick([t(100, 200), t(600, 60)], [], 0, 1, false)
+    expect(r.mask.map((m) => m.box.x)).toEqual([100])
+    expect(r.second).toBe(false)
+  })
+  it('a sure second person is masked at once and asks after SECOND_MS; JUST ME drops it, 2 PEOPLE keeps it', () => {
+    const p = new FacePicker()
+    const tracks = [t(100, 200), t(600, 180)]
+    const dets = [det(150, 0.95), det(650, 0.9)]
+    expect(p.pick(tracks, dets, 0, 1, false)).toMatchObject({ mask: tracks, second: false })
+    expect(p.pick(tracks, [], SECOND_MS, 1, false)).toMatchObject({ mask: tracks, second: true }) // held while its track lives
+    expect(p.pick(tracks, dets, SECOND_MS + 16, 1, true)).toMatchObject({ mask: [tracks[0]], second: false })
+    expect(new FacePicker().pick(tracks, [], 0, 2, false).mask).toHaveLength(2)
+  })
+  it('keeps the main face when a bigger stray box turns up', () => {
+    const p = new FacePicker()
+    p.pick([t(100, 150)], [], 0, 1, false)
+    expect(p.pick([t(105, 150), t(700, 300)], [], 16, 1, false).mask.map((m) => m.box.x)).toEqual([105])
+  })
+  it('never shows a real face: a big box-only phantom never wins over the face with a mesh, even after JUST ME', () => {
+    const p = new FacePicker()
+    const tracks = [t(100, 300), t(600, 120)]
+    p.pick(tracks, [], 0, 1, false) // no mesh yet: the phantom is the largest
+    const face = [{ x: 650, y: 150, w: 2, h: 2 }]
+    expect(p.pick(tracks, [], 16, 1, true, face).mask).toEqual([tracks[1]])
+  })
+  it('with only the detector, a fresh main is the surest detection, not the largest box', () => {
+    expect(new FacePicker().pick([t(100, 300), t(600, 120)], [det(640, 0.9), det(150, 0.4)], 0, 1, false).mask.map((m) => m.box.x)).toEqual([600])
   })
 })

@@ -59,6 +59,21 @@
   color: inherit;
   border-color: currentColor;
 }
+/* A MASKS character's picture, before its name. */
+.thumb {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  vertical-align: middle;
+  object-fit: contain;
+}
+/* The CAMERA base's state (LS11): one hint line, and its way back when it's off. */
+.cameraState {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .maskRow {
   display: flex;
   flex-wrap: wrap;

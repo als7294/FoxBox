@@ -12,10 +12,11 @@
 import faceModel from '@/vendor/mediapipe/face_landmarker.task?url'
 import handModel from '@/vendor/mediapipe/gesture_recognizer.task?url'
 import farModel from '@/vendor/mediapipe/blaze_face_full_range.tflite?url'
+import poseModel from '@/vendor/mediapipe/pose_landmarker_lite.task?url'
 import segModel from '@/vendor/mediapipe/selfie_segmenter.tflite?url'
 import loaderUrl from '@/vendor/mediapipe/vision_wasm_internal.js?url'
 import wasmUrl from '@/vendor/mediapipe/vision_wasm_internal.wasm?url'
-import type { Pt } from './camMath'
+import type { BodyPt, Pt } from './camMath'
 
 /** The expression, 0-1 (MediaPipe's blendshapes): what a mask's jaw, eyes and brows follow. */
 export interface FaceShapes {
@@ -53,10 +54,17 @@ export interface PersonMask {
   height: number
 }
 
+/** A body keypoint (0-1 across the frame) and how visible the pose model thinks it is (0-1). */
+export type BodyPoint = BodyPt
+
 export interface Seen {
   faces: SeenFace[]
   hands: SeenHand[]
   person: PersonMask | null
+  /** BlazePose's first 13 keypoints (nose, eyes, ears, mouth, shoulders): the head, from the body. */
+  body?: BodyPoint[] | null
+  /** The capture time (performance.now's clock) of the camera frame the faces came from. */
+  at?: number
   /** Milliseconds the worker spent on each model for this frame (diagnostics). */
   ms?: { face: number; hands: number; seg: number }
   /** No landmarked face: where the full-range detector sees one (0-1 of the frame), or nothing. */
@@ -106,6 +114,7 @@ export function nextRoi(
   vh: number,
   lost: number,
   hint: Roi | null = null,
+  head: Roi | null = null,
 ): Roi {
   const square = (cx: number, cy: number, side: number): Roi => {
     side = Math.min(side, vw, vh)
@@ -114,6 +123,8 @@ export function nextRoi(
     return { x: x / vw, y: y / vh, w: side / vw, h: side / vh }
   }
   const FULL = prev.w === 1 && prev.h === 1 ? prev : { x: 0, y: 0, w: 1, h: 1 }
+  // Lost, and the body's head says where it is (Holistic's recipe: the face looked for around the pose's head).
+  if (!points?.length && head) return square((head.x + head.w / 2) * vw, (head.y + head.h / 2) * vh, Math.max(head.w * vw, head.h * vh) * 2.4)
   if (!points?.length && lost <= 3 && prev.w * vw < Math.min(vw, vh) * 0.99) {
     return square((prev.x + prev.w / 2) * vw, (prev.y + prev.h / 2) * vh, prev.w * vw * 1.25)
   }
@@ -152,25 +163,33 @@ export function nextRoi(
 export class Vision {
   private worker: Worker | null = null
   private busy = true // until the models are loaded
-  private last: Seen = { faces: [], hands: [], person: null }
+  private last: Seen = { faces: [], hands: [], person: null, body: null }
   private roi: Roi = { x: 0, y: 0, w: 1, h: 1 }
   private lost = 0
   private crop: OffscreenCanvas | null = null
   private meter: OffscreenCanvas | null = null
   private gain = 1
-  private metered = 0
+  /** The crop's running mean light (a strobe's dark frame is judged against it). */
+  private light = -1
 
   constructor() {
     try {
       const w = new Worker(new URL('./vision.worker.ts', import.meta.url))
-      w.onmessage = (e: MessageEvent<{ type: 'ready' } | { type: 'seen'; seen: Seen; roi?: Roi }>) => {
-        if (e.data.type === 'seen') this.last = fromCrop(e.data.seen, e.data.roi)
+      // The face comes back first (at once: the mask moves), then the extras (the worker is free again).
+      w.onmessage = (e: MessageEvent<{ type: 'ready' } | { type: 'face'; seen: Seen; roi?: Roi; at: number } | { type: 'extras'; seen: Seen; at: number }>) => {
+        const d = e.data
+        if (d.type === 'face') {
+          const f = fromCrop(d.seen, d.roi)
+          this.last = { ...this.last, faces: f.faces, hint: f.hint, ms: f.ms, at: d.at }
+          return
+        }
+        if (d.type === 'extras') this.last = { ...this.last, hands: d.seen.hands, person: d.seen.person, body: d.seen.body }
         this.busy = false
       }
       w.onerror = () => this.dispose() // no extras from here on; faces are still hidden by the detector
       w.postMessage({
         type: 'init',
-        urls: { loader: abs(loaderUrl), wasm: abs(wasmUrl), face: abs(faceModel), hands: abs(handModel), seg: abs(segModel), far: abs(farModel) },
+        urls: { loader: abs(loaderUrl), wasm: abs(wasmUrl), face: abs(faceModel), hands: abs(handModel), seg: abs(segModel), far: abs(farModel), pose: abs(poseModel) },
       })
       this.worker = w
     } catch {
@@ -179,19 +198,22 @@ export class Vision {
   }
 
   /**
-   * A new camera frame: sent over if the worker is free, as the face crop (nextRoi; brightened for the tracker when
-   * the room is dark: the mask still draws on the real frame) and the whole frame at 640 px for hands and the person.
-   * Returns the latest results. Never throws.
+   * A new camera frame (captured at `at`): sent over if the worker is free, as the face crop (nextRoi; brightened for
+   * the tracker when the room is dark: the mask still draws on the real frame) and the whole frame at 640 px for hands,
+   * the body and the person. A strobe's dark frame isn't sent (the tracker coasts on its prediction). `head`: where
+   * the body's head is (0-1), to look for a lost face; `people`: faces to track. Returns the latest results. Never
+   * throws.
    */
-  run(video: HTMLVideoElement, now: number): Seen {
+  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1): Seen {
     const w = this.worker
     if (!w || this.busy) return this.last
-    this.busy = true
     try {
       const vw = video.videoWidth
       const vh = video.videoHeight
+      if (this.strobed(video, this.roi, vw, vh)) return this.last
+      this.busy = true
       this.lost = this.last.faces.length ? 0 : this.lost + 1
-      const r = (this.roi = nextRoi(this.last.faces[0]?.points ?? null, this.roi, vw, vh, this.lost, this.last.hint ?? null))
+      const r = (this.roi = nextRoi(this.last.faces[0]?.points ?? null, this.roi, vw, vh, this.lost, this.last.hint ?? null, head))
       // A square crop at FACE_PX; the whole frame at 640 px wide.
       const cw = r.w === 1 && r.h === 1 ? 640 : FACE_PX
       const ch = r.w === 1 && r.h === 1 ? Math.round((640 * vh) / vw) : FACE_PX
@@ -201,12 +223,11 @@ export class Vision {
         this.crop.height = ch
       }
       const g = this.crop.getContext('2d')!
-      if (now - this.metered > 500) this.meterLight(video, r, vw, vh, now)
       g.filter = this.gain > 1.05 ? `brightness(${this.gain.toFixed(2)}) contrast(1.1)` : 'none'
       g.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, cw, ch)
       const face = this.crop.transferToImageBitmap()
       createImageBitmap(video, { resizeWidth: 640, resizeHeight: Math.round((640 * vh) / vw) }).then(
-        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now }, [face, scene]),
+        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people }, [face, scene]),
         () => (this.busy = false),
       )
     } catch {
@@ -215,16 +236,23 @@ export class Vision {
     return this.last
   }
 
-  /** The crop's mean light (8x8 samples), and the tracker's brightening for it: none in a lit room, up to 2.2x. */
-  private meterLight(video: HTMLVideoElement, r: Roi, vw: number, vh: number, now: number): void {
-    this.metered = now
+  /**
+   * The crop's light, every frame (8x8 samples): its running mean sets the tracker's brightening (none in a lit room,
+   * up to 2.2x). True for a strobe's dark frame (half the running mean or less): not worth tracking.
+   */
+  private strobed(video: HTMLVideoElement, r: Roi, vw: number, vh: number): boolean {
     this.meter ??= new OffscreenCanvas(8, 8)
     const m = this.meter.getContext('2d', { willReadFrequently: true })!
     m.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, 8, 8)
     const px = m.getImageData(0, 0, 8, 8).data
     let sum = 0
     for (let i = 0; i < px.length; i += 4) sum += (0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!) / 255
-    this.gain = Math.min(2.2, Math.max(1, 0.42 / Math.max(0.05, sum / 64)))
+    const lum = sum / 64
+    if (this.light < 0) this.light = lum
+    const dark = lum < this.light * 0.5
+    if (!dark) this.light += (lum - this.light) * 0.1 // ~10 frames: a strobe's blackout doesn't drag it down
+    this.gain = Math.min(2.2, Math.max(1, 0.42 / Math.max(0.05, this.light)))
+    return dark
   }
 
   dispose(): void {

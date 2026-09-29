@@ -10,7 +10,7 @@ import { remix as actions, useRemix } from './store'
 import { newSeed } from './takes'
 
 /** Off in 1.5 (the user's lean release): REMIX ALL ships in 1.5.1. The queue works; only its ticks in the picker are off. */
-export const REMIX_ALL = false
+export const REMIX_ALL = true
 
 export interface QueueRow {
   songId: string

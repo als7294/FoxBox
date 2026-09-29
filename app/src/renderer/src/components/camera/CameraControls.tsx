@@ -1,21 +1,55 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteMask, listMasks, maskImageUrl, uploadMask, type MaskInfo } from '@/api/masks'
+import { deleteMask, listMasks, maskImageUrl, maskRecipe, saveMaskRecipe, uploadMask, type MaskInfo } from '@/api/masks'
 import { Button } from '@/components/common/Button'
+import { PrivacyHelp } from '@/components/common/PrivacyHelp'
 import { Switch } from '@/components/rack/Switch'
+import { bridge } from '@/env'
 import { camera, useCamera } from './cameraStore'
 import { MASK_STYLES, type MaskReact, type MaskStyle } from './compose'
 import { addMask } from './faceMask'
 import { maskFileProblem, maskName, maskPng } from './maskImport'
+import { PRESETS } from './maskConfig'
+import { addRecipeMask, warmRecipeMask } from './maskFace'
 import templateUrl from '../../../../../design/masks/face-uv-template.svg?url'
 import { cameraSignals, recalibrateCamera, type CameraSignals } from './smartCamera'
+import { cameraBaseState, retryCamera, type CameraBaseState } from './smartCameraBase'
 import styles from './cameraControls.module.css'
+import { PeopleControl, TwoFacesPrompt } from './TwoFaces'
 
-/** A face mask (FOX MASK or an imported one): no strength, and it moves with the face, not the music. */
-const isMask = (style: MaskStyle): boolean => style === 'fox' || style.startsWith('mask:')
+/** A face mask (FOX MASK, an imported one or a MASKS character): no strength; it moves with the face. */
+const isMask = (style: MaskStyle): boolean => style === 'fox' || style.startsWith('mask:') || style.startsWith('recipe:')
 /** Styles that use no picture at all: STRENGTH changes nothing for them. */
 const NO_STRENGTH = (style: MaskStyle): boolean => isMask(style) || ['solid', 'redacted', 'static'].includes(style)
-/** Styles that don't move: nothing to react with. */
-const STILL = (style: MaskStyle): boolean => isMask(style) || ['mosaic', 'blur', 'solid'].includes(style)
+/** Styles that don't move: nothing to react with (a MASKS character's glow can follow the beat). */
+const STILL = (style: MaskStyle): boolean => (isMask(style) && !style.startsWith('recipe:')) || ['mosaic', 'blur', 'solid'].includes(style)
+/** A saved mask's style: a picture drawn on the template, or a MASKS character. */
+const styleOf = (m: MaskInfo): MaskStyle => (m.format === 'recipe' ? `recipe:${m.id}` : `mask:${m.id}`)
+/** Told when masks change elsewhere (MASKS saves one): the picker lists them again. */
+export const MASKS_CHANGED = 'fvwks:masks'
+
+// QA / before the MASKS page: save the preset characters (window.__foxboxSavePresetMasks()), in dev or with the
+// camera trace flag on.
+try {
+  if (import.meta.env.DEV || localStorage.getItem('foxbox-camera-trace') === '1')
+    (window as unknown as { __foxboxSavePresetMasks: () => Promise<MaskInfo[]> }).__foxboxSavePresetMasks = async () => {
+      const saved: MaskInfo[] = []
+      for (const p of PRESETS) saved.push(await saveMaskRecipe(p.name, p.cfg, null)) // QA: no pictures
+      window.dispatchEvent(new Event(MASKS_CHANGED))
+      return saved
+    }
+} catch {
+  // no storage: no QA hook
+}
+
+/** The CAMERA base's state in one line (S5's copy, LS11); none while it's live. ▲: it's off, with a way back. */
+const CAMERA_LINE: Partial<Record<CameraBaseState, string>> = {
+  asking: "Allow the camera in macOS's prompt.",
+  opening: 'OPENING THE CAMERA…',
+  denied: '▲ Camera access is off for FoxBox. Turn it on, then TRY AGAIN.',
+  missing: '▲ No camera found. Connect one, then TRY AGAIN.',
+  timeout: "▲ The camera didn't answer. Another app may be using it: close that app, then TRY AGAIN.",
+}
+const OFF: readonly CameraBaseState[] = ['denied', 'missing', 'timeout']
 
 const REACTS: { value: MaskReact; label: string }[] = [
   { value: 'off', label: 'OFF' },
@@ -35,8 +69,12 @@ const REACTS: { value: MaskReact; label: string }[] = [
 export function CameraControls() {
   const s = useCamera((c) => c.settings)
   const [sig, setSig] = useState<CameraSignals>(cameraSignals)
+  const [access, setAccess] = useState(cameraBaseState)
   useEffect(() => {
-    const t = window.setInterval(() => setSig(cameraSignals()), 150)
+    const t = window.setInterval(() => {
+      setSig(cameraSignals())
+      setAccess(cameraBaseState())
+    }, 150)
     return () => window.clearInterval(t)
   }, [])
   const mask = s.mask
@@ -44,18 +82,45 @@ export function CameraControls() {
 
   // Masks the user imported (the engine keeps them), next to the built-in styles.
   const [mine, setMine] = useState<MaskInfo[]>([])
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
   const [note, setNote] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const picker = useRef<HTMLInputElement>(null)
   const known = (list: MaskInfo[]) => {
-    for (const m of list) addMask(m.id, () => maskImageUrl(m.id))
+    for (const m of list) {
+      if (m.format === 'recipe') addRecipeMask(m.id, () => maskRecipe(m.id))
+      else addMask(m.id, () => maskImageUrl(m.id))
+    }
     setMine(list)
   }
   useEffect(() => {
-    listMasks().then(known, () => undefined) // no engine yet: just the built-ins
+    let live = true
+    const urls: string[] = []
+    const refresh = () =>
+      listMasks().then(async (list) => {
+        if (!live) return
+        known(list)
+        // The characters: their pictures on the chips, and their shaders built now, so picking one never stalls.
+        for (const m of list.filter((x) => x.format === 'recipe')) {
+          const url = await maskImageUrl(m.id).catch(() => null)
+          if (!live) return url && URL.revokeObjectURL(url)
+          if (url) {
+            urls.push(url)
+            setThumbs((t) => ({ ...t, [m.id]: url }))
+          }
+          await warmRecipeMask(m.id)
+        }
+      }, () => undefined) // no engine yet: just the built-ins
+    void refresh()
+    window.addEventListener(MASKS_CHANGED, refresh)
+    return () => {
+      live = false
+      window.removeEventListener(MASKS_CHANGED, refresh)
+      urls.forEach((u) => URL.revokeObjectURL(u))
+    }
   }, [])
   const pick = (style: MaskStyle) => camera.set({ mask: { ...mask, style } })
-  const mineSelected = mine.find((m) => mask.style === `mask:${m.id}`)
+  const mineSelected = mine.find((m) => mask.style === styleOf(m))
   const onImport = async (file: File) => {
     const problem = maskFileProblem(file)
     if (problem) return setNote(problem)
@@ -93,6 +158,29 @@ export function CameraControls() {
 
   return (
     <div className={styles.controls} data-testid="camera-controls">
+      {CAMERA_LINE[access] && (
+        // The stage never shows the camera's trouble: this line says what it is and what to do.
+        <div className={styles.cameraState} role="status">
+          {access === 'denied' ? (
+            <PrivacyHelp kind="camera" lead={CAMERA_LINE.denied} />
+          ) : (
+            <p className={styles.hint}>{CAMERA_LINE[access]}</p>
+          )}
+          {OFF.includes(access) && (
+            <div className={styles.maskRow}>
+              {access === 'denied' && bridge() && (
+                <Button size="sm" onClick={() => void bridge()?.openCameraSettings()}>
+                  OPEN CAMERA SETTINGS
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={retryCamera}>
+                TRY AGAIN
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      <TwoFacesPrompt />
       <span className={styles.kicker}>FACE ENCRYPTION</span>
       <div className={styles.grid} role="radiogroup" aria-label="Face encryption">
         {MASK_STYLES.map((m) => (
@@ -113,11 +201,12 @@ export function CameraControls() {
             key={m.id}
             type="button"
             role="radio"
-            aria-checked={mask.style === `mask:${m.id}`}
+            aria-checked={mask.style === styleOf(m)}
             className={styles.chip}
             title={m.name}
-            onClick={() => pick(`mask:${m.id}`)}
+            onClick={() => pick(styleOf(m))}
           >
+            {thumbs[m.id] && <img className={styles.thumb} src={thumbs[m.id]} alt="" />}
             {m.name.toUpperCase()}
           </button>
         ))}
@@ -179,6 +268,10 @@ export function CameraControls() {
           ))}
         </select>
       </label>
+      <div className={styles.field}>
+        <span>PEOPLE</span>
+        <PeopleControl />
+      </div>
       <label className={styles.field}>
         <span>COVER</span>
         <input

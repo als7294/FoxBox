@@ -29,7 +29,10 @@ Tearout's percussive voices (M1.2, fingerprints §2 B) and printed banks (M1.3, 
   hero / call  printed_bank(midi, bpm, sr, seed): an A/B print (chomp or talker) resampled 3-5 times through chain A, sliced at zero
                crossings: the hero (every generation layered, 400-700 ms) and 80-250 ms calls (`hit` picks one);
                the seed is `variant` itself (any int), cached per (note, tempo, seed)
-Every output has its tallest 2-4 kHz resonance notched (midbus.resonance_notch). Pitched growls use integer FM ratios.
+Every output has its tallest 2-4 kHz resonance notched (midbus.resonance_notch). REMIX_HARMONY 1.4: pitched growls use
+integer FM ratios; combs sit on an octave of the note (k f0, k = 1, 2, 4) and move in octaves or fifths; a held note is
+frequency-shifted only by m f0 / 2 (a free shift only on hits of 1/8 or less and on dives); Q >= 8 vowels ring on the
+note's harmonics; distorted layers stack only 5ths and octaves. The source's tuning: pass `midi` + tuning_cents / 100.
 
 The front has a smooth ~6 ms bump (chops read as hits, without a step), then 3 ms / 10 ms fades, so a chop never
 clicks. `python -m fvwks_synth.growls --bank [dir]` writes each one-shot with its QA; `--audition [dir]` writes a
@@ -127,11 +130,8 @@ def _ott(x: np.ndarray, sr: int, depth: float = 0.3, target_db: float = -16.0) -
 
 
 def _comb(x: np.ndarray, hz: float, fb: float, sr: int) -> np.ndarray:
-    """A feedback comb tuned to the note: its harmonics ring."""
-    d = max(1, int(round(sr / hz)))
-    a = np.zeros(d + 1)
-    a[0], a[d] = 1.0, -fb
-    return signal.lfilter([1 - fb], a, x)
+    """A feedback comb tuned to the note: its harmonics ring (a fractional delay: a rounded one is cents out)."""
+    return mb.moving_comb(x, np.full(len(x), hz), fb, sr)
 
 
 def _lfo(t: np.ndarray, div: str, bpm: float, start_open: bool = False) -> np.ndarray:
@@ -230,7 +230,7 @@ def _metal(f: np.ndarray, t: np.ndarray, sr: int, bpm: float, v: int, f0: float)
     lfo = _lfo(t, "1/8T", bpm, start_open=True)
     fm = _fm(fc, 2.0 + 2.0 * lfo, 2.0, sr)
     # every partial moved (inharmonic, metallic) on the attack only, then back in key: non-integer only on a transient
-    shifted = mb.freq_shift(fm, sr, shift * np.exp(-t / 0.06))
+    shifted = mb.freq_shift(fm, sr, shift * np.exp(-t / 0.06) * np.clip(1 - t / (30.0 / bpm), 0, 1))  # 0 by 1/8
     x = shifted * (0.6 + 0.4 * _sine(fc * ring, sr))
     x = _ott(_os(np.sin, 1.8 * x), sr, 0.3)
     return np.tanh(2.0 * _bandpass(x, 500 * 6 ** lfo, 1.5, sr) * 3 + 0.3 * x)
@@ -257,7 +257,7 @@ def _voice_chomp(f0: float, t: np.ndarray, sr: int, bpm: float, v: int, rng: np.
     fb = 0.3 if rng is None else float(rng.uniform(0.2, 0.4))
     env_s = 0.032 if rng is None else float(rng.uniform(0.025, 0.04))
     hz = f0 * 2 ** ((octave + snap * np.exp(-t / env_s)) / 12)
-    x = _feedback_sine(hz, fb, sr) + 0.5 * _sine(hz * 2 ** (7 / 12), sr)
+    x = _feedback_sine(hz, fb, sr) + 0.5 * _sine(hz * 1.5, sr)  # a just 5th: harmonic, no beating in the distortion
     x = mb.distort(x, 24.0, "hard")
     x = mb.ott(x, sr, 1.0)
     x = mb.clip(x, 6.0)
@@ -290,7 +290,7 @@ def _voice_talker(f0: float, t: np.ndarray, sr: int, bpm: float, v: int, rng: np
     y = np.zeros(n)
     for j, (gain, q) in enumerate(((1.0, 8.0), (0.7, 10.0), (0.35, 12.0))):
         fc = np.array([VOWELS[c][j] for c in vowel], float)
-        fc = ndimage.uniform_filter1d(fc, int(0.003 * sr), mode="nearest")  # a 3 ms glide between syllables
+        fc = ndimage.uniform_filter1d(mb.harmonic_of(fc, f0), int(0.003 * sr), mode="nearest")  # on a harmonic; 3 ms glides
         y += gain * _bandpass(x, fc, q, sr)
     # the dry 20 % rounded off at 3 kHz: a saw carrier's raw edge through the 20 dB diode came out a 3-sample needle
     # once a period (S2's mix click); the formants already carry the voice's top
@@ -454,7 +454,7 @@ def printed_bank(midi: float, bpm: float, sr: int, seed: int, passes: int | None
     rng = np.random.default_rng([seed, int(round(midi * 100))])
     voice = _voice_chomp if rng.random() < 0.5 else _voice_talker
     src = voice(_hz(midi), np.arange(int(3.0 * sr)) / sr, sr, bpm, seed % VARIANTS, rng)
-    gens = mb.resample_chain(src, sr, seed, passes, bpm=bpm, movement=movement, mangle=mangle)
+    gens = mb.resample_chain(src, sr, seed, passes, bpm=bpm, movement=movement, mangle=mangle, f0=_hz(midi))
     hero_n = int(float(rng.uniform(0.4, 0.7)) * sr)
     hero = sum(g[: len(gens[0])] for g in gens[:-1] if len(g) >= len(gens[0]))
     calls = []
@@ -695,23 +695,30 @@ def designed_preview(patch_id: str) -> Path:
 # --------------------------------------------------------------------------- QA, the bank and the audition
 
 
+BUZZ_GAP_S = 0.065  # two periods of the lowest riddim note (C1, 61 ms) and a comb's few % of wobble (S1's R1)
+
+
 def clicks(e: np.ndarray, sr: int, skip_s: float = 0.0, floor_db: float = -45.0) -> int:
     """Clicks in `e` (power above 4 kHz): events that pack their energy into ~0.3 ms (25x their 10 ms surround, over
     `floor_db`), not counting a buzzy note's own edges. Buzz is local regularity: three or more events in a row with gaps
-    under 30 ms that match (+-12 %, or a whole multiple where edges dipped under the threshold) are a note's pitch
-    period, whatever the note (a line changes pitch); a lone event 1-3 local periods (+-5 %) from such a train is its too. The rest, merged within 30 ms, are clicks (scripts/remix_qa.py counts the same way)."""
+    under BUZZ_GAP_S that match (+-12 %, or a whole multiple where edges dipped under the threshold) are a note's pitch
+    period, whatever the note (a line changes pitch); a lone event 1-6 local periods (+-5 %) from such a train is its
+    too. The rest, merged within 30 ms, are clicks (scripts/remix_qa.py counts the same way). BUZZ_GAP_S is 65 ms: S1's
+    R1 (0.5-ratio FM) repeats every two periods, 61 ms on C1. Blind spot: a click at every 1/32 retrigger (50-54 ms at
+    140-150 BPM) is as regular as that buzz."""
     short = ndimage.uniform_filter1d(e, max(3, int(0.0003 * sr)), mode="nearest")
     wide = ndimage.uniform_filter1d(e, int(0.010 * sr), mode="nearest")
     hits = np.flatnonzero((short > 25 * wide) & (short > 10 ** (floor_db / 10)))
     if not len(hits):
         return 0
-    ev = hits[np.concatenate([[True], np.diff(hits) > int(0.005 * sr)])] / sr
+    first = hits[np.concatenate([[True], np.diff(hits) > int(0.005 * sr)])]
+    ev, db = first / sr, 10 * np.log10(short[first] + 1e-30)
     buzz = np.zeros(len(ev), bool)
     period = np.full(len(ev), np.nan)
     gaps = np.diff(ev)
     for i in range(1, len(ev) - 1):
         a, b = gaps[i - 1], gaps[i]
-        if a < 0.030 and b < 0.030:
+        if a < BUZZ_GAP_S and b < BUZZ_GAP_S:
             r = max(a, b) / min(a, b)
             if round(r) <= 2 and abs(r - round(r)) <= 0.12 * round(r):  # the same gap, or one edge dipped under
                 buzz[i - 1:i + 2] = True
@@ -721,8 +728,13 @@ def clicks(e: np.ndarray, sr: int, skip_s: float = 0.0, floor_db: float = -45.0)
     for i in lone if len(trains) else []:
         j = trains[np.argmin(np.abs(ev[trains] - ev[i]))]
         k = abs(ev[i] - ev[j]) / period[j]
-        if round(k) <= 3 and abs(k - round(k)) <= 0.05:  # only a couple of edges lost at the threshold
+        if round(k) <= 6 and abs(k - round(k)) <= 0.05:  # a few edges lost at the threshold (a masked yoi: up to 6)
             buzz[i] = True
+    for i in np.flatnonzero(~buzz)[:-1]:  # an isolated pair under 30 ms apart, level within 1 dB: a buzz's two edges
+        j = i + 1  # (S1: a masked yoi saw's), not two clicks
+        if (not buzz[j] and ev[j] - ev[i] < 0.030 and abs(db[i] - db[j]) <= 1.0
+                and (i == 0 or ev[i] - ev[i - 1] >= 0.030) and (j + 1 == len(ev) or ev[j + 1] - ev[j] >= 0.030)):
+            buzz[i] = buzz[j] = True
     lone = ev[~buzz]
     lone = lone[lone >= skip_s]  # a one-shot's own attack isn't a click
     return int(len(lone) and 1 + np.sum(np.diff(lone) >= 0.030))

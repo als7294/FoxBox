@@ -57,6 +57,11 @@ export interface EngineRequest {
   timeoutMs?: number
 }
 
+/** What main answers for a sample pack add: the scan job (JSON, ids and file names only) or the engine's error. */
+export type SamplePackAddResult =
+  | { job: { id: string; state: string; progress: number } & Record<string, unknown> }
+  | { error: { code: string; message: string; hint?: string | null } }
+
 export interface EngineResponse {
   status: number
   statusText: string
@@ -227,6 +232,15 @@ export interface FvwksBridge {
   diskFree(): Promise<number | null>
   /** Native folder picker. Resolves null when cancelled. */
   chooseFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null>
+  /**
+   * v0.15 sample packs (REMIX's SAMPLE LAYERS): main opens the folder picker (or takes a dropped folder) and POSTs
+   * /api/sample-packs itself, so the renderer never holds the folder's path: it gets the scan job's ids back. Resolves
+   * null when the picker is cancelled.
+   */
+  readonly samplePacks: {
+    addFromDialog(): Promise<SamplePackAddResult | null>
+    addFromDrop(file: File): Promise<SamplePackAddResult | null>
+  }
   /** macOS microphone permission (systemPreferences.askForMediaAccess). */
   askMicAccess(): Promise<boolean>
   /** macOS camera permission (systemPreferences.askForMediaAccess), asked before the camera clip opens it. */
@@ -267,6 +281,8 @@ export interface VisualsOutputState {
   open: boolean
   /** The display it's on, or null when closed. */
   displayId: number | null
+  /** Its display was unplugged mid-set: the output closed, and reopens there when a display comes back (LS10). */
+  unplugged?: boolean
 }
 
 /**
@@ -302,6 +318,8 @@ export const IPC = {
   diskFree: 'fvwks:disk-free',
   logError: 'fvwks:log-error',
   chooseFolder: 'fvwks:choose-folder',
+  samplePackAdd: 'fvwks:sample-pack-add',
+  samplePackDrop: 'fvwks:sample-pack-drop',
   askMic: 'fvwks:ask-mic',
   askCamera: 'fvwks:ask-camera',
   micStatus: 'fvwks:mic-status',

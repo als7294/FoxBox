@@ -1,0 +1,348 @@
+/* MY MASKS (app/design/masks README): MyMasksGrid, ImportPanel, MaskCard. A card's place comes in as --i (the
+   entrance stagger). Buttons restate font and colour with !important over `.page button` (masks.module.css). */
+
+.lib {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: vbRise 0.3s ease-out;
+}
+.head {
+  height: 56px;
+  padding: 0 12px 0 16px;
+}
+.title {
+  margin: 0;
+  font: 800 24px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+}
+.small {
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.hb {
+  height: 30px;
+  padding: 0 12px;
+  letter-spacing: 0.1em;
+}
+.imp {
+  border-radius: 3px;
+}
+.imp[aria-expanded='true'] {
+  border-color: var(--vb-ink);
+  background: #18181b;
+}
+.gap10 {
+  flex: none;
+  width: 10px;
+}
+
+/* ---------------------------------------------------------------- IMPORT drawer */
+.drawer {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(233, 229, 218, 0.06);
+  animation: vbRise 0.3s ease-out;
+}
+.drop {
+  height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed rgba(233, 229, 218, 0.2);
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.drop[data-over] {
+  border-color: var(--vb-accent);
+  background: rgba(255, 75, 43, 0.07);
+}
+.dropTitle {
+  font: 800 22px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.pickFile {
+  height: 26px;
+  padding: 0 12px;
+}
+.rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.copy {
+  font: 500 12px/1.45 var(--vb-font-mono);
+}
+.bad {
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.tpl {
+  align-self: flex-start;
+  height: 26px;
+}
+
+/* ---------------------------------------------------------------- the lists */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 14px 16px 18px;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 28px 24px;
+}
+.emptyTitle {
+  font: 800 32px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.copyDim {
+  font: 500 12px/1.45 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.row {
+  display: flex;
+  gap: 8px;
+}
+.tall {
+  height: 32px;
+  padding: 0 14px;
+  letter-spacing: 0.1em;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+.biGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+.biHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------- MaskCard */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: vbRise 0.3s ease-out both;
+  animation-delay: calc(var(--i) * 0.04s);
+}
+.card[data-wearing] {
+  border-color: rgba(127, 208, 138, 0.5);
+}
+.card[data-confirm] {
+  border-color: rgba(255, 75, 43, 0.6);
+}
+.pic {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: radial-gradient(ellipse 60% 60% at 50% 45%, #1d1d22, #0b0b0c 72%);
+}
+.square {
+  aspect-ratio: 1;
+}
+.pic > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.stripes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(135deg, rgba(233, 229, 218, 0.04) 0 8px, transparent 8px 16px);
+  font: 500 11px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.wearing,
+.kind {
+  position: absolute;
+  top: 8px;
+  padding: 3px 6px;
+  border: 1px solid rgba(233, 229, 218, 0.2);
+  border-radius: 2px;
+  background: rgba(11, 11, 12, 0.85);
+  font: 700 11px/1 var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.wearing {
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-color: rgba(127, 208, 138, 0.6);
+  color: var(--vb-ok);
+}
+.wearing::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.kind {
+  right: 6px;
+  top: 6px;
+  padding: 3px 5px;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 10px 8px;
+}
+.name {
+  font: 800 19px/1.05 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rename {
+  height: 30px;
+  padding: 0 8px;
+  background: #101012;
+  border: 1px solid var(--vb-amber);
+  border-radius: 2px;
+  color: var(--vb-ink);
+  font: 800 18px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  outline: none;
+}
+.meta {
+  font: 500 11px/1.2 var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Wraps (DELETE… onto its own line) where a narrow card can't fit the row, rather than clipping it. */
+.acts,
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+.acts > button,
+.confirm > button {
+  height: 26px;
+  letter-spacing: 0.06em;
+}
+.pad9 {
+  padding: 0 9px;
+}
+.push {
+  flex: 1;
+  min-width: 10px;
+}
+.del {
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+}
+.del:hover {
+  color: var(--vb-accent) !important;
+  background: rgba(255, 75, 43, 0.08);
+}
+.warn {
+  flex: 1 1 100%;
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-accent);
+}
+.kill {
+  padding: 0 10px;
+  border: 1px solid rgba(255, 75, 43, 0.7);
+  border-radius: 2px;
+  background: rgba(255, 75, 43, 0.1);
+  color: var(--vb-accent) !important;
+  font: 700 11px/1 var(--vb-font-mono) !important;
+  white-space: nowrap;
+}
+.kill:hover {
+  background: rgba(255, 75, 43, 0.2);
+}
+
+/* A read-only built-in. */
+.bi {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.biRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 10px;
+}
+.biName {
+  flex: 1;
+  min-width: 0;
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.biDup {
+  height: 26px;
+  padding: 0 8px;
+  letter-spacing: 0.06em;
+}
+
+@keyframes vbRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lib,
+  .lib * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.libStatus {
+  flex: 0 1 420px;
+  min-width: 0;
+}

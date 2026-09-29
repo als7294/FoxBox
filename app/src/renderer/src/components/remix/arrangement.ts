@@ -2,7 +2,8 @@
  * REMIX maths (pure): beats ↔ seconds ↔ px, section edits that keep the arrangement a valid tiling (sections back to
  * back from bar 1) with each section's clips moving along with it, and where dropped files go.
  */
-import type { Remix, RemixClip, RemixLane, RemixRecipe, RemixSection } from '@/api/remix'
+import type { Remix, RemixClip, RemixLane, RemixRecipe, RemixSection, StemName } from '@/api/remix'
+import type { Song } from '@/api/types'
 
 export const beatToSec = (beat: number, bpm: number): number => (beat * 60) / bpm
 export const secToBeat = (sec: number, bpm: number): number => (sec * bpm) / 60
@@ -15,6 +16,122 @@ export function remixBeats(r: Remix): number {
   const last = r.sections.at(-1)
   if (last) return (last.start_bar - 1 + last.bars) * r.beats_per_bar
   return Math.max(0, ...r.lanes.flatMap((l) => l.clips.map((c) => c.at_beat + c.beats)))
+}
+
+// ------------------------------------------------------------------------------------------------ lanes on screen
+
+/** The timeline's rows, top to bottom: short hits above the long held 808. */
+export const LANE_ORDER: RemixLane['role'][] = ['drums', 'top', 'synth_bass', 'bass', 'vocals', 'other', 'kit']
+/** A lane's identity for its open / closed toggle (role and slot, so it holds across takes). */
+export const laneKey = (l: Pick<RemixLane, 'role' | 'slot'>) => `${l.role}:${l.slot ?? ''}`
+/** The row a role gets when the remix has no lane for it: listed, empty, never saved. */
+export const isPlaceholder = (l: RemixLane) => l.id.startsWith('empty:')
+
+/** Every role's lanes in LANE_ORDER (then by slot); a role the remix doesn't have is an empty placeholder row. */
+export function displayLanes(lanes: RemixLane[]): RemixLane[] {
+  return LANE_ORDER.flatMap((role) => {
+    const mine = lanes.filter((l) => l.role === role).sort((a, b) => (a.slot ?? '').localeCompare(b.slot ?? ''))
+    return mine.length ? mine : [{ id: `empty:${role}`, role, slot: null, gain_db: 0, mute: false, solo: false, clips: [] }]
+  })
+}
+
+/**
+ * Open when it has clips; outside a MASHUP also when empty (but KIT and TOP), and every row in the ORIGINAL. A lane the
+ * user opened or closed stays so (`toggles`, by laneKey). Closed is a 26px row.
+ */
+export const laneOpen = (l: RemixLane, toggles: Record<string, boolean>, mash = false, original = false): boolean =>
+  toggles[laneKey(l)] ?? (l.clips.length > 0 || (!mash && (original || (l.role !== 'kit' && l.role !== 'top'))))
+
+// ------------------------------------------------------------------------------------------------ before a BUILD
+
+/** No remix at all (no track yet): the transport's idle state. */
+export const NO_REMIX: Remix = {
+  id: 'none',
+  name: '',
+  recipe: 'vip',
+  sources: [],
+  bpm: 120,
+  key: null,
+  beats_per_bar: 4,
+  sections: [],
+  lanes: [],
+  bass_patch_id: null,
+  flip: null,
+  mash: null,
+  seed: 0,
+  takes: [],
+  build_state: 'none',
+  rev: 0,
+  created_at: '',
+  updated_at: '',
+}
+
+/** The ORIGINAL plays its file from 0 s, so its bar 1 (the first downbeat) is the pickup in: its sections carry it. */
+export const pickupBeats = (r: Remix): number =>
+  r.id.startsWith('original:') && r.sections[0] ? (r.sections[0].start_bar - r.sections[0].from_start_bar) * r.beats_per_bar : 0
+
+/** The ruler's bars as [index from bar 1 = 0, beat], every `every` bars, from 0 s on: a pickup's bars before bar 1 get
+ *  negative indexes (ticks, no numbers). */
+export function rulerBars(beats: number, bpb: number, pickup: number, every: number): [number, number][] {
+  const out: [number, number][] = []
+  for (let k = 0 - Math.floor(pickup / bpb); pickup + k * bpb < beats; k++)
+    if (((k % every) + every) % every === 0) out.push([k, pickup + k * bpb])
+  return out
+}
+
+/**
+ * The ORIGINAL before any BUILD: slot A's song as a read-only Remix, so the same timeline and transport show and play
+ * it. Sections come from its structure, placed after the pickup before the first downbeat so they sit on the audio; one
+ * clip per stem from 0 s (or the full mix on one lane until the stems are split).
+ */
+export function originalRemix(song: Song, recipe: RemixRecipe): Remix {
+  const bpm = song.bpm_override ?? song.analysis?.bpm ?? 120
+  const bpb = 4
+  const toBeats = (s: number) => (s * bpm) / 60
+  const pickup = toBeats(song.downbeat_override_s ?? song.analysis?.downbeat_s ?? 0) / bpb
+  const found = song.structure?.sections ?? []
+  const sections: RemixSection[] = found.map((s, i) => ({
+    kind: s.kind,
+    start_bar: s.start_bar + pickup,
+    bars: (found[i + 1]?.start_bar ?? s.start_bar + Math.max(1, Math.round(toBeats(s.end_s - s.start_s) / bpb))) - s.start_bar,
+    from_slot: 'A',
+    from_start_bar: s.start_bar,
+  }))
+  const last = sections.at(-1)
+  const beats = Math.min(toBeats(song.duration_s), last ? (last.start_bar - 1 + last.bars) * bpb : Infinity)
+  const lane = (id: string, stem: StemName, audio_id: string): RemixLane => ({
+    id,
+    role: stem,
+    slot: 'A',
+    gain_db: 0,
+    mute: false,
+    solo: false,
+    clips: [
+      {
+        id,
+        at_beat: 0,
+        beats,
+        src: { kind: 'stem', slot: 'A', stem, start_beat: 0 },
+        shift_st: 0,
+        fade_in_beats: 0,
+        fade_out_beats: 0,
+        gain_db: 0,
+        audio_id,
+      },
+    ],
+  })
+  const stems = song.stems ?? []
+  return {
+    ...NO_REMIX,
+    id: `original:${song.id}`,
+    name: song.name,
+    recipe,
+    sources: [{ slot: 'A', song_id: song.id }],
+    bpm,
+    key: song.key_override ?? song.analysis?.key ?? null,
+    sections,
+    lanes: stems.length ? stems.map((s) => lane(`original:${s.name}`, s.name, s.audio_id)) : [lane('original:mix', 'other', song.audio_id)],
+  }
 }
 
 /** Sections placed back to back from bar 1, in order. */

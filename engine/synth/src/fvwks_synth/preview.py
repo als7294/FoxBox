@@ -19,7 +19,7 @@ from .library import PATCHES_DIR, entry
 
 BPM = 140.0
 SR = 48_000
-STOCK = 1  # bump when the stock riff or beat changes
+STOCK = 2  # bump when the stock riff or beat changes (2: FOXBOX kit on fvwks_synth.drums)
 # The wobble a category is auditioned with (reese and 808 sound best without one).
 WOBBLE = {"wobble": ("1/8", 0.8), "growl": ("1/16", 0.6), "riddim": ("1/8T", 0.8)}
 

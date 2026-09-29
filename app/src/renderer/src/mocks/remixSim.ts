@@ -30,6 +30,7 @@ import type {
 } from '@/api/remix'
 import type { ExportedFile, Job, Song, SongStructure } from '@/api/types'
 import { encodeWav } from '@/audio/wav'
+import { exportStem } from '@/components/remix/exportName'
 import type { MockEngine } from './mockEngine'
 import { MockError, peaksOf } from './mockEngine'
 
@@ -315,7 +316,7 @@ export class MockRemix {
       peaks: peaksOf(all, SR),
       audio_id: audioId,
       analysis_state: 'done',
-      analysis: { bpm, bpm_confidence: 0.95, key, camelot: '', key_confidence: 0.8, downbeat_s: 0, beats_per_bar: 4 },
+      analysis: { bpm, bpm_confidence: 0.95, key, camelot: '', key_confidence: 0.8, downbeat_s: 0, beats_per_bar: 4, source: 'foxbox' },
       stems_state: 'done',
       stems: (['drums', 'bass', 'vocals', 'other'] as const).map((n) => ({ name: n, audio_id: audioId })),
       structure,
@@ -740,7 +741,7 @@ export class MockRemix {
   }
 
   private exportNow(r: Remix, req: RemixExportRequest): RemixExportResult {
-    const name = (req.name?.trim() || r.name).replace(/[^\w .()-]+/g, '').trim() || 'remix'
+    const name = exportStem(r, req.name ?? '') // the engine's rule (S3 c780942)
     const beats = r.sections.reduce((n, s) => n + s.bars * r.beats_per_bar, 0)
     const duration = (beats * 60) / r.bpm
     const file = (format: 'aiff' | 'mp3'): ExportedFile => ({

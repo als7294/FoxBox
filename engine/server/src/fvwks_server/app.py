@@ -41,12 +41,19 @@ from fvwks_contracts.models import (
     Lexicon,
     LibraryPage,
     MaskInfo,
+    MaskRecipeSave,
+    MaskRename,
+    SamplePack,
+    SamplePackAdd,
+    SamplePackUpdate,
     MashMatch,
     MashScanRequest,
     MashScanResult,
     Remix,
     RemixCreate,
     RemixExportRequest,
+    RekordboxImportRequest,
+    RekordboxLibrary,
     RemixBuildRequest,
     RemixExportResult,
     RemixPrefsResult,
@@ -266,6 +273,22 @@ def create_app(config: Config) -> FastAPI:
             raise ApiException(501, "not_implemented", "Songs arrive with the v0.7 server work.")
         return fn
 
+    @r.post("/rekordbox/library", response_model=RekordboxLibrary, tags=["songs"], operation_id="readRekordboxLibrary")
+    async def read_rekordbox_library(file: UploadFile = File(...)) -> RekordboxLibrary:
+        """v0.12: the user's rekordbox.xml (its bytes: no path crosses the API): its tracks with an opaque id each, their
+        grid, key and cues and whether the file is on this Mac, and its playlists. Kept 30 min for POST
+        /rekordbox/import. 400 bad_xml; 413 over 100 MB."""
+        if file.size is not None and file.size > 100 << 20:
+            raise ApiException(413, "file_too_large", "This rekordbox.xml is over 100 MB.",
+                               hint="Export a playlist's tracks instead of the whole collection.")
+        return _songs("rekordbox_library")(await file.read())
+
+    @r.post("/rekordbox/import", response_model=Job, tags=["songs"], operation_id="importRekordboxTracks")
+    def import_rekordbox_tracks(req: RekordboxImportRequest) -> Job:
+        """v0.12: the chosen tracks become Songs with their Rekordbox grid, key and cues (a rekordbox_import job; the
+        result lists imported, updated and skipped). 404 library_expired: choose the XML again."""
+        return _songs("import_rekordbox")(req)
+
     @r.post("/songs", response_model=Song, tags=["songs"], operation_id="uploadSong")
     async def upload_song(file: UploadFile = File(...), name: str | None = Form(None)) -> Song:
         """v0.7: import a track (WAV/AIFF/FLAC/MP3; the app decodes other formats to WAV first). Analysis runs in
@@ -276,6 +299,33 @@ def create_app(config: Config) -> FastAPI:
                                hint="Use an MP3 or FLAC of it, or trim it.")
         data = await file.read()
         return await run_in_threadpool(fn, data, file.filename, name)
+
+    @r.get("/sample-packs", response_model=list[SamplePack], tags=["remix"], operation_id="listSamplePacks")
+    def list_sample_packs() -> list[SamplePack]:
+        """v0.15: your drum sample packs. Enabled ones replace FoxBox's own one-shots for the roles they cover."""
+        return service.list_sample_packs()
+
+    @r.post("/sample-packs", response_model=Job, tags=["remix"], operation_id="addSamplePack")
+    def add_sample_pack(req: SamplePackAdd) -> Job:
+        """v0.15: a folder of your one-shots (from the OS folder picker, main process only), read where it is (a
+        sample_scan job, one item per audio file). 400 not_a_folder, 404 missing."""
+        return service.add_sample_pack(req)
+
+    @r.patch("/sample-packs/{pack_id}", response_model=SamplePack, tags=["remix"], operation_id="updateSamplePack")
+    def update_sample_pack(pack_id: str, req: SamplePackUpdate) -> SamplePack:
+        return service.update_sample_pack(pack_id, req)
+
+    @r.delete("/sample-packs/{pack_id}", status_code=204, response_class=Response, tags=["remix"],
+              operation_id="deleteSamplePack")
+    def delete_sample_pack(pack_id: str) -> Response:
+        """v0.15: forget the pack; its files are never touched."""
+        service.delete_sample_pack(pack_id)
+        return Response(status_code=204)
+
+    @r.post("/sample-packs/{pack_id}/rescan", response_model=Job, tags=["remix"], operation_id="rescanSamplePack")
+    def rescan_sample_pack(pack_id: str) -> Job:
+        """v0.15: read the pack's folder again (rename a file, e.g. 'Kick 01.wav', then RESCAN to correct its role)."""
+        return service.rescan_sample_pack(pack_id)
 
     @r.get("/masks", response_model=list[MaskInfo], tags=["camera"], operation_id="listMasks")
     def list_masks() -> list[MaskInfo]:
@@ -291,15 +341,39 @@ def create_app(config: Config) -> FastAPI:
         data = await file.read(MAX_RASTER + 1)
         return await run_in_threadpool(service.masks.add, data, name)
 
+    @r.post("/masks/recipes", response_model=MaskInfo, tags=["camera"], operation_id="saveMaskRecipe")
+    def save_mask_recipe(req: MaskRecipeSave) -> MaskInfo:
+        """v0.13: a MASKS character-creator mask: its recipe JSON (<= 256 KB, stored as-is, never evaluated) and a PNG
+        thumbnail (<= 512 px, <= 1 MB) served at /image. 413 over a limit; 415 a thumbnail that isn't a PNG."""
+        return service.masks.save_recipe(req)
+
+    @r.put("/masks/{mask_id}/recipe", response_model=MaskInfo, tags=["camera"], operation_id="updateMaskRecipe")
+    def update_mask_recipe(mask_id: str, req: MaskRecipeSave) -> MaskInfo:
+        """v0.13: replace a character's name and recipe (and its thumbnail, when one is sent). 409 for an image mask."""
+        return service.masks.save_recipe(req, mask_id)
+
+    @r.get("/masks/{mask_id}/recipe", response_model=dict[str, dict], tags=["camera"], operation_id="getMaskRecipe")
+    def get_mask_recipe(mask_id: str) -> dict[str, dict]:
+        """v0.13: {"recipe": {...}} as saved. 409 for an image mask."""
+        return {"recipe": service.masks.recipe(mask_id)}
+
     @r.get("/masks/{mask_id}/image", response_class=Response, tags=["camera"], operation_id="getMaskImage",
            responses={200: {"content": {m: {} for m in MEDIA.values()}}})
     def get_mask_image(mask_id: str) -> Response:
         """v0.11.6: the mask's image with its own Content-Type; an SVG comes with CSP default-src 'none'."""
         info, path = service.masks.get(mask_id)
+        if not path.is_file():  # a character saved without a thumbnail
+            raise NotFound("mask image", mask_id)
         headers = {"X-Content-Type-Options": "nosniff"}
         if info.format == "svg":
             headers["Content-Security-Policy"] = "default-src 'none'"
         return FileResponse(path, media_type=MEDIA[info.format], headers=headers)
+
+    @r.patch("/masks/{mask_id}", response_model=MaskInfo, tags=["camera"], operation_id="renameMask")
+    def rename_mask(mask_id: str, req: MaskRename) -> MaskInfo:
+        """v0.15.2: rename a user mask, image or recipe (only its name changes). 404 for an id the server doesn't hold
+        (the built-ins are the app's), 409 for a mask that isn't the user's."""
+        return service.masks.rename(mask_id, req.name)
 
     @r.delete("/masks/{mask_id}", status_code=204, response_class=Response, tags=["camera"], operation_id="deleteMask")
     def delete_mask(mask_id: str) -> Response:

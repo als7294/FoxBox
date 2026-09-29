@@ -25,7 +25,7 @@ from fvwks_contracts.models import SongAnalysis
 
 from ..bassline import _mono
 from ..dsp import EPS, as2d
-from .styles import flip_styles, pattern
+from .styles import flip_styles, grid, pattern
 
 N_FFT, HOP = 2048, 512
 MED = 17  # HPSS median lengths (frames, bins)
@@ -107,8 +107,8 @@ def drum_hits(drums: np.ndarray, sr: int, analysis: SongAnalysis) -> list[Hit]:
 
 # GENRE FLIP styles, as data (styles/<id>.json): name, bpm, half_time and the default drums option's pattern, (beat in
 # the bar, voice, velocity) rows ("alt": a 2-bar style's second bar). Half-time styles put the snare on beat 3.
-FLIP_STYLES: dict[str, dict] = {k: {"name": v["name"], "bpm": v["bpm"], "half_time": v["half_time"], **pattern(k)}
-                                for k, v in flip_styles().items()}
+FLIP_STYLES: dict[str, dict] = {k: {"name": v["name"], "bpm": v["bpm"], "half_time": v["half_time"], **pattern(k),
+                                    "grid": grid(k)} for k, v in flip_styles().items()}
 
 
 def reprogram(hits: list[Hit], style: str, start_bar: int = 1, bars: int = 1, swing: float = 0.0,

@@ -1,7 +1,7 @@
 import { usePlaybackAnimation } from '@waveform-playlist/browser'
 import { Fragment, useEffect } from 'react'
 import { isTextTarget } from '@/lib/shortcuts'
-import { remixBeats, secToBeat } from './arrangement'
+import { secToBeat } from './arrangement'
 import { SNAPS } from './edit'
 import { histKey, remix as actions, useRemix } from './store'
 import css from './timeline.module.css'
@@ -12,9 +12,11 @@ export const ZOOMS = [1, 2, 4, 8, 16]
 export const zoomStep = (d: -1 | 0 | 1) => useRemix.setState((s) => ({ zoom: d === 0 ? 1 : (ZOOMS[ZOOMS.indexOf(s.zoom) + d] ?? s.zoom) }))
 
 /** The timeline head's tools: undo / redo, snap, FOLLOW and zoom, and the edit keys. Inside the playlist provider. */
-export function EditToolbar() {
+/** `bars`: the timeline's length (the take's, or the original's before BUILD). */
+export function EditToolbar({ bars }: { bars: number }) {
   const h = useRemix((s) => (s.remix ? s.history[histKey(s.remix)] : undefined))
   const follow = useRemix((s) => s.follow)
+  const zoomed = useRemix((s) => s.zoom > 1)
   useEditKeys()
   return (
     <div className={css.tools} role="toolbar" aria-label="Edit">
@@ -41,16 +43,18 @@ export function EditToolbar() {
         ↷
       </button>
       <SnapControl />
-      <button
-        type="button"
-        className={`${css.btn} ${css.follow}`}
-        aria-pressed={follow}
-        title="Keep the playhead in view while zoomed"
-        onClick={() => useRemix.setState({ follow: !follow })}
-      >
-        FOLLOW
-      </button>
-      <ZoomControl />
+      {zoomed && (
+        <button
+          type="button"
+          className={`${css.btn} ${css.follow}`}
+          aria-pressed={follow}
+          title="Keep the playhead in view while zoomed"
+          onClick={() => useRemix.setState({ follow: !follow })}
+        >
+          FOLLOW
+        </button>
+      )}
+      <ZoomControl bars={bars} />
     </div>
   )
 }
@@ -130,9 +134,8 @@ export function SnapControl() {
 }
 
 /** − `FIT · 144` + (zoomed: `4× · 36 BARS`); the middle is FIT. */
-export function ZoomControl() {
+export function ZoomControl({ bars }: { bars: number }) {
   const zoom = useRemix((s) => s.zoom)
-  const bars = useRemix((s) => (s.remix ? Math.round(remixBeats(s.remix) / s.remix.beats_per_bar) : 0))
   return (
     <div className={css.zoom} role="group" aria-label="Zoom">
       <button type="button" onClick={() => zoomStep(-1)} disabled={zoom === 1} aria-label="Zoom out" aria-keyshortcuts="Meta+-">
