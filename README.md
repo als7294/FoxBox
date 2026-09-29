@@ -37,8 +37,8 @@ camera. Everything runs on your Mac.
 </tr>
 <tr>
 <td valign="top"><img src="app/docs/screens/readme/01-studio.png" alt="The Studio, playing a drop on the PACT preset" width="100%"/></td>
-<td valign="top"><img src="app/docs/screens/readme/16-remix.png" alt="REMIX: a VIP take on the timeline, with BASS DNA open" width="100%"/></td>
-<td valign="top"><img src="app/docs/screens/readme/17-visuals-lowpoly.png" alt="VISUALS: the camera base with a LOW-POLY face" width="100%"/></td>
+<td valign="top"><img src="app/docs/screens/readme/16-remix.png" alt="REMIX: three takes of a VIP, playing the first drop, with BASS DNA open" width="100%"/></td>
+<td valign="top"><img src="app/docs/screens/readme/17-visuals.png" alt="VISUALS at 9:16: a Milkdrop preset over the waveform, AUTO-VJ on" width="100%"/></td>
 </tr>
 <tr>
 <td valign="top">
@@ -161,7 +161,7 @@ Remix your own tracks into bass-music edits, on your Mac. Pick a recipe, press *
 Make visuals and **promo videos for your music**, or run them live behind your set. Pick what the visuals listen to, what sits
 underneath, and stack effects on top. Every layer can react to its own **stem**.
 
-<img src="app/docs/screens/readme/11-visuals.png" alt="VISUALS: a photo base with a filter reacting to the drums and an overlay reacting to the bass" width="100%"/>
+<img src="app/docs/screens/readme/11-visuals.png" alt="VISUALS: the voice core with the feedback tunnel reacting to the bass and an RGB split reacting to the drums" width="100%"/>
 
 ### 🧠 Smart visuals <sup>new in 1.5</sup>
 
@@ -172,7 +172,7 @@ underneath, and stack effects on top. Every layer can react to its own **stem**.
 - **TEXT:** your lyrics or drop line decrypt, slam and shatter on the drop. MILKDROP cuts on the drop too.
 - **Safe flashes:** strobing is held to 3 flashes a second (WCAG 2.3.1).
 
-<img src="app/docs/screens/readme/14-visuals-auto.png" alt="VISUALS at 9:16 mid-drop: AUTO-VJ on, a TEXT SLAM layer over the feedback tunnel" width="100%"/>
+<img src="app/docs/screens/readme/14-visuals-auto.png" alt="VISUALS at 9:16 mid-drop: AUTO-VJ on, beat rings and the feedback tunnel over the waveform" width="100%"/>
 
 | | |
 |---|---|
@@ -207,6 +207,14 @@ With the camera as the base, your face is always covered, on the Mac, before any
 
 Lean in or reach out and you break through the effects on top, with the mask still on. It all runs on MediaPipe's face and
 hand tracking on your Mac; nothing is uploaded.
+
+### 🎭 MASKS <sup>new in 1.5.1</sup>
+
+A character creator for your mask. Start from one of eight masks in the **LINEUP**, then swap any part: the shell, eyes,
+mouth and jaw, ears and horns, material, colours, pattern, glow and effects. **RANDOMIZE** rolls every part you haven't
+locked. Try it on the head model or on your camera, save it to **MY MASKS**, and **WEAR** it in VISUALS.
+
+<img src="app/docs/screens/readme/18-masks.png" alt="MASKS: the LINEUP of eight starting masks, with SUBWOOFER open on the head model" width="100%"/>
 
 ### 📹 SAVE CLIP
 
