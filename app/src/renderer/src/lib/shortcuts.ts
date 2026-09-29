@@ -28,7 +28,9 @@ export const SHORTCUTS: ShortcutInfo[] = [
   { keys: 'M', label: 'Metronome click (preview only)' },
   { keys: '1 – 7', label: 'Presets' },
   { keys: '⌘ S', label: 'Save preset' },
-  { keys: 'R', label: 'Record (Record tab)' },
+  { keys: 'R', label: 'Record a take (VISUALS)' },
+  { keys: 'SPACE', label: 'Push to talk (VISUALS, MIC)' },
+  { keys: 'A S D F G', label: 'FX pads (VISUALS, while live)' },
   { keys: '?', label: 'This overlay' },
   { keys: 'ESC', label: 'Close the rack, sheets and overlays' },
 ]

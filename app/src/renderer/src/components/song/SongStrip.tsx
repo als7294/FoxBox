@@ -71,13 +71,27 @@ export function KeyChip({ up = false }: { up?: boolean }) {
   )
 }
 
-/** Hidden file input + drop handling shared by the strip, the drawer and the panel (`open: false`: no drawer). */
+/** Audio the engine reads (WAV, AIFF, FLAC, MP3, M4A/AAC, …), by type or extension; video files carry their audio. */
+export const isSongFile = (f: { name: string; type: string }): boolean =>
+  /^(audio|video)\//.test(f.type) || /\.(wav|aiff?|aifc|flac|mp3|m4a|aac|ogg|opus)$/i.test(f.name)
+
+/**
+ * Hidden file input + drop handling shared by the strip, the drawer, the panel and VISUALS' TRACK (`open: false`:
+ * no drawer). A file it can't read shows `error` inline (never a modal).
+ */
 export function useSongFile(opts: { open?: boolean } = {}) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
-  const take = (f: File | undefined) => f && void songs.importFile(f, opts)
+  const [error, setError] = useState<string | null>(null)
+  const take = (f: File | undefined) => {
+    if (!f) return
+    if (!isSongFile(f)) return setError(`Can't read ${f.name}: use WAV, AIFF, FLAC, MP3 or M4A.`)
+    setError(null)
+    void songs.importFile(f, opts)
+  }
   return {
     over,
+    error,
     choose: () => input.current?.click(),
     dropProps: {
       onDragOver: (e: DragEvent) => {
@@ -111,10 +125,11 @@ export function useSongFile(opts: { open?: boolean } = {}) {
 export function SongStrip() {
   const song = useSong((s) => s.song)
   const busy = useSong((s) => s.busy)
-  const error = useSong((s) => s.error)
   const open = useSong((s) => s.open)
   const atBar = useSong((s) => s.placement.atBar)
   const file = useSongFile()
+  const songError = useSong((s) => s.error)
+  const error = file.error ?? songError
   const grid = songGrid(song)
   const analysing = song && !grid && (song.analysis_state === 'queued' || song.analysis_state === 'running')
   return (

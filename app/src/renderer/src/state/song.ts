@@ -27,13 +27,14 @@
  *   songShape, decodeSong, decodeAiff: the camera's song maths (were components/camera/mix.ts), same behaviour.
  */
 import { create } from 'zustand'
-import { api, unwrap } from '@/api/client'
+import { api, audioUrl, unwrap } from '@/api/client'
 import type { Peaks, RenderInfo, Song, SongPlacement, SongUpdate } from '@/api/types'
 import { uploadSong } from '@/api/upload'
 import { engineAccepts } from '@/audio/importFile'
 import { audioContext } from '@/audio/player'
 import { encodeWav } from '@/audio/wav'
 import { normalizeKey } from '@/lib/keys'
+import { isEngineUsable, useEngine } from './engine'
 import { studio, useStudio } from './studio'
 
 export interface Placement {
@@ -162,6 +163,18 @@ async function poll(id: string, g: number): Promise<void> {
 
 const channelsOf = (b: AudioBuffer) => Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c))
 
+// The song survives a relaunch: its engine id is kept here and restored once the engine is up (UX: it was gone after
+// every restart). Only the id: the engine keeps the file and its analysis.
+const SONG_KEY = 'foxbox-song'
+function remember(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(SONG_KEY, id)
+    else localStorage.removeItem(SONG_KEY)
+  } catch {
+    // storage off: the song just isn't restored next time
+  }
+}
+
 export const songs = {
   /** IMPORT SONG: decode, upload (as-is when the engine reads it, else a 24-bit WAV), then poll the analysis. Opens the
    *  SONG drawer unless `open: false` (the camera). */
@@ -188,10 +201,35 @@ export const songs = {
       }
       if (g !== gen) return
       set({ song, buffer, beatDrop, busy: null, placement: DEFAULT_PLACEMENT })
+      remember(song.id)
       if (song.analysis_state === 'done' || song.analysis_state === 'error') analysed(song)
       else void poll(song.id, g)
     } catch (err) {
       if (g === gen) set({ busy: null, error: message(err) })
+    }
+  },
+
+  /** The last session's song, back from the engine (its file and analysis live there); forgotten if it's gone. */
+  async restore(): Promise<void> {
+    let id: string | null = null
+    try {
+      id = localStorage.getItem(SONG_KEY)
+    } catch {
+      return
+    }
+    if (!id || get().song || get().busy) return
+    const g = ++gen
+    try {
+      const song = await unwrap(api.GET('/api/songs/{song_id}', { params: { path: { song_id: id } } }))
+      const res = await fetch(audioUrl(song.audio_id))
+      if (!res.ok) throw new Error(`song audio ${res.status}`)
+      const buffer = await decodeSong(audioContext(), await res.arrayBuffer())
+      if (g !== gen) return
+      set({ song, buffer, beatDrop: findBeatDrop(channelsOf(buffer), buffer.sampleRate), placement: DEFAULT_PLACEMENT, busy: null, error: null })
+      if (song.analysis_state === 'done' || song.analysis_state === 'error') analysed(song)
+      else void poll(song.id, g)
+    } catch {
+      if (g === gen) remember(null)
     }
   },
 
@@ -236,6 +274,7 @@ export const songs = {
 
   clear(): void {
     gen++
+    remember(null)
     set({ song: null, buffer: null, beatDrop: null, placement: DEFAULT_PLACEMENT, busy: null, error: null, open: false })
   },
 
@@ -244,6 +283,12 @@ export const songs = {
     set({ open })
   },
 }
+
+// The engine is up (first start, or back after a restart): bring the last song back.
+if (isEngineUsable(useEngine.getState().status)) void songs.restore()
+useEngine.subscribe((s, prev) => {
+  if (isEngineUsable(s.status) && !isEngineUsable(prev.status)) void songs.restore()
+})
 
 // A new render (another drop length) moves an automatic placement; the rack drawer and the SONG drawer share a place.
 useStudio.subscribe((s, prev) => {

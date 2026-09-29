@@ -1,0 +1,15 @@
+diff --git a/src/surge-python/surgepy.cpp b/src/surge-python/surgepy.cpp
+index c3d4dd4..1b44823 100644
+--- a/src/surge-python/surgepy.cpp
++++ b/src/surge-python/surgepy.cpp
+@@ -1290,6 +1290,10 @@ PYBIND11_MODULE(surgepy, m)
+         .def("getUserDataPath", &SurgeSynthesizerWithPythonExtensions::userDataPath)
+         .def("getSampleRate",
+              [](SurgeSynthesizerWithPythonExtensions &s) { return s.storage.samplerate; })
++        .def(
++            "setTempo",
++            [](SurgeSynthesizerWithPythonExtensions &s, double bpm) { s.time_data.tempo = bpm; },
++            "FoxBox: set the host tempo (BPM) that tempo-synced LFOs and effects follow.", py::arg("bpm"))
+ 
+         .def("fromSynthSideId", &SurgeSynthesizer::fromSynthSideId)
+         .def("createSynthSideId", &SurgeSynthesizerWithPythonExtensions::createSynthSideId)

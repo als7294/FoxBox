@@ -205,7 +205,7 @@ describe('EngineSupervisor', () => {
     )
     const offline = until(sup, 'offline')
     await sup.start()
-    expect((await offline).lastError).toMatch(/setup failed.*exit 4/)
+    expect((await offline).lastError).toMatch(/couldn't be installed.*exit 4/)
   })
 
   it('the engine exits by itself when its parent goes away (--exit-with-parent)', async () => {

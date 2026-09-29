@@ -33,7 +33,7 @@ export function SnapEndPicker() {
         scheduleRender(250)
       }}
     >
-      END ⇥ {effective.toUpperCase()}
+      <span className={styles.endWord}>END </span>⇥ {effective.toUpperCase()}
     </button>
   )
 }

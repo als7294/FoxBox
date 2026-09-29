@@ -1,8 +1,8 @@
 /* SOURCE per the design canvas: TYPE (voice, speed; the script editor is scriptEditor.module.css), RECORD (orb,
  * strip, takes), IMPORT (drop). */
 .kicker {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -19,11 +19,12 @@
   align-items: center;
 }
 .showAll {
+  min-height: 24px;
   border: 0;
   background: none;
-  padding: 0;
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  padding: 0 0 0 6px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .showAll:hover {
@@ -98,7 +99,7 @@
   text-overflow: ellipsis;
 }
 .voiceDesc {
-  font: 400 10px var(--vb-font-mono);
+  font: 400 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   flex: 1;
   min-width: 56px;
@@ -119,7 +120,7 @@
   }
 }
 .tag {
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   padding: 3px 5px;
   border: 1px solid var(--vb-line-2);
@@ -135,7 +136,7 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 9.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.06em;
   padding: 0;
 }
@@ -157,8 +158,8 @@
   justify-content: space-between;
 }
 .speedValue {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-ink);
 }
 .speedTrack {
@@ -207,7 +208,7 @@
 .speedScale {
   display: flex;
   justify-content: space-between;
-  font: 400 9px var(--vb-font-mono);
+  font: 400 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
 }
 
@@ -305,7 +306,7 @@
   padding: 2px 5px;
   border-radius: 4px;
   background: rgba(var(--vb-shadow-rgb), 0.25);
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -335,7 +336,7 @@
   background-size: 4px 4px;
   background-repeat: no-repeat;
   color: var(--vb-ink);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   cursor: pointer;
   outline: none;
   text-overflow: ellipsis;
@@ -350,7 +351,7 @@
   background: var(--vb-panel);
 }
 .rate {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   color: var(--vb-dim);
   white-space: nowrap;
@@ -396,8 +397,8 @@
   letter-spacing: 0.14em;
 }
 .orbHint {
-  font: 500 9px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   opacity: 0.8;
 }
 .recInfo {
@@ -413,8 +414,8 @@
   white-space: pre;
 }
 .recLabel {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   transition: color var(--vb-med);
   text-align: center;
@@ -446,7 +447,7 @@
 .scale {
   position: relative;
   height: 10px;
-  font: 500 8.5px/10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/10px var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .scale span {
@@ -468,8 +469,8 @@
   border: 0;
   background: none;
   color: var(--vb-dim);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   padding: 0;
 }
 .clear:hover {
@@ -519,7 +520,7 @@
   border-radius: 50%;
   background: none;
   color: var(--vb-ink);
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   padding: 0;
 }
 .takePlay:hover {
@@ -541,7 +542,7 @@
   fill: var(--vb-amber);
 }
 .takeDur {
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -552,7 +553,7 @@
   border-radius: var(--vb-r1);
   background: transparent;
   color: var(--vb-ink);
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   padding: 0;
   white-space: nowrap;
@@ -639,13 +640,13 @@
   letter-spacing: 0.1em;
 }
 .dropBody {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .dropBusy {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .imported {
@@ -663,12 +664,30 @@
   word-break: break-all;
 }
 .importedMeta {
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
+}
+.songOffer {
+  font: 500 var(--vb-text-min)/1.5 var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.songOfferBtn {
+  min-height: 24px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.songOfferBtn:hover {
+  color: var(--vb-amber);
 }
 .error {
   margin: 0;
-  font: 500 10.5px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-accent);
 }
 
@@ -709,7 +728,7 @@
   border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
   border-radius: 2px;
   color: var(--vb-amber);
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
 }
 .cleanupSeg {
@@ -717,7 +736,7 @@
   min-width: 0;
 }
 .cleanupNote {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-amber);
   white-space: nowrap;

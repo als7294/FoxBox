@@ -1,0 +1,19 @@
+/* HARDWARE LEDs (app/design/remix/README.md "LED meter"): unlit ink .1, lit amber, ok-green when done. */
+.strip {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+}
+.strip > span {
+  flex: 1;
+  height: var(--led-h, 4px);
+  border-radius: 1px;
+  background: var(--vb-led-off);
+  transition: background 0.2s;
+}
+.strip > span[data-lit] {
+  background: var(--led-on, var(--vb-amber));
+}
+.strip[data-done] > span {
+  background: var(--vb-ok);
+}

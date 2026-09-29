@@ -5,12 +5,18 @@
  * decays each frame for the persistence. A faint graticule sits under it. Kicks flare the beam (the song's, when one
  * plays; the voice's syllables a little), each new bar turns the figure an eighth and swaps its hue between ember and
  * amber, and the drop surges: a wider, hotter beam with a longer afterglow.
+ *
+ * Song structure (structure.ts): up a build the figure tightens, creeps round and its trace heats and shortens; in the
+ * held breath the beam all but goes out and the last figure lingers on the phosphor; the drop hit throws it wide in
+ * ice. A held sub breathes the figure out for the note's length, with a longer glow; a stab flares the beam; a wobble
+ * thickens it at the LFO's rate; an 808 glide bends it round.
  */
-import { AdditiveBlending, BufferAttribute, BufferGeometry, DoubleSide, Mesh, ShaderMaterial, Vector2 } from 'three'
+import { AdditiveBlending, BufferAttribute, BufferGeometry, DoubleSide, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three'
 import { makePost, makeRenderer } from '../post'
 import type { AudioFrame, StyleInstance, StyleOptions, VisualStyle } from '../registry'
 import { disposeScenes, floatType, paletteUniforms, PingPong, quadCamera, quadMaterial, quadScene, renderTo } from './feedback'
 import { Cues, ease, lissajous, monoDelay, peakOf } from './audioKit'
+import { GRADE_GLSL, Structure } from './structure'
 
 /** Points per frame (the analyser's waveform length). */
 const MAX = 1024
@@ -46,8 +52,10 @@ const BEAM_FRAG = /* glsl */ `
 uniform vec3 uAccent;
 uniform vec3 uAmber;
 uniform vec3 uInk;
+uniform vec3 uIce;
 uniform float uGain;
 uniform float uHue;
+uniform float uFlip;
 varying float vAcross;
 varying float vI;
 void main() {
@@ -55,6 +63,7 @@ void main() {
   float halo = exp(-x * x * 3.2);
   float core = exp(-x * x * 26.0);
   vec3 glow = mix(mix(uAccent, uAmber, 0.3), mix(uAmber, uInk, 0.15), uHue);
+  glow = mix(glow, mix(uIce, uInk, 0.4), uFlip);
   vec3 col = glow * halo * 0.5 + mix(uAmber, uInk, 0.6) * core * 0.5;
   gl_FragColor = vec4(col * vI * uGain, 1.0);
 }
@@ -80,7 +89,9 @@ uniform float uFlare;
 uniform vec3 uBg;
 uniform vec3 uInk;
 uniform vec3 uAccent;
+uniform vec3 uGrade;
 varying vec2 vUv;
+${GRADE_GLSL}
 float line(float d, float w) { return 1.0 - smoothstep(w * 0.5, w * 0.5 + 1.0, d); }
 void main() {
   vec2 p = vUv * uRes - uRes * 0.5;
@@ -99,7 +110,7 @@ void main() {
   // A faint glow pooled in the middle, lifted on hits.
   float r = length(p) / uScale;
   col += uAccent * exp(-r * r * 2.2) * (0.018 + 0.05 * uFlare);
-  col += texture2D(uTrail, vUv).rgb;
+  col += grade(texture2D(uTrail, vUv).rgb, uGrade);
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -145,6 +156,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uGain: { value: 1 },
     uRot: { value: 0 },
     uHue: { value: 0 },
+    uFlip: { value: 0 },
   }
   const beamMat = new ShaderMaterial({
     vertexShader: BEAM_VERT,
@@ -162,7 +174,14 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   beam.renderOrder = 1
   trailScene.add(beam)
 
-  const showU = { ...pal, uTrail: { value: trail.read.texture }, uRes: { value: res }, uScale: { value: 1 }, uFlare: { value: 0 } }
+  const showU = {
+    ...pal,
+    uTrail: { value: trail.read.texture },
+    uRes: { value: res },
+    uScale: { value: 1 },
+    uFlare: { value: 0 },
+    uGrade: { value: new Vector3(0, 0, 1) },
+  }
   const { scene } = quadScene(quadMaterial(SHOW_FRAG, showU))
   const post = makePost(renderer, scene, cam, opts, { bloom: 1.25, grain: 0.18, vignette: 0.7 })
 
@@ -171,6 +190,9 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   const aB = geo.getAttribute('aB') as BufferAttribute
   const aI = geo.getAttribute('aI') as BufferAttribute
   const cues = new Cues(opts.reduced)
+  const st = new Structure(opts.reduced)
+  /** A build's slow creep round (radians). */
+  let creep = 0
   let gain = 1
   /** The figure's turn and hue: each new bar moves the targets, the values ease after them. */
   let rot = 0
@@ -212,17 +234,24 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     frame(a: AudioFrame, dt: number) {
       const step = Math.min(100, Math.max(0, dt))
       cues.step(a, step)
-      const env = Math.min(1.5, cues.kick + 0.35 * cues.voice + cues.drop)
-      if (cues.newBar || cues.dropStart) {
+      st.step(a, step)
+      // Structure: the drop's groove and the director's intensity scale the flare; bass stabs add to it.
+      const env = Math.min(1.5, (cues.kick + 0.35 * cues.voice + cues.drop) * st.intensity * (1 + 0.3 * st.groove) + 0.6 * st.stab)
+      if (cues.newBar || cues.dropStart || (st.hit && cues.drop < 0.5)) {
         if (!opts.reduced) rotTo += Math.PI / 8
         hueTo = 1 - hueTo
       }
       rot = ease(rot, rotTo, step, 70)
       hue = ease(hue, hueTo, step, opts.reduced ? 600 : 90)
-      beamU.uRot.value = rot
+      // Up a build the figure creeps round (faster as it tightens); a glide bends it.
+      if (!opts.reduced) creep += (step / 1000) * 0.9 * st.tension * st.timeScale
+      beamU.uRot.value = rot + creep + (st.glide * Math.PI) / 4
       beamU.uHue.value = hue
+      beamU.uFlip.value = 0.75 * st.burst
       live = ease(live, a.active ? 1 : 0, step, 400)
-      const scale = Math.min(w, h) * 0.42
+      // Tighter up a build, wide at the hit, breathing out through a held sub.
+      const breathe = 1 - 0.3 * st.tension + 0.35 * st.burst + 0.12 * st.subHold * (0.4 + 0.6 * st.subStretch)
+      const scale = Math.min(w, h) * 0.42 * breathe * st.zoom
       let n = a.active ? lissajous(a.waveL, a.waveR, xy, monoDelay(a.sampleRate)) : 0
       if (n > 1) {
         // Auto-gain: a quiet voice still fills the screen, a loud master doesn't clip it.
@@ -231,7 +260,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
         upload(n, scale, 0.35 + 0.65 * live)
       } else {
         // Idle: a small, slow 3:2 figure drifting in the middle, dim.
-        idleT += (step / 1000) * (opts.reduced ? 0.25 : 0.6)
+        idleT += (step / 1000) * (opts.reduced ? 0.25 : 0.6) * st.timeScale
         n = 360
         for (let i = 0; i < n; i++) {
           const u = idleT + (i / n) * Math.PI * 2
@@ -241,18 +270,21 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
         gain = ease(gain, 1, step, 300)
         upload(n, scale, 0.22)
       }
-      // Persistence: ~110 ms (longer, softer under reduced motion).
-      fade.uniforms.uKeep!.value = Math.exp(-step / ((opts.reduced ? 200 : 110) * (1 + 1.5 * cues.drop)))
+      // Persistence: ~110 ms (longer, softer under reduced motion); longer through the drop and a held sub, shorter up a
+      // build; in the held breath the last figure lingers while the beam dims.
+      const persist = (1 + 1.5 * cues.drop + 0.3 * st.groove + 0.8 * st.subHold) * (1 - 0.4 * st.tension) * (1 + 6 * st.hold)
+      fade.uniforms.uKeep!.value = Math.exp(-step / ((opts.reduced ? 200 : 110) * persist))
       fade.uniforms.uPrev!.value = trail.read.texture
       beamU.uScale.value = scale
-      beamU.uWidth.value = Math.max(1.4, Math.min(w, h) / 560) * (1 + 1.1 * env)
-      beamU.uGain.value = 1 + 1.6 * env
+      beamU.uWidth.value = Math.max(1.4, Math.min(w, h) / 560) * (1 + 1.1 * env) * (1 + 0.5 * st.wobble)
+      beamU.uGain.value = (1 + 1.6 * env) * (1 - 0.85 * st.hold)
+      showU.uGrade.value.set(st.heat, st.hue, st.gain)
       renderTo(renderer, trail.write, trailScene, cam)
       trail.swap()
       showU.uTrail.value = trail.read.texture
       showU.uScale.value = scale
       showU.uFlare.value = env
-      post.render(dt, Math.min(1, env * 0.45 + a.rms * 0.4 * live + cues.drop * 0.6))
+      post.render(dt, Math.min(1, env * 0.45 + a.rms * 0.4 * live + cues.drop * 0.6 + 0.4 * st.burst))
     },
     resize(width: number, height: number) {
       w = Math.max(1, Math.round(width))
@@ -268,6 +300,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       disposeScenes(trailScene, scene)
       renderer.dispose()
     },
+    setParams: (p) => st.setParams(p),
   }
 }
 

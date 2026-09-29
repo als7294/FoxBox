@@ -60,10 +60,10 @@
 }*/
 
 void main() {
-  vec2 p = gl_FragCoord.xy / min(RENDERSIZE.x, RENDERSIZE.y) * 3.0;
-  float t = TIME * (0.25 + rms * 1.5);
+  vec2 p = gl_FragCoord.xy / min(RENDERSIZE.x, RENDERSIZE.y) * (3.0 + 3.0 * buildProgress);  // finer as it builds
+  float t = TIME * (0.25 + rms * 1.5) + 0.6 * sin(6.28318 * bassWobblePhase) * bassWobble * bassGrowl;
   float v = sin(p.x + t) + sin(p.y * 1.3 - t * 0.7) + sin((p.x + p.y) * 0.7 + t * 1.3) + sin(length(p - 1.5) * 2.0 - t);
   v = 0.5 + 0.125 * v;
   vec3 col = mix(mix(accentColor.rgb, amberColor.rgb, smoothstep(0.3, 0.7, v)), iceColor.rgb, smoothstep(0.75, 1.0, v) * mid);
-  gl_FragColor = vec4(mix(bgColor.rgb, col, 0.35 + 0.65 * v * (0.6 + rms)), 1.0);
+  gl_FragColor = vec4(mix(bgColor.rgb, col, 0.35 + 0.65 * v * (0.6 + rms)) + inkColor.rgb * dropHit * 0.4, 1.0);
 }

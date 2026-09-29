@@ -6,7 +6,7 @@ import { FOXBOX_INPUTS, parseIsf } from '@/visuals/engines/isf/loader'
 const ISF = join(__dirname, '../../../src/renderer/src/visuals/engines/isf')
 
 describe('ISF loader (SHADERS)', () => {
-  it.each([['shaders', 15, 'generator'], ['filters', 10, 'filter']] as const)('loads every pack %s (inputs FoxBox fills, audio as images)', (dir, least, kind) => {
+  it.each([['shaders', 15, 'generator'], ['filters', 15, 'filter']] as const)('loads every pack %s (inputs FoxBox fills, audio as images)', (dir, least, kind) => {
     const files = readdirSync(join(ISF, dir)).filter((f) => f.endsWith('.fs'))
     expect(files.length).toBeGreaterThanOrEqual(least)
     const known = new Set<string>([...FOXBOX_INPUTS.float, ...FOXBOX_INPUTS.color, ...FOXBOX_INPUTS.image, 'inputImage'])
@@ -29,5 +29,9 @@ describe('ISF loader (SHADERS)', () => {
     expect(parseIsf('/*{"INPUTS":[{"NAME":"a b","TYPE":"float"}]}*/ void main(){}', 'x.fs').error).toMatch(/NAME/)
     expect(parseIsf('/*{"INPUTS":[{"NAME":"x","TYPE":"cube"}]}*/ void main(){}', 'x.fs').error).toMatch(/unsupported TYPE/)
     expect(parseIsf('/*{}*/ float f(){return 1.0;}', 'x.fs').error).toMatch(/main/)
+    // 1.5: the standard inputs are declared for a shader that uses them (unless its code declares its own)
+    const std = parseIsf('/*{}*/\nvoid main(){gl_FragColor=vec4(buildProgress+dropHit, bassWobblePhase, 0.0, 1.0);}', 'a.fs')
+    expect(std.inputs.map((i) => i.NAME)).toEqual(['buildProgress', 'dropHit', 'bassWobblePhase'])
+    expect(parseIsf('/*{}*/\nfloat dropHit = 1.0;\nvoid main(){gl_FragColor=vec4(dropHit);}', 'b.fs').inputs).toEqual([])
   })
 })

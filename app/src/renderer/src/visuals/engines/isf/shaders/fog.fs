@@ -63,8 +63,9 @@ float fbm(vec2 p) {
 void main() {
   vec2 uv = isf_FragNormCoord;
   vec2 p = uv * vec2(RENDERSIZE.x / RENDERSIZE.y, 1.0) * 2.5;
+  p.y *= 1.0 - 0.3 * bassHold * bassSub * bassOn;  // a held sub stretches the fog
   float n = fbm(p + vec2(TIME * 0.05, -TIME * 0.03) + fbm(p * 0.7 - TIME * 0.02));
-  float lift = (1.0 - uv.y) * (0.35 + low * 1.2);
-  vec3 col = mix(accentColor.rgb, amberColor.rgb, n * (0.5 + mid));
+  float lift = (1.0 - uv.y) * (0.35 + low * 1.2 + 0.8 * buildProgress);  // it rises through a build
+  vec3 col = mix(mix(accentColor.rgb, amberColor.rgb, n * (0.5 + mid)), inkColor.rgb, 0.3 * dropEnergy);
   gl_FragColor = vec4(mix(bgColor.rgb, col, clamp(n * lift, 0.0, 1.0)), 1.0);
 }

@@ -7,6 +7,7 @@
 import type { Peaks } from '@/api/types'
 import { theme } from '@/visuals/theme'
 import type { Box } from './faceTrack'
+import { drawStyle, type StyleFx, type StyleName } from './faceStyles'
 import { subtitleAt, type Subtitle, type SubWord } from './subtitles'
 
 export type ClipFormat = 'vertical' | 'horizontal'
@@ -25,12 +26,34 @@ export interface Layout {
   wave: Rect
 }
 
-export type MaskStyle = 'mosaic' | 'blur' | 'solid'
+/** `mask:<id>`: a mask the user imported (faceMask.ts). */
+export type MaskStyle = 'mosaic' | 'blur' | 'solid' | StyleName | `mask:${string}`
+
+/** Every way a face can be hidden, in the MASK panel's order (1.5 adds the eight after SOLID: faceStyles.ts). */
+export const MASK_STYLES: readonly { value: MaskStyle; label: string; beta?: true }[] = [
+  { value: 'mosaic', label: 'MOSAIC' },
+  { value: 'blur', label: 'BLUR' },
+  { value: 'solid', label: 'SOLID' },
+  { value: 'glitch', label: 'GLITCH' },
+  { value: 'ascii', label: 'ASCII' },
+  { value: 'redacted', label: 'REDACTED' },
+  { value: 'lowpoly', label: 'LOW-POLY' },
+  { value: 'depthglitch', label: 'DEPTH GLITCH', beta: true },
+  { value: 'fox', label: 'FOX MASK' },
+  { value: 'static', label: 'STATIC' },
+  { value: 'halftone', label: 'HALFTONE' },
+  { value: 'thermal', label: 'THERMAL VOID' },
+]
+
+/** What a mask moves with: off, the whole mix, or one stem. */
+export type MaskReact = 'off' | 'mix' | 'drums' | 'bass' | 'vocals' | 'other'
 
 /** How faces are hidden. `strength` 1–10: stronger is coarser (fewer mosaic cells, a wider blur). */
 export interface FaceMask {
   style: MaskStyle
   strength: number
+  /** 1.5: the styles that animate follow this (absent: off). */
+  react?: MaskReact
 }
 
 export const DEFAULT_MASK: FaceMask = { style: 'mosaic', strength: 5 }
@@ -111,7 +134,21 @@ export function maskRegion(
   mask: FaceMask,
   scratch: HTMLCanvasElement,
   wholeFrame = false,
+  fx?: Partial<StyleFx>,
 ): void {
+  if (mask.style !== 'mosaic' && mask.style !== 'blur' && mask.style !== 'solid') {
+    const f: StyleFx = {
+      t: fx?.t ?? performance.now() / 1000,
+      pulse: fx?.pulse ?? 0,
+      seed: fx?.seed ?? 1,
+      pose: fx?.pose,
+      mesh: fx?.mesh,
+      shapes: fx?.shapes,
+      alpha: fx?.alpha,
+    }
+    drawStyle(mask.style, ctx, source, src, dst, mosaicBlocks(mask.strength, wholeFrame), f)
+    return
+  }
   if (mask.style === 'solid') {
     ctx.fillStyle = theme().bg
     ctx.fillRect(dst.x, dst.y, dst.w, dst.h)
@@ -176,6 +213,10 @@ export interface FrameInput {
   card?: Card | null
   /** The drop's words and the time on its own timeline (s), while a clip or a filmed take plays; null: none shown. */
   subtitles?: { words: readonly SubWord[]; t: number } | null
+  /** 1.5 AUTO-FRAME: the part of the camera frame to show (camera px, smartCamera.crop()); absent: centred cover. */
+  crop?: (Rect & { scale: number }) | null
+  /** 1.5: 0-1, the mask's beat (from the stem it reacts to). */
+  pulse?: number
 }
 
 // ------------------------------------------------------------------------------------------ intro / outro
@@ -544,15 +585,16 @@ export function drawFrame(
       ctx.restore()
     }
   } else if (v && v.readyState >= 2 && v.videoWidth > 0) {
-    const crop = coverCrop(v.videoWidth, v.videoHeight, L.cam)
+    const crop = f.crop ?? coverCrop(v.videoWidth, v.videoHeight, L.cam)
     ctx.drawImage(v, crop.x, crop.y, crop.w, crop.h, L.cam.x, L.cam.y, L.cam.w, L.cam.h)
+    const fx = { t: f.clock ?? performance.now() / 1000, pulse: f.pulse ?? 0 }
     if (f.wholeFrame) {
-      maskRegion(ctx, v, crop, L.cam, f.mask, scratch, true)
+      maskRegion(ctx, v, crop, L.cam, f.mask, scratch, true, { ...fx, seed: 1 })
     } else {
-      for (const face of f.faces) {
+      f.faces.forEach((face, i) => {
         const m = mapBox(face, crop, L.cam)
-        if (m) maskRegion(ctx, v, m.src, m.dst, f.mask, scratch)
-      }
+        if (m) maskRegion(ctx, v, m.src, m.dst, f.mask, scratch, false, { ...fx, seed: i + 1 })
+      })
     }
   } else {
     ctx.fillStyle = t.dim

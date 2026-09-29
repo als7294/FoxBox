@@ -55,9 +55,26 @@ export function ArrangeView() {
     scheduleRender(0)
   }
   // A drag moves the word by as many beats as the pointer travels (not to wherever the pointer is on the lane).
-  const onDown = (e: PointerEvent<HTMLButtonElement>, index: number) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    setDrag({ index, beat: beatOf(index), from: beatOf(index), x: e.clientX })
+  const onDown = (block: HTMLElement, pointerId: number, x: number, index: number) => {
+    block.setPointerCapture(pointerId)
+    setDrag({ index, beat: beatOf(index), from: beatOf(index), x })
+  }
+  /**
+   * The lane picks the word nearest the pointer (inside its block, or within 12 px of it), not the topmost block: short
+   * words get room to grab without a hit pad covering their neighbours (UX #6).
+   */
+  const onLaneDown = (e: PointerEvent<HTMLDivElement>) => {
+    let best: { el: HTMLElement; i: number; d: number; c: number } | null = null
+    for (const el of e.currentTarget.querySelectorAll<HTMLElement>('[data-word]')) {
+      const r = el.getBoundingClientRect()
+      const d = e.clientX < r.left ? r.left - e.clientX : e.clientX > r.right ? e.clientX - r.right : 0
+      const c = Math.abs(e.clientX - (r.left + r.right) / 2)
+      if (d <= 12 && (!best || d < best.d || (d === best.d && c < best.c))) best = { el, i: Number(el.dataset.word), d, c }
+    }
+    if (!best) return
+    e.stopPropagation()
+    best.el.focus({ preventScroll: true })
+    onDown(best.el, e.pointerId, e.clientX, best.i)
   }
   const onMove = (e: PointerEvent<HTMLButtonElement>) => {
     if (!drag || !lane.current) return
@@ -95,17 +112,26 @@ export function ArrangeView() {
         {chop === 'custom' && <span className={styles.arrangeCustom}>CUSTOM</span>}
         <div className={styles.flex} />
         <span className={styles.fitChip} data-status={fit.status} title={fit.verdict} data-testid="fit-chip" role="status" aria-label="Fit">
-          {fit.icon} {fit.state}
+          {fit.icon} <span className={styles.fitLong}>{fit.state}</span>
+          <span className={styles.fitShort} aria-hidden="true">
+            {fit.short}
+          </span>
           {render && (
             <span className="sr-only">
               {' '}
-              · {render.bars ? `${render.bars} BARS @ ${Math.round(render.bpm)}` : 'FREE'} · {fit.verdict}
+              · {render.bars ? `${render.bars} BAR${render.bars === 1 ? '' : 'S'} @ ${Math.round(render.bpm)}` : 'FREE'} · {fit.verdict}
             </span>
           )}
         </span>
         <SnapEndPicker />
       </div>
-      <div ref={lane} className={styles.lane} data-stale={stale || undefined} style={{ ['--beats' as string]: beats }}>
+      <div
+        ref={lane}
+        className={styles.lane}
+        data-stale={stale || undefined}
+        style={{ ['--beats' as string]: beats }}
+        onPointerDownCapture={onLaneDown}
+      >
         {Array.from({ length: beats }, (_, b) => (
           <span key={b} className={styles.laneBeat} data-bar={b % 4 === 0 || undefined} style={{ left: `${(b / beats) * 100}%` }}>
             {b % 4 === 0 ? b / 4 + 1 : ''}
@@ -125,10 +151,10 @@ export function ArrangeView() {
               className={styles.block}
               data-throw={w.th || undefined}
               data-drag={drag?.index === i || undefined}
+              data-word={i}
               style={{ left: `${(at / g.target) * 100}%`, width: `max(6px, calc(${(span / g.target) * 100}% - 1px))` }}
               title={`${w.w} · beat ${Math.round(w.t0 / beatS) + 1} · drag or ←/→ to move`}
               aria-label={`${w.w}, beat ${Math.round(w.t0 / beatS) + 1}`}
-              onPointerDown={(e) => onDown(e, i)}
               onPointerMove={onMove}
               onPointerUp={() => onUp(i)}
               onKeyDown={(e) => onKey(e, i)}

@@ -1,57 +1,80 @@
 /**
- * The link between the LIVE page and the output window (a projector or LED wall): main hands each window one end of
- * a MessageChannel (IPC.visualsPort, arriving here as a window message from the preload). The LIVE page sends the
- * chosen style and palette, then one AudioFrame per drawn frame; the output window draws the same style from them.
+ * The link between VISUALS and the output window (a projector or LED wall): main hands each window one end of a
+ * MessageChannel (IPC.visualsPort, arriving here as a window message from the preload). The stage sends the frames it
+ * draws, as ImageBitmaps (transferred, not copied); the output window shows them and draws nothing itself, so it is
+ * the stage's picture by construction. One frame in flight at most: the output window says when it has shown one, and
+ * frames drawn meanwhile are dropped (a slow or hidden output window never queues them up).
  */
-import type { Scene } from './compositor'
-import type { AudioFrame } from './registry'
 
-export type OutputMessage =
-  | { type: 'style'; styleId: string; paletteId: string }
-  | { type: 'scene'; scene: Scene }
-  | { type: 'frame'; frame: AudioFrame }
+export type OutputMessage = { type: 'frame'; bitmap: ImageBitmap } | { type: 'shown' }
+
+/** A frame not acknowledged after this long is taken as lost (the window reloaded, or was hidden), and sending resumes. */
+export const STALE_MS = 500
 
 let port: MessagePort | null = null
-const listeners = new Set<(m: OutputMessage) => void>()
-let lastStyle: Extract<OutputMessage, { type: 'style' | 'scene' }> | null = null
+/** Stage side: when the frame in flight was sent (0: none in flight). */
+let inFlightAt = 0
+/** Output side: the newest frame not yet shown. */
+let pending: ImageBitmap | null = null
+const listeners = new Set<() => void>()
 
 /** Starts listening for the port (once, at app start, in both windows). */
 export function initOutputLink(): void {
   window.addEventListener('message', (e) => {
     // Only the preload's handover (same window, our tag, with a port): nothing another frame could send.
     if (e.source !== window || (e.data as { fvwks?: unknown } | null)?.fvwks !== 'visuals-port' || !e.ports[0]) return
-    port?.close()
-    port = e.ports[0]
-    port.onmessage = (m) => {
-      for (const l of listeners) l(m.data as OutputMessage)
-    }
-    port.start()
-    // A fresh link (the output window just opened, or reloaded): tell it what to draw.
-    if (lastStyle) port.postMessage(lastStyle)
+    linkPort(e.ports[0])
   })
 }
 
-/** LIVE page: the style and palette to show. */
-export function sendStyle(styleId: string, paletteId: string): void {
-  lastStyle = { type: 'style', styleId, paletteId }
-  port?.postMessage(lastStyle)
+/** Takes `p` as the link (a fresh one each time the output window opens or either window reloads). */
+export function linkPort(p: MessagePort): void {
+  port?.close()
+  port = p
+  inFlightAt = 0
+  p.onmessage = (m) => receive(m.data as OutputMessage)
+  p.start()
 }
 
-/** VISUALS (1.4): the whole scene (base + effects) to show. */
-export function sendScene(scene: Scene): void {
-  lastStyle = { type: 'scene', scene }
-  port?.postMessage(lastStyle)
+function receive(m: OutputMessage): void {
+  if (m.type === 'shown') {
+    inFlightAt = 0
+    return
+  }
+  pending?.close()
+  pending = m.bitmap
+  for (const l of listeners) l()
 }
 
-/** LIVE page: this frame's sound (cheap: a few KB, sent only while the output window is linked). */
-export function sendFrame(frame: AudioFrame): void {
-  port?.postMessage({ type: 'frame', frame } satisfies OutputMessage)
+/** Whether the stage may send a frame now (a link, and nothing in flight but a lost frame). */
+export function canSendFrame(now = performance.now()): boolean {
+  return port !== null && (inFlightAt === 0 || now - inFlightAt > STALE_MS)
 }
 
-/** Output window: what the LIVE page sends. */
-export function onOutputMessage(cb: (m: OutputMessage) => void): () => void {
+/** Stage: sends what `canvas` shows now (a snapshot), unless the last frame is still on its way. */
+export function sendFrame(canvas: HTMLCanvasElement): void {
+  const p = port
+  if (!p || !canSendFrame()) return
+  inFlightAt = performance.now()
+  createImageBitmap(canvas).then(
+    (bitmap) => {
+      if (port !== p) return bitmap.close()
+      p.postMessage({ type: 'frame', bitmap } satisfies OutputMessage, [bitmap])
+    },
+    () => (inFlightAt = 0),
+  )
+}
+
+/** Output window: the newest frame, taken (the caller owns it) and acknowledged, or null if none came since. */
+export function takeFrame(): ImageBitmap | null {
+  const b = pending
+  pending = null
+  if (b) port?.postMessage({ type: 'shown' } satisfies OutputMessage)
+  return b
+}
+
+/** Output window: hears when a frame arrives. */
+export function onOutputFrame(cb: () => void): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
-
-export const outputLinked = (): boolean => port !== null

@@ -42,8 +42,8 @@
   letter-spacing: 0.16em;
 }
 .progressLabel {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .errorTitle {
@@ -53,8 +53,8 @@
 .hint {
   margin: 0;
   color: var(--vb-dim);
-  font: 500 10.5px/1.5 var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min)/1.5 var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .error p {
   margin: 0;
@@ -179,7 +179,8 @@
 .toast {
   position: absolute;
   right: 24px;
-  bottom: 24px;
+  /* Top right, below the SIGNAL header row: clear of the transport (PLAY, A/B, LOOP) and the OUTPUT actions (UX #12, #14). */
+  top: calc(var(--vb-top-h) + 64px);
   z-index: 80;
   width: 380px;
   background: var(--vb-raise);
@@ -227,7 +228,7 @@
   padding: 0;
 }
 .toastBody {
-  font: 400 10.5px/1.5 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.5 var(--vb-font-mono);
   word-break: break-all;
 }
 .toastDrag {
@@ -236,8 +237,8 @@
   border: 1px dashed rgba(var(--vb-amber-rgb), 0.45);
   border-radius: var(--vb-r1);
   cursor: grab;
-  font: 500 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .toastActions {
@@ -252,7 +253,7 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 9.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
 .toastActions button:hover {
@@ -285,7 +286,7 @@
   letter-spacing: 0.14em;
 }
 .keysSub {
-  font: 400 10px var(--vb-font-mono);
+  font: 400 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .keysList {
@@ -322,24 +323,26 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
-.stepsDialog {
-  width: 560px;
-  max-width: calc(100% - 48px);
+.stepsPanel {
+  flex: none;
+  min-height: 0;
+  overflow: auto;
   background: var(--vb-panel);
   border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
   border-radius: var(--vb-r3);
-  padding: 26px;
+}
+.stepsInner {
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+  gap: 12px;
 }
 .stepsKicker {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .stepsTitle {
@@ -360,8 +363,8 @@
   border-bottom: 1px solid var(--vb-line);
 }
 .stepsLabel {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .step {
@@ -386,8 +389,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .doneBtn {
   height: 36px;
@@ -434,8 +437,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -532,6 +535,18 @@
   white-space: nowrap;
   text-transform: uppercase;
 }
+/* UPDATE REQUIRED (the update check at boot): its line over the bar, in the progress block's place. */
+.bootUpdateHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font: 500 12px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 /* The boot log: small and dim at the bottom (the last few lines), never competing with the fox. */
 .bootLog {
   position: absolute;
@@ -555,7 +570,7 @@
   overflow: hidden;
 }
 .bootTs {
-  font-size: 10px;
+  font-size: var(--vb-text-min);
   color: var(--vb-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -567,8 +582,8 @@
   box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--vb-accent);
 }
 .bootOk {
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
   font-variant-numeric: tabular-nums;
 }
@@ -585,8 +600,8 @@
   border: 0;
   background: none;
   color: var(--vb-dim);
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .bootSkip:hover {
   color: var(--vb-ink);

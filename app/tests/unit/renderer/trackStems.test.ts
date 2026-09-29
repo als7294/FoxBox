@@ -39,3 +39,28 @@ describe('TRACK stems loader', () => {
     expect(trackSourceWithStems(source, null, () => 0)).toBe(source)
   })
 })
+
+describe('TRACK bass line (v0.10.1)', () => {
+  it('reads held notes, slides, stabs, the wobble phase and the feel at the playhead', async () => {
+    // 60 fps, 120 BPM (30 frames a beat): A1 (55 Hz) from frame 0, sliding up 5 semitones over frames 60-90, a new note at 90
+    const bass = new Uint8Array(120 * 4)
+    for (let f = 0; f < 120; f++) {
+      const midi = f < 60 ? 33 : f < 90 ? 33 + (5 * (f - 60)) / 30 : 38
+      bass.set([1 | (f === 0 || f === 90 ? 2 : 0), 200, 40, Math.round(midi * 2)], f * 4)
+    }
+    get.mockResolvedValue(ok({ ...features(), frames: 120, bass_b64: btoa(String.fromCharCode(...bass)) }))
+    const reader = (await loadTrackStems('a'))!
+    const sections = [{ start_s: 0, end_s: 2, bass_style: 'trap' as const, half_time: true, note_beats: 2, wobble_div: '1/8', wobble_anchor_s: 0.1 }]
+    const held = reader.read(0.5, 120, sections)
+    expect(held.bass).toMatchObject({ on: true, noteOn: false, expectBeats: 2, glide: 0, wobble: { div: '1/8' } })
+    expect(held.bass!.heldBeats).toBeCloseTo(1)
+    expect(held.bass!.pitch).toBeCloseTo(55)
+    expect(held.bass!.wobble.phase).toBeCloseTo(0.6) // (0.5 - 0.1) / 0.25 s
+    expect(held.feel).toEqual({ halfTime: true, style: 'trap' })
+    const slide = reader.read(1.25, 120, sections).bass!
+    expect(slide.glide).toBeGreaterThan(3) // about 5 semitones a beat
+    expect(slide.glide).toBeLessThan(7)
+    expect(reader.read(1.5, 120, sections).bass).toMatchObject({ noteOn: true, heldBeats: 0 })
+    expect(reader.read(0.5).feel).toBeUndefined() // no structure: the bass alone
+  })
+})

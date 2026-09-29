@@ -4,7 +4,7 @@
 name = "fvwks-workspace"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["fvwks-contracts", "fvwks-voice", "fvwks-fx", "fvwks-server"]
+dependencies = ["fvwks-contracts", "fvwks-voice", "fvwks-fx", "fvwks-server", "fvwks-synth"]
 
 [dependency-groups]
 dev = ["pytest>=8.3", "pyyaml>=6.0", "httpx>=0.27"]
@@ -13,14 +13,15 @@ dev = ["pytest>=8.3", "pyyaml>=6.0", "httpx>=0.27"]
 package = false
 
 [tool.uv.workspace]
-members = ["contracts", "voice", "fx", "server"]
+members = ["contracts", "voice", "fx", "server", "synth"]
 
 [tool.uv.sources]
 fvwks-contracts = { workspace = true }
 fvwks-voice = { workspace = true }
 fvwks-fx = { workspace = true }
 fvwks-server = { workspace = true }
+fvwks-synth = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["contracts/tests", "voice/tests", "fx/tests", "server/tests"]
+testpaths = ["contracts/tests", "voice/tests", "fx/tests", "server/tests", "synth/tests"]
 addopts = "-q --import-mode=importlib"

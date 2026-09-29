@@ -1,7 +1,8 @@
 /*
  * VISUALS (1.4, LIVE until 1.3): stage first. AUDIO SOURCE / BASE / EXPORT / clips in the left column, the STAGE in
  * the middle, EFFECTS on the right, VOICE (the performance: talk, presets, FX, macros) under the stage and EFFECTS,
- * collapsible. Cards are S2's 1.2.3 glass (--vb-glass-*, with their values as fallbacks). Inside the stage is
+ * collapsible. At 9:16 (1.5) the stage is a tall column the grid's full height, as wide as its picture needs, and
+ * VOICE moves under EFFECTS. Cards are S2's 1.2.3 glass (--vb-glass-*, with their values as fallbacks). Inside the stage is
  * components/visuals (VisualsStage).
  */
 .screen {
@@ -9,7 +10,8 @@
   --glass-hi: var(--vb-glass-fill-hi, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.12), rgba(var(--vb-ink-rgb), 0.045)));
   --glass-edge: var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
   --glass-top: var(--vb-glass-edge-top, rgba(var(--vb-ink-rgb), 0.26));
-  --glass-shadow: var(--vb-glass-inner, inset 0 1px 0 rgba(255, 255, 255, 0.08)), var(--vb-glass-shadow, 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35));
+  --glass-shadow:
+    var(--vb-glass-inner, inset 0 1px 0 rgba(255, 255, 255, 0.08)), var(--vb-glass-shadow, 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35));
 }
 
 /* header */
@@ -23,8 +25,8 @@
   padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid var(--glass-edge);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .status[data-status='on'] {
@@ -37,8 +39,8 @@
   color: var(--vb-amber);
 }
 .readout {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -56,8 +58,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-dim);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .toggle[data-on] {
   color: var(--vb-bg);
@@ -70,7 +72,7 @@
 .error {
   margin: 0;
   color: var(--vb-accent);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
 }
 .setDone {
   display: flex;
@@ -79,7 +81,7 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid rgba(var(--vb-amber-rgb), 0.4);
   border-radius: var(--vb-r2);
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-amber);
 }
 .setDone > span {
@@ -97,13 +99,38 @@
 .grid {
   flex: 1;
   min-height: 0;
+  /* Its own height for the tall stage below (cqh). */
+  container-type: size;
   display: grid;
-  grid-template-columns: clamp(272px, 20cqw, 308px) minmax(0, 1fr) clamp(280px, 21cqw, 320px);
+  grid-template-columns: clamp(272px, 20cqw, 308px) minmax(0, 1fr) clamp(260px, 19cqw, 300px);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'side stage fx'
     'side voice voice';
   gap: var(--space-3);
+}
+.grid[data-aspect='9:16'] {
+  grid-template-columns: clamp(272px, 20cqw, 308px) auto minmax(0, 1fr);
+  grid-template-areas:
+    'side stage fx'
+    'side stage voice';
+}
+/*
+ * The picture's height is the grid's less the stage's own chrome (padding, a bar of up to two rows, borders: 98px),
+ * and its width 9/16 of that; the column adds the padding and borders back.
+ */
+.grid[data-aspect='9:16'] .stage {
+  width: max(300px, calc((100cqh - 98px) * 9 / 16 + 18px));
+}
+/* VOICE in the narrower column: talk and presets, then macros and FX. */
+.grid[data-aspect='9:16'] .voiceBody {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+.grid[data-aspect='9:16'] .voiceBody > :nth-child(3) {
+  grid-area: 2 / 2;
+}
+.grid[data-aspect='9:16'] .voiceBody > :nth-child(4) {
+  grid-area: 2 / 1;
 }
 .side {
   grid-area: side;
@@ -133,6 +160,12 @@
 }
 
 /* cards */
+.side > .card[aria-label='Export'] {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--glass-fill), var(--vb-panel);
+}
 .card {
   display: flex;
   flex-direction: column;
@@ -152,14 +185,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-ink);
 }
 .cardTitle kbd,
 .fxPad kbd,
 .talk kbd {
-  font: 600 8.5px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   color: var(--vb-dim);
   padding: 2px 5px;
@@ -174,8 +207,8 @@
   min-height: 28px;
 }
 .field > span {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .field select {
@@ -186,13 +219,13 @@
   border-radius: var(--vb-r1);
   background: var(--vb-well);
   color: var(--vb-ink);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   text-overflow: ellipsis;
 }
 .hint {
   margin: 0;
   color: var(--vb-dim);
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
 }
 .link {
   border: 0;
@@ -244,13 +277,15 @@
 }
 .pad[data-active] {
   border-color: var(--vb-accent);
-  box-shadow: inset 0 0 0 1px var(--vb-accent), 0 0 calc(16px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.3);
+  box-shadow:
+    inset 0 0 0 1px var(--vb-accent),
+    0 0 calc(16px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.3);
 }
 .pad {
   gap: 6px;
 }
 .padNo {
-  font: 600 9.5px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   letter-spacing: 0;
 }
@@ -307,8 +342,8 @@
 }
 .macro span,
 .macroLearn {
-  font: 600 8.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .macroLearn {
@@ -352,8 +387,8 @@
   border: 0;
   background: none;
   color: var(--vb-ink);
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .caret {
   display: inline-block;
@@ -368,8 +403,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .voiceBody {
@@ -400,8 +435,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-dim);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .mute[data-on] {
   background: var(--vb-amber);
@@ -447,7 +482,7 @@
   border-radius: 4px;
   background: var(--vb-amber);
   color: var(--vb-bg);
-  font: 700 8px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
@@ -476,6 +511,13 @@
     'controls';
   gap: var(--space-2);
 }
+.songStrip[data-over] {
+  /* A file dragged over TRACK: the same dashed target as the Studio's DROP AUDIO (UX #16). */
+  outline: 1px dashed var(--vb-accent);
+  outline-offset: 4px;
+  border-radius: var(--vb-r2);
+  background: rgba(var(--vb-accent-rgb), 0.06);
+}
 .songStrip[data-empty] {
   grid-template-areas: none;
   justify-items: start;
@@ -491,7 +533,10 @@
 }
 .songEmpty {
   color: var(--vb-dim);
-  font: 400 10px var(--vb-font-mono);
+  font: 400 var(--vb-text-min) var(--vb-font-mono);
+}
+.songEmpty[data-error] {
+  color: var(--vb-amber);
 }
 .songInfo {
   display: flex;
@@ -508,7 +553,7 @@
   text-overflow: ellipsis;
 }
 .songMeta {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
@@ -527,7 +572,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  font: 600 8.5px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
@@ -572,7 +617,7 @@
   border-radius: 999px;
   background: rgba(var(--vb-shadow-rgb), 0.6);
   color: var(--vb-accent);
-  font: 700 8.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
 .camActions {
@@ -602,8 +647,8 @@
   border-radius: 999px;
   border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
   color: var(--vb-amber);
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 .meters {
@@ -617,7 +662,7 @@
   grid-template-columns: 24px minmax(0, 1fr) 8px;
   align-items: center;
   gap: 5px;
-  font: 600 8px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-dim);
 }

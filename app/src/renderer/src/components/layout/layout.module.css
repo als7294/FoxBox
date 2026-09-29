@@ -40,6 +40,11 @@
 .top > * {
   -webkit-app-region: no-drag;
 }
+.topSlot {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
 .top > .lights,
 .top > .brand,
 .top > .flex {
@@ -77,8 +82,8 @@
   letter-spacing: 0.08em;
 }
 .brandSub {
-  font: 500 10px/1 var(--vb-font-mono);
-  letter-spacing: 0.32em;
+  font: 500 var(--vb-text-min)/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .engine {
@@ -89,8 +94,8 @@
   padding: 0 11px;
   border: 1px solid rgba(var(--vb-ink-rgb), 0.12);
   border-radius: var(--vb-r2);
-  font: 500 10px/1 var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min)/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
   margin-left: 6px;
   white-space: nowrap;
   flex: none;
@@ -130,8 +135,8 @@
   }
 }
 .boxLabel {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -184,8 +189,8 @@
   border-left: 1px solid var(--vb-line-2);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .tap:hover {
   background: var(--vb-fill-2);
@@ -201,6 +206,7 @@
   flex: none;
 }
 .keySelect {
+  align-self: stretch;
   background: none;
   border: 0;
   color: var(--vb-ink);
@@ -250,7 +256,7 @@
   border-radius: var(--vb-r2);
   background: none;
   color: var(--vb-ink);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   white-space: nowrap;
   flex: none;
@@ -262,8 +268,8 @@
   border-radius: var(--vb-r2);
   background: none;
   color: var(--vb-amber);
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   flex: none;
 }
 .render {
@@ -294,7 +300,7 @@
   cursor: progress;
 }
 .renderKey {
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0;
 }
 .renderProg {
@@ -330,12 +336,31 @@
   justify-content: center;
   gap: 6px;
   color: var(--vb-dim);
-  font: 500 9px/1 var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min)/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
   transition: color 0.2s;
 }
 .railItem:hover {
   background: var(--vb-fill-1);
+}
+/* A screen that isn't here yet (PROD): greyed, not clickable, a small WIP badge. */
+.railItem[data-wip] {
+  opacity: 0.38;
+  cursor: default;
+}
+.railItem[data-wip]:hover {
+  background: none;
+}
+.railWip {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 0 2px;
+  line-height: 1.25;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .railItem[aria-current='page'] {
   color: var(--vb-ink);
@@ -400,8 +425,8 @@
   border-bottom: 1px solid var(--vb-line);
 }
 .panelTitle {
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .tabs {
@@ -409,20 +434,21 @@
   height: 100%;
 }
 /* Takes are recorded on VISUALS: the way there, at the end of the SOURCE tabs. */
+/* A way to VISUALS (where takes are recorded), not a record button: a quiet link, not a red pill (UX #3). */
 .toLive {
   margin-left: 10px;
   height: 26px;
-  padding: 0 10px;
-  border: 1px solid rgba(var(--vb-accent-rgb), 0.5);
-  border-radius: 999px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--vb-r1);
   background: none;
-  color: var(--vb-accent);
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 .toLive:hover {
-  background: rgba(var(--vb-accent-rgb), 0.1);
+  color: var(--vb-ink);
 }
 .tab {
   position: relative;
@@ -431,8 +457,8 @@
   background: none;
   border: 0;
   color: var(--vb-dim);
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .tab[aria-selected='true'] {
   color: var(--vb-ink);
@@ -483,6 +509,10 @@
   flex: none;
   min-width: 0;
 }
+.screenHead[data-compact] {
+  height: 34px;
+  align-items: center;
+}
 .screenTitleBox {
   display: flex;
   flex-direction: column;
@@ -490,8 +520,8 @@
   flex: none;
 }
 .screenKicker {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .screenTitle {
@@ -584,4 +614,63 @@
     0 0 30px rgba(var(--vb-accent-rgb), calc(0.5 * var(--vb-glow))),
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     inset 0 -2px 6px rgba(var(--vb-shadow-rgb), 0.22);
+}
+/* Off the Studio: an outline, so each screen keeps a single filled primary (UX #13). */
+.render[data-quiet] {
+  background: none;
+  color: var(--vb-accent);
+  box-shadow: inset 0 0 0 1px rgba(var(--vb-accent-rgb), 0.55);
+}
+.render[data-quiet]:hover {
+  background: rgba(var(--vb-accent-rgb), 0.12);
+  box-shadow: inset 0 0 0 1px var(--vb-accent);
+}
+.render[data-quiet] .renderProg {
+  background: var(--vb-accent);
+}
+
+/* ---------------------------------------------------------------- REMIX: no top bar (app/design/remix/README.md) */
+/* A drag strip over the rail for the traffic lights; the page takes the full height (under the update bar, when it shows). */
+.railTop {
+  grid-column: 1;
+  grid-row: 1;
+  background: var(--vb-chrome);
+  border-right: 1px solid var(--vb-line);
+  -webkit-app-region: drag;
+}
+.shell[data-screen='remix'] > .main {
+  grid-row: 1 / -1;
+}
+.shell[data-screen='remix']:has(> [data-update-bar]) > .main {
+  grid-row: 3;
+}
+.railStatus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--vb-line-soft);
+}
+.railStatus .engine {
+  height: auto;
+  margin: 0;
+  padding: 0 4px;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+  letter-spacing: 0.04em;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+/* ≤ 3 flashes a second */
+.railStatus .engine[data-tone] .engineDot {
+  animation-duration: 0.56s;
+}
+.railStatus .engine[data-tone='ok'] .engineDot {
+  animation-duration: 1.9s;
 }

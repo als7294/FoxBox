@@ -14,10 +14,10 @@ export function voiceF0(v: Tagged): number | null {
   return null
 }
 
-/** "F0 142 Hz", or null. */
+/** "142 Hz" (the voice's pitch; "F0" was jargon), or null. */
 export function f0Label(v: Tagged): string | null {
   const f0 = voiceF0(v)
-  return f0 == null ? null : `F0 ${Math.round(f0)} Hz`
+  return f0 == null ? null : `${Math.round(f0)} Hz`
 }
 
 /** Tags worth showing as chips: not the F0 measurement, not "us"/"uk" (the kicker already says it). */

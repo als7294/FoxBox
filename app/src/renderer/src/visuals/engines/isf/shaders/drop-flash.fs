@@ -68,7 +68,8 @@ float noise(vec2 p) {
 void main() {
   vec2 uv = isf_FragNormCoord;
   float n = noise(uv * 6.0 + TIME * 0.2);
-  float flash = max(drop * (1.0 - barPhase), onset * 0.5) * (1.0 - 0.7 * calm);
+  float flash = max(max(drop * (1.0 - barPhase), dropEnergy), onset * 0.5) * (1.0 - 0.7 * calm);
   vec3 col = mix(bgColor.rgb + accentColor.rgb * 0.06 * n, mix(accentColor.rgb, amberColor.rgb, n), clamp(flash, 0.0, 1.0));
-  gl_FragColor = vec4(col, 1.0);
+  col += accentColor.rgb * n * 0.3 * buildProgress;  // the build charges the fog
+  gl_FragColor = vec4(col * (1.0 - 0.7 * preDrop), 1.0);
 }

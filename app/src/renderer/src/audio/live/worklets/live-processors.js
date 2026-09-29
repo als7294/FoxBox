@@ -12,6 +12,7 @@
  *   fvwks-tap       SetRecorder capture: planar float batches from `startAt` (context time) until 'stop'
  *   fvwks-duck      SongDeck: the song (input 0) ducked under the voice (input 1, the key): 10 ms attack
  *   fvwks-stems     LIVE INPUT stem approximator: drums / bass / vocals / other levels and onsets at 60 fps
+ *                   (+ the bass line's raw sub, growl, 30-600 Hz level and sub f0)
  */
 const TAU = Math.PI * 2
 const dbToLin = (db) => Math.pow(10, db / 20)
@@ -497,6 +498,13 @@ class Stems extends AudioWorkletProcessor {
     this.fullMax = 1e-6
     this.avg = new Float64Array(STEM_N)
     this.cool = new Int32Array(STEM_N)
+    // the bass line: sub (< 60 Hz) and growl (100-600 Hz) power, and the sub's f0 from the < 150 Hz band's
+    // positive-going crossings (with hysteresis): the median of the last 5 periods, when they agree
+    this.subLp = [new Biquad().lowpass(60), new Biquad().lowpass(60)]
+    this.growlBp = [new Biquad().highpass(100), new Biquad().highpass(100), new Biquad().lowpass(600), new Biquad().lowpass(600)]
+    this.bassAcc = new Float64Array(2)
+    this.zc = { arm: false, last: -1, env: 0, periods: [] }
+    this.age = 0
   }
   process(inputs, outputs) {
     const inp = inputs[0]
@@ -520,6 +528,23 @@ class Stems extends AudioWorkletProcessor {
       acc[1] += b * b
       acc[2] += e.vs
       acc[4] += x * x
+      const sb = this.subLp[1].run(this.subLp[0].run(x))
+      let g = x
+      for (const f of this.growlBp) g = f.run(g)
+      this.bassAcc[0] += sb * sb
+      this.bassAcc[1] += g * g
+      const z = this.zc
+      z.env = Math.max(Math.abs(b), z.env * 0.9998)
+      if (b < -0.3 * z.env) z.arm = true
+      else if (z.arm && b > 0.3 * z.env) {
+        z.arm = false
+        if (z.last >= 0) {
+          z.periods.push(this.age - z.last)
+          if (z.periods.length > 5) z.periods.shift()
+        }
+        z.last = this.age
+      }
+      this.age++
       if (++this.n >= this.hop) this.flush()
     }
     return true
@@ -528,7 +553,7 @@ class Stems extends AudioWorkletProcessor {
     const acc = this.acc, n = this.n
     const p = [acc[0] / n, acc[1] / n, acc[2] / n, 0]
     p[3] = Math.max(0, acc[4] / n - p[0] - p[1] - p[2])
-    const out = new Float32Array(2 * STEM_N)
+    const out = new Float32Array(2 * STEM_N + 4)
     this.fullMax = Math.max(Math.sqrt(acc[4] / n), this.fullMax * 0.9995)
     for (let s = 0; s < STEM_N; s++) {
       const lvl = Math.sqrt(p[s])
@@ -545,6 +570,14 @@ class Stems extends AudioWorkletProcessor {
       out[2 * s] = rms
       out[2 * s + 1] = onset
     }
+    const z = this.zc, ps = [...z.periods].sort((a, b) => a - b), med = ps[ps.length >> 1]
+    const voiced = ps.length >= 3 && ps[ps.length - 1] <= 1.12 * ps[0] && this.age - z.last < 2 * med
+    const f0 = voiced ? sampleRate / med : 0
+    out[2 * STEM_N] = Math.sqrt(this.bassAcc[0] / n)
+    out[2 * STEM_N + 1] = Math.sqrt(this.bassAcc[1] / n)
+    out[2 * STEM_N + 2] = Math.sqrt((acc[1] + this.bassAcc[1]) / n)
+    out[2 * STEM_N + 3] = f0 >= 28 && f0 <= 120 ? f0 : 0
+    this.bassAcc.fill(0)
     this.port.postMessage({ t: currentTime, s: out })
     acc.fill(0)
     this.n = 0

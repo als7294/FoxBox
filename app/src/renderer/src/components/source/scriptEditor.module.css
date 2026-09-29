@@ -21,8 +21,8 @@
   min-height: 22px;
 }
 .kicker {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -31,7 +31,7 @@
   align-items: center;
   gap: 6px;
   color: var(--vb-amber);
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   white-space: nowrap;
 }
@@ -50,7 +50,7 @@
   min-width: 0;
 }
 .status {
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
@@ -76,8 +76,8 @@
   }
 }
 .help {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border: 1px solid var(--vb-line-3);
   border-radius: 50%;
@@ -107,7 +107,7 @@
   max-width: calc(100% - 24px);
   padding: 0 6px;
   background: var(--vb-panel);
-  font: 500 10px/14px var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/14px var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
@@ -316,7 +316,7 @@
   text-shadow: 0 0 calc(8px * var(--vb-glow)) rgba(var(--vb-ink-rgb), 0.6);
 }
 .caretDown {
-  font-size: 10px;
+  font-size: var(--vb-text-min);
   color: var(--vb-dim);
 }
 .tip {
@@ -386,7 +386,7 @@
   color: var(--vb-amber);
 }
 .menuItem small {
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   letter-spacing: 0.04em;
 }
@@ -398,7 +398,7 @@
 /* ---------------------------------------------------------------- below the editor */
 .note {
   margin: 0;
-  font: 500 10.5px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-amber);
 }
 .warnings {
@@ -408,7 +408,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font: 500 10px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-amber);
 }
 .warnings li[data-tone='error'] {
@@ -423,7 +423,7 @@
   border: 1px solid var(--vb-amber-line);
   border-radius: var(--vb-r2);
   background: rgba(var(--vb-amber-rgb), 0.06);
-  font: 500 10.5px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-ink);
 }
 .notice p {
@@ -437,7 +437,7 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-amber);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   white-space: nowrap;
 }
@@ -463,8 +463,8 @@
   box-shadow: var(--vb-pop);
 }
 .cheatTitle {
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .cheat dl {
@@ -498,8 +498,8 @@
 
 /* SHUFFLE: another starting line (or another line in place of the text, with UNDO). */
 .shuffle {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex: none;
   display: grid;
   place-items: center;

@@ -1,4 +1,5 @@
 import { api, EngineError, isAbort, unwrap } from '@/api/client'
+import { fileName } from '@/lib/paths'
 import { uploadSource } from '@/api/upload'
 import type { Arrange, ChopMode, ChopSlot, ExportedFile, ExportRequest, Master, RenderInfo, RenderRequest, SnapEnd, SourceInfo } from '@/api/types'
 import { loadAudioBuffer } from '@/audio/cache'
@@ -241,17 +242,12 @@ export function schedulePreview(delay = TYPING_PREVIEW_MS): void {
   schedule(delay, 'typing')
 }
 
-const signedDb = (v: number | null | undefined) => (v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}`)
-
-/** Final render (auto-exports the wet file, so the cartridge is drag-ready). */
+/**
+ * Final render (auto-exports the wet file, so the cartridge is drag-ready). No success toast: the cartridge ejects
+ * with FINAL v0N, the file name, LUFS and "DRAG TO REKORDBOX / DAW" (the toast covered the transport, UX #14).
+ */
 export async function renderFinal(): Promise<RenderInfo | null> {
   const info = await renderNow('final')
-  if (info?.export) {
-    const l = info.loudness
-    toast.success('FINAL RENDER COMPLETE', {
-      detail: `${signedDb(l.short_term_max_lufs ?? l.integrated_lufs)} LUFS · ${signedDb(l.true_peak_db)} dBTP · drag the cartridge into Rekordbox`,
-    })
-  }
   for (const w of info?.warnings ?? []) if (/not exported/i.test(w)) toast.warn('NOT EXPORTED', { detail: w })
   return info
 }
@@ -322,7 +318,7 @@ export async function exportNow(format: ExportRequest['format'], bitDepth: Expor
     const b = bridge()
     const path = file.path
     toast.success('EXPORTED', {
-      detail: path,
+      detail: fileName(path),
       dragPath: path,
       actions: b ? [{ label: 'REVEAL', run: () => void b.reveal(path) }] : [],
     })

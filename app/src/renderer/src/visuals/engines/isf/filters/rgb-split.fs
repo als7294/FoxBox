@@ -31,7 +31,7 @@
 
 void main() {
   vec2 uv = isf_FragNormCoord;
-  float amt = (0.002 + 0.022 * onset + 0.01 * rms) * (1.0 - 0.6 * calm);
+  float amt = (0.002 + 0.022 * onset + 0.01 * rms + 0.012 * buildProgress + 0.03 * dropHit + 0.01 * bassGrowl * bassOn) * (1.0 - 0.6 * calm);
   vec2 dir = vec2(cos(TIME * 0.7), sin(TIME * 0.7)) * amt;
   vec2 ur = uv + dir;
   vec2 ub = uv - dir;

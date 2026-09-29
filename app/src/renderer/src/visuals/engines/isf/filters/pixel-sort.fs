@@ -34,7 +34,7 @@ void main() {
   vec2 uv = isf_FragNormCoord;
   vec4 best = IMG_NORM_PIXEL(inputImage, uv);
   float bl = luma(best.rgb);
-  float len = (0.02 + 0.25 * rms + 0.2 * onset) * (1.0 - 0.6 * calm);
+  float len = (0.02 + 0.25 * rms + 0.2 * onset + 0.15 * buildProgress + 0.3 * dropEnergy) * (1.0 - 0.6 * calm);
   for (int i = 1; i <= 24; i++) {
     vec2 q = uv - vec2(0.0, len * float(i) / 24.0);
     vec4 c = IMG_NORM_PIXEL(inputImage, q);

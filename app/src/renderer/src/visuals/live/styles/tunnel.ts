@@ -7,6 +7,10 @@
  * push the zoom and the spin, which changes direction every 16 beats; a new bar turns the corridor a step; the drop
  * throws it forward with a surge of glow. The voice is its own layer: it swells and lights the ring.
  *
+ * Song structure (structure.ts): up a build the corridor narrows and speeds and its light heats; the held breath stops
+ * it; the drop hit blows the ring wide in ice and the drop runs hotter. A held sub swells the ring for the note's
+ * length, a stab kicks it, a wobble warps it, an 808 glide turns it.
+ *
  * Two half-float targets ping-pong (feedback + ring in one pass); the post chain draws the result.
  */
 import {
@@ -19,12 +23,14 @@ import {
   Scene,
   ShaderMaterial,
   Vector2,
+  Vector3,
   WebGLRenderTarget,
 } from 'three'
 import { makePost, makeRenderer } from '../post'
 import type { AudioFrame, StyleInstance, StyleOptions, VisualStyle } from '../registry'
 import { ease } from './audioKit'
 import { byteTexture, Cues, fullscreenTriangle, glPalette, logSpectrum, v3 } from './gl'
+import { GRADE_GLSL, Structure } from './structure'
 
 const SPEC_BINS = 96
 
@@ -54,6 +60,7 @@ uniform float uGain;
 uniform float uHigh;
 uniform float uKick;
 uniform float uWarp;
+uniform float uFlip;
 uniform vec3 uAccent;
 uniform vec3 uAmber;
 uniform vec3 uInk;
@@ -108,6 +115,8 @@ void main() {
   float core = 1.0 - smoothstep(px * 0.4, px * 1.6, d);
   float halo = exp(-d / (px * 6.0)) * 0.22;
   vec3 ring = uInk * core * (0.25 + 0.75 * uKick) + mix(uAccent, uAmber, 0.15 + 0.6 * spec * spec) * (core * 0.6 + halo);
+  // The drop hit: the ring flares in ice.
+  ring = mix(ring, mix(uIce, uInk, 0.4) * (core * 1.2 + halo), uFlip);
   // The highs: a thin cool halo inside, broken into dashes that crawl.
   float r2 = uRadius * 0.62;
   float dash = smoothstep(0.55, 0.95, sin(a * 14.0 - uTime * 1.3) * 0.5 + 0.5);
@@ -121,12 +130,14 @@ void main() {
 const SHOW_FRAG = /* glsl */ `
 uniform sampler2D uTex;
 uniform vec3 uBg;
+uniform vec3 uGrade;
 varying vec2 vUv;
+${GRADE_GLSL}
 void main() {
   vec3 c = texture2D(uTex, vUv).rgb;
   // A soft shoulder so stacked trails glow instead of clipping to flat white.
   c = c / (1.0 + 0.18 * c);
-  gl_FragColor = vec4(uBg + c, 1.0);
+  gl_FragColor = vec4(uBg + grade(c, uGrade), 1.0);
 }
 `
 
@@ -178,6 +189,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uHigh: { value: 0 },
     uKick: { value: 0 },
     uWarp: { value: 0.0012 },
+    uFlip: { value: 0 },
     uAccent: { value: v3(pal.accent) },
     uAmber: { value: v3(pal.amber) },
     uInk: { value: v3(pal.ink) },
@@ -189,7 +201,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   fbMesh.frustumCulled = false
   fbScene.add(fbMesh)
 
-  const showU = { uTex: { value: write.texture }, uBg: { value: v3(pal.bg) } }
+  const showU = { uTex: { value: write.texture }, uBg: { value: v3(pal.bg) }, uGrade: { value: new Vector3(0, 0, 1) } }
   const showMat = new ShaderMaterial({ vertexShader: VERT, fragmentShader: SHOW_FRAG, uniforms: showU, depthTest: false })
   const scene = new Scene()
   const showMesh = new Mesh(tri, showMat)
@@ -198,6 +210,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   const post = makePost(renderer, scene, cam, opts, { bloom: 1.05, grain: 0.2, vignette: 0.66 })
 
   const cues = new Cues(reduced)
+  const st = new Structure(reduced)
   let clock = 0
   let spin = 0
   let spinVel = 0
@@ -212,7 +225,11 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       const s = step / 1000
       clock += s
       cues.update(a, step)
+      st.step(a, step)
       const { bands, kick, live, voice, drop } = cues
+      // Structure: motion's rate (held breath, half-time, a build, the director's speed) and the response's size.
+      const ts = st.timeScale
+      const k = st.intensity * (1 + 0.7 * st.groove)
 
       // The spectrum round the ring: log bands, fast attack, slower release.
       logSpectrum(a.active ? a.fft : null, a.sampleRate, specNow)
@@ -230,13 +247,15 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       const dir = bar16 ? -1 : 1
       const calm = reduced ? 0.35 : 1
       if (cues.hit && !reduced) {
-        rotVel += dir * 0.9 * Math.min(1.5, kick)
-        spinVel += dir * 1.6 * Math.min(1.5, kick)
-        zoomKick = Math.max(zoomKick, Math.min(1.5, kick))
+        rotVel += dir * 0.9 * Math.min(1.5, kick) * k
+        spinVel += dir * 1.6 * Math.min(1.5, kick) * k
+        zoomKick = Math.max(zoomKick, Math.min(1.5, kick) * k)
       }
+      // A bass stab shoves the corridor forward, short and sharp.
+      if (st.stab > 0.5 && !reduced) zoomKick = Math.max(zoomKick, st.stab * 0.9 * st.intensity)
       // A new bar turns the corridor a step (a twelfth of a turn, eased in over ~a beat); the drop kicks everything.
       if (cues.bar) rotStep += (dir * Math.PI) / (reduced ? 24 : 6)
-      if (cues.dropHit) {
+      if (cues.dropHit || (st.hit && cues.drop < 0.5)) {
         zoomKick = reduced ? 0.6 : 2.5
         spinVel += dir * (reduced ? 0.4 : 3)
       }
@@ -245,10 +264,11 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       rotVel = ease(rotVel, dir * (0.08 + 0.12 * bands.mid * live) * calm, step, 700)
       spinVel = ease(spinVel, dir * (0.12 + 0.3 * bands.high * live) * calm, step, 900)
       zoomKick = ease(zoomKick, 0, step, 260)
-      spin += spinVel * s
+      spin += spinVel * s * ts
 
       // Zoom per second: a steady glide, faster with the lows and on a kick.
-      const zoomRate = 1 + (0.45 + 0.5 * bands.low * live + (reduced ? 0.2 : 1.4) * zoomKick) * calm
+      // Up a build it speeds on (timeScale) and narrows; in the held breath it all but stops.
+      const zoomRate = 1 + (0.45 + 0.5 * bands.low * live + (reduced ? 0.2 : 1.4) * zoomKick) * calm * ts
       // Rings go out in pulses on the eighth notes (every half second idle), so the corridor has ribs, not a smear.
       const eighths = a.active && a.bpm > 0 ? (a.time * a.bpm) / 30 : clock * 2
       const pulse = Math.exp(-(eighths - Math.floor(eighths)) * 16)
@@ -259,20 +279,28 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       u.uPrev.value = read.texture
       u.uTime.value = clock
       u.uZoom.value = Math.pow(zoomRate, s)
-      u.uRot.value = rotVel * s + turn
-      // Trails last ~0.55 s at 60 fps; idle darker and shorter.
-      u.uKeep.value = Math.exp(-step / (a.active ? 420 : 260))
+      u.uRot.value = (rotVel * s + turn) * ts
+      // Trails last ~0.55 s at 60 fps; idle darker and shorter; longer in the drop and while the breath is held.
+      u.uKeep.value = Math.exp(-step / ((a.active ? 420 : 260) * (1 + 0.3 * st.groove + st.hold)))
       u.uTint.value = 1 - Math.exp(-step / 400)
       u.uSplit.value = (0.0002 + 0.0012 * Math.min(1, kick + drop) * calm) * (reduced ? 0.5 : 1)
-      u.uRadius.value = 0.13 + 0.015 * breath + (0.07 * bands.low + 0.05 * voice + 0.04 * Math.min(1, kick) * calm) * live
+      // The ring: narrower up a build, blown wide at the hit, swelling through a held sub, wobbling with the LFO.
+      const swell = 0.06 * st.subHold * (0.4 + 0.6 * st.subStretch) + 0.025 * st.wobble + 0.12 * st.burst
+      u.uRadius.value =
+        (0.13 + 0.015 * breath + (0.07 * bands.low + 0.05 * voice + 0.04 * Math.min(1, kick) * calm) * live + swell) *
+        (1 - 0.3 * st.tension) *
+        st.zoom
       u.uSides.value = sides
-      u.uSpin.value = spin
+      u.uSpin.value = spin + st.glide * 0.8
       u.uSpecAmt.value = 0.1 + 0.45 * live
-      const hitGain = (reduced ? 0.1 : 0.55) * Math.min(1, kick)
-      u.uGain.value = 0.04 + 0.02 * live + (0.08 + 0.45 * live) * pulse + (0.35 * voice + hitGain) * live + 0.8 * drop
+      const hitGain = (reduced ? 0.1 : 0.55) * Math.min(1, kick) * k + 0.45 * st.stab
+      u.uGain.value =
+        (0.04 + 0.02 * live + (0.08 + 0.45 * live) * pulse + (0.35 * voice + hitGain) * live + 0.8 * drop) * (1 - 0.85 * st.hold)
       u.uHigh.value = bands.high * live * (0.3 + 0.7 * pulse)
       u.uKick.value = Math.min(1, kick + drop) * calm
-      u.uWarp.value = 0.0008 + 0.0014 * bands.mid * live
+      u.uWarp.value = 0.0008 + 0.0014 * bands.mid * live + 0.004 * st.wobble
+      u.uFlip.value = 0.8 * st.burst
+      showU.uGrade.value.set(st.heat, st.hue, st.gain)
 
       renderer.setRenderTarget(write)
       renderer.render(fbScene, cam)
@@ -281,7 +309,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       const t = read
       read = write
       write = t
-      post.render(dt, Math.min(1, (0.45 * Math.min(1, kick) + 0.4 * a.rms) * live + drop))
+      post.render(dt, Math.min(1, (0.45 * Math.min(1, kick) + 0.4 * a.rms) * live + drop + 0.6 * st.burst))
     },
     resize(width: number, height: number) {
       w = Math.max(1, Math.round(width))
@@ -302,6 +330,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       showMat.dispose()
       renderer.dispose()
     },
+    setParams: (p) => st.setParams(p),
   }
 }
 

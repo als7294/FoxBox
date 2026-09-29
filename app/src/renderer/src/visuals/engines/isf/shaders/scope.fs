@@ -56,9 +56,9 @@ float spec(float x) {
 void main() {
   vec2 uv = isf_FragNormCoord;
   float s = spec(uv.x * 0.7);
-  float y = 0.5 + (s - 0.25) * 0.6;
+  float y = 0.5 + (s - 0.25) * 0.6 * (1.0 + buildProgress);
   float d = abs(uv.y - y);
-  float trace = smoothstep(0.006, 0.0, d) + 0.004 / (d + 0.004) * 0.2;
+  float trace = smoothstep(0.006 + 0.01 * dropEnergy, 0.0, d) + 0.004 / (d + 0.004) * 0.2;
   float scan = 0.85 + 0.15 * sin(uv.y * RENDERSIZE.y * 1.4);
   vec2 v = uv - 0.5;
   float vignette = 1.0 - dot(v, v) * 1.6;

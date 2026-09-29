@@ -274,6 +274,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/masks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Masks
+         * @description v0.11.6: the user's imported face masks (the built-ins are app assets).
+         */
+        get: operations["listMasks"];
+        put?: never;
+        /**
+         * Upload Mask
+         * @description v0.11.6: a user mask: SVG <= 2 MB (re-checked: no script, foreignObject, on*= or outside refs) or PNG / WebP
+         *     <= 16 MB and <= 4096 px a side (read from its header).
+         */
+        post: operations["uploadMask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/masks/{mask_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mask Image
+         * @description v0.11.6: the mask's image with its own Content-Type; an SVG comes with CSP default-src 'none'.
+         */
+        get: operations["getMaskImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/masks/{mask_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Mask
+         * @description v0.11.6: a user mask.
+         */
+        delete: operations["deleteMask"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/songs/{song_id}": {
         parameters: {
             query?: never;
@@ -330,6 +395,318 @@ export interface paths {
         get: operations["getStemFeatures"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{song_id}/lyrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Song Lyrics
+         * @description v0.10: the song's timed words (409 until its song_lyrics job is done).
+         */
+        get: operations["getSongLyrics"];
+        put?: never;
+        /**
+         * Transcribe Song Lyrics
+         * @description v0.10: timed lyrics (a song_lyrics job): from the vocals stem when the song has stems, else the mix.
+         */
+        post: operations["transcribeSongLyrics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remixes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Remixes
+         * @description v0.11.9: `song_id` / `recipe` narrow the list (RESUME).
+         */
+        get: operations["listRemixes"];
+        put?: never;
+        /**
+         * Create Remix
+         * @description v0.11: a new remix of song A (+ B for a mashup), empty until BUILD; starts stems on sources without them.
+         */
+        post: operations["createRemix"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remixes/{remix_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Remix */
+        get: operations["getRemix"];
+        put?: never;
+        post?: never;
+        /** Delete Remix */
+        delete: operations["deleteRemix"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Remix
+         * @description v0.11: save the arrangement at the rev it was edited from (409 remix_conflict when it's stale).
+         */
+        patch: operations["updateRemix"];
+        trace?: never;
+    };
+    "/api/remixes/{remix_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rate Remix Take
+         * @description v0.11.8: rate one take (404 when the remix has no take with that seed); ROLL learns from it.
+         */
+        post: operations["rateRemixTake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remix-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Remix Prefs
+         * @description v0.11.8: the per-style option counts ROLL leans on.
+         */
+        get: operations["getRemixPrefs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remix-prefs/{style}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset Remix Prefs
+         * @description v0.11.8: RESET, forget one style's ratings.
+         */
+        delete: operations["resetRemixPrefs"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remixes/{remix_id}/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build Remix
+         * @description v0.11: the recipe → a draft arrangement (a remix_build job; a new rev). A mashup lines up on Remix.mash.
+         *     v0.11.9: a take with a saved arrangement (you switched away from it) gets it back; `fresh` rebuilds it.
+         */
+        post: operations["buildRemix"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remixes/{remix_id}/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare Remix
+         * @description v0.11: render every clip without audio at the remix tempo and key (a remix_prepare job). Clips gain their
+         *     audio_id as they're ready (the playhead's first 16 bars and the first drop first): refetch the remix meanwhile.
+         */
+        post: operations["prepareRemix"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/remixes/{remix_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Remix Export
+         * @description v0.11.4: the latest export of this remix (404 until one exists).
+         */
+        get: operations["getRemixExport"];
+        put?: never;
+        /**
+         * Export Remix
+         * @description v0.11.4: the mixdown as AIFF / MP3, the Ableton Live 11 set (BETA), and (visuals) a new Song whose structure
+         *     is the arrangement's (a remix_export job; GET /remixes/{id}/export has the result).
+         */
+        post: operations["exportRemix"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/patches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Patches
+         * @description v0.11: the bass library (preview_audio_id streams a short audition).
+         */
+        get: operations["listPatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Kits */
+        get: operations["listKits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/flip-styles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Flip Styles */
+        get: operations["listFlipStyles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/songs/{song_id}/bass/groove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bass Groove
+         * @description v0.11: BASS DNA of a section of the song's bass stem (409 stems_not_ready until it's split); cached.
+         */
+        get: operations["getBassGroove"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/grooves/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Groove
+         * @description v0.11.4: a section's BASS DNA re-played on a patch (the A/B audition); cached.
+         */
+        post: operations["renderGroove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mash/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Mash
+         * @description v0.11.4 MASH RADAR (synchronous, cached features only): the other songs' parts that fit one part of this
+         *     song, ranked; songs not read yet are in `missing` (queued).
+         */
+        post: operations["scanMash"];
         delete?: never;
         options?: never;
         head?: never;
@@ -757,6 +1134,107 @@ export interface components {
              */
             chop_slots?: components["schemas"]["ChopSlot"][] | null;
         };
+        /**
+         * BassGroove
+         * @description BASS DNA (v0.11.1): how a section of a song's bass moves, re-playable on any patch at any tempo.
+         *     GET /api/songs/{id}/bass/groove?start_bar&bars. Everything is in beats, so it re-times by rendering at another bpm.
+         *
+         *     Maps onto MIDI for the synth: notes → note on/off + vel; midi remainder, glide_to and `bend` → pitch bend (±12 st);
+         *     level → CC11 (the sidechain bounce); growl → CC74 (cutoff / drive); wobble → a tempo-synced LFO at `div`, phase-locked.
+         */
+        BassGroove: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * Start Bar
+             * @description 1-based, as SongSection.start_bar.
+             */
+            start_bar: number;
+            /** Bars */
+            bars: number;
+            /**
+             * Bpm
+             * @description The source tempo the groove was read at.
+             */
+            bpm: number;
+            /**
+             * Half Time
+             * @default false
+             */
+            half_time: boolean;
+            /** Notes */
+            notes?: components["schemas"]["GrooveNote"][];
+            /** Wobble */
+            wobble?: components["schemas"]["GrooveWobble"][];
+            /**
+             * Per Beat
+             * @description Curve samples per beat.
+             * @default 24
+             */
+            per_beat: number;
+            /**
+             * Level B64
+             * @description base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the bounce.
+             * @default
+             */
+            level_b64: string;
+            /**
+             * Growl B64
+             * @description base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the growl share.
+             * @default
+             */
+            growl_b64: string;
+        };
+        /**
+         * BassMacros
+         * @description The four BASS DNA knobs (v0.11.12), 0-1 each; 0.5 is the style's default. PREPARE maps them onto the engine bass:
+         *     GRIT = midbus drive and OTT depth, WOBBLE = LFO/movement depth, SUB = sub level, GLIDE = 808 glide time.
+         */
+        BassMacros: {
+            /**
+             * Grit
+             * @default 0.5
+             */
+            grit: number;
+            /**
+             * Wobble
+             * @default 0.5
+             */
+            wobble: number;
+            /**
+             * Sub
+             * @default 0.5
+             */
+            sub: number;
+            /**
+             * Glide
+             * @default 0.5
+             */
+            glide: number;
+        };
+        /**
+         * BassPatch
+         * @description A bass sound for BASS DNA (v0.11). Surge XT factory patches ship CC0-tagged only.
+         */
+        BassPatch: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Category
+             * @description v0.11.10 adds tearout (the designed tearout voices) and top (ear candy, squeak): the SWAP SOUND tabs.
+             * @enum {string}
+             */
+            category: "wobble" | "reese" | "growl" | "808" | "riddim" | "tearout" | "top";
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "surge" | "foxbox";
+            /** Preview Audio Id */
+            preview_audio_id?: string | null;
+        };
         /** BatchExportOptions */
         BatchExportOptions: {
             /**
@@ -820,6 +1298,13 @@ export interface components {
              */
             playlist?: string | null;
         };
+        /** Body_uploadMask */
+        Body_uploadMask: {
+            /** File */
+            file: string;
+            /** Name */
+            name: string;
+        };
         /** Body_uploadSong */
         Body_uploadSong: {
             /** File */
@@ -860,6 +1345,26 @@ export interface components {
             index: number;
             /** Beat */
             beat: number;
+        };
+        /**
+         * DrumKit
+         * @description A drum kit for GENRE FLIP (v0.11).
+         */
+        DrumKit: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "foxbox" | "cc0";
+            /**
+             * Preview Audio Id
+             * @description v0.11.5: a 2 s kit audition (GET /api/audio/{id}).
+             */
+            preview_audio_id?: string | null;
         };
         /**
          * ErrorEnvelope
@@ -926,14 +1431,14 @@ export interface components {
             filename: string;
             /**
              * Path
-             * @description Absolute path inside the export root.
+             * @description Absolute path inside the export root. For drag-out and REVEAL only: never shown on screen (the act is anonymous).
              */
             path: string;
             /**
              * Format
              * @enum {string}
              */
-            format: "aiff" | "wav";
+            format: "aiff" | "wav" | "mp3";
             /** Sample Rate */
             sample_rate: number;
             /** Bit Depth */
@@ -994,6 +1499,179 @@ export interface components {
              */
             reserved_tail_s?: number | null;
         };
+        /**
+         * FlipGridRow
+         * @description One drum row of a FLIP card preview (v0.11.12): 16-step strings per bar, 'x' hit, 'g' ghost, '-' rest.
+         */
+        FlipGridRow: {
+            /**
+             * Voice
+             * @enum {string}
+             */
+            voice: "kick" | "snare" | "hats";
+            /** Bars */
+            bars?: string[];
+        };
+        /** FlipSettings */
+        FlipSettings: {
+            /** Style Id */
+            style_id: string;
+            /** Kit Id */
+            kit_id: string;
+            /**
+             * Swing
+             * @default 0
+             */
+            swing: number;
+        };
+        /**
+         * FlipStyle
+         * @description A GENRE FLIP target (v0.11), e.g. half-time trap, riddim, deep dubstep, 140 dubstep.
+         */
+        FlipStyle: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Grid
+             * @description v0.11.12: the style's default drum option, first 2 bars, for the card preview.
+             */
+            grid?: components["schemas"]["FlipGridRow"][];
+            /**
+             * Bpm
+             * @description Suggested remix tempo.
+             */
+            bpm: number;
+            /**
+             * Half Time
+             * @default false
+             */
+            half_time: boolean;
+        };
+        /** GrooveClipSrc */
+        GrooveClipSrc: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "groove";
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "A" | "B";
+            /**
+             * Start Bar
+             * @description Source song bar where the groove is taken from.
+             */
+            start_bar: number;
+            /** Bars */
+            bars: number;
+            /** Patch Id */
+            patch_id: string;
+        };
+        /**
+         * GrooveNote
+         * @description One bass note of a BASS DNA groove (v0.11.1), in beats from the groove's first bar line (the push and swing stay).
+         */
+        GrooveNote: {
+            /** Beat */
+            beat: number;
+            /** Beats */
+            beats: number;
+            /**
+             * Midi
+             * @description Settled pitch, fractional (the track's tuning); an unpitched note holds the pitch before it.
+             */
+            midi: number;
+            /**
+             * Vel
+             * @default 1
+             */
+            vel: number;
+            /**
+             * Glide To
+             * @description MIDI the note slides to (808 glide), when it slides.
+             */
+            glide_to?: number | null;
+            /**
+             * Bend
+             * @description (beats into the note, MIDI) points: the slide's shape and timing.
+             */
+            bend?: [
+                number,
+                number
+            ][] | null;
+        };
+        /**
+         * GrooveRenderRequest
+         * @description POST /api/grooves/render (v0.11.4): a section's BASS DNA re-played on a patch, e.g. the A/B audition.
+         */
+        GrooveRenderRequest: {
+            /** Song Id */
+            song_id: string;
+            /** Start Bar */
+            start_bar: number;
+            /** Bars */
+            bars: number;
+            /** Patch Id */
+            patch_id: string;
+            /**
+             * Bpm
+             * @description None = the song's own tempo.
+             */
+            bpm?: number | null;
+            /**
+             * Shift St
+             * @default 0
+             */
+            shift_st: number;
+        };
+        /** GrooveRenderResult */
+        GrooveRenderResult: {
+            /**
+             * Audio Id
+             * @description Stream with GET /api/audio/{audio_id}.
+             */
+            audio_id: string;
+            /** Duration S */
+            duration_s: number;
+            /** Sample Rate */
+            sample_rate: number;
+        };
+        /**
+         * GrooveWobble
+         * @description The bass LFO in one growl-heavy bar of a groove (v0.11.1).
+         */
+        GrooveWobble: {
+            /**
+             * Bar
+             * @description From the groove's first bar (0-based).
+             */
+            bar: number;
+            /**
+             * Div
+             * @description Beat division: '1/4T', '1/8', '1/8T', '1/16', '1/16T'.
+             */
+            div: string;
+            /**
+             * Depth
+             * @description How far the LFO swings the growl.
+             */
+            depth: number;
+            /**
+             * Shape
+             * @description Only 'sine' is told apart so far.
+             * @default sine
+             */
+            shape: string;
+            /**
+             * Phase
+             * @description LFO phase at the bar line, 0 = its peak.
+             */
+            phase: number;
+        };
         /** Health */
         Health: {
             /**
@@ -1040,7 +1718,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis" | "song_stems";
+            kind: "model_install" | "batch" | "analysis" | "persona_design" | "song_analysis" | "song_stems" | "song_lyrics" | "remix_build" | "remix_prepare" | "remix_export";
             /**
              * State
              * @enum {string}
@@ -1113,6 +1791,42 @@ export interface components {
              * @description e.g. take/export ids produced by this item.
              */
             result_ids?: string[];
+        };
+        /**
+         * KitClipSrc
+         * @description Drums played on a kit (v0.11.2). A flip's pattern is per song and per bar (loudness, fills), so the hits are inline;
+         *     `pattern_id` is only for library loops.
+         */
+        KitClipSrc: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "kit";
+            /** Kit Id */
+            kit_id: string;
+            /** Hits */
+            hits?: components["schemas"]["KitHit"][];
+            /** Pattern Id */
+            pattern_id?: string | null;
+        };
+        /**
+         * KitHit
+         * @description One drum hit of a GENRE FLIP clip (v0.11.2), in beats from the clip start.
+         */
+        KitHit: {
+            /** Beat */
+            beat: number;
+            /**
+             * Voice
+             * @enum {string}
+             */
+            voice: "kick" | "snare" | "hats";
+            /**
+             * Vel
+             * @default 1
+             */
+            vel: number;
         };
         /** Lexicon */
         Lexicon: {
@@ -1245,6 +1959,134 @@ export interface components {
             revision: string;
             /** Size Bytes */
             size_bytes: number;
+        };
+        /**
+         * MashMatch
+         * @description A MASH RADAR result (v0.11): the matched song's part that fits the query's part.
+         *
+         *     `shift_st` and `tempo_ratio` apply to the matched song; the remix runs at the query's tempo and key.
+         */
+        MashMatch: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "build" | "drop" | "vocals";
+            /**
+             * Start Bar
+             * @description Matched song's bar where its part starts.
+             */
+            start_bar: number;
+            /** Bars */
+            bars: number;
+            /** Score */
+            score: number;
+            /** Shift St */
+            shift_st: number;
+            /** Tempo Ratio */
+            tempo_ratio: number;
+            /**
+             * Reasons
+             * @description Plain lines, e.g. 'key +2 st', 'tempo 0.97x', 'bass style match'.
+             */
+            reasons?: string[];
+            /**
+             * From Start Bar
+             * @description The query's part it was scored against.
+             * @default 1
+             */
+            from_start_bar: number;
+        };
+        /**
+         * MashScanRequest
+         * @description POST /api/mash/scan (v0.11.4: synchronous, cached features only).
+         *
+         *     `part` is the QUERY song's (slot A's) part. A "build" or "vocals" part is scored over other songs' drops; a "drop"
+         *     part takes other songs' builds, vocals and drops on top. `borrow` narrows the results to that kind of the matched
+         *     song's part. The UI's "borrow B's DROP" sends part="build"; "borrow B's BUILD / VOCALS" sends part="drop" plus that
+         *     borrow value.
+         */
+        MashScanRequest: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "build" | "drop" | "vocals";
+            /**
+             * Borrow
+             * @description Only return matches whose own part is this kind.
+             */
+            borrow?: ("build" | "drop" | "vocals") | null;
+            /**
+             * Start Bar
+             * @description One part of the query song; None = every part of that kind.
+             */
+            start_bar?: number | null;
+            /** Bass Styles */
+            bass_styles?: ("deep" | "trap" | "dubstep" | "other")[] | null;
+            /** Bpm Min */
+            bpm_min?: number | null;
+            /** Bpm Max */
+            bpm_max?: number | null;
+            /**
+             * Key Compatible Only
+             * @default false
+             */
+            key_compatible_only: boolean;
+            /**
+             * Top
+             * @default 50
+             */
+            top: number;
+        };
+        /**
+         * MashScanResult
+         * @description What POST /api/mash/scan returns (v0.11.4). Songs without cached features are skipped, listed in `missing`,
+         *     and queued for feature computation, so a later scan includes them.
+         */
+        MashScanResult: {
+            /** Matches */
+            matches?: components["schemas"]["MashMatch"][];
+            /**
+             * Missing
+             * @description Song ids not scanned yet (features queued).
+             */
+            missing?: string[];
+        };
+        /**
+         * MaskInfo
+         * @description A face mask (v0.11.6). GET /api/masks lists built-ins and user masks; the image is at GET /api/masks/{id}/image.
+         */
+        MaskInfo: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "builtin" | "user";
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "svg" | "png" | "webp";
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /**
+             * Size Bytes
+             * @description SVG <= 2 MB; PNG/WebP <= 16 MB.
+             */
+            size_bytes: number;
+            /** Created At */
+            created_at: string;
         };
         /** MaskStrength */
         MaskStrength: {
@@ -1580,6 +2422,33 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PrefAxis */
+        PrefAxis: {
+            /** Axis */
+            axis: string;
+            /** Options */
+            options?: components["schemas"]["PrefOption"][];
+        };
+        /**
+         * PrefOption
+         * @description Rating counts for one option on one axis (v0.11.8). Each take counts once, from its latest feedback (a re-rating replaces
+         *     the earlier one; rating 0 withdraws it). ROLL draws θ ~ Beta(1 + up, 1 + down) per option, weights it by the option's default
+         *     weight, keeps a 5% floor, and draws from that (a weighted Thompson draw: plain counting, no AI). Tag-scoped credit makes these floats.
+         */
+        PrefOption: {
+            /** Option */
+            option: string;
+            /**
+             * Up
+             * @default 0
+             */
+            up: number;
+            /**
+             * Down
+             * @default 0
+             */
+            down: number;
+        };
         /** Preset */
         Preset: {
             /** Id */
@@ -1673,6 +2542,383 @@ export interface components {
              * @default GUY FVWKS — Drops
              */
             playlist_default: string;
+        };
+        /**
+         * Remix
+         * @description A remix (v0.11): the arrangement document. Local-only, like Songs.
+         */
+        Remix: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Recipe
+             * @enum {string}
+             */
+            recipe: "vip" | "mashup" | "flip";
+            /** Sources */
+            sources: components["schemas"]["RemixSource"][];
+            /** Bpm */
+            bpm: number;
+            /** Key */
+            key?: string | null;
+            /**
+             * Beats Per Bar
+             * @default 4
+             */
+            beats_per_bar: number;
+            /** Sections */
+            sections?: components["schemas"]["RemixSection"][];
+            /** Lanes */
+            lanes?: components["schemas"]["RemixLane"][];
+            /**
+             * Bass Patch Id
+             * @description VIP / DROP SWAP: the patch BASS DNA plays on.
+             */
+            bass_patch_id?: string | null;
+            /** @description GENRE FLIP. The target tempo is Remix.bpm (BUILD sets it from the style; PATCH bpm to change it). */
+            flip?: components["schemas"]["FlipSettings"] | null;
+            /** @description MASHUP: the partner part LINE IT UP chose (B's part, start bar, shift, ratio). BUILD uses it; None = BUILD picks the best match itself. */
+            mash?: components["schemas"]["MashMatch"] | null;
+            /**
+             * Seed
+             * @description v0.11.7: BUILD's variation seed. The same doc and seed give the same remix; a new seed is a new take (voices, patterns, switch-ups, fills). The app's ROLL/TAKES set it.
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Takes
+             * @description v0.11.8: the kept takes, oldest first. BUILD adds or refreshes the take for `seed`.
+             */
+            takes?: components["schemas"]["RemixTake"][];
+            /** @description v0.11.12: None = the style's defaults. A change re-prepares only the engine-bass clips. */
+            bass_macros?: components["schemas"]["BassMacros"] | null;
+            /**
+             * Top Layers
+             * @description v0.11.12: ear candy BUILD places on a TOP lane, in key: arp across the drops, powerup into each drop, coin on fills.
+             */
+            top_layers?: ("arp" | "powerup" | "coin")[];
+            /**
+             * Build State
+             * @default none
+             * @enum {string}
+             */
+            build_state: "none" | "queued" | "running" | "done" | "error";
+            /**
+             * Rev
+             * @description Bumped on every save; PATCH must send the rev it edited.
+             * @default 0
+             */
+            rev: number;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * RemixBuildRequest
+         * @description POST /api/remixes/{id}/build body (v0.11.9; optional). By default BUILD at a seed whose take has a saved
+         *     arrangement restores it, so edits survive switching takes. fresh=True discards those edits and rebuilds from the take's choices.
+         */
+        RemixBuildRequest: {
+            /**
+             * Fresh
+             * @default false
+             */
+            fresh: boolean;
+        };
+        /**
+         * RemixClip
+         * @description A clip on a lane (v0.11), placed in remix beats. The engine prepares it at the remix tempo and key.
+         */
+        RemixClip: {
+            /** Id */
+            id: string;
+            /** At Beat */
+            at_beat: number;
+            /** Beats */
+            beats: number;
+            /** Src */
+            src: components["schemas"]["StemClipSrc"] | components["schemas"]["GrooveClipSrc"] | components["schemas"]["KitClipSrc"];
+            /**
+             * Shift St
+             * @default 0
+             */
+            shift_st: number;
+            /**
+             * Fade In Beats
+             * @default 0
+             */
+            fade_in_beats: number;
+            /**
+             * Fade Out Beats
+             * @default 0
+             */
+            fade_out_beats: number;
+            /**
+             * Gain Db
+             * @default 0
+             */
+            gain_db: number;
+            /**
+             * Audio Id
+             * @description The prepared audio (GET /api/audio/{id}); None until prepared.
+             */
+            audio_id?: string | null;
+        };
+        /** RemixCreate */
+        RemixCreate: {
+            /**
+             * Recipe
+             * @enum {string}
+             */
+            recipe: "vip" | "mashup" | "flip";
+            /** Sources */
+            sources: components["schemas"]["RemixSource"][];
+            mash?: components["schemas"]["MashMatch"] | null;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /** Name */
+            name?: string | null;
+        };
+        /** RemixExportRequest */
+        RemixExportRequest: {
+            /** Formats */
+            formats: ("aiff" | "mp3" | "als")[];
+            /**
+             * Visuals
+             * @description Register the mixdown as a Song whose structure comes from the arrangement.
+             * @default true
+             */
+            visuals: boolean;
+            /** Name */
+            name?: string | null;
+        };
+        /** RemixExportResult */
+        RemixExportResult: {
+            /** Remix Id */
+            remix_id: string;
+            /** Files */
+            files?: components["schemas"]["ExportedFile"][];
+            /**
+             * Als Path
+             * @description The Ableton Live 11 set (BETA until opened in Live).
+             */
+            als_path?: string | null;
+            /**
+             * Rekordbox Xml Path
+             * @description v0.11.5: rekordbox.xml for the AIFF: TEMPO at bar 1, hot cues at each DROP, memory cues at each section start.
+             */
+            rekordbox_xml_path?: string | null;
+            /**
+             * Song Id
+             * @description The mixdown registered as a Song, when visuals is on.
+             */
+            song_id?: string | null;
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** RemixLane */
+        RemixLane: {
+            /** Id */
+            id: string;
+            /**
+             * Role
+             * @description v0.11.11 adds top: ear candy and squeak clips (patch_id top:*), drawn between DRUMS and SYNTH BASS in the design package.
+             * @enum {string}
+             */
+            role: "drums" | "bass" | "vocals" | "other" | "synth_bass" | "kit" | "top";
+            /** Slot */
+            slot?: ("A" | "B") | null;
+            /**
+             * Gain Db
+             * @default 0
+             */
+            gain_db: number;
+            /**
+             * Mute
+             * @default false
+             */
+            mute: boolean;
+            /**
+             * Solo
+             * @default false
+             */
+            solo: boolean;
+            /** Clips */
+            clips?: components["schemas"]["RemixClip"][];
+        };
+        /**
+         * RemixPrefs
+         * @description One style's counts (v0.11.8). DELETE /api/remix-prefs/{style} resets them (the UI's RESET, two steps).
+         */
+        RemixPrefs: {
+            /** Style */
+            style: string;
+            /**
+             * Ratings
+             * @description Takes of this style whose latest rating isn't 0: the TasteReadout's 'ROLL leans on N ratings'.
+             * @default 0
+             */
+            ratings: number;
+            /** Axes */
+            axes?: components["schemas"]["PrefAxis"][];
+        };
+        /**
+         * RemixPrefsResult
+         * @description GET /api/remix-prefs (v0.11.8).
+         */
+        RemixPrefsResult: {
+            /** Styles */
+            styles?: components["schemas"]["RemixPrefs"][];
+        };
+        /**
+         * RemixSection
+         * @description A block of the remix on its own bar grid (v0.11). Sections tile the remix in order.
+         */
+        RemixSection: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "intro" | "verse" | "build" | "drop" | "breakdown" | "outro";
+            /** Start Bar */
+            start_bar: number;
+            /** Bars */
+            bars: number;
+            /**
+             * From Slot
+             * @default A
+             * @enum {string}
+             */
+            from_slot: "A" | "B";
+            /**
+             * From Start Bar
+             * @description Where this block comes from in that source song.
+             * @default 1
+             */
+            from_start_bar: number;
+        };
+        /** RemixSource */
+        RemixSource: {
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "A" | "B";
+            /** Song Id */
+            song_id: string;
+        };
+        /**
+         * RemixTake
+         * @description A take (v0.11.8): one seed of this remix plus what BUILD resolved for it. BUILD records (or refreshes) the take for Remix.seed.
+         */
+        RemixTake: {
+            /** Seed */
+            seed: number;
+            /**
+             * Style
+             * @description What ROLL counts ratings under: the flip style_id, or the VIP/mashup bass style (e.g. 'riddim', 'tearout', 'trap_hybrid').
+             */
+            style: string;
+            /**
+             * Choices
+             * @description Resolved by BUILD; read-only for clients.
+             */
+            choices?: components["schemas"]["TakeChoice"][];
+            /** Name */
+            name?: string | null;
+            /**
+             * Starred
+             * @default false
+             */
+            starred: boolean;
+            /**
+             * Rating
+             * @description The latest rating (display only; the history is TakeFeedback).
+             * @default 0
+             * @enum {integer}
+             */
+            rating: -1 | 0 | 1;
+            /**
+             * Short Term Max Lufs
+             * @description v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0).
+             */
+            short_term_max_lufs?: number | null;
+            /**
+             * True Peak Db
+             * @description v0.11.10: the same mix's true peak (dBTP, 4x oversampled; club ceiling -1.0).
+             */
+            true_peak_db?: number | null;
+            /**
+             * Sections
+             * @description v0.11.9: this take's own arrangement, your edits included. Saved when you switch away (a PATCH to another seed); None until then.
+             */
+            sections?: components["schemas"]["RemixSection"][] | null;
+            /**
+             * Lanes
+             * @description v0.11.9: as `sections`. BUILD at this seed restores the saved arrangement instead of rebuilding.
+             */
+            lanes?: components["schemas"]["RemixLane"][] | null;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * RemixTakeEdit
+         * @description A kept take in RemixUpdate.takes (v0.11.8): only the name and the star are editable.
+         */
+        RemixTakeEdit: {
+            /** Seed */
+            seed: number;
+            /** Name */
+            name?: string | null;
+            /**
+             * Starred
+             * @default false
+             */
+            starred: boolean;
+        };
+        /**
+         * RemixUpdate
+         * @description PATCH body: the whole arrangement at `rev`. A stale rev is rejected (409), so edits never overwrite each other.
+         */
+        RemixUpdate: {
+            /** Rev */
+            rev: number;
+            /** Name */
+            name?: string | null;
+            /** Bpm */
+            bpm?: number | null;
+            /** Key */
+            key?: string | null;
+            /** Sections */
+            sections?: components["schemas"]["RemixSection"][] | null;
+            /** Lanes */
+            lanes?: components["schemas"]["RemixLane"][] | null;
+            /** Bass Patch Id */
+            bass_patch_id?: string | null;
+            flip?: components["schemas"]["FlipSettings"] | null;
+            mash?: components["schemas"]["MashMatch"] | null;
+            /**
+             * Seed
+             * @description Set it, then POST build, for a new take.
+             */
+            seed?: number | null;
+            bass_macros?: components["schemas"]["BassMacros"] | null;
+            /**
+             * Top Layers
+             * @description v0.11.12: set, then POST build (TOP clips are placed by BUILD).
+             */
+            top_layers?: ("arp" | "powerup" | "coin")[] | null;
+            /**
+             * Takes
+             * @description v0.11.8: the takes to keep (rename, star). A seed left out is deleted; style, choices and rating stay as recorded.
+             */
+            takes?: components["schemas"]["RemixTakeEdit"][] | null;
         };
         /** RenderInfo */
         RenderInfo: {
@@ -1976,6 +3222,15 @@ export interface components {
              * @description v0.9: the separated stems once stems_state is 'done'.
              */
             stems?: components["schemas"]["SongStem"][];
+            /** @description v0.10: sections, drops and phrases (after analysis; refined after stems). */
+            structure?: components["schemas"]["SongStructure"] | null;
+            /**
+             * Lyrics State
+             * @description v0.10: lyrics transcription, started with POST /api/songs/{id}/lyrics.
+             * @default none
+             * @enum {string}
+             */
+            lyrics_state: "none" | "queued" | "running" | "done" | "error";
         };
         /**
          * SongAnalysis
@@ -2015,6 +3270,21 @@ export interface components {
              * @default 4
              */
             beats_per_bar: number;
+        };
+        /**
+         * SongLyrics
+         * @description Timed words of a song (v0.10): GET /api/songs/{id}/lyrics. Transcribed from the vocals stem when there is one.
+         */
+        SongLyrics: {
+            /** Song Id */
+            song_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "vocals_stem" | "mix";
+            /** Words */
+            words?: components["schemas"]["SongWord"][];
         };
         /**
          * SongPlacement
@@ -2057,6 +3327,57 @@ export interface components {
             end_bar?: number | null;
         };
         /**
+         * SongSection
+         * @description One part of a song on its own grid (v0.10). Sections tile the song in order, without gaps or overlaps.
+         */
+        SongSection: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "intro" | "verse" | "build" | "drop" | "breakdown" | "outro";
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
+            /**
+             * Start Bar
+             * @description Song bar (1-based, on the song's grid) where the section starts.
+             */
+            start_bar: number;
+            /**
+             * Energy
+             * @description Mean loudness/density of the section, normalised per song.
+             */
+            energy: number;
+            /**
+             * Bass Style
+             * @description v0.10.1; None without bass.
+             */
+            bass_style?: ("deep" | "trap" | "dubstep" | "other") | null;
+            /**
+             * Half Time
+             * @description v0.10.1: snare on beat 3 only (a 70 feel at 140).
+             * @default false
+             */
+            half_time: boolean;
+            /**
+             * Note Beats
+             * @description v0.10.1: median bass-note length in beats.
+             */
+            note_beats?: number | null;
+            /**
+             * Wobble Div
+             * @description v0.10.1: dominant bass LFO as a beat division, e.g. '1/8', '1/8T', '1/16'.
+             */
+            wobble_div?: string | null;
+            /**
+             * Wobble Anchor S
+             * @description v0.10.1: an LFO peak in song time; phase = frac((t - anchor) / period).
+             */
+            wobble_anchor_s?: number | null;
+        };
+        /**
          * SongStem
          * @description One separated stem of a song (v0.9). Stems are local-only, like songs.
          */
@@ -2073,6 +3394,50 @@ export interface components {
             audio_id: string;
         };
         /**
+         * SongStructure
+         * @description Where a song builds, drops and breathes (v0.10), for the AUTO-VJ director and pre-drop text.
+         *
+         *     `drops_s` are the drop hits (the first beat of each drop section) in song time. `builds` pairs each build's start
+         *     with the drop it leads into. `phrase_bars` is the phrase length the sections snap to (8 or 16).
+         *     `energy` is a coarse loudness/density curve at `energy_fps` over the whole song, 0-255, normalised per song.
+         */
+        SongStructure: {
+            /** Sections */
+            sections: components["schemas"]["SongSection"][];
+            /** Drops S */
+            drops_s?: number[];
+            /**
+             * Builds
+             * @description (build start s, drop hit s) pairs.
+             */
+            builds?: [
+                number,
+                number
+            ][];
+            /**
+             * Phrase Bars
+             * @default 8
+             */
+            phrase_bars: number;
+            /**
+             * Energy Fps
+             * @default 10
+             */
+            energy_fps: number;
+            /**
+             * Energy B64
+             * @description base64 of uint8, one value per frame at energy_fps.
+             * @default
+             */
+            energy_b64: string;
+            /**
+             * From Stems
+             * @description True once refined with stems (drums/bass entries).
+             * @default false
+             */
+            from_stems: boolean;
+        };
+        /**
          * SongUpdate
          * @description PATCH body. Only the fields present are applied; an explicit null clears an override.
          */
@@ -2085,6 +3450,18 @@ export interface components {
             downbeat_override_s?: number | null;
             /** Key Override */
             key_override?: string | null;
+        };
+        /**
+         * SongWord
+         * @description A sung or spoken word in a song, in song time (v0.10).
+         */
+        SongWord: {
+            /** Text */
+            text: string;
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
         };
         /** SourceInfo */
         SourceInfo: {
@@ -2193,6 +3570,29 @@ export interface components {
              */
             gain_db: number;
         };
+        /** StemClipSrc */
+        StemClipSrc: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "stem";
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "A" | "B";
+            /**
+             * Stem
+             * @enum {string}
+             */
+            stem: "drums" | "bass" | "vocals" | "other";
+            /**
+             * Start Beat
+             * @description Offset into the source song, in its beats from its downbeat.
+             */
+            start_beat: number;
+        };
         /**
          * StemFeatures
          * @description Per-stem reactive features of a whole song for the visuals (v0.9): GET /api/songs/{id}/stems/features.
@@ -2219,6 +3619,12 @@ export interface components {
             tracks: ("drums" | "bass" | "vocals" | "other" | "mix")[];
             /** Data B64 */
             data_b64: string;
+            /**
+             * Bass B64
+             * @description v0.10.1: bass-line intelligence at the same fps, base64 of uint8, 4 bytes per frame: [0] flags (bit0 bass note on, bit1 note onset this frame); [1] sub weight < 60 Hz, 0-255 normalised per song; [2] growl weight 100-600 Hz, 0-255 normalised per song; [3] sub f0 as MIDI x 2 (0 = none). Empty when not computed.
+             * @default
+             */
+            bass_b64: string;
         };
         /** StemInfo */
         StemInfo: {
@@ -2305,6 +3711,61 @@ export interface components {
             peaks: components["schemas"]["Peaks"];
             /** Exports */
             exports?: components["schemas"]["ExportedFile"][];
+        };
+        /**
+         * TakeChoice
+         * @description One option BUILD picked on one variation axis for a take (v0.11.8), e.g. axis 'riddim.drums', option 'seesaw'.
+         *     Where the research disagrees, every credible option stays; the seed picks one and ratings tilt the odds.
+         */
+        TakeChoice: {
+            /** Axis */
+            axis: string;
+            /** Option */
+            option: string;
+        };
+        /**
+         * TakeFeedback
+         * @description A stored rating (v0.11.8). style and choices are copied from the take when it's rated, so later edits never rewrite history.
+         */
+        TakeFeedback: {
+            /** Id */
+            id: string;
+            /** Remix Id */
+            remix_id: string;
+            /** Seed */
+            seed: number;
+            /** Style */
+            style: string;
+            /** Choices */
+            choices?: components["schemas"]["TakeChoice"][];
+            /**
+             * Rating
+             * @enum {integer}
+             */
+            rating: -1 | 0 | 1;
+            /** Tags */
+            tags?: ("growls" | "rhythm" | "mix" | "arrangement" | "sounds_like_trap" | "too_long" | "whiny" | "boring" | "love_it")[];
+            /** Note */
+            note?: string | null;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * TakeFeedbackCreate
+         * @description POST /api/remixes/{id}/feedback (v0.11.8): rate one take. 404 if the remix has no take with that seed.
+         */
+        TakeFeedbackCreate: {
+            /** Seed */
+            seed: number;
+            /**
+             * Rating
+             * @enum {integer}
+             */
+            rating: -1 | 0 | 1;
+            /** Tags */
+            tags?: ("growls" | "rhythm" | "mix" | "arrangement" | "sounds_like_trap" | "too_long" | "whiny" | "boring" | "love_it")[];
+            /** Note */
+            note?: string | null;
         };
         /** TakePatch */
         TakePatch: {
@@ -3694,6 +5155,310 @@ export interface operations {
             };
         };
     };
+    listMasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskInfo"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    uploadMask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadMask"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaskInfo"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMaskImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mask_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteMask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mask_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getSong: {
         parameters: {
             query?: never;
@@ -4018,6 +5783,1540 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StemFeatures"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSongLyrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SongLyrics"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    transcribeSongLyrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRemixes: {
+        parameters: {
+            query?: {
+                song_id?: string | null;
+                recipe?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Remix"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemixCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Remix"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Remix"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemixUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Remix"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rateRemixTake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakeFeedbackCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakeFeedback"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemixPrefs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemixPrefsResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetRemixPrefs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                style: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    buildRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RemixBuildRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    prepareRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemixExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemixExportResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportRemix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                remix_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemixExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BassPatch"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listKits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrumKit"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listFlipStyles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlipStyle"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBassGroove: {
+        parameters: {
+            query?: {
+                start_bar?: number;
+                bars?: number | null;
+            };
+            header?: never;
+            path: {
+                song_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BassGroove"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    renderGroove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrooveRenderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrooveRenderResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    scanMash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MashScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MashScanResult"];
                 };
             };
             /** @description Bad Request */

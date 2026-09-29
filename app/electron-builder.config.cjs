@@ -17,8 +17,9 @@ module.exports = {
   productName: 'FoxBox',
   copyright: 'GUY FVWKS',
   directories: { output: 'release', buildResources: 'build-resources' },
-  // Everything is bundled by electron-vite; no runtime node_modules ship.
-  files: ['out/**', 'package.json', '!out/**/*.map'],
+  // Everything is bundled by electron-vite (main and preload import only node: and electron); no runtime node_modules
+  // ship. electron-builder adds `dependencies` on its own, so they're excluded explicitly (app.asar 113 → 33 MB).
+  files: ['out/**', 'package.json', '!out/**/*.map', '!**/node_modules/**'],
   asar: true,
   npmRebuild: false,
   electronFuses,
@@ -50,6 +51,8 @@ module.exports = {
         "FoxBox listens to your DJ software's output (system audio) to drive the visuals. Nothing is recorded or sent anywhere.",
       NSCameraUsageDescription:
         'FoxBox uses the camera for camera clips. Faces are pixelated on this Mac, and the video never leaves it unless you share it.',
+      // An iPhone as a Continuity Camera webcam is listed (and macOS stops logging that the key is missing).
+      NSCameraUseContinuityCameraDeviceType: true,
       // The engine's wheels (mlx, mlx-metal, numpy, scipy) are macosx_14_0_arm64: macOS 14 on Apple silicon only.
       LSMinimumSystemVersion: '14.0',
     },

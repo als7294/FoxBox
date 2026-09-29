@@ -1,15 +1,17 @@
 import { create } from 'zustand'
 import { reducedMotion } from '@/visuals/motion'
 
-export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live'
+export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live' | 'remix'
 
-export const SCREENS: { id: Screen; label: string; code: string }[] = [
+/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes). */
+export const SCREENS: { id: Screen; label: string; code: string; wip?: string }[] = [
   { id: 'studio', label: 'STUDIO', code: '01' },
   { id: 'live', label: 'VISUALS', code: '02' },
-  { id: 'vault', label: 'VAULT', code: '03' },
-  { id: 'setlist', label: 'SETLIST', code: '04' },
-  { id: 'voices', label: 'VOICES', code: '05' },
-  { id: 'settings', label: 'SETTINGS', code: '06' },
+  { id: 'remix', label: 'REMIX', code: '03' },
+  { id: 'vault', label: 'VAULT', code: '04' },
+  { id: 'setlist', label: 'PROD', code: '05', wip: 'Production: next update' },
+  { id: 'voices', label: 'VOICES', code: '06' },
+  { id: 'settings', label: 'SETTINGS', code: '07' },
 ]
 
 export interface Wipe {
@@ -75,12 +77,14 @@ export const useUi = create<UiState>((set, get) => ({
     }),
   navigate(screen) {
     const s = get()
-    if (screen === s.screen || s.wipe) return
     const meta = SCREENS.find((x) => x.id === screen)!
+    if (screen === s.screen || s.wipe || meta.wip) return
     if (reducedMotion() || s.booting) set({ screen })
     else set({ wipe: { t0: performance.now(), to: screen, label: meta.label, code: meta.code, switched: false } })
   },
-  setScreen: (screen) => set({ screen, wipe: null }),
+  setScreen: (screen) => {
+    if (!SCREENS.find((x) => x.id === screen)?.wip) set({ screen, wipe: null })
+  },
   setBooting: (booting) => set({ booting }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setExportSheetOpen: (exportSheetOpen) => set({ exportSheetOpen }),

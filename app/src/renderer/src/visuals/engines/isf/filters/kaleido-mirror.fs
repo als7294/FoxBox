@@ -27,11 +27,11 @@
 void main() {
   vec2 p = isf_FragNormCoord - 0.5;
   p.x *= RENDERSIZE.x / RENDERSIZE.y;
-  float seg = 6.0 + floor(high * 4.0) * 2.0;
+  float seg = 6.0 + floor(high * 4.0) * 2.0 + floor(buildProgress * 3.0) * 2.0;
   float k = 6.28318 / seg;
-  float a = atan(p.y, p.x) + TIME * 0.05;
+  float a = atan(p.y, p.x) + TIME * 0.05 + 0.2 * sin(6.28318 * bassWobblePhase) * bassWobble * bassGrowl;
   a = abs(mod(a, k) - 0.5 * k);
-  float r = length(p) * (1.0 - 0.15 * rms);
+  float r = length(p) * (1.0 - 0.15 * rms - 0.3 * dropEnergy);  // punches in on the drop
   vec2 q = vec2(cos(a), sin(a)) * r;
   q.x *= RENDERSIZE.y / RENDERSIZE.x;
   vec2 uv = clamp(q + 0.5, 0.0, 1.0);

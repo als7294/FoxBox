@@ -17,7 +17,8 @@ export function contentSecurityPolicy(mode: 'build' | 'serve'): string {
     'img-src': ["'self'", 'data:', 'blob:'],
     'font-src': ["'self'", 'data:'],
     'media-src': ["'self'", 'blob:', 'data:', 'vbx:'],
-    'connect-src': ["'self'", 'vbx:', ...(dev ? ['ws://localhost:*', 'http://localhost:*'] : [])],
+    // blob: (1.5): the TEXT styles hand troika their bundled fonts as blob: URLs it fetches (same-origin, in-memory).
+    'connect-src': ["'self'", 'vbx:', 'blob:', ...(dev ? ['ws://localhost:*', 'http://localhost:*'] : [])],
     'worker-src': ["'self'", 'blob:'],
     'object-src': ["'none'"],
     'base-uri': ["'none'"],

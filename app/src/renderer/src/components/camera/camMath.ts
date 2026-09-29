@@ -1,0 +1,378 @@
+/**
+ * The smart camera's arithmetic, pure and unit-tested: who is near (calibrated against a resting baseline), what the
+ * hands and head are doing, where AUTO-FRAME's crop goes, and the small geometry the face styles need. Points are
+ * normalized to the camera frame (0-1) unless a function says otherwise.
+ */
+
+export interface Pt {
+  x: number
+  y: number
+}
+
+export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
+export const smoothstep = (a: number, b: number, v: number): number => {
+  const t = clamp01((v - a) / (b - a))
+  return t * t * (3 - 2 * t)
+}
+const dist = (a: Pt, b: Pt): number => Math.hypot(a.x - b.x, a.y - b.y)
+
+// ------------------------------------------------------------------------------------------------ calibration
+
+/**
+ * How near a face is, measured one of two ways: 'reach' is 1 / its distance (the landmarker's head pose: turning
+ * doesn't change it), 'width' its width across the frame (the detector alone). Bigger is nearer either way.
+ */
+export type FaceMeasure = 'reach' | 'width'
+
+/** The resting pose: how near the face is and how big the hands are when the DJ stands where they normally stand. */
+export interface Baseline {
+  measure: FaceMeasure
+  /** The face's resting value in that measure. */
+  face: number
+  /** Palm length / face width (a hand held at the face's own depth). */
+  hand: number
+}
+
+/** A palm (wrist to middle-finger knuckle) is about 0.7 of a face's width at the same distance. */
+export const DEFAULT_HAND_RATIO = 0.7
+/** How long the resting pose is sampled after the camera starts, or after RECALIBRATE. */
+export const CALIBRATE_MS = 2000
+
+const median = (v: number[]): number => {
+  const s = [...v].sort((a, b) => a - b)
+  return s.length ? s[Math.floor(s.length / 2)]! : 0
+}
+
+/** Collects face and hand sizes for CALIBRATE_MS, then settles on their medians. */
+export class Calibration {
+  private faces: number[] = []
+  private hands: number[] = []
+  private since: number | null = null
+  private measure: FaceMeasure | null = null
+  /** The resting face width, kept when the baseline upgrades to head distance: only frames at rest may set that. */
+  private widthAtRest: number | null = null
+  baseline: Baseline | null = null
+
+  /** RECALIBRATE: start over from nothing (the DJ is standing at rest now). */
+  restart(): void {
+    this.widthAtRest = null
+    this.reset()
+  }
+
+  private reset(): void {
+    this.faces = []
+    this.hands = []
+    this.since = null
+    this.measure = null
+    this.baseline = null
+  }
+
+  /**
+   * One camera frame: the largest face in `measure` (or null), the palm/face ratios of the hands seen, and the face's
+   * width across the frame (0-1, or null).
+   */
+  add(now: number, measure: FaceMeasure, face: number | null, handRatios: readonly number[], width: number | null = null): void {
+    // The head-distance measure beats face width: upgrade to it once (the landmarker has started, a few seconds in).
+    // The DJ may be leaning in just then, so the resting width is kept and the new baseline only takes frames at rest.
+    if (face != null && measure === 'reach' && (this.baseline ?? { measure: this.measure })?.measure === 'width') {
+      if (this.baseline) this.widthAtRest = this.baseline.face
+      this.reset()
+    }
+    // A frame that falls back to width while distance is the measure (the landmarker lost the face) is skipped.
+    if (measure === 'width' && (this.baseline?.measure === 'reach' || this.measure === 'reach')) return
+    if (this.baseline) return
+    if (this.widthAtRest && width != null && width / this.widthAtRest > 1.1) return
+    if (face != null && face > 0) {
+      this.measure = measure
+      this.since ??= now
+      this.faces.push(face)
+      this.hands.push(...handRatios)
+    }
+    if (this.since != null && now - this.since >= CALIBRATE_MS && this.faces.length >= 5) {
+      this.baseline = {
+        measure: this.measure ?? 'width',
+        face: median(this.faces),
+        hand: this.hands.length >= 5 ? median(this.hands) : DEFAULT_HAND_RATIO,
+      }
+    }
+  }
+
+  get calibrating(): boolean {
+    return this.baseline == null
+  }
+}
+
+/** How near a face is: 0 at rest, 1 once it's 40 % nearer (leaning in); nothing until a baseline in its measure exists. */
+export function faceNear(measure: FaceMeasure, value: number, b: Baseline | null): number {
+  return b && b.face > 0 && b.measure === measure ? smoothstep(1.12, 1.4, value / b.face) : 0
+}
+
+/** How far a hand is pushed toward the camera: its palm against the face's size, compared with the resting ratio. */
+export function handNear(palmOverFace: number, b: Baseline | null): number {
+  return b ? smoothstep(1.3, 1.8, palmOverFace / (b.hand || DEFAULT_HAND_RATIO)) : 0
+}
+
+/** Attack fast, let go slower: a near level that doesn't flicker. `dt` in ms. */
+export function follow(prev: number, target: number, dt: number, attackMs = 80, releaseMs = 260): number {
+  const tau = target > prev ? attackMs : releaseMs
+  return prev + (target - prev) * (1 - Math.exp(-Math.max(0, dt) / tau))
+}
+
+// ------------------------------------------------------------------------------------------------ hands
+
+/** MediaPipe's 21 hand points: wrist 0, thumb 1-4, index 5-8, middle 9-12, ring 13-16, pinky 17-20. */
+export const WRIST = 0
+const TIPS = [8, 12, 16, 20] as const
+const KNUCKLES = [5, 9, 13, 17] as const
+
+/** Wrist to middle-finger knuckle: the hand's size, however the fingers are held. */
+export const palm = (h: readonly Pt[]): number => dist(h[0]!, h[9]!)
+
+export interface HandSignal {
+  /** The palm's centre, 0-1 across and down the camera frame. */
+  x: number
+  y: number
+  /** 1 with thumb and index tips together, 0 once they're apart. */
+  pinch: number
+  /** 1 for an open hand, 0 for a fist. */
+  open: number
+  /** 0-1: pushed toward the camera (see handNear). */
+  near: number
+}
+
+export function handSignal(h: readonly Pt[], near: number): HandSignal {
+  const p = palm(h) || 1e-6
+  const pinch = 1 - smoothstep(0.25, 0.6, dist(h[4]!, h[8]!) / p)
+  let ext = 0
+  for (let i = 0; i < 4; i++) ext += dist(h[TIPS[i]!]!, h[WRIST]!) / (dist(h[KNUCKLES[i]!]!, h[WRIST]!) || 1e-6)
+  const open = smoothstep(1.15, 1.75, ext / 4)
+  const c = [0, 5, 9, 13, 17].reduce((a, i) => ({ x: a.x + h[i]!.x / 5, y: a.y + h[i]!.y / 5 }), { x: 0, y: 0 })
+  return { x: clamp01(c.x), y: clamp01(c.y), pinch, open, near }
+}
+
+// ------------------------------------------------------------------------------------------------ head
+
+export interface HeadPose {
+  /** -1 (turned to the frame's left) … 1 (to its right); 0 facing the camera. */
+  yaw: number
+  /** Radians: the eye line's tilt. */
+  roll: number
+  /** Radians, looking up positive: only from the landmarker's transformation matrix. */
+  pitch?: number
+}
+
+/**
+ * From the landmarker's facial transformation matrix (column-major 4×4; camera space x right, y up, z toward the
+ * viewer): the head's real yaw (±45° is ±1), pitch and roll (the eye line's tilt in the picture).
+ */
+export function poseFromMatrix(m: ArrayLike<number>): HeadPose {
+  const [fx, fy, fz] = [m[8]!, m[9]!, m[10]!] // where the face points
+  return {
+    yaw: Math.max(-1, Math.min(1, Math.atan2(fx, fz) / (Math.PI / 4))),
+    pitch: Math.atan2(fy, Math.hypot(fx, fz)),
+    roll: -Math.atan2(m[1]!, m[0]!),
+  }
+}
+
+/** A 4×4 whose rotation drifted (a smoothed matrix): its axes made unit and square again, in place. */
+export function orthonormalize(m: Float32Array): Float32Array {
+  const x = [m[0]!, m[1]!, m[2]!]
+  const y = [m[4]!, m[5]!, m[6]!]
+  const nx = Math.hypot(...x) || 1
+  for (let i = 0; i < 3; i++) x[i]! /= nx
+  const d = x[0]! * y[0]! + x[1]! * y[1]! + x[2]! * y[2]!
+  for (let i = 0; i < 3; i++) y[i] = y[i]! - d * x[i]!
+  const ny = Math.hypot(...y) || 1
+  for (let i = 0; i < 3; i++) y[i]! /= ny
+  const z = [x[1]! * y[2]! - x[2]! * y[1]!, x[2]! * y[0]! - x[0]! * y[2]!, x[0]! * y[1]! - x[1]! * y[0]!]
+  m.set(x, 0)
+  m.set(y, 4)
+  m.set(z, 8)
+  return m
+}
+
+/**
+ * The One Euro filter (Casiez et al., 2012) over n values at once: steady when still (a `min` Hz cutoff), quick when
+ * moving (the cutoff rises `beta` Hz per unit/s of speed). The face mesh and the head's matrix go through it.
+ * `filter` returns its own buffer: copy it to keep it.
+ */
+export class OneEuro {
+  private x: Float32Array | null = null
+  private dx = new Float32Array(0)
+  private t = 0
+
+  constructor(
+    private readonly min = 1,
+    private readonly beta = 0,
+    private readonly dmin = 1,
+  ) {}
+
+  filter(v: ArrayLike<number>, ms: number): Float32Array {
+    if (!this.x || this.x.length !== v.length) {
+      this.x = Float32Array.from(v)
+      this.dx = new Float32Array(v.length)
+      this.t = ms
+      return this.x
+    }
+    const dt = Math.max(1e-3, (ms - this.t) / 1000)
+    this.t = ms
+    const alpha = (hz: number) => 1 / (1 + 1 / (2 * Math.PI * hz * dt))
+    const ad = alpha(this.dmin)
+    for (let i = 0; i < v.length; i++) {
+      this.dx[i]! += ad * ((v[i]! - this.x[i]!) / dt - this.dx[i]!)
+      this.x[i]! += alpha(this.min + this.beta * Math.abs(this.dx[i]!)) * (v[i]! - this.x[i]!)
+    }
+    return this.x
+  }
+
+  /** The filtered speed of each value (units per second): where it's heading between updates. */
+  get velocity(): Float32Array {
+    return this.dx
+  }
+}
+
+/** From the eyes and nose (the face detector's keypoints or the landmarker's): where the nose sits between the eyes. */
+export function headPose(leftEye: Pt, rightEye: Pt, nose: Pt): HeadPose {
+  const a = leftEye.x < rightEye.x ? leftEye : rightEye
+  const b = a === leftEye ? rightEye : leftEye
+  const span = b.x - a.x || 1e-6
+  const yaw = Math.max(-1, Math.min(1, ((nose.x - a.x) / span - 0.5) * 2.4))
+  return { yaw, roll: Math.atan2(b.y - a.y, b.x - a.x) }
+}
+
+// ------------------------------------------------------------------------------------------------ AUTO-FRAME
+
+export interface Crop {
+  x: number
+  y: number
+  w: number
+  h: number
+  scale: number
+}
+
+/**
+ * AUTO-FRAME: a camera much wider than the output (16:9 into 9:16) is cropped to the output's shape, and the crop's
+ * centre follows the person (`target`, 0-1 across the camera frame; null: stay) with a dead zone and a smooth ease,
+ * never leaving the frame. In camera pixels, like coverCrop. `prevX` is the last crop's centre (camera px, or null).
+ */
+export function autoFrame(
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number,
+  target: number | null,
+  prevX: number | null,
+  dtMs: number,
+  tauMs = 450,
+): Crop {
+  const scale = Math.max(dstW / srcW, dstH / srcH)
+  const w = dstW / scale
+  const h = dstH / scale
+  const half = w / 2
+  const lo = half
+  const hi = srcW - half
+  let x = prevX ?? srcW / 2
+  if (target != null) {
+    const goal = Math.min(hi, Math.max(lo, target * srcW))
+    const dead = w * 0.06
+    const off = goal - x
+    if (Math.abs(off) > dead) x += (off - Math.sign(off) * dead) * (1 - Math.exp(-Math.max(0, dtMs) / tauMs))
+  }
+  x = Math.min(hi, Math.max(lo, x))
+  return { x: x - half, y: (srcH - h) / 2, w, h, scale }
+}
+
+/** Worth auto-framing: the camera is at least 1.3 times wider (in shape) than the output. */
+export const needsAutoFrame = (srcW: number, srcH: number, dstW: number, dstH: number): boolean => srcW / srcH > (dstW / dstH) * 1.3
+
+// ------------------------------------------------------------------------------------------------ styles' geometry
+
+/** A small, seeded random stream (mulberry32): the same seed, the same glitch. */
+export function rng(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** A seeded shuffle of 0..n-1. */
+export function permutation(n: number, seed: number): number[] {
+  const r = rng(seed)
+  const p = Array.from({ length: n }, (_, i) => i)
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1))
+    ;[p[i], p[j]] = [p[j]!, p[i]!]
+  }
+  return p
+}
+
+/** Delaunay triangles (Bowyer-Watson) of a few dozen points: index triples into `pts`. */
+export function triangulate(pts: readonly Pt[]): [number, number, number][] {
+  if (pts.length < 3) return []
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const p of pts) {
+    minX = Math.min(minX, p.x)
+    minY = Math.min(minY, p.y)
+    maxX = Math.max(maxX, p.x)
+    maxY = Math.max(maxY, p.y)
+  }
+  const d = Math.max(maxX - minX, maxY - minY) * 20 || 1
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  const all: Pt[] = [...pts, { x: cx - d, y: cy - d }, { x: cx + d, y: cy - d }, { x: cx, y: cy + d }]
+  const n = pts.length
+  type Tri = { a: number; b: number; c: number; x: number; y: number; r2: number }
+  const circum = (a: number, b: number, c: number): Tri => {
+    const A = all[a]!
+    const B = all[b]!
+    const C = all[c]!
+    const D = 2 * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y)) || 1e-12
+    const ux = ((A.x ** 2 + A.y ** 2) * (B.y - C.y) + (B.x ** 2 + B.y ** 2) * (C.y - A.y) + (C.x ** 2 + C.y ** 2) * (A.y - B.y)) / D
+    const uy = ((A.x ** 2 + A.y ** 2) * (C.x - B.x) + (B.x ** 2 + B.y ** 2) * (A.x - C.x) + (C.x ** 2 + C.y ** 2) * (B.x - A.x)) / D
+    return { a, b, c, x: ux, y: uy, r2: (A.x - ux) ** 2 + (A.y - uy) ** 2 }
+  }
+  let tris: Tri[] = [circum(n, n + 1, n + 2)]
+  for (let i = 0; i < n; i++) {
+    const p = all[i]!
+    const bad = tris.filter((t) => (p.x - t.x) ** 2 + (p.y - t.y) ** 2 <= t.r2 * (1 + 1e-9))
+    const edges = new Map<string, [number, number]>()
+    for (const t of bad) {
+      for (const [u, v] of [
+        [t.a, t.b],
+        [t.b, t.c],
+        [t.c, t.a],
+      ] as const) {
+        const k = u < v ? `${u},${v}` : `${v},${u}`
+        if (edges.has(k)) edges.delete(k)
+        else edges.set(k, [u, v])
+      }
+    }
+    tris = tris.filter((t) => !bad.includes(t))
+    for (const [u, v] of edges.values()) tris.push(circum(u, v, i))
+  }
+  return tris.filter((t) => t.a < n && t.b < n && t.c < n).map((t) => [t.a, t.b, t.c])
+}
+
+/** The thermal palette: 0 (cold, near black) → deep violet → red → orange → white-hot yellow. */
+const HEAT: readonly [number, number, number][] = [
+  [8, 6, 20],
+  [72, 14, 110],
+  [196, 28, 66],
+  [255, 122, 28],
+  [255, 236, 150],
+]
+export function heat(v: number): [number, number, number] {
+  const t = clamp01(v) * (HEAT.length - 1)
+  const i = Math.min(HEAT.length - 2, Math.floor(t))
+  const f = t - i
+  const a = HEAT[i]!
+  const b = HEAT[i + 1]!
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]
+}

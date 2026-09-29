@@ -3,6 +3,7 @@ import { useLiveSource, useSettings } from '@/api/queries'
 import { player } from '@/audio/playerInstance'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { adoptSource, renderNow } from '@/state/renderController'
+import { isEngineUsable, useEngine } from '@/state/engine'
 import { isStale, useStudio, type RenderPhase } from '@/state/studio'
 import { signalGeom } from '@/visuals/signal'
 import { SongPanel } from '@/components/song/SongPanel'
@@ -65,10 +66,13 @@ export function SignalView() {
   const typing = useStudio((s) => s.typing)
   const failed = useStudio((s) => s.error)
   const waiting = !busy && queued === 'typing' && typing
+  const engineUp = useEngine((s) => isEngineUsable(s.status))
   const status = busy
-    ? PHASE[phase]
+    ? engineUp
+      ? PHASE[phase]
+      : 'WAITING FOR THE ENGINE…'
     : waiting
-      ? 'WAITING FOR YOU TO STOP TYPING'
+      ? 'TYPING…'
       : failed
         ? null
         : stale && canRender

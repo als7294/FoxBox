@@ -8,6 +8,7 @@ import { barAt, barTime, clampLand, lastBar, planClip, songGrid, useSong, voiceE
 import { useStudio } from '@/state/studio'
 import { useViewPrefs } from '@/state/viewPrefs'
 import { useVisuals } from '@/state/visuals'
+import { useSceneText } from '@/visuals/live/sceneText'
 import { loadFeatures, type Features } from './features'
 import { renderClip, type ClipAspect, type ClipDrop, type RenderedClip } from './render'
 import styles from './clips.module.css'
@@ -16,7 +17,7 @@ type Range = 'drop' | 'song' | 'bars'
 type Status =
   | { kind: 'idle' }
   | { kind: 'rendering'; progress: number }
-  | { kind: 'done'; clip: RenderedClip; url: string }
+  | { kind: 'done'; clip: RenderedClip; url: string; aspect: ClipAspect }
   | { kind: 'error'; message: string }
 
 const dbGain = (db: number) => 10 ** (db / 20)
@@ -25,18 +26,20 @@ const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60))
 /**
  * SAVE CLIP (EXPORT panel): a promo video of the song with the VISUALS scene as the picture, rendered offline and
  * faster than real time. The stretch is the drop's clip (the Studio's drop landing where it's placed, over the song:
- * CLIP THE DROP), the whole song, or a range of bars; 9:16, 16:9 or 1:1, watermark optional. With the song's stems
- * split, each visual layer follows its own stem.
+ * CLIP THE DROP), the whole song, or a range of bars, in the stage's format (its ASPECT), watermark optional. With
+ * the song's stems split, each visual layer follows its own stem.
  */
 export function SaveClip() {
   const { song, buffer, beatDrop, placement } = useSong()
   const render = useStudio((s) => s.render)
   const bpm = useStudio((s) => s.bpm)
   const scene = useVisuals((s) => s.scene)
+  const aspect = useVisuals((s) => s.aspect)
+  // The stage's words for TEXT layers (lyrics or the drop script): the stage never saves them into the scene.
+  const text = useSceneText()
   const watermark = useViewPrefs((v) => v.clipWatermark)
   const setWatermark = useViewPrefs((v) => v.setClipWatermark)
   const grid = songGrid(song)
-  const [aspect, setAspect] = useState<ClipAspect>('9:16')
   const [range, setRange] = useState<Range>('drop')
   const [withDrop, setWithDrop] = useState(true)
   const [bars, setBars] = useState<[number, number] | null>(null)
@@ -121,14 +124,15 @@ export function SaveClip() {
     if (!buffer || !stretch) return
     const ctl = new AbortController()
     abort.current = ctl
+    const format = aspect
     setStatus({ kind: 'rendering', progress: 0 })
     const stems = features ?? (await loadFeatures(song!.id))
     if (stems && !features) setFeatures(stems)
     const clipDrop: ClipDrop | null = dropIn && drop && dropAt != null ? { buffer: drop.buffer, at: dropAt, voiceEnd: drop.voiceEnd } : null
     try {
       const clip = await renderClip({
-        scene,
-        aspect,
+        scene: { ...scene, text },
+        aspect: format,
         song: buffer,
         grid,
         beatDrop,
@@ -141,7 +145,7 @@ export function SaveClip() {
         signal: ctl.signal,
         onProgress: (progress) => setStatus({ kind: 'rendering', progress }),
       })
-      setStatus({ kind: 'done', clip, url: URL.createObjectURL(clip.blob) })
+      setStatus({ kind: 'done', clip, url: URL.createObjectURL(clip.blob), aspect: format })
     } catch (e) {
       setStatus(ctl.signal.aborted ? { kind: 'idle' } : { kind: 'error', message: (e as Error).message || 'The clip failed.' })
     } finally {
@@ -153,7 +157,7 @@ export function SaveClip() {
     return (
       <section className={styles.saveClip} aria-label="Save clip">
         <h3 className={styles.heading}>SAVE CLIP</h3>
-        <p className={styles.hint}>Attach a song in the Studio: the clip is the song with your visuals, and the drop over it.</p>
+        <p className={styles.hint}>Pick or drop a song (AUDIO SOURCE → TRACK): the clip is the song with your visuals, and the drop over it.</p>
       </section>
     )
   }
@@ -200,19 +204,6 @@ export function SaveClip() {
           </label>
         </div>
       )}
-      <Segmented<ClipAspect>
-        label="Format"
-        hideLabel
-        size="sm"
-        value={aspect}
-        disabled={busy}
-        options={[
-          { value: '9:16', label: '9:16', title: 'Reels, TikTok, Shorts' },
-          { value: '16:9', label: '16:9', title: 'YouTube, projectors' },
-          { value: '1:1', label: '1:1', title: 'Square posts' },
-        ]}
-        onChange={setAspect}
-      />
       <div className={styles.switches}>
         {range !== 'drop' && (
           <Switch row size="sm" label="WITH THE DROP" checked={withDrop && Boolean(drop)} disabled={busy || !drop} onChange={setWithDrop} />
@@ -242,7 +233,7 @@ export function SaveClip() {
             variant="ink"
             disabled={!stretch}
             onClick={() => void start()}
-            title="Renders faster than real time; the app stays usable"
+            title={`In the stage's format (${aspect}); renders faster than real time, the app stays usable`}
           >
             ● RENDER {stretch ? clock(stretch.length) : ''}
           </Button>
@@ -251,7 +242,7 @@ export function SaveClip() {
       {status.kind === 'done' && !busy && (
         <>
           <SavedClip blob={status.clip.blob} name={status.clip.name} />
-          <video className={styles.preview} data-aspect={aspect} src={status.url} controls playsInline />
+          <video className={styles.preview} data-aspect={status.aspect} src={status.url} controls playsInline />
           <p className={styles.hint}>
             Rendered in {status.clip.seconds.toFixed(1)} s · {status.clip.speed.toFixed(1)}× real time
           </p>

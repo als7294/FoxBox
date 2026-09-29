@@ -64,7 +64,7 @@ export function drawGrid(cv: HTMLCanvasElement | null, o: GridInputs): void {
   const bot = h - 30
   const mid = Math.round((top + bot) / 2)
   const X = (t: number) => (t / g.viewLen) * w
-  x.font = `500 9.5px ${th.mono}`
+  x.font = `500 11px ${th.mono}`
   x.textBaseline = 'middle'
   x.textAlign = 'left'
   if (o.loop) {
@@ -177,7 +177,7 @@ export function drawWave(cv: HTMLCanvasElement | null, o: WaveInputs): void {
   const mid = Math.round((top + bot) / 2)
   const amp = (bot - top) / 2 - 6
   const X = (t: number) => (t / g.viewLen) * w
-  x.font = `500 9.5px ${th.mono}`
+  x.font = `500 11px ${th.mono}`
   x.textBaseline = 'middle'
   x.textAlign = 'left'
   const pt = o.playT
@@ -406,7 +406,7 @@ export function drawMeter(cv: HTMLCanvasElement | null, th: VbTheme, rows: reado
   if (!P) return
   const { x, w, h } = P
   x.clearRect(0, 0, w, h)
-  x.font = `600 10px ${th.mono}`
+  x.font = `600 11px ${th.mono}`
   x.textBaseline = 'middle'
   const lx = 30
   const rx = w - 78
@@ -434,10 +434,10 @@ export function drawMeter(cv: HTMLCanvasElement | null, th: VbTheme, rows: reado
     x.fillStyle = r.warnAbove && r.hold > r.target + 0.05 ? th.accent : th.ink
     x.font = `700 12px ${th.mono}`
     x.fillText(Number.isFinite(r.hold) ? r.hold.toFixed(1) : '—', rx, y + 5)
-    x.font = `500 9px ${th.mono}`
+    x.font = `500 11px ${th.mono}`
     x.fillStyle = th.dim
     x.fillText(r.unit, rx + 38, y + 5)
-    x.font = `600 10px ${th.mono}`
+    x.font = `600 11px ${th.mono}`
   })
 }
 
@@ -670,7 +670,7 @@ export function drawStrip(cv: HTMLCanvasElement | null, o: RecInputs): void {
   }
   x.fillStyle = rgba(th.ink, 0.08)
   x.fillRect(0, m, w, 1)
-  x.font = `600 9px ${th.mono}`
+  x.font = `600 11px ${th.mono}`
   x.textBaseline = 'top'
   x.fillStyle = rec ? th.accent : th.dim
   x.fillText(rec ? '● REC' : 'LIVE INPUT', 6, 5)

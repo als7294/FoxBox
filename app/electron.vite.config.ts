@@ -30,6 +30,8 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     resolve: { alias: { '@': resolve(__dirname, 'src/renderer/src'), ...shared } },
     plugins: [react(), cspPlugin()],
+    // The camera's model worker is classic: MediaPipe loads its WASM with importScripts.
+    worker: { format: 'iife' },
     define,
     // The MSW mocks serve the repo's fixture WAVs from ../fixtures.
     server: { fs: { allow: [resolve(__dirname, '..')] } },

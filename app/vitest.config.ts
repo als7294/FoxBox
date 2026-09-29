@@ -19,5 +19,7 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 20_000,
     setupFiles: ['tests/unit/setup.ts'],
+    // waveform-playlist's `import styled from 'styled-components'` needs Vite's CJS interop (Node gives the namespace).
+    server: { deps: { inline: [/@waveform-playlist/] } },
   },
 })

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSong } from '@/state/song'
 import { useVisuals } from '@/state/visuals'
 import type { BlendMode, ReactTo } from '@/visuals/live/compositor'
+import { autoDirector } from '@/visuals/live/director'
 import { findStyle } from '@/visuals/live/registry'
 import { StylePicker } from '@/visuals/live/StylePicker'
 import { useStyleGroups } from '@/visuals/live/useStyles'
@@ -78,11 +79,30 @@ export function EffectsPanel({ stemsLive = false }: { stemsLive?: boolean }) {
   // A stem to follow once the track is split (TRACK → SPLIT STEMS), or live (LIVE INPUT approximates them); else the mix.
   const stemsReady = useSong((s) => s.song?.stems_state === 'done') || stemsLive
   const rows = effectRows(effects)
+  // AUTO-VJ (S2's director): per session, off at start; the DJ LOCKs the layers it must leave alone.
+  const [auto, setAuto] = useState(() => autoDirector.isEnabled())
+  const toggleAuto = () => {
+    autoDirector.setEnabled(!auto)
+    setAuto(!auto)
+  }
 
   return (
     <section className={`${live.card} ${styles.effects}`} aria-label="Effects" data-testid="visuals-effects">
       <h2 className={live.cardTitle}>
-        EFFECTS <span className={styles.count}>{effects.length || ''}</span>
+        <span>
+          EFFECTS <span className={styles.count}>{effects.length || ''}</span>
+        </span>
+        <button
+          type="button"
+          className={`${live.toggle} ${styles.auto}`}
+          data-on={auto || undefined}
+          aria-pressed={auto}
+          onClick={toggleAuto}
+          title="AUTO-VJ: the visuals follow the song (builds tighten, drops cut). LOCK a layer to keep it as you set it"
+          data-testid="visuals-auto"
+        >
+          AUTO-VJ
+        </button>
       </h2>
       <div className={styles.addFx}>
         <StylePicker value={ADD} onChange={addEffect} />
@@ -110,6 +130,19 @@ export function EffectsPanel({ stemsLive = false }: { stemsLive?: boolean }) {
                     {label}
                   </span>
                   {s?.filter && <span className={styles.filterTag}>FILTER</span>}
+                  {auto && (
+                    <button
+                      type="button"
+                      className={styles.iconBtn}
+                      aria-pressed={Boolean(e.locked)}
+                      aria-label={`Lock ${label}`}
+                      title={e.locked ? 'Locked: AUTO-VJ leaves this layer alone' : 'Lock: keep AUTO-VJ off this layer'}
+                      data-on={e.locked || undefined}
+                      onClick={() => updateEffect(e.id, { locked: !e.locked })}
+                    >
+                      {e.locked ? '■' : '□'}
+                    </button>
+                  )}
                   <button type="button" className={styles.iconBtn} disabled={!up} aria-label="Move up" title="Up a layer" onClick={() => moveEffect(e.id, 1)}>
                     ▲
                   </button>

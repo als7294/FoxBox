@@ -17,8 +17,8 @@
 }
 .kicker {
   margin: 0;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .message {

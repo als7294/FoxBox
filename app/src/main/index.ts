@@ -6,6 +6,7 @@ import {
   Menu,
   MessageChannelMain,
   nativeImage,
+  powerSaveBlocker,
   protocol,
   safeStorage,
   screen,
@@ -18,14 +19,15 @@ import {
 } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, realpath, rename, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rename, statfs, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   AUDIO_SCHEME,
   IPC,
   type BootInfo,
+  type BootUpdateState,
   type DisplayInfo,
   type EngineResponse,
   type EngineStatus,
@@ -46,6 +48,7 @@ import {
 } from './engine/command'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
+import { bootSkipReason, BootUpdateGate } from './bootUpdate'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
 import { ExportGuard, isInside } from './exportGuard'
 import { buildMenu } from './menu'
@@ -85,7 +88,9 @@ function linkedEngineDir(): string | null {
 }
 
 const ENGINE_DIR = resolve(
-  (!app.isPackaged && process.env.FVWKS_ENGINE_DIR) || linkedEngineDir() || join(app.getAppPath(), app.isPackaged ? '../../../engine' : '../engine'),
+  (!app.isPackaged && process.env.FVWKS_ENGINE_DIR) ||
+    linkedEngineDir() ||
+    join(app.getAppPath(), app.isPackaged ? '../../../engine' : '../engine'),
 )
 const DEV_DATA = join(ENGINE_DIR, '..', '.devdata')
 // Builds for fresh Macs carry the engine inside the app (Contents/Resources/engine, from bundle_engine.sh). Only a
@@ -110,9 +115,7 @@ const USER_DATA = app.getPath('userData')
 // Chromium's caches get their own folder so they don't mix with the engine's library.
 app.setPath('sessionData', join(USER_DATA, 'Chromium'))
 const DATA_DIR = resolve(devEnv('FVWKS_DATA_DIR') || (app.isPackaged ? USER_DATA : join(DEV_DATA, 'data')))
-const EXPORT_DIR = resolve(
-  devEnv('FVWKS_EXPORT_DIR') || (app.isPackaged ? join(homedir(), 'Music', 'FoxBox') : join(DEV_DATA, 'exports')),
-)
+const EXPORT_DIR = resolve(devEnv('FVWKS_EXPORT_DIR') || (app.isPackaged ? join(homedir(), 'Music', 'FoxBox') : join(DEV_DATA, 'exports')))
 const LOG_DIR = join(USER_DATA, 'logs')
 
 const mainLog = new LogFile(join(LOG_DIR, 'main.log'))
@@ -134,6 +137,8 @@ let mainWindow: BrowserWindow | null = null
 /** The first-run Setup window (900×620), open instead of the main window until setup completes. */
 let setupWindow: BrowserWindow | null = null
 let updater: Updater | null = null
+/** The update check at boot (UPDATE REQUIRED on the boot screen); made right after the rollback check. */
+let bootGate: BootUpdateGate | null = null
 let quitting = false
 let cachedIcon: NativeImage | null = null
 let lastState: EngineStatus['state'] | null = null
@@ -253,6 +258,10 @@ function createWindow(): void {
   })
   mainWindow = win
   win.once('ready-to-show', () => win.show())
+  // ⌘W or the red button mid-set: the output (a projector) goes with this window, so ask first.
+  win.on('close', (event) => {
+    if (!confirmStopOutput(win)) event.preventDefault()
+  })
   // A reload drops the LIVE page's end of the visuals channel: hand out a fresh pair.
   win.webContents.on('did-finish-load', () => outputWindow && linkOutput())
   win.on('closed', () => {
@@ -308,6 +317,23 @@ function createSetupWindow(): void {
 // Visuals output (1.3): the stage's style on a projector or LED wall
 
 let outputWindow: BrowserWindow | null = null
+/** The user already said yes to stopping a live output (the close and the quit that follows ask once). */
+let outputStopConfirmed = false
+
+/** A live output is about to go (quit, or the app window closing): true to go ahead. Asks once; no output, no question. */
+function confirmStopOutput(parent: BrowserWindow | null): boolean {
+  if (outputStopConfirmed || !outputWindow || outputWindow.isDestroyed()) return true
+  const options: Electron.MessageBoxSyncOptions = {
+    type: 'warning',
+    buttons: ['Keep the visuals on', 'Stop and quit'],
+    defaultId: 0,
+    cancelId: 0,
+    message: 'The visuals output is live.',
+    detail: 'Quitting FoxBox turns the projector or LED wall off.',
+  }
+  outputStopConfirmed = (parent ? dialog.showMessageBoxSync(parent, options) : dialog.showMessageBoxSync(options)) === 1
+  return outputStopConfirmed
+}
 
 const outputState = (): VisualsOutputState => ({
   open: Boolean(outputWindow && !outputWindow.isDestroyed()),
@@ -367,13 +393,21 @@ function openOutput(displayId: number | null): VisualsOutputState {
     },
   })
   outputWindow = win
+  // The projector must not sleep mid-set (macOS's display sleep timer): held while the output is open.
+  const awake = powerSaveBlocker.start('prevent-display-sleep')
   win.once('ready-to-show', () => {
-    win.show()
-    if (external) win.setFullScreen(true)
+    // Inactive: the keys stay with FoxBox (the output has none but Esc, and Esc on a projector does nothing).
+    win.showInactive()
+    if (external) {
+      win.once('enter-full-screen', () => mainWindow?.focus())
+      win.setFullScreen(true)
+    }
   })
   win.webContents.on('did-finish-load', linkOutput)
   win.on('closed', () => {
+    powerSaveBlocker.stop(awake)
     if (outputWindow === win) outputWindow = null
+    outputStopConfirmed = false
     broadcast(IPC.visualsState, outputState())
   })
   if (RENDERER_URL) {
@@ -494,6 +528,35 @@ function createUpdater(): Updater {
   return u
 }
 
+/**
+ * The update check at boot, for the main window's boot screen (bootUpdate.ts). The daily checks start only once it
+ * is out of the way (clear: up to date, skipped, or CONTINUE), so they never race its download.
+ * FVWKS_SKIP_BOOT_UPDATE=1 skips it, packaged builds included (isolated test copies).
+ */
+function createBootGate(u: Updater, firstRun: boolean): BootUpdateGate {
+  const optOut = process.env.FVWKS_SKIP_BOOT_UPDATE === '1'
+  const skip = bootSkipReason({ packaged: app.isPackaged, firstRun, optOut, state: u.getState() })
+  const gate = new BootUpdateGate({ updater: u, current: app.getVersion(), skip, log: (line) => log(`updates: ${line}`) })
+  gate.on('state', (state) => {
+    sendToRenderer(IPC.bootUpdateState, state)
+    if (state.phase === 'clear') u.startAutoCheck()
+  })
+  if (skip) u.startAutoCheck()
+  return gate
+}
+
+/** Before the gate exists (or with none): nothing holds the boot. */
+const bootClear = (): BootUpdateState => ({
+  phase: 'clear',
+  current: app.getVersion(),
+  version: null,
+  sizeBytes: null,
+  step: null,
+  download: null,
+  attempt: 0,
+  error: null,
+})
+
 /** The only sites a link in the app may open in the browser (the uv install hint). */
 const EXTERNAL_HOSTS = new Set(['docs.astral.sh'])
 /** The only mail link: the designer credit (CreditLink). Its address is injected at build time, never committed. */
@@ -508,6 +571,11 @@ function isExternalLink(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Page zoom in the menu's own steps (±0.5 levels, clamped); 0 = actual size. */
+function zoomPage(wc: Electron.WebContents, step: -1 | 0 | 1): void {
+  wc.setZoomLevel(step === 0 ? 0 : Math.max(-3, Math.min(3, wc.getZoomLevel() + step * 0.5)))
 }
 
 function lockDownNavigation(): void {
@@ -540,13 +608,16 @@ function handleDownloads(): void {
       item.cancel()
       return
     }
-    const dir = join(app.getPath('videos'), 'FoxBox')
+    // A clip goes to Movies/FoxBox; anything else (the mask TEMPLATE, an image) to Downloads.
+    const name = item.getFilename()
+    const video = /\.(mp4|mov|webm|m4v)$/i.test(name)
+    const dir = video ? join(app.getPath('videos'), 'FoxBox') : app.getPath('downloads')
     try {
       mkdirSync(dir, { recursive: true })
     } catch (err) {
       log(`could not create ${dir}: ${(err as Error).message}`)
     }
-    item.setSaveDialogOptions({ title: 'Save camera clip', defaultPath: join(dir, item.getFilename()) })
+    item.setSaveDialogOptions({ title: video ? 'Save clip' : 'Save file', defaultPath: join(dir, name) })
   })
 }
 
@@ -609,9 +680,13 @@ function registerAudioProtocol(): void {
 
 let link: LinkSession | null = null
 function linkSession(): LinkSession {
-  link ??= new LinkSession(linkHelperPath(app.isPackaged, process.resourcesPath, app.getAppPath()), (state) => {
-    for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(IPC.linkState, state)
-  }, log)
+  link ??= new LinkSession(
+    linkHelperPath(app.isPackaged, process.resourcesPath, app.getAppPath()),
+    (state) => {
+      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(IPC.linkState, state)
+    },
+    log,
+  )
   return link
 }
 
@@ -721,6 +796,21 @@ function registerIpc(): void {
     log(`renderer error [${text(scope, 40)}]: ${text(message, 1000)}${typeof stack === 'string' ? `\n${text(stack, 4000)}` : ''}`)
   })
 
+  // REMIX's LOW DISK strip: free bytes on the export folder's volume (the folder may not exist yet: its parent then).
+  ipcMain.handle(IPC.diskFree, async (event) => {
+    if (!trusted(event)) return null
+    const root = exportGuard.root ?? EXPORT_DIR
+    for (const dir of [root, dirname(root)]) {
+      try {
+        const s = await statfs(dir)
+        return s.bavail * s.bsize
+      } catch {
+        // try the parent
+      }
+    }
+    return null
+  })
+
   // SAVE CLIP / REC LIVE: the renderer made the MP4; main writes it into <exports>/Clips/ (never a Save panel), like
   // the audio exports, and lets it be dragged and revealed.
   ipcMain.handle(IPC.saveClip, async (event, rawName: unknown, raw: unknown) => {
@@ -728,7 +818,12 @@ function registerIpc(): void {
     const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : null
     if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 4 * 1024 ** 3) throw new Error('That clip is empty or too large.')
     const base = typeof rawName === 'string' ? basename(rawName).replace(/\.mp4$/i, '') : ''
-    const safe = base.replace(/[^\w .()+-]/g, '').replace(/^[.\s]+/, '').slice(0, 100).trim() || 'FoxBox clip'
+    const safe =
+      base
+        .replace(/[^\w .()+-]/g, '')
+        .replace(/^[.\s]+/, '')
+        .slice(0, 100)
+        .trim() || 'FoxBox clip'
     const root = exportGuard.root ?? EXPORT_DIR
     const dir = join(root, 'Clips')
     await mkdir(dir, { recursive: true })
@@ -789,6 +884,10 @@ function registerIpc(): void {
       await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
     }
   })
+  ipcMain.on(IPC.zoom, (event, step: unknown) => {
+    if (trusted(event) && (step === -1 || step === 0 || step === 1)) zoomPage(event.sender, step)
+  })
+
   ipcMain.handle(IPC.openLogs, async (event) => {
     if (trusted(event)) await shell.openPath(LOG_DIR)
   })
@@ -803,6 +902,8 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.visualsClose, (event): VisualsOutputState => {
     if (!trusted(event)) return outputState()
+    // Esc in the output window closes a windowed preview, never a fullscreen projector mid-set.
+    if (event.sender === outputWindow?.webContents && outputWindow.isFullScreen()) return outputState()
     if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
     return { open: false, displayId: null }
   })
@@ -824,8 +925,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC.shadersImport, async (event) => {
     if (!trusted(event)) return 0
     const win = BrowserWindow.fromWebContents(event.sender)
-    const opts: Electron.OpenDialogOptions = { title: 'Import ISF shaders', properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'ISF shaders', extensions: ['fs'] }] }
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Import ISF shaders',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'ISF shaders', extensions: ['fs'] }],
+    }
     const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
     return result.canceled ? 0 : importShaderFiles(shadersDir(DATA_DIR), result.filePaths)
   })
@@ -887,11 +991,17 @@ function registerIpc(): void {
     if (token !== null && typeof token !== 'string') throw new Error('The token must be text.')
     return u.setToken(token)
   })
-  updates(IPC.updatesSetAuto, (u, on) => {
-    if (typeof on !== 'boolean') throw new Error('Expected true or false.')
-    return u.setCheckAutomatically(on)
-  })
   updates(IPC.updatesDismissWhatsNew, (u) => u.dismissWhatsNew())
+
+  // The update check at boot: the main window's boot screen shows it; CONTINUE only after a failure.
+  ipcMain.handle(IPC.bootUpdateGet, (event): BootUpdateState => {
+    if (!trusted(event)) throw new Error('Refused.')
+    return bootGate?.getState() ?? bootClear()
+  })
+  ipcMain.handle(IPC.bootUpdateContinue, (event): BootUpdateState => {
+    if (!trusted(event) || event.sender !== mainWindow?.webContents) throw new Error('Refused.')
+    return bootGate?.continue() ?? bootClear()
+  })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -987,6 +1097,10 @@ if (!app.requestSingleInstanceLock()) {
         (command) => sendToRenderer(IPC.menuCommand, command),
         () => void shell.openPath(LOG_DIR),
         !app.isPackaged,
+        (step) => {
+          const wc = BrowserWindow.getFocusedWindow()?.webContents
+          if (wc) zoomPage(wc, step)
+        },
       ),
     )
     updater = createUpdater()
@@ -999,20 +1113,23 @@ if (!app.requestSingleInstanceLock()) {
       forceEnv: devEnv('FVWKS_FORCE_SETUP'),
       markerExists: hasSetupMarker(USER_DATA),
     })
+    // After the rollback above, never in front of Setup; it holds the boot screen only (the engine starts as usual).
+    bootGate = createBootGate(updater, firstRun)
     if (firstRun) {
       await openFirstRunWindow()
     } else {
       createWindow()
     }
     // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
-    ;(mainWindow ?? setupWindow)?.webContents.once('did-finish-load', () => updater?.confirmLaunch())
-    updater.startAutoCheck()
+    ;(mainWindow ?? setupWindow)?.webContents.once('did-finish-load', () => void updater?.confirmLaunch())
+    void bootGate.run()
     if (!firstRun) await startEngine()
   })
 
   app.on('window-all-closed', () => app.quit())
 
   app.on('before-quit', (event) => {
+    if (!confirmStopOutput(mainWindow)) return event.preventDefault()
     updater?.dispose()
     link?.stop()
     if (quitting || !supervisor) return

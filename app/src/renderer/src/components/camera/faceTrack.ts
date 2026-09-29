@@ -28,7 +28,7 @@ export function pad(b: Box, k = PAD): Box {
   return { x: b.x - b.w * k, y: b.y - b.h * k, w: b.w * (1 + 2 * k), h: b.h * (1 + 2 * k) }
 }
 
-function union(a: Box, b: Box): Box {
+export function union(a: Box, b: Box): Box {
   const x = Math.min(a.x, b.x)
   const y = Math.min(a.y, b.y)
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }
@@ -46,6 +46,17 @@ export function iou(a: Box, b: Box): number {
 }
 
 const center = (b: Box) => [b.x + b.w / 2, b.y + b.h / 2] as const
+
+/** Boxes from two finders, one per face: overlapping ones merge into their union (the cover only grows). */
+export function mergeBoxes(boxes: readonly Box[]): Box[] {
+  const out: Box[] = []
+  for (const b of boxes) {
+    const i = out.findIndex((o) => iou(o, b) > 0.2)
+    if (i >= 0) out[i] = union(out[i]!, b)
+    else out.push(b)
+  }
+  return out
+}
 
 /**
  * One frame. Each detection (a raw face box) is padded by `padBy` and matched to the track it overlaps most, or,

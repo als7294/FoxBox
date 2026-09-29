@@ -561,7 +561,6 @@ export const MAX_UNCONFIRMED_LAUNCHES = 3
 
 interface Persisted {
   feedUrl: string | null
-  checkAutomatically: boolean
   lastChecked: number | null
   installed: Installed | null
 }
@@ -657,7 +656,6 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       feedIsDefault: !this.persisted.feedUrl,
       defaultFeedUrl: this.defaultFeed() ?? '',
       hasToken: Boolean(this.token()),
-      checkAutomatically: this.persisted.checkAutomatically,
       lastChecked: this.persisted.lastChecked,
       allowLocalFeed: this.allowLocal,
       installBlocked: this.installBlocked,
@@ -665,8 +663,11 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     }
   }
 
-  /** Fetch the feed. Offers only a version newer than this one. Failures are quiet (`error.during = 'check'`). */
-  async check(): Promise<UpdateState> {
+  /**
+   * Fetch the feed. Offers only a version newer than this one. Failures are quiet (`error.during = 'check'`).
+   * `timeoutMs`: the boot check (bootUpdate.ts) gives up much sooner than the default.
+   */
+  async check(timeoutMs = FEED_TIMEOUT_MS): Promise<UpdateState> {
     if (this.busy || !(PASSIVE.includes(this.phase) || this.phase === 'available')) return this.getState()
     const url = this.feedUrl()
     if (!url) {
@@ -676,7 +677,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     this.busy = true
     this.set({ phase: 'checking', failure: null })
     try {
-      const signal = AbortSignal.timeout(FEED_TIMEOUT_MS)
+      const signal = AbortSignal.timeout(timeoutMs)
       const repo = githubRepoOf(url)
       const token = repo ? this.token() : null
       let feed: UpdateFeed
@@ -715,7 +716,9 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       this.feed = null
       this.parts = null
       const reason = err instanceof UpdateError && err.code !== 'network' ? ` ${err.message}` : ''
-      this.fail('check', codeOf(err, 'network'), `Couldn't reach the update server.${reason}`)
+      // AbortSignal.timeout: the server was reachable enough to hang, so say that rather than "couldn't reach".
+      const timedOut = err instanceof Error && err.name === 'TimeoutError'
+      this.fail('check', codeOf(err, 'network'), timedOut ? "The update server didn't answer in time." : `Couldn't reach the update server.${reason}`)
     } finally {
       this.busy = false
     }
@@ -853,8 +856,11 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     return this.getState()
   }
 
-  /** "Restart to update": only from `ready`, only after the native confirmation. */
-  async install(): Promise<UpdateState> {
+  /**
+   * "Restart to update": only from `ready`, only after the native confirmation. `required`: the boot screen's
+   * UPDATE REQUIRED (bootUpdate.ts), which installs without asking (the renderer can't pass it).
+   */
+  async install(o: { required?: boolean } = {}): Promise<UpdateState> {
     const prepared = this.prepared
     if (this.busy || this.phase !== 'ready' || !prepared) return this.getState()
     const current = this.o.currentVersion
@@ -867,7 +873,9 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
       return this.getState()
     }
     const host = new URL(prepared.feed.url).host
-    if (this.o.confirmInstall && !(await this.o.confirmInstall({ version: prepared.feed.version, host }))) return this.getState()
+    if (!o.required && this.o.confirmInstall) {
+      if (!(await this.o.confirmInstall({ version: prepared.feed.version, host }))) return this.getState()
+    }
     this.busy = true
     this.set({ phase: 'installing', failure: null })
     const expected = { bundleId: this.o.bundleId ?? BUNDLE_ID, version: prepared.feed.version }
@@ -961,13 +969,6 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
     return this.getState()
   }
 
-  setCheckAutomatically(on: boolean): UpdateState {
-    this.persisted.checkAutomatically = on === true
-    this.save()
-    this.emitState()
-    return this.getState()
-  }
-
   dismissWhatsNew(): UpdateState {
     if (this.whatsNew) {
       this.whatsNew = null
@@ -984,18 +985,41 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
    * The updated app started properly (main calls this once its window has loaded): the previous app kept for
    * rollback is deleted. Only a backup this updater made next to the running app is ever removed.
    */
-  confirmLaunch(): void {
+  confirmLaunch(): Promise<void> {
     const inst = this.persisted.installed
-    if (!inst || inst.version !== this.o.currentVersion || inst.confirmed) return
-    const backup = inst.backup
-    this.persisted.installed = { ...inst, confirmed: true, backup: null }
-    if (!this.whatsNew) this.persisted.installed = null
-    this.save()
-    this.o.log?.(`v${inst.version} confirmed its first start`)
-    if (backup && this.o.appBundle && isBackupOf(backup, this.o.appBundle)) {
-      void rm(backup, { recursive: true, force: true })
-        .then(() => this.o.log?.(`removed the previous app (${backup})`))
-        .catch((err: unknown) => this.o.log?.(`could not remove ${backup}: ${messageOf(err)}`))
+    if (inst && inst.version === this.o.currentVersion && !inst.confirmed) {
+      this.persisted.installed = { ...inst, confirmed: true, backup: null }
+      if (!this.whatsNew) this.persisted.installed = null
+      this.save()
+      this.o.log?.(`v${inst.version} confirmed its first start`)
+    }
+    return this.sweepBackups()
+  }
+
+  /**
+   * Deletes every backup this updater left beside the running app (a good start means none is needed any more),
+   * including ones an older version failed to remove (a big bundle's rm could hit ENOTEMPTY while macOS still had
+   * files open in it; retried now). Kept while an install of this version is still unconfirmed.
+   */
+  async sweepBackups(): Promise<void> {
+    const app = this.o.appBundle
+    const inst = this.persisted.installed
+    if (!app || (inst && inst.version === this.o.currentVersion && !inst.confirmed)) return
+    let names: string[]
+    try {
+      names = readdirSync(dirname(app))
+    } catch {
+      return
+    }
+    for (const name of names) {
+      const backup = join(dirname(app), name)
+      if (!isBackupOf(backup, app)) continue
+      try {
+        await rm(backup, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 })
+        this.o.log?.(`removed the previous app (${backup})`)
+      } catch (err) {
+        this.o.log?.(`could not remove ${backup}: ${messageOf(err)}`)
+      }
     }
   }
 
@@ -1039,7 +1063,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
   startAutoCheck(firstDelayMs = 10_000, everyMs = DAY_MS): void {
     this.stopAutoCheck()
     const tick = () => {
-      if (this.persisted.checkAutomatically && this.feedUrl() && PASSIVE.includes(this.phase) && !this.busy) void this.check()
+      if (this.feedUrl() && PASSIVE.includes(this.phase) && !this.busy) void this.check()
     }
     const first = setTimeout(tick, firstDelayMs)
     const daily = setInterval(tick, everyMs)
@@ -1139,7 +1163,7 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
   }
 
   private load(): Persisted {
-    const fallback: Persisted = { feedUrl: null, checkAutomatically: true, lastChecked: null, installed: null }
+    const fallback: Persisted = { feedUrl: null, lastChecked: null, installed: null }
     let raw: Record<string, unknown>
     try {
       raw = JSON.parse(readFileSync(this.file, 'utf8')) as Record<string, unknown>
@@ -1164,7 +1188,8 @@ export class Updater extends EventEmitter<{ state: [UpdateState] }> {
         ...(i.rolledBack === true ? { rolledBack: true } : {}),
       }
     }
-    return { feedUrl, checkAutomatically: raw.checkAutomatically !== false, lastChecked, installed }
+    // An older file's checkAutomatically is ignored (1.5: the boot check is mandatory, the background check always on).
+    return { feedUrl, lastChecked, installed }
   }
 
   private save(): void {

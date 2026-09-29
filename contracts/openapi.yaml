@@ -954,6 +954,227 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/masks:
+    get:
+      tags:
+      - camera
+      summary: List Masks
+      description: 'v0.11.6: the user''s imported face masks (the built-ins are app assets).'
+      operationId: listMasks
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MaskInfo'
+                type: array
+                title: Response Listmasks
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags:
+      - camera
+      summary: Upload Mask
+      description: 'v0.11.6: a user mask: SVG <= 2 MB (re-checked: no script, foreignObject, on*= or outside refs) or PNG
+        / WebP
+
+        <= 16 MB and <= 4096 px a side (read from its header).'
+      operationId: uploadMask
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_uploadMask'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaskInfo'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/masks/{mask_id}/image:
+    get:
+      tags:
+      - camera
+      summary: Get Mask Image
+      description: 'v0.11.6: the mask''s image with its own Content-Type; an SVG comes with CSP default-src ''none''.'
+      operationId: getMaskImage
+      parameters:
+      - name: mask_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mask Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            image/svg+xml: {}
+            image/png: {}
+            image/webp: {}
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/masks/{mask_id}:
+    delete:
+      tags:
+      - camera
+      summary: Delete Mask
+      description: 'v0.11.6: a user mask.'
+      operationId: deleteMask
+      parameters:
+      - name: mask_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mask Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
   /api/songs/{song_id}:
     get:
       tags:
@@ -1237,6 +1458,1172 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
           description: Internal Server Error
+  /api/songs/{song_id}/lyrics:
+    post:
+      tags:
+      - songs
+      summary: Transcribe Song Lyrics
+      description: 'v0.10: timed lyrics (a song_lyrics job): from the vocals stem when the song has stems, else the mix.'
+      operationId: transcribeSongLyrics
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    get:
+      tags:
+      - songs
+      summary: Get Song Lyrics
+      description: 'v0.10: the song''s timed words (409 until its song_lyrics job is done).'
+      operationId: getSongLyrics
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongLyrics'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes:
+    post:
+      tags:
+      - remix
+      summary: Create Remix
+      description: 'v0.11: a new remix of song A (+ B for a mashup), empty until BUILD; starts stems on sources without them.'
+      operationId: createRemix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemixCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Remix'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    get:
+      tags:
+      - remix
+      summary: List Remixes
+      description: 'v0.11.9: `song_id` / `recipe` narrow the list (RESUME).'
+      operationId: listRemixes
+      parameters:
+      - name: song_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Song Id
+      - name: recipe
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recipe
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Remix'
+                title: Response Listremixes
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes/{remix_id}:
+    get:
+      tags:
+      - remix
+      summary: Get Remix
+      operationId: getRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Remix'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    patch:
+      tags:
+      - remix
+      summary: Update Remix
+      description: 'v0.11: save the arrangement at the rev it was edited from (409 remix_conflict when it''s stale).'
+      operationId: updateRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemixUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Remix'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    delete:
+      tags:
+      - remix
+      summary: Delete Remix
+      operationId: deleteRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes/{remix_id}/feedback:
+    post:
+      tags:
+      - remix
+      summary: Rate Remix Take
+      description: 'v0.11.8: rate one take (404 when the remix has no take with that seed); ROLL learns from it.'
+      operationId: rateRemixTake
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TakeFeedbackCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TakeFeedback'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remix-prefs:
+    get:
+      tags:
+      - remix
+      summary: Get Remix Prefs
+      description: 'v0.11.8: the per-style option counts ROLL leans on.'
+      operationId: getRemixPrefs
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemixPrefsResult'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/remix-prefs/{style}:
+    delete:
+      tags:
+      - remix
+      summary: Reset Remix Prefs
+      description: 'v0.11.8: RESET, forget one style''s ratings.'
+      operationId: resetRemixPrefs
+      parameters:
+      - name: style
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Style
+      responses:
+        '204':
+          description: Successful Response
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes/{remix_id}/build:
+    post:
+      tags:
+      - remix
+      summary: Build Remix
+      description: 'v0.11: the recipe → a draft arrangement (a remix_build job; a new rev). A mashup lines up on Remix.mash.
+
+        v0.11.9: a take with a saved arrangement (you switched away from it) gets it back; `fresh` rebuilds it.'
+      operationId: buildRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/RemixBuildRequest'
+              - type: 'null'
+              title: Req
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes/{remix_id}/prepare:
+    post:
+      tags:
+      - remix
+      summary: Prepare Remix
+      description: 'v0.11: render every clip without audio at the remix tempo and key (a remix_prepare job). Clips gain their
+
+        audio_id as they''re ready (the playhead''s first 16 bars and the first drop first): refetch the remix meanwhile.'
+      operationId: prepareRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/remixes/{remix_id}/export:
+    post:
+      tags:
+      - remix
+      summary: Export Remix
+      description: 'v0.11.4: the mixdown as AIFF / MP3, the Ableton Live 11 set (BETA), and (visuals) a new Song whose structure
+
+        is the arrangement''s (a remix_export job; GET /remixes/{id}/export has the result).'
+      operationId: exportRemix
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemixExportRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+    get:
+      tags:
+      - remix
+      summary: Get Remix Export
+      description: 'v0.11.4: the latest export of this remix (404 until one exists).'
+      operationId: getRemixExport
+      parameters:
+      - name: remix_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Remix Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemixExportResult'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/patches:
+    get:
+      tags:
+      - remix
+      summary: List Patches
+      description: 'v0.11: the bass library (preview_audio_id streams a short audition).'
+      operationId: listPatches
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BassPatch'
+                type: array
+                title: Response Listpatches
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/kits:
+    get:
+      tags:
+      - remix
+      summary: List Kits
+      operationId: listKits
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DrumKit'
+                type: array
+                title: Response Listkits
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/flip-styles:
+    get:
+      tags:
+      - remix
+      summary: List Flip Styles
+      operationId: listFlipStyles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/FlipStyle'
+                type: array
+                title: Response Listflipstyles
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/songs/{song_id}/bass/groove:
+    get:
+      tags:
+      - remix
+      summary: Get Bass Groove
+      description: 'v0.11: BASS DNA of a section of the song''s bass stem (409 stems_not_ready until it''s split); cached.'
+      operationId: getBassGroove
+      parameters:
+      - name: song_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Song Id
+      - name: start_bar
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Start Bar
+      - name: bars
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 256
+            minimum: 1
+          - type: 'null'
+          title: Bars
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BassGroove'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+          description: Internal Server Error
+  /api/grooves/render:
+    post:
+      tags:
+      - remix
+      summary: Render Groove
+      description: 'v0.11.4: a section''s BASS DNA re-played on a patch (the A/B audition); cached.'
+      operationId: renderGroove
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrooveRenderRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrooveRenderResult'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/mash/scan:
+    post:
+      tags:
+      - remix
+      summary: Scan Mash
+      description: 'v0.11.4 MASH RADAR (synchronous, cached features only): the other songs'' parts that fit one part of this
+
+        song, ranked; songs not read yet are in `missing` (queued).'
+      operationId: scanMash
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MashScanRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MashScanResult'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/mix:
     post:
       tags:
@@ -2684,6 +4071,144 @@ components:
       additionalProperties: false
       type: object
       title: Arrange
+    BassGroove:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+          description: 1-based, as SongSection.start_bar.
+        bars:
+          type: integer
+          minimum: 1.0
+          title: Bars
+        bpm:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bpm
+          description: The source tempo the groove was read at.
+        half_time:
+          type: boolean
+          title: Half Time
+          default: false
+        notes:
+          items:
+            $ref: '#/components/schemas/GrooveNote'
+          type: array
+          title: Notes
+        wobble:
+          items:
+            $ref: '#/components/schemas/GrooveWobble'
+          type: array
+          title: Wobble
+        per_beat:
+          type: integer
+          minimum: 1.0
+          title: Per Beat
+          description: Curve samples per beat.
+          default: 24
+        level_b64:
+          type: string
+          title: Level B64
+          description: 'base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the bounce.'
+          default: ''
+        growl_b64:
+          type: string
+          title: Growl B64
+          description: 'base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the growl share.'
+          default: ''
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - start_bar
+      - bars
+      - bpm
+      title: BassGroove
+      description: 'BASS DNA (v0.11.1): how a section of a song''s bass moves, re-playable on any patch at any tempo.
+
+        GET /api/songs/{id}/bass/groove?start_bar&bars. Everything is in beats, so it re-times by rendering at another bpm.
+
+
+        Maps onto MIDI for the synth: notes → note on/off + vel; midi remainder, glide_to and `bend` → pitch bend (±12 st);
+
+        level → CC11 (the sidechain bounce); growl → CC74 (cutoff / drive); wobble → a tempo-synced LFO at `div`, phase-locked.'
+    BassMacros:
+      properties:
+        grit:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Grit
+          default: 0.5
+        wobble:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Wobble
+          default: 0.5
+        sub:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Sub
+          default: 0.5
+        glide:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Glide
+          default: 0.5
+      additionalProperties: false
+      type: object
+      title: BassMacros
+      description: 'The four BASS DNA knobs (v0.11.12), 0-1 each; 0.5 is the style''s default. PREPARE maps them onto the
+        engine bass:
+
+        GRIT = midbus drive and OTT depth, WOBBLE = LFO/movement depth, SUB = sub level, GLIDE = 808 glide time.'
+    BassPatch:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        category:
+          type: string
+          enum:
+          - wobble
+          - reese
+          - growl
+          - '808'
+          - riddim
+          - tearout
+          - top
+          title: Category
+          description: 'v0.11.10 adds tearout (the designed tearout voices) and top (ear candy, squeak): the SWAP SOUND tabs.'
+        engine:
+          type: string
+          enum:
+          - surge
+          - foxbox
+          title: Engine
+        preview_audio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preview Audio Id
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - category
+      - engine
+      title: BassPatch
+      description: A bass sound for BASS DNA (v0.11). Surge XT factory patches ship CC0-tagged only.
     BatchExportOptions:
       properties:
         format:
@@ -2804,6 +4329,20 @@ components:
       required:
       - lines
       title: BatchRequest
+    Body_uploadMask:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - file
+      - name
+      title: Body_uploadMask
     Body_uploadSong:
       properties:
         file:
@@ -2879,6 +4418,34 @@ components:
         in
 
         order, from 0; `beat` is the start in beats from the file''s first downbeat.'
+    DrumKit:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        source:
+          type: string
+          enum:
+          - foxbox
+          - cc0
+          title: Source
+        preview_audio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preview Audio Id
+          description: 'v0.11.5: a 2 s kit audition (GET /api/audio/{id}).'
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - source
+      title: DrumKit
+      description: A drum kit for GENRE FLIP (v0.11).
     ErrorEnvelope:
       properties:
         error:
@@ -2977,12 +4544,14 @@ components:
         path:
           type: string
           title: Path
-          description: Absolute path inside the export root.
+          description: 'Absolute path inside the export root. For drag-out and REVEAL only: never shown on screen (the act
+            is anonymous).'
         format:
           type: string
           enum:
           - aiff
           - wav
+          - mp3
           title: Format
         sample_rate:
           type: integer
@@ -3097,6 +4666,255 @@ components:
       - total_s
       - message
       title: FitReport
+    FlipGridRow:
+      properties:
+        voice:
+          type: string
+          enum:
+          - kick
+          - snare
+          - hats
+          title: Voice
+        bars:
+          items:
+            type: string
+          type: array
+          maxItems: 2
+          title: Bars
+      additionalProperties: false
+      type: object
+      required:
+      - voice
+      title: FlipGridRow
+      description: 'One drum row of a FLIP card preview (v0.11.12): 16-step strings per bar, ''x'' hit, ''g'' ghost, ''-''
+        rest.'
+    FlipSettings:
+      properties:
+        style_id:
+          type: string
+          title: Style Id
+        kit_id:
+          type: string
+          title: Kit Id
+        swing:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Swing
+          default: 0.0
+      additionalProperties: false
+      type: object
+      required:
+      - style_id
+      - kit_id
+      title: FlipSettings
+    FlipStyle:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        grid:
+          items:
+            $ref: '#/components/schemas/FlipGridRow'
+          type: array
+          title: Grid
+          description: 'v0.11.12: the style''s default drum option, first 2 bars, for the card preview.'
+        bpm:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bpm
+          description: Suggested remix tempo.
+        half_time:
+          type: boolean
+          title: Half Time
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - bpm
+      title: FlipStyle
+      description: A GENRE FLIP target (v0.11), e.g. half-time trap, riddim, deep dubstep, 140 dubstep.
+    GrooveClipSrc:
+      properties:
+        kind:
+          type: string
+          const: groove
+          title: Kind
+          default: groove
+        slot:
+          type: string
+          enum:
+          - A
+          - B
+          title: Slot
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+          description: Source song bar where the groove is taken from.
+        bars:
+          type: integer
+          minimum: 1.0
+          title: Bars
+        patch_id:
+          type: string
+          title: Patch Id
+      additionalProperties: false
+      type: object
+      required:
+      - slot
+      - start_bar
+      - bars
+      - patch_id
+      title: GrooveClipSrc
+    GrooveNote:
+      properties:
+        beat:
+          type: number
+          minimum: 0.0
+          title: Beat
+        beats:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beats
+        midi:
+          type: number
+          title: Midi
+          description: Settled pitch, fractional (the track's tuning); an unpitched note holds the pitch before it.
+        vel:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Vel
+          default: 1.0
+        glide_to:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Glide To
+          description: MIDI the note slides to (808 glide), when it slides.
+        bend:
+          anyOf:
+          - items:
+              prefixItems:
+              - type: number
+              - type: number
+              type: array
+              maxItems: 2
+              minItems: 2
+            type: array
+          - type: 'null'
+          title: Bend
+          description: '(beats into the note, MIDI) points: the slide''s shape and timing.'
+      additionalProperties: false
+      type: object
+      required:
+      - beat
+      - beats
+      - midi
+      title: GrooveNote
+      description: One bass note of a BASS DNA groove (v0.11.1), in beats from the groove's first bar line (the push and swing
+        stay).
+    GrooveRenderRequest:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+        bars:
+          type: integer
+          maximum: 64.0
+          minimum: 1.0
+          title: Bars
+        patch_id:
+          type: string
+          title: Patch Id
+        bpm:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm
+          description: None = the song's own tempo.
+        shift_st:
+          type: number
+          maximum: 12.0
+          minimum: -12.0
+          title: Shift St
+          default: 0.0
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - start_bar
+      - bars
+      - patch_id
+      title: GrooveRenderRequest
+      description: 'POST /api/grooves/render (v0.11.4): a section''s BASS DNA re-played on a patch, e.g. the A/B audition.'
+    GrooveRenderResult:
+      properties:
+        audio_id:
+          type: string
+          title: Audio Id
+          description: Stream with GET /api/audio/{audio_id}.
+        duration_s:
+          type: number
+          title: Duration S
+        sample_rate:
+          type: integer
+          title: Sample Rate
+      additionalProperties: false
+      type: object
+      required:
+      - audio_id
+      - duration_s
+      - sample_rate
+      title: GrooveRenderResult
+    GrooveWobble:
+      properties:
+        bar:
+          type: integer
+          minimum: 0.0
+          title: Bar
+          description: From the groove's first bar (0-based).
+        div:
+          type: string
+          title: Div
+          description: 'Beat division: ''1/4T'', ''1/8'', ''1/8T'', ''1/16'', ''1/16T''.'
+        depth:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Depth
+          description: How far the LFO swings the growl.
+        shape:
+          type: string
+          title: Shape
+          description: Only 'sine' is told apart so far.
+          default: sine
+        phase:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Phase
+          description: LFO phase at the bar line, 0 = its peak.
+      additionalProperties: false
+      type: object
+      required:
+      - bar
+      - div
+      - depth
+      - phase
+      title: GrooveWobble
+      description: The bass LFO in one growl-heavy bar of a groove (v0.11.1).
     Health:
       properties:
         state:
@@ -3171,6 +4989,10 @@ components:
           - persona_design
           - song_analysis
           - song_stems
+          - song_lyrics
+          - remix_build
+          - remix_prepare
+          - remix_export
           title: Kind
         state:
           type: string
@@ -3292,6 +5114,61 @@ components:
       - label
       - state
       title: JobItem
+    KitClipSrc:
+      properties:
+        kind:
+          type: string
+          const: kit
+          title: Kind
+          default: kit
+        kit_id:
+          type: string
+          title: Kit Id
+        hits:
+          items:
+            $ref: '#/components/schemas/KitHit'
+          type: array
+          title: Hits
+        pattern_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pattern Id
+      additionalProperties: false
+      type: object
+      required:
+      - kit_id
+      title: KitClipSrc
+      description: 'Drums played on a kit (v0.11.2). A flip''s pattern is per song and per bar (loudness, fills), so the hits
+        are inline;
+
+        `pattern_id` is only for library loops.'
+    KitHit:
+      properties:
+        beat:
+          type: number
+          minimum: 0.0
+          title: Beat
+        voice:
+          type: string
+          enum:
+          - kick
+          - snare
+          - hats
+          title: Voice
+        vel:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Vel
+          default: 1.0
+      additionalProperties: false
+      type: object
+      required:
+      - beat
+      - voice
+      title: KitHit
+      description: One drum hit of a GENRE FLIP clip (v0.11.2), in beats from the clip start.
     Lexicon:
       properties:
         entries:
@@ -3516,6 +5393,222 @@ components:
       - revision
       - size_bytes
       title: ManifestRepo
+    MashMatch:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        part:
+          type: string
+          enum:
+          - build
+          - drop
+          - vocals
+          title: Part
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+          description: Matched song's bar where its part starts.
+        bars:
+          type: integer
+          minimum: 1.0
+          title: Bars
+        score:
+          type: number
+          maximum: 100.0
+          minimum: 0.0
+          title: Score
+        shift_st:
+          type: integer
+          maximum: 6.0
+          minimum: -6.0
+          title: Shift St
+        tempo_ratio:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tempo Ratio
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+          description: Plain lines, e.g. 'key +2 st', 'tempo 0.97x', 'bass style match'.
+        from_start_bar:
+          type: integer
+          minimum: 1.0
+          title: From Start Bar
+          description: The query's part it was scored against.
+          default: 1
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - part
+      - start_bar
+      - bars
+      - score
+      - shift_st
+      - tempo_ratio
+      title: MashMatch
+      description: 'A MASH RADAR result (v0.11): the matched song''s part that fits the query''s part.
+
+
+        `shift_st` and `tempo_ratio` apply to the matched song; the remix runs at the query''s tempo and key.'
+    MashScanRequest:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        part:
+          type: string
+          enum:
+          - build
+          - drop
+          - vocals
+          title: Part
+        borrow:
+          anyOf:
+          - type: string
+            enum:
+            - build
+            - drop
+            - vocals
+          - type: 'null'
+          title: Borrow
+          description: Only return matches whose own part is this kind.
+        start_bar:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Start Bar
+          description: One part of the query song; None = every part of that kind.
+        bass_styles:
+          anyOf:
+          - items:
+              type: string
+              enum:
+              - deep
+              - trap
+              - dubstep
+              - other
+            type: array
+          - type: 'null'
+          title: Bass Styles
+        bpm_min:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm Min
+        bpm_max:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm Max
+        key_compatible_only:
+          type: boolean
+          title: Key Compatible Only
+          default: false
+        top:
+          type: integer
+          maximum: 200.0
+          minimum: 1.0
+          title: Top
+          default: 50
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - part
+      title: MashScanRequest
+      description: 'POST /api/mash/scan (v0.11.4: synchronous, cached features only).
+
+
+        `part` is the QUERY song''s (slot A''s) part. A "build" or "vocals" part is scored over other songs'' drops; a "drop"
+
+        part takes other songs'' builds, vocals and drops on top. `borrow` narrows the results to that kind of the matched
+
+        song''s part. The UI''s "borrow B''s DROP" sends part="build"; "borrow B''s BUILD / VOCALS" sends part="drop" plus
+        that
+
+        borrow value.'
+    MashScanResult:
+      properties:
+        matches:
+          items:
+            $ref: '#/components/schemas/MashMatch'
+          type: array
+          title: Matches
+        missing:
+          items:
+            type: string
+          type: array
+          title: Missing
+          description: Song ids not scanned yet (features queued).
+      additionalProperties: false
+      type: object
+      title: MashScanResult
+      description: 'What POST /api/mash/scan returns (v0.11.4). Songs without cached features are skipped, listed in `missing`,
+
+        and queued for feature computation, so a later scan includes them.'
+    MaskInfo:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        kind:
+          type: string
+          enum:
+          - builtin
+          - user
+          title: Kind
+        format:
+          type: string
+          enum:
+          - svg
+          - png
+          - webp
+          title: Format
+        width:
+          type: integer
+          maximum: 4096.0
+          exclusiveMinimum: 0.0
+          title: Width
+        height:
+          type: integer
+          maximum: 4096.0
+          exclusiveMinimum: 0.0
+          title: Height
+        size_bytes:
+          type: integer
+          maximum: 16777216.0
+          minimum: 0.0
+          title: Size Bytes
+          description: SVG <= 2 MB; PNG/WebP <= 16 MB.
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - kind
+      - format
+      - width
+      - height
+      - size_bytes
+      - created_at
+      title: MaskInfo
+      description: A face mask (v0.11.6). GET /api/masks lists built-ins and user masks; the image is at GET /api/masks/{id}/image.
     MaskStrength:
       properties:
         level:
@@ -4023,6 +6116,49 @@ components:
       - candidate_id
       - name
       title: PersonaSaveRequest
+    PrefAxis:
+      properties:
+        axis:
+          type: string
+          title: Axis
+        options:
+          items:
+            $ref: '#/components/schemas/PrefOption'
+          type: array
+          title: Options
+      additionalProperties: false
+      type: object
+      required:
+      - axis
+      title: PrefAxis
+    PrefOption:
+      properties:
+        option:
+          type: string
+          title: Option
+        up:
+          type: number
+          minimum: 0.0
+          title: Up
+          default: 0.0
+        down:
+          type: number
+          minimum: 0.0
+          title: Down
+          default: 0.0
+      additionalProperties: false
+      type: object
+      required:
+      - option
+      title: PrefOption
+      description: 'Rating counts for one option on one axis (v0.11.8). Each take counts once, from its latest feedback (a
+        re-rating replaces
+
+        the earlier one; rating 0 withdraws it). ROLL draws θ ~ Beta(1 + up, 1 + down) per option, weights it by the option''s
+        default
+
+        weight, keeps a 5% floor, and draws from that (a weighted Thompson draw: plain counting, no AI). Tag-scoped credit
+        makes these floats.'
     Preset:
       properties:
         id:
@@ -4184,6 +6320,644 @@ components:
       additionalProperties: false
       type: object
       title: RekordboxSettings
+    Remix:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        recipe:
+          type: string
+          enum:
+          - vip
+          - mashup
+          - flip
+          title: Recipe
+        sources:
+          items:
+            $ref: '#/components/schemas/RemixSource'
+          type: array
+          maxItems: 2
+          minItems: 1
+          title: Sources
+        bpm:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bpm
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+        beats_per_bar:
+          type: integer
+          minimum: 1.0
+          title: Beats Per Bar
+          default: 4
+        sections:
+          items:
+            $ref: '#/components/schemas/RemixSection'
+          type: array
+          title: Sections
+        lanes:
+          items:
+            $ref: '#/components/schemas/RemixLane'
+          type: array
+          title: Lanes
+        bass_patch_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bass Patch Id
+          description: 'VIP / DROP SWAP: the patch BASS DNA plays on.'
+        flip:
+          anyOf:
+          - $ref: '#/components/schemas/FlipSettings'
+          - type: 'null'
+          description: GENRE FLIP. The target tempo is Remix.bpm (BUILD sets it from the style; PATCH bpm to change it).
+        mash:
+          anyOf:
+          - $ref: '#/components/schemas/MashMatch'
+          - type: 'null'
+          description: 'MASHUP: the partner part LINE IT UP chose (B''s part, start bar, shift, ratio). BUILD uses it; None
+            = BUILD picks the best match itself.'
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+          description: 'v0.11.7: BUILD''s variation seed. The same doc and seed give the same remix; a new seed is a new take
+            (voices, patterns, switch-ups, fills). The app''s ROLL/TAKES set it.'
+          default: 0
+        takes:
+          items:
+            $ref: '#/components/schemas/RemixTake'
+          type: array
+          title: Takes
+          description: 'v0.11.8: the kept takes, oldest first. BUILD adds or refreshes the take for `seed`.'
+        bass_macros:
+          anyOf:
+          - $ref: '#/components/schemas/BassMacros'
+          - type: 'null'
+          description: 'v0.11.12: None = the style''s defaults. A change re-prepares only the engine-bass clips.'
+        top_layers:
+          items:
+            type: string
+            enum:
+            - arp
+            - powerup
+            - coin
+          type: array
+          title: Top Layers
+          description: 'v0.11.12: ear candy BUILD places on a TOP lane, in key: arp across the drops, powerup into each drop,
+            coin on fills.'
+        build_state:
+          type: string
+          enum:
+          - none
+          - queued
+          - running
+          - done
+          - error
+          title: Build State
+          default: none
+        rev:
+          type: integer
+          minimum: 0.0
+          title: Rev
+          description: Bumped on every save; PATCH must send the rev it edited.
+          default: 0
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - recipe
+      - sources
+      - bpm
+      - created_at
+      - updated_at
+      title: Remix
+      description: 'A remix (v0.11): the arrangement document. Local-only, like Songs.'
+    RemixBuildRequest:
+      properties:
+        fresh:
+          type: boolean
+          title: Fresh
+          default: false
+      additionalProperties: false
+      type: object
+      title: RemixBuildRequest
+      description: 'POST /api/remixes/{id}/build body (v0.11.9; optional). By default BUILD at a seed whose take has a saved
+
+        arrangement restores it, so edits survive switching takes. fresh=True discards those edits and rebuilds from the take''s
+        choices.'
+    RemixClip:
+      properties:
+        id:
+          type: string
+          title: Id
+        at_beat:
+          type: number
+          minimum: 0.0
+          title: At Beat
+        beats:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beats
+        src:
+          oneOf:
+          - $ref: '#/components/schemas/StemClipSrc'
+          - $ref: '#/components/schemas/GrooveClipSrc'
+          - $ref: '#/components/schemas/KitClipSrc'
+          title: Src
+          discriminator:
+            propertyName: kind
+            mapping:
+              groove: '#/components/schemas/GrooveClipSrc'
+              kit: '#/components/schemas/KitClipSrc'
+              stem: '#/components/schemas/StemClipSrc'
+        shift_st:
+          type: number
+          maximum: 12.0
+          minimum: -12.0
+          title: Shift St
+          default: 0.0
+        fade_in_beats:
+          type: number
+          minimum: 0.0
+          title: Fade In Beats
+          default: 0.0
+        fade_out_beats:
+          type: number
+          minimum: 0.0
+          title: Fade Out Beats
+          default: 0.0
+        gain_db:
+          type: number
+          maximum: 12.0
+          minimum: -48.0
+          title: Gain Db
+          default: 0.0
+        audio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audio Id
+          description: The prepared audio (GET /api/audio/{id}); None until prepared.
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - at_beat
+      - beats
+      - src
+      title: RemixClip
+      description: A clip on a lane (v0.11), placed in remix beats. The engine prepares it at the remix tempo and key.
+    RemixCreate:
+      properties:
+        recipe:
+          type: string
+          enum:
+          - vip
+          - mashup
+          - flip
+          title: Recipe
+        sources:
+          items:
+            $ref: '#/components/schemas/RemixSource'
+          type: array
+          maxItems: 2
+          minItems: 1
+          title: Sources
+        mash:
+          anyOf:
+          - $ref: '#/components/schemas/MashMatch'
+          - type: 'null'
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+          default: 0
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - recipe
+      - sources
+      title: RemixCreate
+    RemixExportRequest:
+      properties:
+        formats:
+          items:
+            type: string
+            enum:
+            - aiff
+            - mp3
+            - als
+          type: array
+          minItems: 1
+          title: Formats
+        visuals:
+          type: boolean
+          title: Visuals
+          description: Register the mixdown as a Song whose structure comes from the arrangement.
+          default: true
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Name
+      additionalProperties: false
+      type: object
+      required:
+      - formats
+      title: RemixExportRequest
+    RemixExportResult:
+      properties:
+        remix_id:
+          type: string
+          title: Remix Id
+        files:
+          items:
+            $ref: '#/components/schemas/ExportedFile'
+          type: array
+          title: Files
+        als_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Als Path
+          description: The Ableton Live 11 set (BETA until opened in Live).
+        rekordbox_xml_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rekordbox Xml Path
+          description: 'v0.11.5: rekordbox.xml for the AIFF: TEMPO at bar 1, hot cues at each DROP, memory cues at each section
+            start.'
+        song_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Song Id
+          description: The mixdown registered as a Song, when visuals is on.
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      additionalProperties: false
+      type: object
+      required:
+      - remix_id
+      title: RemixExportResult
+    RemixLane:
+      properties:
+        id:
+          type: string
+          title: Id
+        role:
+          type: string
+          enum:
+          - drums
+          - bass
+          - vocals
+          - other
+          - synth_bass
+          - kit
+          - top
+          title: Role
+          description: 'v0.11.11 adds top: ear candy and squeak clips (patch_id top:*), drawn between DRUMS and SYNTH BASS
+            in the design package.'
+        slot:
+          anyOf:
+          - type: string
+            enum:
+            - A
+            - B
+          - type: 'null'
+          title: Slot
+        gain_db:
+          type: number
+          maximum: 12.0
+          minimum: -48.0
+          title: Gain Db
+          default: 0.0
+        mute:
+          type: boolean
+          title: Mute
+          default: false
+        solo:
+          type: boolean
+          title: Solo
+          default: false
+        clips:
+          items:
+            $ref: '#/components/schemas/RemixClip'
+          type: array
+          title: Clips
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - role
+      title: RemixLane
+    RemixPrefs:
+      properties:
+        style:
+          type: string
+          title: Style
+        ratings:
+          type: integer
+          minimum: 0.0
+          title: Ratings
+          description: 'Takes of this style whose latest rating isn''t 0: the TasteReadout''s ''ROLL leans on N ratings''.'
+          default: 0
+        axes:
+          items:
+            $ref: '#/components/schemas/PrefAxis'
+          type: array
+          title: Axes
+      additionalProperties: false
+      type: object
+      required:
+      - style
+      title: RemixPrefs
+      description: One style's counts (v0.11.8). DELETE /api/remix-prefs/{style} resets them (the UI's RESET, two steps).
+    RemixPrefsResult:
+      properties:
+        styles:
+          items:
+            $ref: '#/components/schemas/RemixPrefs'
+          type: array
+          title: Styles
+      additionalProperties: false
+      type: object
+      title: RemixPrefsResult
+      description: GET /api/remix-prefs (v0.11.8).
+    RemixSection:
+      properties:
+        kind:
+          type: string
+          enum:
+          - intro
+          - verse
+          - build
+          - drop
+          - breakdown
+          - outro
+          title: Kind
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+        bars:
+          type: integer
+          minimum: 1.0
+          title: Bars
+        from_slot:
+          type: string
+          enum:
+          - A
+          - B
+          title: From Slot
+          default: A
+        from_start_bar:
+          type: integer
+          minimum: 1.0
+          title: From Start Bar
+          description: Where this block comes from in that source song.
+          default: 1
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - start_bar
+      - bars
+      title: RemixSection
+      description: A block of the remix on its own bar grid (v0.11). Sections tile the remix in order.
+    RemixSource:
+      properties:
+        slot:
+          type: string
+          enum:
+          - A
+          - B
+          title: Slot
+        song_id:
+          type: string
+          title: Song Id
+      additionalProperties: false
+      type: object
+      required:
+      - slot
+      - song_id
+      title: RemixSource
+    RemixTake:
+      properties:
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+        style:
+          type: string
+          title: Style
+          description: 'What ROLL counts ratings under: the flip style_id, or the VIP/mashup bass style (e.g. ''riddim'',
+            ''tearout'', ''trap_hybrid'').'
+        choices:
+          items:
+            $ref: '#/components/schemas/TakeChoice'
+          type: array
+          title: Choices
+          description: Resolved by BUILD; read-only for clients.
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Name
+        starred:
+          type: boolean
+          title: Starred
+          default: false
+        rating:
+          type: integer
+          enum:
+          - -1
+          - 0
+          - 1
+          title: Rating
+          description: The latest rating (display only; the history is TakeFeedback).
+          default: 0
+        short_term_max_lufs:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Short Term Max Lufs
+          description: 'v0.11.10: the take''s prepared mix, short-term (3 s) max, as on STUDIO''s cartridge; filled when PREPARE
+            finishes (club target -7.0).'
+        true_peak_db:
+          anyOf:
+          - type: number
+            maximum: 0.0
+          - type: 'null'
+          title: True Peak Db
+          description: 'v0.11.10: the same mix''s true peak (dBTP, 4x oversampled; club ceiling -1.0).'
+        sections:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RemixSection'
+            type: array
+          - type: 'null'
+          title: Sections
+          description: 'v0.11.9: this take''s own arrangement, your edits included. Saved when you switch away (a PATCH to
+            another seed); None until then.'
+        lanes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RemixLane'
+            type: array
+          - type: 'null'
+          title: Lanes
+          description: 'v0.11.9: as `sections`. BUILD at this seed restores the saved arrangement instead of rebuilding.'
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - seed
+      - style
+      - created_at
+      title: RemixTake
+      description: 'A take (v0.11.8): one seed of this remix plus what BUILD resolved for it. BUILD records (or refreshes)
+        the take for Remix.seed.'
+    RemixTakeEdit:
+      properties:
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Name
+        starred:
+          type: boolean
+          title: Starred
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - seed
+      title: RemixTakeEdit
+      description: 'A kept take in RemixUpdate.takes (v0.11.8): only the name and the star are editable.'
+    RemixUpdate:
+      properties:
+        rev:
+          type: integer
+          minimum: 0.0
+          title: Rev
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        bpm:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bpm
+        key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Key
+        sections:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RemixSection'
+            type: array
+          - type: 'null'
+          title: Sections
+        lanes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RemixLane'
+            type: array
+          - type: 'null'
+          title: Lanes
+        bass_patch_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bass Patch Id
+        flip:
+          anyOf:
+          - $ref: '#/components/schemas/FlipSettings'
+          - type: 'null'
+        mash:
+          anyOf:
+          - $ref: '#/components/schemas/MashMatch'
+          - type: 'null'
+        seed:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Seed
+          description: Set it, then POST build, for a new take.
+        bass_macros:
+          anyOf:
+          - $ref: '#/components/schemas/BassMacros'
+          - type: 'null'
+        top_layers:
+          anyOf:
+          - items:
+              type: string
+              enum:
+              - arp
+              - powerup
+              - coin
+            type: array
+          - type: 'null'
+          title: Top Layers
+          description: 'v0.11.12: set, then POST build (TOP clips are placed by BUILD).'
+        takes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RemixTakeEdit'
+            type: array
+          - type: 'null'
+          title: Takes
+          description: 'v0.11.8: the takes to keep (rename, star). A seed left out is deleted; style, choices and rating stay
+            as recorded.'
+      additionalProperties: false
+      type: object
+      required:
+      - rev
+      title: RemixUpdate
+      description: 'PATCH body: the whole arrangement at `rev`. A stale rev is rejected (409), so edits never overwrite each
+        other.'
     RenderInfo:
       properties:
         id:
@@ -4656,6 +7430,22 @@ components:
           type: array
           title: Stems
           description: 'v0.9: the separated stems once stems_state is ''done''.'
+        structure:
+          anyOf:
+          - $ref: '#/components/schemas/SongStructure'
+          - type: 'null'
+          description: 'v0.10: sections, drops and phrases (after analysis; refined after stems).'
+        lyrics_state:
+          type: string
+          enum:
+          - none
+          - queued
+          - running
+          - done
+          - error
+          title: Lyrics State
+          description: 'v0.10: lyrics transcription, started with POST /api/songs/{id}/lyrics.'
+          default: none
       additionalProperties: false
       type: object
       required:
@@ -4716,6 +7506,30 @@ components:
       - bpm
       title: SongAnalysis
       description: Tempo, key and grid of an imported song (v0.7). Produced by the sound engine (FxAPI.analyze_song).
+    SongLyrics:
+      properties:
+        song_id:
+          type: string
+          title: Song Id
+        source:
+          type: string
+          enum:
+          - vocals_stem
+          - mix
+          title: Source
+        words:
+          items:
+            $ref: '#/components/schemas/SongWord'
+          type: array
+          title: Words
+      additionalProperties: false
+      type: object
+      required:
+      - song_id
+      - source
+      title: SongLyrics
+      description: 'Timed words of a song (v0.10): GET /api/songs/{id}/lyrics. Transcribed from the vocals stem when there
+        is one.'
     SongPlacement:
       properties:
         song_id:
@@ -4766,6 +7580,83 @@ components:
       - song_id
       title: SongPlacement
       description: Where a drop sits in a song, and how the two are balanced (v0.7).
+    SongSection:
+      properties:
+        kind:
+          type: string
+          enum:
+          - intro
+          - verse
+          - build
+          - drop
+          - breakdown
+          - outro
+          title: Kind
+        start_s:
+          type: number
+          minimum: 0.0
+          title: Start S
+        end_s:
+          type: number
+          minimum: 0.0
+          title: End S
+        start_bar:
+          type: integer
+          minimum: 1.0
+          title: Start Bar
+          description: Song bar (1-based, on the song's grid) where the section starts.
+        energy:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Energy
+          description: Mean loudness/density of the section, normalised per song.
+        bass_style:
+          anyOf:
+          - type: string
+            enum:
+            - deep
+            - trap
+            - dubstep
+            - other
+          - type: 'null'
+          title: Bass Style
+          description: v0.10.1; None without bass.
+        half_time:
+          type: boolean
+          title: Half Time
+          description: 'v0.10.1: snare on beat 3 only (a 70 feel at 140).'
+          default: false
+        note_beats:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Note Beats
+          description: 'v0.10.1: median bass-note length in beats.'
+        wobble_div:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wobble Div
+          description: 'v0.10.1: dominant bass LFO as a beat division, e.g. ''1/8'', ''1/8T'', ''1/16''.'
+        wobble_anchor_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Wobble Anchor S
+          description: 'v0.10.1: an LFO peak in song time; phase = frac((t - anchor) / period).'
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - start_s
+      - end_s
+      - start_bar
+      - energy
+      title: SongSection
+      description: One part of a song on its own grid (v0.10). Sections tile the song in order, without gaps or overlaps.
     SongStem:
       properties:
         name:
@@ -4787,6 +7678,62 @@ components:
       - audio_id
       title: SongStem
       description: One separated stem of a song (v0.9). Stems are local-only, like songs.
+    SongStructure:
+      properties:
+        sections:
+          items:
+            $ref: '#/components/schemas/SongSection'
+          type: array
+          title: Sections
+        drops_s:
+          items:
+            type: number
+          type: array
+          title: Drops S
+        builds:
+          items:
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+            maxItems: 2
+            minItems: 2
+          type: array
+          title: Builds
+          description: (build start s, drop hit s) pairs.
+        phrase_bars:
+          type: integer
+          minimum: 1.0
+          title: Phrase Bars
+          default: 8
+        energy_fps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Energy Fps
+          default: 10.0
+        energy_b64:
+          type: string
+          title: Energy B64
+          description: base64 of uint8, one value per frame at energy_fps.
+          default: ''
+        from_stems:
+          type: boolean
+          title: From Stems
+          description: True once refined with stems (drums/bass entries).
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - sections
+      title: SongStructure
+      description: 'Where a song builds, drops and breathes (v0.10), for the AUTO-VJ director and pre-drop text.
+
+
+        `drops_s` are the drop hits (the first beat of each drop section) in song time. `builds` pairs each build''s start
+
+        with the drop it leads into. `phrase_bars` is the phrase length the sections snap to (8 or 16).
+
+        `energy` is a coarse loudness/density curve at `energy_fps` over the whole song, 0-255, normalised per song.'
     SongUpdate:
       properties:
         name:
@@ -4817,6 +7764,27 @@ components:
       type: object
       title: SongUpdate
       description: PATCH body. Only the fields present are applied; an explicit null clears an override.
+    SongWord:
+      properties:
+        text:
+          type: string
+          title: Text
+        start_s:
+          type: number
+          minimum: 0.0
+          title: Start S
+        end_s:
+          type: number
+          minimum: 0.0
+          title: End S
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      - start_s
+      - end_s
+      title: SongWord
+      description: A sung or spoken word in a song, in song time (v0.10).
     SourceInfo:
       properties:
         id:
@@ -4982,6 +7950,39 @@ components:
       type: object
       title: StackVoice
       description: Extra voice layered on the main one (the 'robotic TTS collage').
+    StemClipSrc:
+      properties:
+        kind:
+          type: string
+          const: stem
+          title: Kind
+          default: stem
+        slot:
+          type: string
+          enum:
+          - A
+          - B
+          title: Slot
+        stem:
+          type: string
+          enum:
+          - drums
+          - bass
+          - vocals
+          - other
+          title: Stem
+        start_beat:
+          type: number
+          minimum: 0.0
+          title: Start Beat
+          description: Offset into the source song, in its beats from its downbeat.
+      additionalProperties: false
+      type: object
+      required:
+      - slot
+      - stem
+      - start_beat
+      title: StemClipSrc
     StemFeatures:
       properties:
         song_id:
@@ -5010,6 +8011,13 @@ components:
         data_b64:
           type: string
           title: Data B64
+        bass_b64:
+          type: string
+          title: Bass B64
+          description: 'v0.10.1: bass-line intelligence at the same fps, base64 of uint8, 4 bytes per frame: [0] flags (bit0
+            bass note on, bit1 note onset this frame); [1] sub weight < 60 Hz, 0-255 normalised per song; [2] growl weight
+            100-600 Hz, 0-255 normalised per song; [3] sub f0 as MIDI x 2 (0 = none). Empty when not computed.'
+          default: ''
       additionalProperties: false
       type: object
       required:
@@ -5179,6 +8187,132 @@ components:
       - audio_id
       - peaks
       title: Take
+    TakeChoice:
+      properties:
+        axis:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Axis
+        option:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Option
+      additionalProperties: false
+      type: object
+      required:
+      - axis
+      - option
+      title: TakeChoice
+      description: 'One option BUILD picked on one variation axis for a take (v0.11.8), e.g. axis ''riddim.drums'', option
+        ''seesaw''.
+
+        Where the research disagrees, every credible option stays; the seed picks one and ratings tilt the odds.'
+    TakeFeedback:
+      properties:
+        id:
+          type: string
+          title: Id
+        remix_id:
+          type: string
+          title: Remix Id
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+        style:
+          type: string
+          title: Style
+        choices:
+          items:
+            $ref: '#/components/schemas/TakeChoice'
+          type: array
+          title: Choices
+        rating:
+          type: integer
+          enum:
+          - -1
+          - 0
+          - 1
+          title: Rating
+        tags:
+          items:
+            type: string
+            enum:
+            - growls
+            - rhythm
+            - mix
+            - arrangement
+            - sounds_like_trap
+            - too_long
+            - whiny
+            - boring
+            - love_it
+          type: array
+          title: Tags
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        created_at:
+          type: string
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - remix_id
+      - seed
+      - style
+      - rating
+      - created_at
+      title: TakeFeedback
+      description: A stored rating (v0.11.8). style and choices are copied from the take when it's rated, so later edits never
+        rewrite history.
+    TakeFeedbackCreate:
+      properties:
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+        rating:
+          type: integer
+          enum:
+          - -1
+          - 0
+          - 1
+          title: Rating
+        tags:
+          items:
+            type: string
+            enum:
+            - growls
+            - rhythm
+            - mix
+            - arrangement
+            - sounds_like_trap
+            - too_long
+            - whiny
+            - boring
+            - love_it
+          type: array
+          maxItems: 9
+          title: Tags
+        note:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Note
+      additionalProperties: false
+      type: object
+      required:
+      - seed
+      - rating
+      title: TakeFeedbackCreate
+      description: 'POST /api/remixes/{id}/feedback (v0.11.8): rate one take. 404 if the remix has no take with that seed.'
     TakePatch:
       properties:
         title:

@@ -11,6 +11,10 @@ export interface CameraSettings {
   coverage: number
   /** DROP + SONG: the Studio's song (state/song.ts), placed and levelled as there. */
   sound: 'drop' | 'song'
+  /** 1.5: a face or hand that comes near the camera passes through the effects (still encrypted). */
+  passThrough: boolean
+  /** 1.5: a camera wider than the output (16:9 into 9:16) follows the person. */
+  autoFrame: boolean
 }
 
 interface CameraState {
@@ -32,6 +36,8 @@ export const useCamera = create<CameraState>(() => ({
     mask: DEFAULT_MASK,
     coverage: PAD * 100,
     sound: 'drop',
+    passThrough: true,
+    autoFrame: true,
   },
   takeVideos: {},
 }))

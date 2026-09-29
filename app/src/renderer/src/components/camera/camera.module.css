@@ -54,7 +54,7 @@
   backdrop-filter: var(--vb-glass-blur, blur(12px) saturate(150%));
   border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
   color: var(--vb-amber);
-  font: 600 8.5px/1.3 var(--vb-font-mono);
+  font: 600 var(--vb-text-min)/1.3 var(--vb-font-mono);
   letter-spacing: 0.12em;
   pointer-events: none;
 }
@@ -82,7 +82,7 @@
 .error {
   margin: 0;
   color: var(--vb-accent);
-  font: 500 10px/1.5 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.5 var(--vb-font-mono);
 }
 .frame > .error {
   position: absolute;
@@ -141,12 +141,12 @@
 }
 .sectionTitle {
   margin: 0;
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-ink);
 }
 .sectionAside {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   font-variant-numeric: tabular-nums;
@@ -161,8 +161,8 @@
   min-width: 0;
 }
 .kicker {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -192,7 +192,7 @@
   flex: none;
   width: 44px;
   text-align: right;
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.06em;
   color: var(--vb-amber);
   font-variant-numeric: tabular-nums;
@@ -200,7 +200,7 @@
 .hint {
   margin: 0 0 0 calc(72px + var(--space-3));
   color: var(--vb-dim);
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
 }
 .hint button {
   border: 0;
@@ -223,7 +223,7 @@
   border: 1px solid var(--vb-amber-line);
   border-radius: var(--vb-r1);
   color: var(--vb-amber);
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
 }
 .song span {
   flex: 1;
@@ -272,8 +272,8 @@
 }
 .playbackLabel {
   flex: none;
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .playbackCanvas {

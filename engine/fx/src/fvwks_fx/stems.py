@@ -2,6 +2,7 @@
 
 For each of the four stems and the mix, on frames centred every sr/fps samples:
 - rms: the frame's RMS (a two-hop window), normalised per song: the track's loudest frame is 255.
+- bass (v0.10.1, from the bass stem): per-frame note on / start, sub, growl and the sub's pitch (bassline.py).
 - onset: log spectral flux (2048-point frames) over an adaptive threshold (the local mean + std over +-0.5 s, with a
   floor from the track's own flux level), peak-picked within +-50 ms; a hit is strength / threshold * 64 (>= 64),
   else 0. A near-silent stem has no hits. With the song's grid (analysis), a hit within 25 ms of a 1/16 note moves
@@ -16,6 +17,7 @@ from scipy import ndimage
 from fvwks_contracts.models import STEM_NAMES, SongAnalysis
 from fvwks_contracts.seam import StemFeatureData
 
+from .bassline import BassFrames
 from .dsp import EPS, as2d
 from .song import _mag_frames
 
@@ -93,4 +95,6 @@ def stem_features(stems: dict[str, np.ndarray], sr: int, mix: np.ndarray, *, ana
         data[:, k, 0] = np.clip(np.round(rms / max(float(rms.max()), EPS) * 255.0), 0, 255).astype(np.uint8)
         strength = _snap(_onsets(x, hop, frames, fps, rms), fps, analysis)
         data[:, k, 1] = np.clip(np.round(strength * 64.0), 0, 255).astype(np.uint8)
-    return StemFeatureData(fps=float(fps), tracks=tracks, data=data)
+    bass = stems.get("bass")
+    bass_bytes = BassFrames(bass, sr, fps, frames).encode() if bass is not None and frames and np.any(bass) else None
+    return StemFeatureData(fps=float(fps), tracks=tracks, data=data, bass=bass_bytes)

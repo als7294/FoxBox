@@ -18,6 +18,7 @@ import { agoText, errorText } from '@/components/updates/format'
 import { laterId, useUpdates } from '@/components/updates/useUpdates'
 import { bridge } from '@/env'
 import { formatBytes, LOW_DISK_BYTES } from '@/lib/format'
+import { hideHome } from '@/lib/paths'
 import { KEY_OPTIONS } from '@/lib/keys'
 import { engineHealth, engineView, isEngineUsable, useEngine, type EngineView } from '@/state/engine'
 import { studio, useStudio } from '@/state/studio'
@@ -518,7 +519,6 @@ function LoudnessCard({ s, change }: { s: Full; change: Change }) {
       <div className={styles.loudFields}>
         <div data-idle={mode === 'bake' || undefined}>
           <NumberField
-            display
             label={mode === 'custom' ? 'Custom LUFS' : 'Club LUFS'}
             unit="LUFS"
             value={s.master.target_lufs}
@@ -533,7 +533,6 @@ function LoudnessCard({ s, change }: { s: Full; change: Change }) {
         </div>
         <div data-idle={mode !== 'bake' || undefined}>
           <NumberField
-            display
             label="Bake-in peak"
             unit="dBFS"
             value={s.master.bake_peak_db}
@@ -545,7 +544,6 @@ function LoudnessCard({ s, change }: { s: Full; change: Change }) {
         </div>
         <div data-idle={mode === 'bake' || undefined}>
           <NumberField
-            display
             label="TP ceiling"
             unit="dBTP"
             value={s.master.true_peak_db}
@@ -832,7 +830,7 @@ function EngineCard() {
           </div>
           <div>
             <dt className="sr-only">Free disk</dt>
-            <dd data-warn={low || undefined} title={health.data_dir}>
+            <dd data-warn={low || undefined} title={hideHome(health.data_dir)}>
               {low ? '⚠ ' : ''}
               {free != null ? `${formatBytes(free)} free` : '—'}
             </dd>
@@ -992,16 +990,6 @@ export function UpdatesCard() {
           </div>
         </div>
         <div className={styles.updCol}>
-          <Switch
-            row
-            label="Check automatically"
-            checked={s.checkAutomatically}
-            onChange={(on) =>
-              void updates
-                .setCheckAutomatically(on)
-                .then(apply, (err: unknown) => toast.error('SETTING NOT SAVED', { detail: errorText(err) }))
-            }
-          />
           <div className={common.field}>
             <span className={common.fieldLabel}>Source</span>
             <div className={styles.updRow}>
@@ -1143,7 +1131,7 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="06" kicker="CONFIG" title="SETTINGS">
+      <ScreenHeader compact code="07" kicker="CONFIG" title="SETTINGS">
         {s && <SaveState kind={kind} problems={problems} failure={failure} onRetry={() => void flush()} />}
       </ScreenHeader>
       <div className={styles.grid} data-reveal="3">

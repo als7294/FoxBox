@@ -15,13 +15,13 @@
   min-width: 0;
 }
 .strip[data-over] {
-  border-color: var(--vb-amber-line);
-  background: rgba(var(--vb-amber-rgb), 0.05);
+  border-color: var(--vb-amber);
+  background: rgba(var(--vb-amber-rgb), 0.1);
 }
 .stripTitle {
   flex: none;
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .stripHint,
@@ -31,7 +31,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.06em;
   color: var(--vb-dim);
 }
@@ -46,8 +46,8 @@
 }
 .status {
   flex: none;
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
   white-space: nowrap;
 }
@@ -64,8 +64,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 .importBtn {
@@ -102,7 +102,7 @@
   border-radius: var(--vb-r1);
   background: var(--vb-fill-1);
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -122,7 +122,7 @@ button.chip:hover {
   gap: 8px;
 }
 .detected {
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.06em;
   color: var(--vb-dim);
   opacity: 0.75;
@@ -165,7 +165,7 @@ button.chip:hover {
   border-radius: var(--vb-r1);
   background: var(--vb-card);
   color: var(--vb-dim);
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
 }
 .keyCell b {
   color: var(--vb-ink);
@@ -184,8 +184,8 @@ button.chip:hover {
   padding: 0;
   background: none;
   color: var(--vb-amber);
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .linkBtn:disabled {
   color: var(--vb-dim);
@@ -235,8 +235,8 @@ button.chip:hover {
   color: var(--vb-amber);
 }
 .drawerMeta {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -254,7 +254,7 @@ button.chip:hover {
 }
 .note {
   margin: 0;
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   color: var(--vb-amber);
 }
@@ -276,8 +276,8 @@ button.chip:hover {
   min-width: 0;
 }
 .fieldLabel {
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .bpmInput {
@@ -304,7 +304,7 @@ button.chip:hover {
   border: 0;
   background: none;
   color: var(--vb-ink);
-  font-size: 9px;
+  font-size: var(--vb-text-min);
 }
 .nudge button:disabled {
   color: var(--vb-dim);
@@ -336,7 +336,7 @@ button.chip:hover {
 .ruler {
   position: relative;
   height: 12px;
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .ruler span {
@@ -394,7 +394,7 @@ button.chip:hover {
   position: absolute;
   top: -2px;
   left: -5px;
-  font-size: 9px;
+  font-size: var(--vb-text-min);
   color: var(--vb-amber);
 }
 .block {
@@ -416,7 +416,7 @@ button.chip:hover {
   position: absolute;
   left: 4px;
   top: 4px;
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-ink);
   white-space: nowrap;
@@ -458,7 +458,7 @@ button.chip:hover {
 .legend {
   flex: none;
   margin: 2px 0 0;
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-dim);
 }

@@ -28,18 +28,39 @@
   padding-left: 16px;
 }
 .panelTitle {
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .saveBtn {
   align-self: flex-start;
+  min-height: 24px;
   border: 0;
   background: none;
-  padding: 0;
+  padding: 0 4px 0 0;
   color: var(--vb-amber);
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
+.saveForm {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.saveName {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: var(--vb-r2);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .saveBtn:hover {
   color: var(--vb-ink);
@@ -106,7 +127,7 @@
   color: var(--vb-ink);
 }
 .presetN {
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
@@ -139,7 +160,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: center;
+  align-items: start;
   padding: 4px 8px 8px;
 }
 .macro {
@@ -220,7 +241,7 @@
   white-space: nowrap;
   background: var(--vb-ink);
   color: var(--vb-bg);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
   padding: 5px 8px;
   border-radius: var(--vb-r1);
@@ -241,7 +262,7 @@
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
@@ -265,13 +286,12 @@
   align-items: center;
   gap: 12px;
   padding: 0 14px;
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.45);
+  /* A drawer toggle, not an action: quiet until hovered, so RENDER stays the Studio's loudest control (UX #13). */
+  border: 1px solid var(--vb-line-2);
   border-radius: var(--vb-r2);
-  background: linear-gradient(180deg, rgba(var(--vb-amber-rgb), 0.1), rgba(var(--vb-amber-rgb), 0.03));
+  background: none;
   color: var(--vb-amber);
-  box-shadow:
-    0 0 calc(18px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.1),
-    inset 0 1px 0 rgba(var(--vb-amber-rgb), 0.15);
+  box-shadow: none;
   transition:
     background 0.2s,
     box-shadow 0.2s,
@@ -302,8 +322,8 @@
   color: var(--vb-ink);
 }
 .openMeta {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 .openArrow {
@@ -342,8 +362,8 @@
   letter-spacing: 0.2em;
 }
 .drawerMeta {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -356,8 +376,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 .drawerClose:hover {
@@ -391,12 +411,13 @@
 .module[data-open] {
   border-color: rgba(var(--vb-amber-rgb), 0.35);
 }
-.module:not([data-enabled]) {
-  opacity: 0.5;
+/* An off module: its title and number go dim (the switch shows off); its summary stays readable (UX #5). */
+.module:not([data-enabled]) .moduleTitle,
+.module:not([data-enabled]) .moduleN {
+  color: var(--vb-dim);
 }
-.module:not([data-enabled]):focus-within,
-.module:not([data-enabled]):hover {
-  opacity: 0.75;
+.module:not([data-enabled]) {
+  border-style: dashed;
 }
 .moduleHead {
   display: flex;
@@ -406,12 +427,13 @@
   padding: 0 8px 0 12px;
 }
 .moduleN {
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .moduleTitle {
   flex: 1;
   min-width: 0;
+  min-height: 24px;
   text-align: left;
   background: none;
   border: 0;
@@ -439,7 +461,7 @@
   padding: 8px 10px;
   border: 1px dashed rgba(var(--vb-amber-rgb), 0.45);
   border-radius: var(--vb-r1);
-  font: 500 10px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-amber);
 }
 .summary {
@@ -449,7 +471,7 @@
   background: none;
   border: 0;
   color: var(--vb-dim);
-  font: 500 9.5px/1.5 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.5 var(--vb-font-mono);
 }
 .summary:hover {
   color: var(--vb-ink);
@@ -464,7 +486,7 @@
 .moduleDesc {
   width: 100%;
   margin: 0;
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .param {
@@ -479,12 +501,15 @@
 }
 .paramHead {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 6px;
-  font: 500 9px var(--vb-font-mono);
+  gap: 2px 6px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.08em;
 }
 .paramLabel {
+  flex-shrink: 0;
+  max-width: 100%;
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -507,7 +532,7 @@
   min-width: 0;
 }
 .macroTag {
-  font: 700 8.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-amber);
   white-space: nowrap;
@@ -519,8 +544,8 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-amber);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
 }
 .advBtn:hover {
   background: rgba(var(--vb-amber-rgb), 0.06);
@@ -552,7 +577,7 @@
 .muted {
   margin: 0;
   color: var(--vb-dim);
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
 }
 
 /* ---------------------------------------------------------------- small knob (param) */
@@ -677,6 +702,12 @@
   --h: 18px;
   --k: 12px;
 }
+/* A 24 px hit area around the small switch (the knob is ::after). */
+.switchBtn[data-size='sm']::before {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+}
 .switchBtn[data-size='lg'] {
   --h: 22px;
 }
@@ -714,8 +745,8 @@
   min-width: 0;
 }
 .segLabel {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .seg {
@@ -727,8 +758,8 @@
   gap: 3px;
 }
 .segWrap[data-size='sm'] .seg {
-  height: 26px;
-  padding: 2px;
+  height: 28px;
+  padding: 1px;
   gap: 2px;
 }
 .segBtn {
@@ -747,8 +778,9 @@
   transition: background var(--vb-fast);
 }
 .segWrap[data-size='sm'] .segBtn {
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
+  font-size: var(--vb-text-min);
+  letter-spacing: 0.02em;
+  padding: 0 3px;
 }
 .segBtn:hover:not(:disabled):not([aria-checked='true']) {
   color: var(--vb-ink);
@@ -784,7 +816,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 700 10.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   background: var(--vb-well);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -806,7 +838,7 @@
   background-size: 4px 4px;
   background-repeat: no-repeat;
   color: var(--vb-ink);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   cursor: pointer;
   outline: none;
 }
@@ -835,14 +867,8 @@
 /* OPEN RACK sits at the top of the panel now */
 .openRack {
   margin: 10px 10px 0;
-  border-top-color: rgba(var(--vb-amber-rgb), 0.7);
   border-radius: var(--vb-glass-radius);
   corner-shape: var(--vb-glass-corner);
-  backdrop-filter: var(--vb-glass-blur);
-  box-shadow:
-    0 0 calc(18px * var(--vb-glow)) rgba(var(--vb-amber-rgb), 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    var(--vb-glass-shadow);
 }
 .module {
   background: var(--vb-glass-fill), var(--vb-card);

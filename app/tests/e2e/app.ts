@@ -1,5 +1,5 @@
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -27,6 +27,8 @@ export async function launchApp(env: Record<string, string> = {}, extraArgs: str
       ...env,
     } as Record<string, string>,
   })
+  // The temp profile and data go with the app, pass or fail (a spec's close, or the worker tearing it down).
+  app.on('close', () => rmSync(root, { recursive: true, force: true }))
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   return { app, page, dirs }

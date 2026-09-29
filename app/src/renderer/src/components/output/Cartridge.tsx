@@ -1,20 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
-import { useSettings } from '@/api/queries'
+import { useEffect, useRef } from 'react'
 import type { ExportedFile, RenderInfo } from '@/api/types'
+import { StepsPanel } from '@/components/feedback/StepsPanel'
 import { MiniWaveform } from '@/components/signal/MiniWaveform'
 import { bridge } from '@/env'
 import { camelot } from '@/lib/keys'
 import { engineHealth, useEngine } from '@/state/engine'
-import { exportNow } from '@/state/renderController'
 import { useSetlist } from '@/state/setlist'
 import { toast } from '@/state/toasts'
 import { scriptOf, useStudio } from '@/state/studio'
-import { useUi } from '@/state/ui'
+import { SCREENS, useUi } from '@/state/ui'
 import { clamp, f2 } from '@/visuals/canvas'
 import { useFrame } from '@/visuals/frame'
 import { animate } from '@/visuals/motion'
 import { vis } from '@/visuals/state'
+import { ExportSheet } from './ExportSheet'
 import styles from './output.module.css'
+
+const SETLIST_WIP = Boolean(SCREENS.find((x) => x.id === 'setlist')?.wip)
 
 export interface CartridgeProps {
   render: RenderInfo | null
@@ -27,22 +29,28 @@ const version = (f: ExportedFile) => /_v(\d+)\.[a-z0-9]+$/i.exec(f.filename)?.[1
 /**
  * OUTPUT: the drop as a cartridge, led by its words, then its file, waveform and DUR / BPM / KEY / LUFS. Once the final
  * file exists, dragging the card starts a native file drag (Finder, Rekordbox, Ableton, GarageBand). EXPORT (⌘⇧E) is
- * the one primary action; ▾ opens the export options; REVEAL and + SETLIST are secondary.
+ * RENDER (⌘↩, top bar) writes the file; EXPORT… opens the other formats; REVEAL and CLIP are secondary.
  * States: empty · preview (no file yet) · final (ready to drag) · stale (the inputs changed) · exporting · exported.
  */
 export function Cartridge({ render, file, stale }: CartridgeProps) {
   const tile = useRef<HTMLDivElement>(null)
   const exp = useRef<HTMLDivElement>(null)
-  const settings = useSettings().data
   const presetName = useStudio((s) => s.presetName)
   const phase = useStudio((s) => s.phase)
   const hasScript = useStudio((s) => Boolean(s.script.trim()))
   const status = useEngine((s) => s.status)
+  const sheetOpen = useUi((s) => s.exportSheetOpen)
+  const steps = useUi((s) => s.modal)
+  // Back on EXPORT… when the sheet closes (it replaced the button).
+  const exportBtn = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (wasOpen.current && !sheetOpen) exportBtn.current?.focus()
+    wasOpen.current = sheetOpen
+  }, [sheetOpen])
   const b = bridge()
   const draggable = Boolean(file && b && !stale)
   const state = !render ? 'empty' : file ? (stale ? 'stale' : 'ready') : 'preview'
-  // EXPORT succeeded for this render (the file went to the export folder).
-  const [exportedFor, setExportedFor] = useState<string | null>(null)
 
   // The design's eject when a new final file lands.
   const fileId = file?.id
@@ -71,10 +79,6 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
 
   const exporting = phase === 'exporting'
   const busy = phase !== 'idle'
-  const onExport = async () => {
-    const f = await exportNow(settings?.format ?? 'aiff', (settings?.bit_depth ?? 24) as 16 | 24)
-    if (f) setExportedFor(f.render_id)
-  }
   const onReveal = async () => {
     if (!b) return
     const target = file?.path ?? engineHealth(status)?.export_dir
@@ -98,15 +102,13 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
     })
   }
 
-  const exported = Boolean(render && file && !stale && exportedFor === render.id)
-  const look = exporting ? 'exporting' : exported ? 'exported' : state
+  const look = exporting ? 'exporting' : state
   const badge = {
     empty: 'EMPTY',
     preview: 'PREVIEW',
     ready: file ? `FINAL v${version(file)}` : 'FINAL',
     stale: 'STALE',
     exporting: 'EXPORTING…',
-    exported: '✓ EXPORTED',
   }[look]
   const words = render
     ? render.segments
@@ -124,10 +126,17 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
   const hint = draggable
     ? 'DRAG TO REKORDBOX / DAW'
     : stale
-      ? 'CHANGED · ⌘↩ PRINTS IT AGAIN'
+      ? 'CHANGED · ⌘↩ TO RENDER AGAIN'
       : render
-        ? 'PREVIEW ONLY · ⌘↩ PRINTS THE FILE'
-        : 'TYPE OR RECORD A LINE, THEN RENDER'
+        ? 'PREVIEW · ⌘↩ TO RENDER'
+        : 'TYPE OR IMPORT A LINE, THEN RENDER'
+  // EXPORT… and the rekordbox steps open here, in place of the cartridge (no modal, UX #11).
+  if (sheetOpen || steps)
+    return (
+      <section className={styles.output} aria-label="Output" data-reveal="5">
+        {sheetOpen ? <ExportSheet onClose={() => useUi.getState().setExportSheetOpen(false)} /> : <StepsPanel />}
+      </section>
+    )
   return (
     <section className={styles.output} aria-label="Output" data-reveal="5">
       <div className={styles.head}>
@@ -157,7 +166,7 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
             {words || 'NO DROP YET'}
           </div>
           <div className={styles.filename} data-testid="cartridge-filename" data-muted={!file || undefined} title={file?.filename}>
-            {file ? file.filename : render ? 'not printed yet' : '—'}
+            {file ? file.filename : render ? 'not rendered yet' : '—'}
           </div>
           <div className={styles.wave}>
             <MiniWaveform analysis={render ? vis.wet : null} />
@@ -181,25 +190,18 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
       </div>
       <div className={styles.flex} />
       <div className={styles.exportRow}>
+        {/* RENDER (⌘↩) already writes the file: this is for another format, the dry take or the stems (UX #1). */}
         <button
+          ref={exportBtn}
           type="button"
           className={styles.export}
           disabled={busy || !render}
-          aria-keyshortcuts="Meta+Shift+E"
-          data-testid="export-button"
-          onClick={() => void onExport()}
-        >
-          {exporting ? 'EXPORTING…' : exported ? 'EXPORT AGAIN' : 'EXPORT'} <span className={styles.exportKey}>⌘⇧E</span>
-        </button>
-        <button
-          type="button"
-          className={styles.exportMore}
           aria-label="Export options"
+          title="Export as WAV/16-bit, the dry take, stems, or baked into the song"
           data-testid="export-options"
-          disabled={!render}
           onClick={() => useUi.getState().setExportSheetOpen(true)}
         >
-          ▾
+          {exporting ? 'EXPORTING…' : 'EXPORT…'}
         </button>
       </div>
       <div className={styles.pair}>
@@ -211,14 +213,17 @@ export function Cartridge({ render, file, stale }: CartridgeProps) {
         >
           REVEAL
         </button>
-        <button
-          type="button"
-          disabled={!render && !hasScript}
-          onClick={onSetlist}
-          title={`Add this line (${presetName ?? 'CUSTOM'}) to the setlist`}
-        >
-          + SETLIST
-        </button>
+        {/* The setlist lives on PROD, which is WIP: no way to open it yet, so nothing to add to (UX #2). */}
+        {!SETLIST_WIP && (
+          <button
+            type="button"
+            disabled={!render && !hasScript}
+            onClick={onSetlist}
+            title={`Add this line (${presetName ?? 'CUSTOM'}) to the setlist`}
+          >
+            + SETLIST
+          </button>
+        )}
         <button
           type="button"
           disabled={!render}

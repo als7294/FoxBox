@@ -63,9 +63,9 @@ void main() {
   float a = atan(p.y, p.x) / 6.28318 + 0.5;
   float r = length(p);
   float s = spec(abs(a - 0.5) * 1.2);
-  float radius = 0.22 + 0.08 * low + 0.18 * s;
+  float radius = 0.22 * (1.0 - 0.4 * buildProgress) + 0.08 * low + 0.18 * s + 0.3 * dropEnergy;  // tightens, then bursts
   float line = smoothstep(0.012, 0.0, abs(r - radius));
-  float glow = 0.02 / (abs(r - radius) + 0.02) * (0.3 + onset);
+  float glow = 0.02 / (abs(r - radius) + 0.02) * (0.3 + onset + bassHit);
   vec3 c = bgColor.rgb + accentColor.rgb * (line + 0.25 * glow) + inkColor.rgb * 0.5 * line * s;
   gl_FragColor = vec4(c, 1.0);
 }

@@ -256,6 +256,163 @@ Branch `session/s3-engine`. `v0-contracts` is merged. The OpenAPI drift test is 
   - An unfinished separation resets to `none` at launch, and deleting a song deletes its stems.
   - The real test song (2 min 24 s): 14 s end to end, 8,644 feature frames, a second request 1 ms, stems 20–30 MB each.
 
+## 1.5.0 SMART VISUALS: handoff (S3 ENGINE + FX, branch `help/s3-smart`)
+
+Scope (from the PM):
+- Server: Song.structure and lyrics.
+- The ISF standard uniforms for build, drop and bass, used in every shader and filter.
+- At least 4 smart ISF effects.
+- The TEXT family ("text right before a drop").
+- The MILKDROP drop switch.
+Send the shas to S4 and the PM when each part lands.
+
+**Done**
+- **`c3dda56`, server** (merges main 644cbd2 v0.10.1, help/s2-smart 8da928a, session/s4-app 68c951c):
+  - Song.structure:
+    - Computed with the analysis via `fx.song_structure`, on the song's grid (the BPM/bar-1 overrides when set).
+    - Refined with the stems at the end of song_stems (`from_stems`).
+    - Computed again after a BPM/bar-1 PATCH, and backfilled at start for songs analysed before 1.5.
+  - Lyrics routes:
+    - `POST /api/songs/{id}/lyrics` → song_lyrics job on the songs lane, so it runs after a stems job asked for first.
+    - `GET` → SongLyrics, or 409 `lyrics_not_ready`.
+    - With no transcription model, the POST answers 503 model_not_installed + model_id `whisper-aligner`.
+  - Lyrics transcription:
+    - `voice.transcribe` runs on the vocals stem (else the mix), resampled to 48 kHz.
+    - It works in windows of up to 4 minutes, cut at the quietest half second, and skips silent windows.
+    - The result is stored in `songs.lyrics` (library v5).
+  - `StemFeatures.bass_b64` is passed through from `fx.stem_features`'s `bass` ((frames, 4) uint8).
+- **`a9b9b8b`, SHADERS:**
+  - Standard ISF inputs (loader.ts `FOXBOX_INPUTS`; the loader declares any a shader uses but leaves out): buildProgress, preDrop, dropHit (a ~¼ s pulse), dropEnergy, dropIn, dropIndex, section, halfTime, bassOn, bassHit, bassHeld, bassHold, bassSub, bassGrowl, bassPitch, bassGlide, bassWobble, bassWobblePhase, beatFlash, hasDepth and depthMask.
+    - `cues.ts` holds the pulses and the ≤3 flashes/s beat strobe.
+  - `imagePalette.ts` (colorthief 3.5.0): the `"FOXBOX_PALETTE": "extract"` filter publishes `imagePalette()`, and ISF styles follow it.
+  - Smart filters: depth-focus (S1's near mask comes via S4's `frame(a, dt, input, extras)`), motion-trails, palette-from-image, beat-strobe and bass-wobble.
+  - All 16 generators and 10 filters now build, drop and follow the bass.
+  - Fixed FEEDBACK TRAILS and DATAMOSH: they read the texture they drew into, a WebGL feedback loop. A copy pass fixes it.
+  - troika-three-text 0.52.5 is installed. Both packages are reported to the PM, who credits them in THIRD_PARTY_NOTICES on main (don't edit that file).
+  - The compile check: `node <scratchpad>/isfcheck/check.mjs [name]`. It compiles and draws every pack shader in headless Chromium through the loader. The scratchpad is /private/tmp/claude-501/…/92fddaa3…/scratchpad.
+
+**Also done**
+- `8eb83b4`, TEXT family (`engines/text/`, family `text`):
+  - Styles: DECRYPT / SLAM / COUNTDOWN / SHATTER are generators; STENCIL is a filter.
+  - Timing lives in `track.ts` (`moment`, `typedTrack`, `placedWords`, `latin`), with a test in `textTrack.test.ts`.
+  - Fonts are inlined .woff files handed to troika as blob: URLs (S4 added `connect-src blob:`).
+  - Settings: `useWorker: false`; Latin only; `text.sync()` every frame (an empty Text is frustum-culled, so troika never synced).
+  - A headless render check of all 5 styles passed.
+- `9512a56`, MILKDROP drop cuts:
+  - A hard cut on `dropHit` to `HIGH_ENERGY_PRESETS` (16, measured), at most once a bar.
+  - The N-bar soft cut picks high-energy presets during a drop.
+  - TEXT treats a word spanning > 30 s as untimed (S4's drop-script convention).
+- Open: first-use glyph generation for a font runs on the main thread, which may cause one small hitch the first time a TEXT style shows. It was fast on a real GPU; add `preloadFont` if it shows.
+
+**Standing rules** (on top of the ones at the top of the summary/memory):
+- Ponytail at level full: read `~/.claude/plugins/cache/ponytail/ponytail/4.10.0/skills/ponytail/SKILL.md`. Take the shortest correct diff, fix at the root cause, add no unrequested abstractions, and leave one runnable check.
+- Downloads under 1 GB need no approval; over 1 GB needs the user's OK. Report every new package or model to the PM.
+- Approved OSS picks: troika-three-text (TEXT), color-thief v3 (palette), and projectM's cut logic as the model for MILKDROP. Avoid React Bits DecryptedText (Commons Clause).
+- JS-only dependencies (never Python: it would change the 293 MB engine runtime). Pin them exactly. Don't edit THIRD_PARTY_NOTICES.
+- Stay off S4's files: registry.ts, stage*, styles/**, clip*, output*, state/visuals.ts, LiveVisuals.tsx and the camera files. Tell S4 the exact lines touched in main/preload/shared/csp.
+- Never push. Publishing goes only through `scripts/publish_snapshot.sh` (the PM). Commit trailer: Claude Opus 5.5.
+
+## 1.6 REMIX server (branch `help/s3-remix` = session/s4-app a8dce76 + help/s2-bassdna + main (contracts v0.11.4) + help/s1-als)
+Spec: the route table in `docs/REMIX_BACKEND.md` (v0.11.4). S2 owns `fvwks_fx.remix` (`run`, `clip_key`, `mash_features`, `mash_scan`). S1 owns `fvwks_synth` and `fvwks_server/als.py`. My part is the routes, the jobs, the library and export.
+
+Every route in the table is done:
+- `POST /mash/scan` → `MashScanResult {matches, missing}`.
+  - Synchronous and reads cached npz only. `_cache_mash` runs wherever the structure is computed.
+  - Songs without cached features go in `missing` and are queued.
+  - `borrow` is handled inside S2's scan (fb8c13b).
+- Remix CRUD: schema v6 `remixes` table (`info` = Remix JSON, `export` = the last RemixExportResult).
+  - PATCH needs `rev`; otherwise 409 `remix_conflict`.
+  - `_keep_prepared` keeps a clip's audio_id only while it sounds the same. The client's audio_id is never trusted.
+  - Create stores `mash` and starts stems (or queues MASH features) for the sources.
+- `POST /remixes/{id}/build` (remix_build, `remix` lane): `run(stage="build", match=Remix.mash)`, then a new rev. The match run() picks when mash is None is saved on the Remix.
+- `POST /remixes/{id}/prepare` (remix_prepare): progressive.
+  - Clips are resolved first by `clip_key` from the cache (kind `remix_clip`).
+  - The rest come from `run(on_clip=)`. Each lands on the latest arrangement as it's ready, stored as `rmc_` FLAC-24 in `song_audio`.
+  - No rev bump. The message says "Ready to play" once the first 16 bars are ready.
+- `POST /remixes/{id}/export` (remix_export) plus `GET /remixes/{id}/export`.
+  - Mixdown at `Master()` (44.1 k), with every clip's stored audio passed in.
+  - Files: AIFF-24 (`writer.write_track`) and MP3 320 (pedalboard's LAME), in `<export root>/<title>/`, recorded as `exports` rows with `render_id` = the remix id.
+  - `.als`: S1's `write_als(remix, {clip_id: path}, folder, name=)`. A failure there is a warning, since BETA.
+  - `visuals`: registers the mix as a Song on the remix grid, with sections, drops and builds from the arrangement, and caches its MASH features.
+- `GET /patches`: `preview_audio_id` = `pvw_…`. `/api/audio` renders it through `fvwks_synth.preview.preview` on first play.
+- `GET /kits` (v0.11.5: `preview_audio_id` = a lazy `pvw_` kit audition) and `GET /flip-styles`: S2's `FLIP_STYLES`.
+- Export also writes `rekordbox.xml` next to the AIFF (v0.11.5): TEMPO at bar 1, hot cues A… at each DROP, memory cues at every section (`RekordboxTrack.cues`).
+- `GET /songs/{id}/bass/groove`: `fx.bass_groove` on the bass stem, half time from its section, cached JSON.
+- `POST /grooves/render`: `fvwks_synth.bass.render_groove`, cached as `rmc_` audio.
+  - 409 `synth_unavailable` for a Surge patch without surgepy; 404 for an unknown patch.
+- Startup: `fvwks_synth.bass.configure(<data>/synth)`.
+
+Tests (one per area): mash scan, CRUD/rev, build → prepare → export → Song (the real pipeline, .als included), and the sound library + BASS DNA.
+
+Not done:
+- A source song's grid changing after prepare: its clips keep their audio until re-prepared. ponytail, in `_keep_prepared`.
+
+Song import: the server decodes WAV/AIFF/FLAC/MP3 (libsndfile 1.2.2). Anything else gets 400 `unsupported_format` with a hint. The app decodes M4A/AAC before upload.
+
+Test launches: bundle id `com.smittytech.foxbox.test.s3`, CDP port **9313** only. Quit by PID only.
+
+## 1.6 REMIX sound design (branch `help/s3-growls`, on session/s4-app; main has no fvwks_synth yet)
+The spec is `docs/REMIX_SOUND_BIBLE.md` on main. The split (the PM's):
+- **S3:** the sub split, the shared midbus, the TEAROUT voices, and the QA additions (#12).
+- **S1:** riddim R1/R2, the 808 / dark hit and ear candy, in its own new files (help/s1-riddim).
+- Commits:
+  - `bdf1f73`: **midbus.py**, shared by S1 and S2.
+    - `lr4`, `distort` / `clip` (4x oversampled), and `ott` (the Faust model with the §1.3 numbers: stereo-linked detector at a 16-sample control rate, starts settled).
+    - `phaser` / `flanger` / `freq_shift`, `notch_whistles`.
+    - `midbus(x, sr, preset, bpm)`, the §1.2 chain, level-matched per stage. Presets: print / chomp / talker / bus.
+    - `sub_hz` (30–60 Hz) and `sub_voice` (the clean gated sine SUB).
+  - `7eb0fab`: **foxsynth sub split** (S1's file; they know). Non-808 patches get a mid LR4 high-passed at 120 Hz over a clean sine sub. The width layer is HP 150.
+  - `3357dfe`, `bad2176`: **TEAROUT voices** (§2.2), `render_growl(style, midi, beats, bpm, sr, variant, sub, hit)`. Styles: chomp (A), talker (B), disperser (C), dive (D), pwm (E).
+    - Per-hit states are seeded by (voice, variant, hit).
+    - `_finish_voice` sets the mid at -13 dBFS RMS over the clean sub, with raised-cosine fades.
+  - Legacy styles: tearout / riddim / yoi / 808 / reese / metal / gunshot (v2 engines). riddim / yoi / 808 are to be routed to S1's r1 / r2 / render_808 when those land.
+    - Routing: r1 and r2 go through the growl post; 808 / darkhit go straight to S1 (no post).
+  - `9508e97`: `python -m fvwks_synth.growls --audition DIR` writes 4-bar loops (tearout grid + each voice alone, a held sub, drums, -7 LUFS short-term).
+    - They're in the main checkout's out/growl-audition/ (README-S3.txt), shared with S1's loops.
+- QA:
+  - `qa()` counts clicks at the joins (an edge sample > -60 dB re peak), per the bible's "detector on the edges of every slice".
+  - The old HF-concentration rule can't tell a hard-driven growl's texture or a bright onset from a click (tried and measured). The interior is reported as `hf_events` (texture).
+  - `scripts/remix_qa.py` (main, `510048f`) counts clicks mix-wide, with the buzz rules.
+- The per-hit clicks S2 found were fixed at their sources (`b5cc3c1`):
+  - the midbus phaser zippered (it's rebuilt without a feedback loop);
+  - OTT looks ahead by its attack;
+  - dive's drive sits before its delay loop.
+- Click detector rule (`820660b`, and `remix_qa.py` `371ec58`): buzz is local regularity. 3+ evenly spaced events under 30 ms, at any pitch, plus lone edges 1–3 periods off a train.
+  - S2's headline sequence reads [0, 0, 1, 0] per 8 bars. The original drop reads 0.
+  - Known blind spot: a pop with two edges within 10 ms.
+  - Chomp hits are checked at their joins only; their onset snap is "the click" by design.
+- #12, the §5 QA checks, is done: `remix_qa.py` on help/s3-remixqa `9183b5d` + `371ec58`, with `--style tearout|riddim|hybrid`. The PM is asked to merge it to main.
+- Also done:
+  - /api/masks, user-only (`f42b6cd`, help/s3-masks).
+  - The step-3 OUTPUT re-check on e072e5f passes.
+
+### Plan v1 → v2 round (2026-09-29)
+- **help/s3-growls:**
+  - `2414b2e` M1.3 `midbus.resample_chain` / `chain_a`: every generation kept, plus a stretch or pitch mangle. Printed crest is 7–13 dB and aliasing −110 dB. Also `resonance_notch` and `AXES` / `pick()`.
+  - `0074395` M1.2 `gun` / `mgun`:
+    - 80–200 ms metallic FM shots, then silence;
+    - a 1/32 machine gun at ±1–2 st;
+    - the notch on every growl; integer FM ratios on pitched growls.
+  - `b81be86` M1.3 `printed_bank`: `hero` and `call` styles.
+  - `a41ff2f` C11: dotted AXES ids and `render_growl(..., axes=)`.
+  - `58c6535` C13: one OTT and one sub fold on my side.
+  - `706ea48` M1.16: the midbus re-fade.
+  - Pack: out/growl-audition-2/ (gun-1..4 are new). out/growl-audition/ is kept for the M1.1 verdicts.
+- **help/s3-remix:**
+  - `1465779` v0.11.7: seed.
+  - `70ace00` v0.11.8: takes, feedback, prefs, choose().
+  - `abacc41` v0.11.9: per-take arrangements, BUILD fresh, list filters.
+  - `fd41189` plan v2 §7.3–7.4: latest rating per take, tag-scoped blame, w·θ with a 5% floor.
+- **help/s3-remixqa:**
+  - `5f28e33` stems grading.
+  - `f447d49` M2.4.
+  - `e650de0` plan v2 §8 targets, each check on its stem (bass, non-vocal, low-end owner).
+- **help/s3-textskip** `90dd840`: TEXT frame() returns false with nothing on screen (merged by S4).
+- **Open:**
+  - The talker needles: no repro yet at any rate, tempo, note or chop (max 10.5σ on the 2nd difference). Asked S2 for the exact args.
+  - C13's remaining duplicates are S2's (resample.ott, _sub_hz, _fold_c1, print_shot tanh, mixdown.loud 2×).
+  - The Ableton OTT (AX-12) waits for its numbers.
+
 ## Handover (S3 stopped here)
 - Branch `session/s3-engine`, latest `99f1b88`. Everything above is committed; main was merged at 55d9b2b (v0.7 contracts).
 - Build the bundle: `engine/server/scripts/bundle_engine.sh <out>`. It fails on any file naming the build machine and prints the component hashes. Tests: `uv run --all-packages pytest server/tests contracts/tests` from `engine/`; the bundle tests are opt-in with `FVWKS_TEST_BUNDLE=1` (~2.5 min, two builds).

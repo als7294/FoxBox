@@ -41,7 +41,7 @@ export function SourceTabs({ voices }: { voices: readonly Voice[] }) {
           ))}
         </div>
         <button type="button" className={styles.toLive} onClick={() => useUi.getState().navigate('live')} title="Record takes on VISUALS (VOICE → TAKE)">
-          {hasTakes || tab === 'record' ? '● RECORD' : '● RECORD →'}
+          RECORD →
         </button>
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className={styles.tabPanel}>

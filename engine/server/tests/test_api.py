@@ -14,7 +14,7 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 from fvwks_contracts.audio import resolve_auto_bars
-from fvwks_contracts.models import Segment, Word
+from fvwks_contracts.models import RemixTake, RemixUpdate, Segment, Word
 from fvwks_contracts.seam import Source
 from fvwks_fx import api as fx_api
 from fvwks_voice import api as voice_api
@@ -2521,6 +2521,8 @@ def test_song_stems_job_features_and_cache(client, song_fx, separator):
     assert feats["tracks"] == ["drums", "bass", "vocals", "other", "mix"] and feats["fps"] == 60
     assert feats["frames"] == pytest.approx(20 * 60, abs=2)
     assert len(base64.b64decode(feats["data_b64"])) == feats["frames"] * 5 * 2
+    if feats["bass_b64"]:  # v0.10.1, when fx computes the bass lane
+        assert len(base64.b64decode(feats["bass_b64"])) == feats["frames"] * 4
     again = ok(client.post(f"/api/songs/{song['id']}/stems"))
     assert again["state"] == "done" and len(separator) == 1  # cached: separated once
     ok(client.delete(f"/api/songs/{song['id']}"), 204)
@@ -2549,3 +2551,311 @@ def test_stems_job_error_names_the_missing_model(client, song_fx, monkeypatch):
     job = wait_job(client, ok(client.post(f"/api/songs/{song['id']}/stems"))["id"])
     assert job["state"] == "error" and job["error"]["code"] == "model_not_installed"
     assert job["error"]["model_id"] == "stems-htdemucs"
+
+
+# ------------------------------------------------------------------------------------------ structure + lyrics (v0.10)
+
+
+@pytest.fixture
+def structurer(monkeypatch):
+    """A stand-in for S2's song_structure: one intro and one drop at bar 5, refined (from_stems) when given stems."""
+    from fvwks_contracts.models import SongSection, SongStructure
+    calls = []
+
+    def song_structure(audio, sr, analysis, *, stems=None):
+        calls.append((analysis.bpm, sorted(stems or {})))
+        drop = analysis.downbeat_s + 4 * analysis.beats_per_bar * 60.0 / analysis.bpm
+        end = audio.shape[-1] / sr
+        return SongStructure(sections=[SongSection(kind="intro", start_s=0.0, end_s=drop, start_bar=1, energy=0.3),
+                                       SongSection(kind="drop", start_s=drop, end_s=end, start_bar=5, energy=1.0)],
+                             drops_s=[drop], from_stems=bool(stems))
+
+    monkeypatch.setattr(fx_api, "song_structure", song_structure, raising=False)
+    return calls
+
+
+def test_song_structure_after_analysis_then_refined_with_stems(client, song_fx, structurer, separator):
+    song = wait_song(client, ok(upload_song(client))["id"])
+    assert song["structure"]["drops_s"] == [pytest.approx(8.5)] and song["structure"]["from_stems"] is False
+    wait_job(client, ok(client.post(f"/api/songs/{song['id']}/stems"))["id"])
+    song = ok(client.get(f"/api/songs/{song['id']}"))
+    assert song["structure"]["from_stems"] is True and structurer[-1][1] == ["bass", "drums", "other", "vocals"]
+    ok(client.patch(f"/api/songs/{song['id']}", json={"bpm_override": 60.0}))  # a new grid: structured again
+    deadline = time.time() + 10
+    while ok(client.get(f"/api/songs/{song['id']}"))["structure"]["drops_s"] != [pytest.approx(16.5)]:
+        assert time.time() < deadline, structurer
+        time.sleep(0.02)
+
+
+def test_mash_scan_reads_cached_features_only(client, song_fx, structurer, monkeypatch):
+    from fvwks_contracts.models import MashMatch, Song
+    made = []
+
+    def mash_features(audio, sr, analysis, structure, *, vocals=None):
+        made.append(analysis.bpm)
+        return {"kind": np.zeros(1, np.int8)}
+
+    def mash_scan(request, query, library):
+        return [MashMatch(song_id=m.song_id, part="drop", start_bar=5, bars=8, score=80.0, shift_st=0, tempo_ratio=1.0)
+                for m in library if m.song_id != query.song_id]
+
+    monkeypatch.setattr(fx_api, "mash_features", mash_features, raising=False)
+    monkeypatch.setattr(fx_api, "mash_scan", mash_scan, raising=False)
+    a = wait_song(client, ok(upload_song(client))["id"])
+    b = wait_song(client, ok(upload_song(client, song_bytes(seconds=21.0), filename="song-2.wav"))["id"])
+    n = len(made)
+    res = ok(client.post("/api/mash/scan", json={"song_id": a["id"], "part": "build"}))
+    assert [m["song_id"] for m in res["matches"]] == [b["id"]] and res["missing"] == [] and len(made) == n  # cache only
+    svc, song = client.app.state.service, Song.model_validate(b)
+    svc.cache.library.cache_delete(svc._mash_key(song, svc._grid(song), song.structure))
+    res = ok(client.post("/api/mash/scan", json={"song_id": b["id"], "part": "drop"}))
+    assert res == {"matches": [], "missing": [b["id"]]}
+    deadline = time.time() + 10
+    while len(made) == n:  # the scan queued b's structure, which brings its features back
+        assert time.time() < deadline
+        time.sleep(0.02)
+
+
+def test_remix_library_crud_and_rev(client, song_fx):
+    a = wait_song(client, ok(upload_song(client))["id"])
+    res = client.post("/api/remixes", json={"recipe": "mashup", "sources": [{"slot": "A", "song_id": a["id"]}]})
+    assert res.status_code == 422  # a mashup needs B
+    remix = ok(client.post("/api/remixes", json={"recipe": "vip", "sources": [{"slot": "A", "song_id": a["id"]}], "seed": 7}))
+    assert remix["bpm"] == a["analysis"]["bpm"] and remix["rev"] == 0 and remix["name"].endswith("VIP") and remix["seed"] == 7
+    clip = {"id": "c1", "at_beat": 0, "beats": 16, "src": {"kind": "stem", "slot": "A", "stem": "drums", "start_beat": 0}}
+    lanes = [{"id": "l1", "role": "drums", "slot": "A", "clips": [clip]}]
+    remix = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 0, "lanes": lanes}))
+    assert remix["rev"] == 1 and remix["lanes"][0]["clips"][0]["audio_id"] is None
+    res = client.patch(f"/api/remixes/{remix['id']}", json={"rev": 0, "name": "stale"})
+    assert res.status_code == 409 and res.json()["error"]["code"] == "remix_conflict"
+    # a prepared clip keeps its audio when only moved; changing how it sounds drops it (the client's id is ignored)
+    svc = client.app.state.service
+    stored = svc.get_remix(remix["id"])
+    stored.lanes[0].clips[0].audio_id = "sga_prepared"
+    svc.library.update("remixes", remix["id"], info=stored.model_dump(mode="json"))
+    moved = [{**lanes[0], "clips": [{**clip, "at_beat": 32, "audio_id": "sga_forged"}]}]
+    remix = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 1, "lanes": moved, "seed": None}))
+    assert remix["lanes"][0]["clips"][0]["audio_id"] == "sga_prepared" and remix["seed"] == 7  # null seed: unchanged
+    remix = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 2, "seed": 8}))
+    assert remix["lanes"][0]["clips"][0]["audio_id"] is None and remix["seed"] == 8  # a new take prepares again
+    stored = svc.get_remix(remix["id"])
+    stored.lanes[0].clips[0].audio_id = "sga_prepared"
+    svc.library.update("remixes", remix["id"], info=stored.model_dump(mode="json"))
+    shifted = [{**lanes[0], "clips": [{**clip, "shift_st": 2}]}]
+    remix = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 3, "lanes": shifted}))
+    assert remix["lanes"][0]["clips"][0]["audio_id"] is None
+    assert [r["id"] for r in ok(client.get("/api/remixes"))] == [remix["id"]]
+    assert client.delete(f"/api/remixes/{remix['id']}").status_code == 204
+    assert client.get(f"/api/remixes/{remix['id']}").status_code == 404
+
+
+def test_remix_build_then_prepare(client, song_fx, structurer, separator):
+    a = wait_song(client, ok(upload_song(client))["id"])
+    remix = ok(client.post("/api/remixes", json={"recipe": "vip", "sources": [{"slot": "A", "song_id": a["id"]}]}))
+    deadline = time.time() + 20
+    while ok(client.get(f"/api/songs/{a['id']}"))["stems_state"] != "done":  # create started the stems
+        assert time.time() < deadline
+        time.sleep(0.02)
+    job = wait_job(client, ok(client.post(f"/api/remixes/{remix['id']}/build"))["id"])
+    assert job["kind"] == "remix_build" and job["state"] == "done", job
+    built = ok(client.get(f"/api/remixes/{remix['id']}"))
+    clips = [c for lane in built["lanes"] for c in lane["clips"]]
+    assert built["build_state"] == "done" and built["rev"] == 1 and clips and all(c["audio_id"] is None for c in clips)
+    assert [(t["seed"], t["rating"]) for t in built["takes"]] == [(0, 0)] and built["takes"][0]["style"]  # BUILD keeps the take
+    svc = client.app.state.service
+    engine, real = svc._remix_engine(), svc._remix_engine
+    split = {}
+
+    class Racing:  # M3.2: the user splits a clip (a new id, a later source offset) while PREPARE's first pass runs
+        def __getattr__(self, name):
+            return getattr(engine, name)
+
+        def run(self, remix_, sources, **kw):
+            if kw.get("stage") == "prepare" and not split:
+                cur = svc.get_remix(remix_["id"] if isinstance(remix_, dict) else remix_.id)
+                lane = next(ln for ln in cur.lanes if ln.clips and ln.clips[0].src.kind == "stem")
+                c = lane.clips[0]
+                half = c.model_copy(update={"id": "c_split", "at_beat": c.at_beat + c.beats / 2, "beats": c.beats / 2,
+                                            "src": c.src.model_copy(update={"start_beat": c.src.start_beat + c.beats / 2}),
+                                            "audio_id": None})
+                lanes = [ln.model_copy(update={"clips": [*ln.clips, half]}) if ln.id == lane.id else ln for ln in cur.lanes]
+                split["rev"] = svc.update_remix(cur.id, RemixUpdate(rev=cur.rev, lanes=lanes)).rev
+            return engine.run(remix_, sources, **kw)
+
+    svc._remix_engine = lambda: Racing()
+    try:
+        job = wait_job(client, ok(client.post(f"/api/remixes/{remix['id']}/prepare"))["id"], timeout=180)
+    finally:
+        svc._remix_engine = real
+    assert job["state"] == "done", job
+    ready = ok(client.get(f"/api/remixes/{remix['id']}"))
+    ids = [c["audio_id"] for lane in ready["lanes"] for c in lane["clips"]]
+    assert ready["rev"] == 2 and all(ids) and client.get(f"/api/audio/{ids[0]}").status_code == 200  # the split too
+    take = ready["takes"][0]  # v0.11.10: the prepared mix's loudness on the take
+    assert take["short_term_max_lufs"] is not None and take["true_peak_db"] <= 0, take
+    assert client.get(f"/api/remixes/{remix['id']}/export").status_code == 404
+    job = wait_job(client, ok(client.post(f"/api/remixes/{remix['id']}/export",
+                                          json={"formats": ["aiff", "mp3", "als"], "visuals": True}))["id"], timeout=120)
+    assert job["kind"] == "remix_export" and job["state"] == "done", job
+    out = ok(client.get(f"/api/remixes/{remix['id']}/export"))
+    assert [f["format"] for f in out["files"]] == ["aiff", "mp3"] and all(Path(f["path"]).is_file() for f in out["files"])
+    assert out["files"][0]["render_id"] == remix["id"] and out["als_path"].endswith(".als") and not out["warnings"], out
+    xml = Path(out["rekordbox_xml_path"]).read_text()  # hot cue A at the first drop, memory cues at the sections
+    assert 'Name="DROP 1"' in xml and 'Num="0"' in xml and 'Num="-1"' in xml and "<TEMPO " in xml
+    song = ok(client.get(f"/api/songs/{out['song_id']}"))  # the mixdown, on the remix grid with its drops
+    assert song["analysis"]["bpm"] == ready["bpm"] and song["structure"]["drops_s"], song["structure"]
+
+
+def test_remix_takes_feedback_and_prefs(client, song_fx):
+    a = wait_song(client, ok(upload_song(client))["id"])
+    remix = ok(client.post("/api/remixes", json={"recipe": "vip", "sources": [{"slot": "A", "song_id": a["id"]}]}))
+    svc = client.app.state.service
+    stored = svc.get_remix(remix["id"])  # two takes as BUILD records them
+    choices = [{"axis": "riddim.drums", "option": "seesaw"}, {"axis": "riddim.voice", "option": "r1"}]
+    stored.takes = [RemixTake(seed=s, style="riddim", choices=choices, created_at="2026-09-29T00:00:00Z") for s in (1, 2)]
+    svc.library.update("remixes", remix["id"], info=stored.model_dump(mode="json"))
+    assert client.post(f"/api/remixes/{remix['id']}/feedback", json={"seed": 9, "rating": 1}).status_code == 404
+    assert client.post("/api/remixes/rmx_nope/feedback", json={"seed": 1, "rating": 1}).status_code == 404
+    fb = ok(client.post(f"/api/remixes/{remix['id']}/feedback", json={"seed": 1, "rating": 1, "tags": ["love_it"]}))
+    assert fb["style"] == "riddim" and fb["choices"] == choices and fb["rating"] == 1
+    ok(client.post(f"/api/remixes/{remix['id']}/feedback", json={"seed": 2, "rating": -1, "tags": ["sounds_like_trap"]}))
+    prefs = ok(client.get("/api/remix-prefs"))["styles"]
+    counts = {(a_["axis"], o["option"]): (o["up"], o["down"]) for a_ in prefs[0]["axes"] for o in a_["options"]}
+    assert prefs[0]["style"] == "riddim" and prefs[0]["ratings"] == 2
+    assert counts == {("riddim.drums", "seesaw"): (2.0, 1.0), ("riddim.voice", "r1"): (2.0, 0.25)}  # LOVE IT 2; the tag blames drums
+    ok(client.post(f"/api/remixes/{remix['id']}/feedback", json={"seed": 2, "rating": 0}))  # withdrawn: take 2 counts no more
+    again = ok(client.get("/api/remix-prefs"))["styles"][0]
+    assert again["ratings"] == 1 and {o["option"]: (o["up"], o["down"]) for a_ in again["axes"] for o in a_["options"]} == {"seesaw": (2.0, 0.0), "r1": (2.0, 0.0)}
+    got = ok(client.get(f"/api/remixes/{remix['id']}"))
+    assert [t["rating"] for t in got["takes"]] == [1, 0] and got["rev"] == 0  # the latest rating shows; not an edit
+    # PATCH keeps the takes it lists (renamed / starred), drops the rest, and never touches style / choices / rating
+    got = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 0, "takes": [{"seed": 1, "name": "keeper", "starred": True}]}))
+    assert [(t["seed"], t["name"], t["starred"], t["rating"], t["choices"]) for t in got["takes"]] == [(1, "keeper", True, 1, choices)]
+    got = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 1, "name": "x"}))
+    assert len(got["takes"]) == 1  # takes left out (null) = unchanged
+    assert client.delete("/api/remix-prefs/riddim").status_code == 204
+    assert ok(client.get("/api/remix-prefs"))["styles"] == []
+
+
+def test_bass_knobs_reprepare_only_the_engine_bass(client, song_fx):
+    a = wait_song(client, ok(upload_song(client))["id"])
+    remix = ok(client.post("/api/remixes", json={"recipe": "vip", "sources": [{"slot": "A", "song_id": a["id"]}]}))
+    stem = {"id": "s1", "at_beat": 0, "beats": 16, "src": {"kind": "stem", "slot": "A", "stem": "drums", "start_beat": 0}}
+    bass = {"id": "b1", "at_beat": 0, "beats": 16, "src": {"kind": "groove", "slot": "A", "start_bar": 1, "bars": 4,
+                                                          "patch_id": "hybrid:tearout"}}
+    lanes = [{"id": "l1", "role": "drums", "slot": "A", "clips": [stem]}, {"id": "l2", "role": "synth_bass", "slot": "A", "clips": [bass]}]
+    ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 0, "lanes": lanes, "top_layers": ["arp"]}))
+    svc = client.app.state.service
+    stored = svc.get_remix(remix["id"])
+    for lane in stored.lanes:
+        lane.clips[0].audio_id = f"sga_{lane.id}"
+    svc.library.update("remixes", remix["id"], info=stored.model_dump(mode="json"))
+    got = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 1, "bass_macros": {"grit": 0.8}, "top_layers": None}))
+    audio = {lane["id"]: lane["clips"][0]["audio_id"] for lane in got["lanes"]}
+    assert audio == {"l1": "sga_l1", "l2": None} and got["top_layers"] == ["arp"]  # v0.11.12: null top_layers = unchanged
+    assert got["bass_macros"]["grit"] == 0.8 and got["bass_macros"]["sub"] == 0.5
+    assert all(isinstance(s_["grid"], list) for s_ in ok(client.get("/api/flip-styles")))
+
+
+def test_switching_takes_keeps_each_takes_edits(client, song_fx):
+    a = wait_song(client, ok(upload_song(client))["id"])
+    remix = ok(client.post("/api/remixes", json={"recipe": "vip", "sources": [{"slot": "A", "song_id": a["id"]}]}))
+    assert [r["id"] for r in ok(client.get("/api/remixes", params={"song_id": a["id"], "recipe": "vip"}))] == [remix["id"]]
+    assert ok(client.get("/api/remixes", params={"recipe": "mashup"})) == [] and ok(client.get("/api/remixes", params={"song_id": "sng_x"})) == []
+    svc = client.app.state.service
+    stored = svc.get_remix(remix["id"])
+    stored.takes = [RemixTake(seed=s, style="riddim", created_at="2026-09-29T00:00:00Z") for s in (0, 5)]
+    svc.library.update("remixes", remix["id"], info=stored.model_dump(mode="json"))
+    clip = {"id": "c1", "at_beat": 8, "beats": 16, "src": {"kind": "stem", "slot": "A", "stem": "drums", "start_beat": 0}}
+    edited = [{"id": "l1", "role": "drums", "slot": "A", "clips": [clip]}]
+    ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 0, "lanes": edited}))
+    got = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 1, "seed": 5}))  # switch away: take 0 keeps the edit
+    saved = {t["seed"]: t for t in got["takes"]}
+    assert saved[0]["lanes"][0]["clips"][0]["at_beat"] == 8 and saved[5]["lanes"] is None
+    got = ok(client.patch(f"/api/remixes/{remix['id']}", json={"rev": 2, "seed": 0, "lanes": []}))  # back (the doc changed)
+    job = wait_job(client, ok(client.post(f"/api/remixes/{remix['id']}/build"))["id"])  # restores, no engine run
+    got = ok(client.get(f"/api/remixes/{remix['id']}"))
+    assert job["state"] == "done" and got["lanes"][0]["clips"][0]["at_beat"] == 8 and got["build_state"] == "done"
+
+
+def test_sound_library_and_bass_dna(client, song_fx, structurer, separator):
+    patches, kits = ok(client.get("/api/patches")), ok(client.get("/api/kits"))
+    assert patches and kits and "riddim" in {s["id"] for s in ok(client.get("/api/flip-styles"))}
+    assert client.get(f"/api/audio/{kits[0]['preview_audio_id']}").status_code == 200  # rendered on first play
+    gun = next(p for p in patches if p["id"] == "voice:gun")  # v0.11.10: the designed voices, SWAP SOUND's tabs
+    assert gun["category"] == "tearout" and {"tearout", "top", "riddim", "808", "wobble"} <= {p["category"] for p in patches}
+    assert client.get(f"/api/audio/{gun['preview_audio_id']}").status_code == 200
+    fox = next(p for p in patches if p["engine"] == "foxbox" and ":" not in p["id"])
+    a = wait_song(client, ok(upload_song(client))["id"])
+    res = client.get(f"/api/songs/{a['id']}/bass/groove?start_bar=1&bars=4")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "stems_not_ready"
+    wait_job(client, ok(client.post(f"/api/songs/{a['id']}/stems"))["id"])
+    groove = ok(client.get(f"/api/songs/{a['id']}/bass/groove?start_bar=1&bars=4"))
+    assert groove["song_id"] == a["id"] and groove["bars"] == 4
+    body = {"song_id": a["id"], "start_bar": 1, "bars": 4, "patch_id": fox["id"]}
+    out = ok(client.post("/api/grooves/render", json=body))
+    assert out["sample_rate"] == 48000 and client.get(f"/api/audio/{out['audio_id']}").status_code == 200
+    assert ok(client.post("/api/grooves/render", json=body))["audio_id"] == out["audio_id"]  # cached
+    assert client.post("/api/grooves/render", json={**body, "patch_id": "nope"}).status_code == 404
+
+
+def test_song_lyrics_from_the_vocals_stem(client, song_fx, separator, monkeypatch):
+    from fvwks_server.service import LYRICS_WINDOW_S, _lyric_windows
+    heard = []
+
+    def transcribe(source):  # "hey" at 1.0-1.4 s of whatever it's given
+        heard.append(float(np.max(np.abs(source.audio))))
+        seg = source.info.segments[0].model_copy(update={"words": [Word(text="hey", start_s=1.0, end_s=1.4)]})
+        return Source(info=source.info.model_copy(update={"segments": [seg]}), audio=source.audio)
+
+    monkeypatch.setattr(voice_api, "transcribe", transcribe, raising=False)
+    monkeypatch.setattr(client.app.state.service, "_transcriber_ready", lambda: True)
+    song = wait_song(client, ok(upload_song(client))["id"])
+    res = client.get(f"/api/songs/{song['id']}/lyrics")
+    assert res.status_code == 409 and res.json()["error"]["code"] == "lyrics_not_ready"
+    wait_job(client, ok(client.post(f"/api/songs/{song['id']}/stems"))["id"])
+    job = wait_job(client, ok(client.post(f"/api/songs/{song['id']}/lyrics"))["id"])
+    assert job["kind"] == "song_lyrics" and job["state"] == "done", job
+    lyrics = ok(client.get(f"/api/songs/{song['id']}/lyrics"))
+    assert lyrics["source"] == "vocals_stem" and lyrics["words"] == [{"text": "hey", "start_s": 1.0, "end_s": 1.4}]
+    assert heard[0] < 0.2  # the vocals stem (0.2 × the song), not the mix
+    assert ok(client.get(f"/api/songs/{song['id']}"))["lyrics_state"] == "done"
+    assert ok(client.post(f"/api/songs/{song['id']}/lyrics"))["state"] == "done" and len(heard) == 1  # stored
+    x = np.ones(int(700 * 100), np.float32)  # a 700 s song (at 100 Hz here) goes in windows the transcriber takes
+    spans = _lyric_windows(x, 100)
+    assert spans[0][0] == 0 and spans[-1][1] == x.size and all(b - a <= LYRICS_WINDOW_S * 100 for a, b in spans)
+    assert all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+
+
+def test_song_lyrics_need_the_transcription_model(client, song_fx, monkeypatch):
+    monkeypatch.setattr(voice_api, "transcribe", lambda source: source, raising=False)
+    monkeypatch.setattr(client.app.state.service, "_transcriber_ready", lambda: False)
+    song = ok(upload_song(client))
+    res = client.post(f"/api/songs/{song['id']}/lyrics")
+    assert res.status_code == 503 and res.json()["error"]["code"] == "model_not_installed"
+    assert res.json()["error"]["model_id"] == "whisper-aligner"
+
+
+def test_masks_upload_list_serve_delete(client):
+    import struct
+    svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">'
+           b'<rect id="a" width="512" height="512" fill="#f40"/><use href="#a"/></svg>')
+    m = ok(client.post("/api/masks", files={"file": ("m.svg", svg, "image/svg+xml")}, data={"name": "Mine"}))
+    assert m["kind"] == "user" and m["format"] == "svg" and (m["width"], m["height"]) == (512, 512)
+    assert [x["id"] for x in ok(client.get("/api/masks"))] == [m["id"]]
+    res = client.get(f"/api/masks/{m['id']}/image")
+    assert res.headers["content-type"].startswith("image/svg+xml") and res.content == svg
+    assert res.headers["content-security-policy"] == "default-src 'none'"
+    png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + struct.pack(">II", 64, 32) + b"\x08\x06\x00\x00\x00"
+    assert ok(client.post("/api/masks", files={"file": ("p.png", png, "image/png")}, data={"name": "P"}))["width"] == 64
+    bad = [svg.replace(b"<rect", b"<script>alert(1)</script><rect"), svg.replace(b'fill="#f40"', b'onload="x()"'),
+           svg.replace(b'href="#a"', b'href="https://example.test/x.svg"'), svg.replace(b'fill="#f40"', b'fill="url(https://x.test/a)"'),
+           svg.replace(b"<use", b"<foreignObject><div/></foreignObject><use"),
+           b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "b">]><svg xmlns="http://www.w3.org/2000/svg"/>',
+           png.replace(struct.pack(">II", 64, 32), struct.pack(">II", 5000, 32)), b"GIF89a....."]
+    for data in bad:
+        res = client.post("/api/masks", files={"file": ("x", data, "application/octet-stream")}, data={"name": "x"})
+        assert res.status_code == 400 and res.json()["error"]["code"] == "invalid_mask", data[:60]
+    assert client.delete(f"/api/masks/{m['id']}").status_code == 204
+    assert client.get(f"/api/masks/{m['id']}/image").status_code == 404
+    assert client.get("/api/masks/fox/image").status_code == 404  # built-ins are the app's

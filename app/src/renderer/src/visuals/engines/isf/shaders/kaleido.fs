@@ -77,14 +77,14 @@ float fbm(vec2 p) {
 }
 void main() {
   vec2 p = (gl_FragCoord.xy - 0.5 * RENDERSIZE) / min(RENDERSIZE.x, RENDERSIZE.y);
-  float seg = 6.0 + floor(high * 6.0) * 2.0;
+  float seg = 6.0 + floor(high * 6.0) * 2.0 + floor(buildProgress * 4.0) * 2.0;  // more mirrors as it builds
   float a = atan(p.y, p.x);
   float r = length(p);
   float k = 6.28318 / seg;
   a = abs(mod(a, k) - 0.5 * k);
-  vec2 q = vec2(cos(a), sin(a)) * r * 3.0 + vec2(TIME * 0.15, 0.0);
+  vec2 q = vec2(cos(a), sin(a)) * r * 3.0 + vec2(TIME * 0.15 + 0.1 * sin(6.28318 * bassWobblePhase) * bassWobble, 0.0);
   float n = fbm(q + fbm(q + TIME * 0.1));
   vec3 col = mix(accentColor.rgb, amberColor.rgb, n);
-  col = mix(col, inkColor.rgb, smoothstep(0.7, 0.9, n) * onset);
+  col = mix(col, inkColor.rgb, smoothstep(0.7, 0.9, n) * max(onset, dropEnergy));
   gl_FragColor = vec4(mix(bgColor.rgb, col, smoothstep(0.25, 0.8, n) * (0.5 + rms)), 1.0);
 }

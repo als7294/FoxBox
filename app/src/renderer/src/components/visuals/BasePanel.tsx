@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CameraControls } from '@/components/camera/CameraControls'
 import { Segmented } from '@/components/rack/Segmented'
 import { useVisuals } from '@/state/visuals'
 import type { BaseKind } from '@/visuals/live/compositor'
@@ -96,6 +97,7 @@ export function BasePanel() {
           </div>
         </div>
       )}
+      {base.kind === 'camera' && <CameraControls />}
       <input
         ref={photo}
         type="file"

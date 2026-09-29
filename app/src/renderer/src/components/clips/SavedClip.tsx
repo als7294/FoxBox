@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { bridge } from '@/env'
+import { hideHome } from '@/lib/paths'
 import { toast } from '@/state/toasts'
 import common from '@/components/common/common.module.css'
 import styles from '@/components/output/output.module.css'
@@ -56,7 +57,7 @@ export function SavedClip({ blob, name }: { blob: Blob; name: string }) {
         <span className={styles.grip} aria-hidden="true">
           ⠿
         </span>
-        <span className={styles.clipName} title={path ?? name}>
+        <span className={styles.clipName} title={path ? hideHome(path) : name}>
           {file}
         </span>
         <span className={styles.mono}>{path ? `CLIPS · MP4 · ${mb}` : 'SAVING…'}</span>

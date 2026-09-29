@@ -33,6 +33,30 @@ export const CALM_PRESETS: readonly string[] = [
   'flexi-smashing-fractals-acid-etching-mix',
 ]
 
+/**
+ * Drops (1.5): the presets with the most motion under a hard beat, measured the same way: each of the 100 rendered
+ * for 2.5 s against a 140 BPM kick; these move 2–7× the median preset per frame, are lit (≥ 18 % mean brightness) and
+ * never jump more than 30 % in brightness from one frame to the next (the two flashiest movers are left out).
+ */
+export const HIGH_ENERGY_PRESETS: readonly string[] = [
+  'geiss-flexi-stahlregen-thumbdrum-tokamak-crossfiring-afterma',
+  'cope-martin-mother-of-pearl',
+  'flexi-amandio-c-organic12-3d-2',
+  'mig-049',
+  'martin-charisma',
+  'royal-mashup-431',
+  'tonymilkdrop-leonardo-da-vinci-s-balloon-flexi-merry-go-roun',
+  'geiss-reaction-diffusion-2',
+  'aderrasi-storm-of-the-eye-thunder-mash0000-quasi-pseudo-meta',
+  'flexi-patternton-district-of-media-capitol-of-the-united-abs',
+  'suksma-vector-exp-1-couldn-t-not',
+  'martin-acid-wiring',
+  'orb-waaa',
+  'martin-reflections-on-black-tiles',
+  'martin-another-kind-of-groove',
+  'geiss-desert-rose-2',
+]
+
 const FAV_KEY = 'foxbox.milkdrop.favourites'
 const favListeners = new Set<() => void>()
 let loading: Promise<MilkdropPreset[]> | null = null
@@ -40,6 +64,11 @@ let loading: Promise<MilkdropPreset[]> | null = null
 export function slugify(name: string): string {
   return name.toLowerCase().replace(/\.milk$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'preset'
 }
+
+/** The name FoxBox shows: the pack's name without its sort-hack prefixes ('_Geiss - …', '$$$ Royal - …'). Slugs keep the raw name. */
+export const presetLabel = (raw: string): string => raw.replace(/\.milk$/, '').replace(/^[_$\s]+/, '').replace(/\s+/g, ' ')
+/** Whether the pickers list a preset (one has a crude title); a saved scene that uses it still loads it by slug. */
+export const isListed = (p: MilkdropPreset): boolean => !/\bmucus\b/i.test(p.name)
 
 /** The pack, loaded once, on first use (it's ~1 MB of JS, split into its own chunk). */
 export function loadPresets(): Promise<MilkdropPreset[]> {
@@ -55,7 +84,7 @@ export function loadPresets(): Promise<MilkdropPreset[]> {
         const e = eqs.default[name]!
         return {
           slug,
-          name: name.replace(/\.milk$/, ''),
+          name: presetLabel(name),
           data: {
             ...data,
             init_eqs: e.i,
@@ -101,6 +130,6 @@ export function onFavouritesChange(cb: () => void): () => void {
 export function searchPresets(presets: MilkdropPreset[], query: string, fav = favourites()): MilkdropPreset[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   return presets
-    .filter((p) => words.every((w) => p.name.toLowerCase().includes(w)))
+    .filter((p) => isListed(p) && words.every((w) => p.name.toLowerCase().includes(w)))
     .sort((a, b) => Number(fav.has(b.slug)) - Number(fav.has(a.slug)))
 }

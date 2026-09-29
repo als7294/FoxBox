@@ -5,8 +5,13 @@
  * share of the mix when a song plays); the song drives the backdrop around it: a glow that breathes with its lows and
  * rings that ripple out on its kicks, wider on a new bar, and a surge on the drop. The voice's onsets add a touch of
  * chromatic aberration from the sphere's centre. The particles stay 1:1 with the canvas, so they stay crisp.
+ *
+ * Song structure (structure.ts): up a build the core draws in, the rings quicken and the light heats; the held breath
+ * stops the rings and dims; the drop hit blows the core out with a ring in ice. A held sub holds a halo round the core
+ * for the note's length (spreading as it holds), a stab sends a quick ring, a wobble breathes the glow, a glide turns
+ * the hue.
  */
-import { CanvasTexture, LinearFilter, SRGBColorSpace, Vector2 } from 'three'
+import { CanvasTexture, LinearFilter, SRGBColorSpace, Vector2, Vector3 } from 'three'
 import { liveParam } from '@/components/signal/VoiceCore'
 import { useStudio } from '@/state/studio'
 import { coreLayout, drawCore } from '@/visuals/core'
@@ -16,6 +21,7 @@ import { makePost, makeRenderer } from '../post'
 import type { AudioFrame, StyleInstance, StyleOptions, VisualStyle } from '../registry'
 import { Cues, ease, songBands } from './audioKit'
 import { disposeScenes, paletteUniforms, quadCamera, quadMaterial, quadScene } from './feedback'
+import { GRADE_GLSL, Structure } from './structure'
 
 /** The most rings in flight at once. */
 const RINGS = 6
@@ -30,31 +36,45 @@ uniform float uGlow;
 uniform float uLow;
 uniform float uRingR[${RINGS}];
 uniform float uRingA[${RINGS}];
+uniform float uZoom;
+uniform float uHoldR;
+uniform float uHoldA;
+uniform float uFlip;
+uniform vec3 uGrade;
 uniform vec3 uBg;
 uniform vec3 uAccent;
 uniform vec3 uAmber;
+uniform vec3 uInk;
+uniform vec3 uIce;
 varying vec2 vUv;
+${GRADE_GLSL}
 void main() {
   vec2 d = (vUv - uCenter) * uRes;
   float r = length(d) / uR;
   // The song's backdrop: a glow that breathes with its lows, and the rings its kicks send out.
-  vec3 col = uBg + uAccent * exp(-r * r * 0.7) * (0.01 + 0.035 * uLow + 0.08 * uGlow);
+  vec3 col = uAccent * exp(-r * r * 0.7) * (0.01 + 0.035 * uLow + 0.08 * uGlow);
+  // The rings take ice at the drop hit.
+  vec3 ringCol = mix(mix(uAccent, uAmber, 0.35), mix(uIce, uInk, 0.4), uFlip);
   for (int i = 0; i < ${RINGS}; i++) {
     float a = uRingA[i];
     if (a > 0.002) {
       float w = 0.006 + 0.014 * max(0.0, uRingR[i] - 1.0);
-      col += mix(uAccent, uAmber, 0.35) * exp(-pow((r - uRingR[i]) / w, 2.0)) * a * 0.3;
+      col += ringCol * exp(-pow((r - uRingR[i]) / w, 2.0)) * a * 0.3;
     }
   }
-  // The core (premultiplied), split a little along the radius on the voice's onsets.
-  vec4 c = texture2D(uCore, vUv);
+  // A held sub: a steady halo, spreading as the note holds.
+  if (uHoldA > 0.002) col += mix(uAccent, uAmber, 0.6) * exp(-pow((r - uHoldR) / 0.05, 2.0)) * uHoldA * 0.3;
+  // The core (premultiplied), scaled about its centre (a build draws it in, the hit blows it out), split a little along
+  // the radius on the voice's onsets.
+  vec2 uv = uCenter + (vUv - uCenter) / uZoom;
+  vec4 c = texture2D(uCore, uv);
   if (uAb > 0.0001) {
-    vec2 dir = (vUv - uCenter) * uAb;
-    c.r = texture2D(uCore, vUv + dir).r;
-    c.b = texture2D(uCore, vUv - dir).b;
+    vec2 dir = (uv - uCenter) * uAb;
+    c.r = texture2D(uCore, uv + dir).r;
+    c.b = texture2D(uCore, uv - dir).b;
   }
   col = col * (1.0 - c.a) + c.rgb;
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(uBg * (1.0 - c.a) + grade(col, uGrade), 1.0);
 }
 `
 
@@ -94,6 +114,11 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uLow: { value: 0 },
     uRingR: { value: ringR },
     uRingA: { value: ringA },
+    uZoom: { value: 1 },
+    uHoldR: { value: 1.12 },
+    uHoldA: { value: 0 },
+    uFlip: { value: 0 },
+    uGrade: { value: new Vector3(0, 0, 1) },
   }
   const { scene } = quadScene(quadMaterial(SHOW_FRAG, u))
   const post = makePost(renderer, scene, cam, opts, { bloom: 0.9, grain: 0.16, vignette: 0.6 })
@@ -102,6 +127,8 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   const sm = new Float32Array(64)
   const bins = new Uint8Array(512)
   const cues = new Cues(opts.reduced)
+  const st = new Structure(opts.reduced)
+  let stab = 0
   const rings: { age: number; k: number }[] = []
   let now = 0
   let beat = -1
@@ -118,6 +145,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       const step = Math.min(100, Math.max(0, dt))
       now += step
       cues.step(a, step)
+      st.step(a, step)
       if (a.active && a.beatPhase < lastPhase - 0.5) beat++
       lastPhase = a.beatPhase
       if (!a.active) beat = -1
@@ -160,16 +188,24 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       })
       tex.needsUpdate = true
       const L = lay ?? coreLayout(w / 2, h / 2)
+      // The core's scale: drawn in up a build, blown out at the hit, a touch larger through a held sub.
+      const zoom = st.zoom * (1 - 0.15 * st.tension) * (1 + 0.25 * st.burst + 0.05 * st.subHold)
       u.uCenter.value.set(L.cx / (w / 2), 1 - L.cy / (h / 2))
-      u.uR.value = L.r * 2
+      u.uR.value = L.r * 2 * zoom
+      u.uZoom.value = zoom
 
-      // The song's rings: out on each kick, a wider one on a new bar, a big one on the drop.
+      // The song's rings: out on each kick (bigger in the drop), a wider one on a new bar, a big one on the drop; a bass
+      // stab sends a quick one.
       const kick = a.song ? a.song.onset : a.onset
-      if (cues.dropStart) ring(1.6)
+      const stabbed = st.stab > stab + 0.3
+      stab = st.stab
+      if (cues.dropStart || (st.hit && cues.drop < 0.5)) ring(1.6)
       else if (cues.newBar) ring(1)
-      else if (a.active && kick >= 1) ring(0.35 * Math.min(1.5, kick))
+      else if (a.active && kick >= 1) ring(0.35 * Math.min(1.5, kick) * st.intensity * (1 + 0.6 * st.groove))
+      else if (stabbed) ring(0.5 * st.stab * st.intensity)
       const speed = opts.reduced ? 0.5 : 1.3
-      for (const r of rings) r.age += step / 1000
+      // Structure's time: the held breath stops the rings, half-time slows them, a build quickens them.
+      for (const r of rings) r.age += (step / 1000) * st.timeScale
       while (rings.length && rings[0]!.age > 2.5) rings.shift()
       ringR.fill(0)
       ringA.fill(0)
@@ -179,9 +215,13 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       })
       low = ease(low, a.active ? songBands(a).low : 0, step, 120)
       u.uLow.value = low
-      u.uGlow.value = Math.max(cues.kick * 0.5, cues.drop)
+      u.uGlow.value = Math.max(cues.kick * 0.5, cues.drop, 0.35 * st.wobble, 0.6 * st.burst)
+      u.uHoldA.value = st.subHold
+      u.uHoldR.value = 1.12 + 0.3 * st.subStretch
+      u.uFlip.value = 0.75 * st.burst
+      u.uGrade.value.set(st.heat, st.hue, st.gain)
       u.uAb.value = opts.reduced ? 0 : 0.0025 * cues.voice + 0.004 * cues.drop
-      post.render(dt, Math.min(1, voiceLvl * 0.5 + cues.voice * 0.25 + cues.drop * 0.8))
+      post.render(dt, Math.min(1, voiceLvl * 0.5 + cues.voice * 0.25 + cues.drop * 0.8 + 0.5 * st.burst))
     },
     resize(width: number, height: number) {
       w = Math.max(1, Math.round(width))
@@ -198,6 +238,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       disposeScenes(scene)
       renderer.dispose()
     },
+    setParams: (p) => st.setParams(p),
   }
 }
 

@@ -43,15 +43,38 @@ from pydantic import ValidationError
 from fvwks_contracts.models import (
     DEFAULT_LEXICON,
     Arrange,
+    BassGroove,
+    BassPatch,
     BatchRequest,
     Chain,
+    DrumKit,
     ExportedFile,
     ExportRequest,
     ExportResult,
+    FlipStyle,
+    GrooveRenderRequest,
+    GrooveRenderResult,
     Health,
     Job,
     Lexicon,
     LibraryPage,
+    MashMatch,
+    MashScanRequest,
+    MashScanResult,
+    Remix,
+    RemixClip,
+    RemixCreate,
+    RemixExportRequest,
+    RemixExportResult,
+    RemixBuildRequest,
+    RemixLane,
+    RemixPrefs,
+    RemixPrefsResult,
+    RemixTake,
+    RemixUpdate,
+    TakeChoice,
+    TakeFeedback,
+    TakeFeedbackCreate,
     MacroMap,
     Macros,
     Master,
@@ -73,10 +96,15 @@ from fvwks_contracts.models import (
     ScriptPreviewSegment,
     SegmentFlags,
     Settings,
+    Segment,
     Song,
+    SongLyrics,
     SongStem,
+    SongStructure,
+    SongWord,
     StemFeatures,
     SongAnalysis,
+    SongSection,
     SongPlacement,
     SongUpdate,
     SourceInfo,
@@ -87,18 +115,20 @@ from fvwks_contracts.models import (
     TTSRequest,
     Voice,
 )
-from fvwks_contracts.audio import STANDARD_BARS
-from fvwks_contracts.seam import RenderOutput, Source
+from fvwks_contracts.audio import STANDARD_BARS, resample
+from fvwks_contracts.seam import ENGINE_SR, MashFeatures, RenderOutput, Source
 from fvwks_fx import api as fx
 from fvwks_voice import api as voice
 
 from . import manifest as model_manifest
+from . import takes as take_weights
 from . import writer
 from .audio_io import AudioStore, as_channels_first, peaks, sweep_partials
 from .config import VERSION, Config
 from .errors import ApiException, NotFound
 from .jobs import DONE, ERROR, JobCancelled, JobContext, JobRunner, error_payload
 from .library import ArtifactCache, Library, audio_hash, new_id, request_hash, utcnow
+from .masks import MaskStore
 from .music import key_name
 from .rekordbox import RekordboxOptions, RekordboxTrack, write_rekordbox_xml
 
@@ -115,6 +145,9 @@ GATE_FOR_ENGINE = {"kokoro": "kokoro", "qwen3": "persona", "asr": "aligner", "de
                    "demucs": "stems", "stems": "stems"}  # ModelInfo.engine
 STEM_TRACKS = ("drums", "bass", "vocals", "other")  # v0.9 STEM_NAMES, in order
 STEM_FPS = 60.0
+REMIX_SR = 48_000  # prepared remix clips and mixdowns
+LYRICS_WINDOW_S = 240.0  # v0.10: the transcriber takes up to 5 minutes at a time; longer songs go in windows
+LYRICS_SEEK_S = 40.0  # each window ends at the quietest half second of its last LYRICS_SEEK_S
 _SYSTEM_DIRS = tuple(Path(p) for p in ("/System", "/usr", "/bin", "/sbin", "/etc", "/dev", "/private/etc",
                                        "/Library", "/Applications", "/cores"))
 FALLBACK_MODELS = [
@@ -304,17 +337,26 @@ class EngineService:
         self._manifest = self._load_manifest()  # the last signed model-update manifest (P9)
         # v0.7 songs: the user's own tracks, kept at their own rate under <data>/songs/, apart from engine audio
         self.song_audio = AudioStore(config.data_dir, folder="songs")
+        self.masks = MaskStore(config.data_dir)  # v0.11.6 camera face masks
         self._songs: _LRU = _LRU(1)  # song id → (audio, sr); a decoded 15-minute song is ~300 MB
         self._song_lock = threading.Lock()  # read-modify-write of song rows (analysis job vs PATCH)
+        self._remix_lock = threading.Lock()  # read-modify-write of remix rows (jobs vs PATCH)
+        self._previews: dict[str, tuple[str, str]] = {}  # pvw_ audio id → (patch | kit, id); fvwks_synth renders it
+        if synth := _synth():
+            synth.bass.configure(self.config.data_dir / "synth")  # Surge's own folders stay in the engine's data
         # fx keeps its WORLD analyses in memory, so none survive a restart (and a job killed mid-way left its row
         # "queued"/"running"): start every source at "none" and analyse again on first use.
         self.library.reset_analysis_states()
         self.library.reset_transcript_states()  # transcripts are stored; only unfinished jobs start over
         for song_id in self.library.unfinished_song_analyses():  # song analyses are stored too
             self._queue_song_analysis(song_id)
-        for row in self.library.select("songs"):  # a separation the last process never finished: ask again
+        for row in self.library.select("songs"):  # a separation or transcription never finished: ask again
             if row["info"].get("stems_state") in ("queued", "running"):
                 self._set_song(row["id"], stems_state="none")
+            if row["info"].get("lyrics_state") in ("queued", "running"):
+                self._set_song(row["id"], lyrics_state="none")
+            if row["analysis_state"] == "done" and not row["info"].get("structure"):  # analysed before v0.10
+                self._queue_structure(row["id"])
 
     def close(self, timeout: float = 3.0) -> bool:
         """Stop the engine: cancel background jobs and start-up work, wait up to ``timeout`` s for them (so no worker
@@ -1532,6 +1574,8 @@ class EngineService:
         updated = self._set_song(song_id, **update)
         if updated is None:
             raise NotFound("song", song_id)
+        if {"bpm_override", "downbeat_override_s"} & set(update) and updated.analysis is not None:
+            self._queue_structure(song_id)  # the sections sit on the song's grid
         return updated
 
     def delete_song(self, song_id: str) -> None:
@@ -1542,9 +1586,10 @@ class EngineService:
         for job in self.jobs.list(kind="song_analysis", active_only=True):
             if job.meta.get("song_id") == song_id:
                 self.jobs.cancel(job.id)
-        for job in self.jobs.list(kind="song_stems", active_only=True):
-            if job.meta.get("song_id") == song_id:
-                self.jobs.cancel(job.id)
+        for kind in ("song_stems", "song_lyrics"):
+            for job in self.jobs.list(kind=kind, active_only=True):
+                if job.meta.get("song_id") == song_id:
+                    self.jobs.cancel(job.id)
         for mix in self.library.select("mixes", "song_id = ?", (song_id,)):
             self._drop_mix(mix)
         self.library.delete("songs", [song_id])
@@ -1595,8 +1640,10 @@ class EngineService:
             data, frames = self._compute_features(song, stems, mix, sr)
         else:
             frames = int(cached["meta"].get("frames", 0))
+        size = frames * (len(STEM_TRACKS) + 1) * 2  # v0.10.1: the bass lane (4 bytes a frame) follows, when fx made one
         return StemFeatures(song_id=song_id, fps=STEM_FPS, frames=frames, tracks=[*STEM_TRACKS, "mix"],
-                            data_b64=base64.b64encode(data).decode("ascii"))
+                            data_b64=base64.b64encode(data[:size]).decode("ascii"),
+                            bass_b64=base64.b64encode(data[size:]).decode("ascii"))
 
     def _stems_key(self, song_row: dict[str, Any]) -> str:
         engine = str(getattr(voice, "STEMS_ENGINE", "") or self.voice_salt)
@@ -1620,6 +1667,12 @@ class EngineService:
         if data.ndim != 3 or data.shape[1:] != (len(STEM_TRACKS) + 1, 2) or list(out.tracks) != [*STEM_TRACKS, "mix"]:
             raise ApiException(500, "stems_failed", f"Stem features came back as {data.shape} for {list(out.tracks)}.")
         raw = data.tobytes()
+        bass = getattr(out, "bass", None)  # v0.10.1: (frames, 4) uint8, documented on StemFeatures.bass_b64
+        if bass is not None:
+            bass = np.ascontiguousarray(bass, dtype=np.uint8)
+            if bass.shape != (data.shape[0], 4):
+                raise ApiException(500, "stems_failed", f"Bass features came back as {bass.shape}.")
+            raw += bass.tobytes()
         self.cache.put_bytes("stem_features", self._features_key(song), raw, artifact_id=song.id,
                              meta={"frames": int(data.shape[0])})
         return raw, int(data.shape[0])
@@ -1628,6 +1681,7 @@ class EngineService:
         row = self.library.get("songs", song_id)
         if row is None or self._set_song(song_id, stems_state="running") is None:
             return None  # deleted while queued
+        audio, sr, checked = None, 0, {}
         try:
             key = self._stems_key(row)
             hit = self.cache.lookup(key)
@@ -1676,7 +1730,15 @@ class EngineService:
         except Exception:
             self._set_song(song_id, stems_state="error")
             raise
-        if self._set_song(song_id, stems_state="done", stems=[SongStem(name=n, audio_id=ids[n]) for n in STEM_TRACKS]) is None:
+        stems = [SongStem(name=n, audio_id=ids[n]) for n in STEM_TRACKS]
+        update: dict[str, Any] = {"stems_state": "done", "stems": stems}
+        song = self._song(self.library.get("songs", song_id) or row).model_copy(update={"stems": stems})
+        if song.structure is None or not song.structure.from_stems:  # v0.10: drums and bass mark the drops
+            ctx.progress(0.96, "Song structure")
+            structure = self._structure(song, audio, sr, checked or None)
+            if structure is not None:
+                update["structure"] = structure
+        if self._set_song(song_id, **update) is None:
             return None
         return {"song_id": song_id}
 
@@ -1728,8 +1790,693 @@ class EngineService:
         except Exception:
             self._set_song(song_id, analysis_state="error")
             raise
-        self._set_song(song_id, analysis_state="done", analysis=analysis)
+        row = self.library.get("songs", song_id)
+        if row is None:
+            return None
+        song = self._song(row).model_copy(update={"analysis": analysis})
+        structure = self._structure(song, audio, sr, None, with_stems=song.stems_state == "done")
+        self._set_song(song_id, analysis_state="done", analysis=analysis,
+                       **({"structure": structure} if structure is not None else {}))
         return {"song_id": song_id}
+
+    # -- structure and lyrics (v0.10, SMART VISUALS) ------------------------------------------------------------
+
+    def _structure(self, song: Song, audio: np.ndarray | None, sr: int, stems: dict[str, np.ndarray] | None,
+                   *, with_stems: bool = True) -> SongStructure | None:
+        """S2's sections, drops and phrases on the song's grid (the user's BPM and bar 1 when set), refined with the
+        stems when there are any. None without the hook, or when it fails: a song without a structure still plays,
+        mixes and exports."""
+        make = getattr(fx, "song_structure", None)
+        if not callable(make) or song.analysis is None:
+            return None
+        grid = self._grid(song)
+        try:
+            if audio is None:
+                audio, sr = self._song_audio(song.id)
+            if stems is None and with_stems and song.stems:
+                stems = {s.name: self._load_stem(s.audio_id)[0] for s in song.stems}
+            with self._fx_background:
+                structure = SongStructure.model_validate(make(audio, sr, grid, stems=stems or None))
+                self._cache_mash(song, grid, structure, audio, sr, (stems or {}).get("vocals"))
+            return structure
+        except Exception:  # noqa: BLE001
+            log.exception("song structure failed for %s", song.id)
+            return None
+
+    @staticmethod
+    def _grid(song: Song) -> SongAnalysis:
+        """The song's analysis with the user's BPM and bar 1, when set."""
+        return song.analysis.model_copy(update={k: v for k, v in (("bpm", song.bpm_override),
+                                                                 ("downbeat_s", song.downbeat_override_s)) if v is not None})
+
+    def _queue_structure(self, song_id: str) -> None:
+        """Structure an analysed song again (analysed before v0.10, or its grid changed)."""
+        if callable(getattr(fx, "song_structure", None)):
+            self.jobs.submit("song_analysis", self._restructure, song_id, lane="songs",
+                             dedupe_key=f"song_structure:{song_id}", meta={"song_id": song_id}, retain=False)
+
+    def _restructure(self, ctx: JobContext, song_id: str) -> dict[str, Any] | None:
+        row = self.library.get("songs", song_id)
+        if row is None:
+            return None
+        song = self._song(row)
+        ctx.check()
+        structure = self._structure(song, None, 0, None, with_stems=song.stems_state == "done")
+        if structure is not None:
+            self._set_song(song_id, structure=structure)
+        return {"song_id": song_id}
+
+    # -- MASH RADAR (v0.11.3, REMIX) -----------------------------------------------------------------------------
+
+    def _mash_key(self, song: Song, grid: SongAnalysis, structure: SongStructure) -> str:
+        vocals = next((s.audio_id for s in song.stems if s.name == "vocals"), None)
+        return request_hash("mash_features", {"audio": song.audio_id, "grid": grid.model_dump(mode="json"),
+                                              "structure": structure.model_dump(mode="json"), "vocals": vocals},
+                            salt=self.fx_salt)
+
+    def _cache_mash(self, song: Song, grid: SongAnalysis, structure: SongStructure, audio: np.ndarray, sr: int,
+                    vocals: np.ndarray | None) -> None:
+        """S2's per-part MASH RADAR features, cached next to the song whenever its structure is computed (analysis,
+        stems, a grid change): a scan only ever reads this cache."""
+        make = getattr(fx, "mash_features", None)
+        if not callable(make):
+            return
+        try:
+            feats = make(audio, sr, grid, structure, vocals=vocals)
+            self.cache.put_arrays("mash_features", self._mash_key(song, grid, structure), feats, artifact_id=song.id)
+        except Exception:  # noqa: BLE001
+            log.exception("mash features failed for %s", song.id)
+
+    def _mash_cached(self, song: Song) -> dict[str, np.ndarray] | None:
+        if song.analysis is None or song.structure is None:
+            return None
+        return self.cache.get_arrays(self._mash_key(song, self._grid(song), song.structure))
+
+    def mash_scan(self, req: MashScanRequest) -> MashScanResult:
+        """POST /mash/scan (synchronous): the other songs' parts that fit one part of this song, from cached features
+        only. Songs without them are listed in `missing` and queued (the features come with their structure)."""
+        scan = getattr(fx, "mash_scan", None)
+        if not callable(scan) or not callable(getattr(fx, "mash_features", None)):
+            raise ApiException(501, "not_implemented", "MASH RADAR arrives with the sound engine's REMIX update.")
+        self.get_song(req.song_id)  # 404
+        library: list[MashFeatures] = []
+        missing: list[str] = []
+        for row in self.library.select("songs", order=""):
+            song = self._song(row)
+            feats = self._mash_cached(song)
+            if feats is None:
+                missing.append(song.id)
+                if song.analysis_state == "done":
+                    self._queue_structure(song.id)
+                continue
+            library.append(MashFeatures(song_id=song.id, analysis=self._grid(song), structure=song.structure, feats=feats))
+        query = next((m for m in library if m.song_id == req.song_id), None)
+        if query is None:
+            return MashScanResult(missing=missing)
+        return MashScanResult(matches=[MashMatch.model_validate(m, from_attributes=True) for m in scan(req, query, library)],
+                              missing=missing)
+
+    # -- REMIX (v0.11, 1.6): the arrangement library ---------------------------------------------------------------
+
+    def create_remix(self, req: RemixCreate) -> Remix:
+        """POST /remixes: a new remix of song A (and B for a mashup) at A's tempo and key, empty until built. The
+        recipes cut stems, so separating them starts now for sources that have none."""
+        slots = sorted(s.slot for s in req.sources)  # (a mashup's `mash` is B's part LINE IT UP chose)
+        if slots != (["A", "B"] if req.recipe == "mashup" else ["A"]):
+            raise ApiException(422, "invalid_request", "A mashup takes songs A and B; VIP and FLIP take song A only.")
+        songs = {s.slot: self.get_song(s.song_id) for s in req.sources}
+        a = songs["A"]
+        grid = self._grid(a) if a.analysis else None
+        now = utcnow()
+        remix = Remix(id=new_id("rmx"), name=(req.name or "").strip() or f"{a.name} {req.recipe.upper()}", recipe=req.recipe,
+                      sources=req.sources, bpm=grid.bpm if grid else 140.0, key=a.key_override or (grid.key if grid else None),
+                      mash=req.mash, seed=req.seed, created_at=now, updated_at=now)
+        self.library.insert("remixes", id=remix.id, name=remix.name, created_at=now, info=remix.model_dump(mode="json"))
+        for song in songs.values():
+            if song.stems_state in ("none", "error"):
+                try:
+                    self.request_stems(song.id)  # its structure (and MASH features) come again with the stems
+                except ApiException:  # no separator in this engine: BUILD says so
+                    pass
+            elif song.analysis_state == "done" and self._mash_cached(song) is None:
+                self._queue_structure(song.id)
+        return remix
+
+    def list_remixes(self, song_id: str | None = None, recipe: str | None = None) -> list[Remix]:
+        """GET /remixes, optionally only those of one song (in any slot) and / or recipe (v0.11.9: RESUME)."""
+        remixes = [Remix.model_validate(r["info"]) for r in self.library.select("remixes")]
+        return [r for r in remixes if (song_id is None or any(s.song_id == song_id for s in r.sources))
+                and (recipe is None or r.recipe == recipe)]
+
+    def get_remix(self, remix_id: str) -> Remix:
+        row = self.library.get("remixes", remix_id)
+        if row is None:
+            raise NotFound("remix", remix_id)
+        return Remix.model_validate(row["info"])
+
+    def update_remix(self, remix_id: str, body: RemixUpdate) -> Remix:
+        """PATCH: the whole arrangement at the rev it was edited from (a stale rev is 409, so edits never overwrite
+        each other). A clip keeps its prepared audio only while it sounds the same."""
+        fields = body.model_fields_set - {"rev"}
+        required = {"name", "bpm", "sections", "lanes", "seed", "takes", "top_layers"}  # null there: unchanged; elsewhere clears
+        update = {k: getattr(body, k) for k in fields if not (k in required and getattr(body, k) is None)}
+        with self._remix_lock:
+            cur = self.get_remix(remix_id)
+            if body.rev != cur.rev:
+                raise ApiException(409, "remix_conflict", "This remix changed since it was loaded.",
+                                   hint="Reload it, then edit again.")
+            if "takes" in update:  # the takes to keep: renamed / starred; a seed left out goes; the rest stays as BUILD made it
+                keep = {e.seed: e for e in update["takes"]}
+                update["takes"] = [t.model_copy(update={"name": keep[t.seed].name, "starred": keep[t.seed].starred})
+                                   for t in cur.takes if t.seed in keep]
+            if update.get("seed", cur.seed) != cur.seed:  # v0.11.9: switching takes saves the one on screen, edits and all
+                shown = cur.model_copy(update={k: update[k] for k in ("sections", "lanes") if k in update})
+                saved = {"sections": shown.sections, "lanes": _keep_prepared(cur, shown)}
+                update["takes"] = [t.model_copy(update=saved) if t.seed == cur.seed else t for t in update.get("takes", cur.takes)]
+            new = cur.model_copy(update=update)
+            new = Remix.model_validate({**new.model_dump(), "lanes": _keep_prepared(cur, new), "rev": cur.rev + 1,
+                                        "updated_at": utcnow()})
+            self.library.update("remixes", remix_id, name=new.name, info=new.model_dump(mode="json"))
+            return new
+
+    def _remix_engine(self):
+        try:
+            from fvwks_fx import remix as engine
+        except ImportError:
+            raise ApiException(501, "not_implemented", "REMIX arrives with the sound engine's 1.6 update.") from None
+        return engine
+
+    def _remix_sources(self, remix: Remix) -> dict[str, Any]:
+        """slot → SongInput (the song with its analysis and structure, its four stems at their rate)."""
+        engine = self._remix_engine()
+        out = {}
+        for src in remix.sources:
+            song = self.get_song(src.song_id)
+            if song.analysis is None or song.structure is None:
+                raise ApiException(409, "song_not_ready", f"{song.name} is still being analysed.",
+                                   hint="Try again once its analysis is done.", retryable=True)
+            if song.stems_state != "done" or not song.stems:
+                running = song.stems_state in ("queued", "running")
+                raise ApiException(409, "stems_not_ready", f"{song.name}'s stems are still being separated." if running
+                                   else f"{song.name} has no stems yet.", hint=None if running else "Separate its stems first.",
+                                   retryable=running)
+            loaded = {s.name: self._load_stem(s.audio_id) for s in song.stems}
+            sr = next(iter(loaded.values()))[1]
+            out[src.slot] = engine.SongInput(song=song.model_copy(update={"analysis": self._grid(song)}),
+                                             stems={k: a for k, (a, _) in loaded.items()}, sr=sr)
+        return out
+
+    def _set_remix(self, remix_id: str, bump: bool = False, **update: Any) -> Remix | None:
+        with self._remix_lock:
+            row = self.library.get("remixes", remix_id)
+            if row is None:
+                return None
+            cur = Remix.model_validate(row["info"])
+            new = cur.model_copy(update={**update, **({"rev": cur.rev + 1, "updated_at": utcnow()} if bump else {})})
+            self.library.update("remixes", remix_id, name=new.name, info=new.model_dump(mode="json"))
+            return new
+
+    def build_remix(self, remix_id: str, req: RemixBuildRequest | None = None) -> Job:
+        """POST /remixes/{id}/build: the recipe → a draft arrangement (a remix_build job). It replaces the sections and
+        lanes (a new rev); a mashup lines up on Remix.mash, or the best match S2's build finds. v0.11.9: a take with a
+        saved arrangement gets it back instead (unless `fresh`), its clips keeping their prepared audio."""
+        self._remix_engine()
+        self.get_remix(remix_id)
+        self._set_remix(remix_id, build_state="queued")
+        fresh = bool(req and req.fresh)
+        return _job(self.jobs.submit("remix_build", self._build_remix, remix_id, fresh, lane="remix",
+                                     dedupe_key=f"remix_build:{remix_id}", meta={"remix_id": remix_id}))
+
+    def _build_remix(self, ctx: JobContext, remix_id: str, fresh: bool = False) -> dict[str, Any] | None:
+        try:
+            remix = self._set_remix(remix_id, build_state="running")
+            if remix is None:
+                return None
+            saved = next((t for t in remix.takes if t.seed == remix.seed and t.lanes is not None), None)
+            if saved and not fresh:  # the take's own arrangement, as it was left (audio that's since been evicted goes)
+                lanes = [lane.model_copy(update={"clips": [c.model_copy(update={"audio_id": c.audio_id if c.audio_id and
+                         self.song_audio.exists(c.audio_id) else None}) for c in lane.clips]}) for lane in saved.lanes]
+                self._set_remix(remix_id, bump=True, build_state="done", sections=saved.sections or [], lanes=lanes)
+                return {"remix_id": remix_id}
+            if saved:  # fresh: the edits go; the take's recorded choices rebuild it
+                remix = remix.model_copy(update={"takes": [t.model_copy(update={"sections": None, "lanes": None})
+                                                           if t.seed == remix.seed else t for t in remix.takes]})
+            sources = self._remix_sources(remix)
+            ctx.check()
+            engine = self._remix_engine()
+            # M4.3: a kept take replays its choices; a new seed draws them from the ratings (the style's, when known)
+            take = next((t for t in remix.takes if t.seed == remix.seed), None)
+            style = take.style if take else _take_style(remix)
+            prefs = [self._remix_prefs(style)] if style else self.remix_prefs().styles
+            choose, made = take_weights.chooser(remix.seed, take.choices if take else [], prefs)
+            extra = {"choose": choose} if "choose" in inspect.signature(engine.run).parameters else {}  # S2's seam
+            with self._fx_background:
+                out = engine.run(remix, sources, stage="build", match=remix.mash,
+                                 progress=lambda f, m: (ctx.check(), ctx.progress(f, m)), **extra)
+        except Exception:
+            self._set_remix(remix_id, build_state="error")
+            raise
+        built = out.remix
+        mine = next((t for t in built.takes if t.seed == remix.seed), None)  # S2's BUILD records the take it made
+        style = mine.style if mine else built.flip.style_id if built.flip else style or built.recipe
+        record = RemixTake(seed=remix.seed, style=style, created_at=utcnow(),
+                           choices=mine.choices if mine and mine.choices else [TakeChoice(axis=a, option=o) for a, o in made.items()])
+        if take:
+            record = take.model_copy(update={"style": record.style, "choices": record.choices, "sections": None, "lanes": None})
+        with self._remix_lock:  # the takes as they are now (a PATCH may have renamed one meanwhile)
+            now = self.get_remix(remix_id).takes
+            takes = [record if t.seed == remix.seed else t for t in now] + ([] if any(t.seed == remix.seed for t in now) else [record])
+        self._set_remix(remix_id, bump=True, build_state="done", bpm=built.bpm, key=built.key, sections=built.sections,
+                        lanes=built.lanes, bass_patch_id=built.bass_patch_id, flip=built.flip, mash=built.mash, takes=takes)
+        return {"remix_id": remix_id}
+
+    def prepare_remix(self, remix_id: str) -> Job:
+        """POST /remixes/{id}/prepare: every clip without audio rendered at the remix tempo and key (a remix_prepare
+        job), cached by what it sounds like, so the app only schedules clips. Sets audio_ids (no new rev)."""
+        self._remix_engine()
+        self.get_remix(remix_id)
+        return _job(self.jobs.submit("remix_prepare", self._prepare_remix, remix_id, lane="remix",
+                                     dedupe_key=f"remix_prepare:{remix_id}", meta={"remix_id": remix_id}))
+
+    def _clip_audio(self, key: str) -> str | None:
+        hit = self.cache.lookup(key)
+        audio_id = (hit or {}).get("artifact_id")
+        return audio_id if audio_id and self.song_audio.exists(audio_id) else None
+
+    def _prepare_remix(self, ctx: JobContext, remix_id: str) -> dict[str, Any] | None:
+        """Clips already rendered (by clip_key) get their audio at once; S2's run renders the rest, the playhead's first
+        16 bars and the first drop first, and each one lands on the latest arrangement as it's ready (the app refetches
+        the remix while the job runs; edits made meanwhile stay)."""
+        engine = self._remix_engine()
+        remix = self.get_remix(remix_id)
+        sources = self._remix_sources(remix)
+        known: dict[str, str] = {}  # clip_key → audio_id
+
+        def resolve(r: Remix) -> Remix:
+            lanes = []
+            for lane in r.lanes:
+                clips = []
+                for c in lane.clips:
+                    if c.audio_id is None:
+                        key = engine.clip_key(c, r, sources)
+                        if key not in known and (hit := self._clip_audio(key)):
+                            known[key] = hit
+                        c = c.model_copy(update={"audio_id": known.get(key)})
+                    clips.append(c)
+                lanes.append(lane.model_copy(update={"clips": clips}))
+            return r.model_copy(update={"lanes": lanes})
+
+        def land() -> bool:
+            with self._remix_lock:
+                row = self.library.get("remixes", remix_id)
+                if row is not None:
+                    self.library.update("remixes", remix_id, info=resolve(Remix.model_validate(row["info"])).model_dump(mode="json"))
+                return row is not None
+
+        state: dict[str, Any] = {}
+
+        def on_clip(clip_id: str, audio: np.ndarray, p: Any) -> None:
+            key = engine.clip_key(state["clips"][clip_id], state["remix"], sources)
+            known[key] = self.song_audio.put(audio, REMIX_SR, "rmc", compact=True)
+            self.cache.remember("remix_clip", key, artifact_id=known[key])
+            land()
+            ctx.progress(p.done / max(1, p.total), "Ready to play" if p.playable else f"Preparing clips {p.done}/{p.total}")
+
+        prepared = 0
+        for _ in range(3):  # v0.11.10 (M3.2): clips a PATCH adds while a pass runs (splits, new ids) get the next pass
+            if not land():
+                return None
+            remix = resolve(self.get_remix(remix_id))
+            if all(c.audio_id for lane in remix.lanes for c in lane.clips):
+                break
+            state.update(remix=remix, clips={c.id: c for lane in remix.lanes for c in lane.clips})
+            ctx.check()
+            with self._fx_background:
+                out = engine.run(remix, sources, stage="prepare", sr=REMIX_SR, on_clip=on_clip,
+                                 progress=lambda f, m: ctx.check())
+            prepared += len(out.audio)
+        self._take_loudness(engine, remix_id, sources)
+        return {"remix_id": remix_id, "prepared": prepared}
+
+    def _take_loudness(self, engine: Any, remix_id: str, sources: dict) -> None:
+        """v0.11.10: the take's prepared mix, mastered as the export would be: its short-term max and true peak on the
+        take at Remix.seed (the TakeCard readout). Only once every clip has audio."""
+        remix = self.get_remix(remix_id)
+        clips = [c for lane in remix.lanes for c in lane.clips]
+        if not any(t.seed == remix.seed for t in remix.takes) or not all(c.audio_id and self.song_audio.exists(c.audio_id)
+                                                                          for c in clips):
+            return
+        audio = {c.id: self.song_audio.load(c.audio_id)[0] for c in clips}
+        with self._fx_background:
+            report = engine.run(remix, sources, stage="mixdown", audio=audio, master=Master(), sr=REMIX_SR).report
+        if report is None:
+            return
+        with self._remix_lock:
+            cur = self.get_remix(remix_id)
+            loud = {"short_term_max_lufs": round(float(report.short_term_max_lufs), 2),
+                    "true_peak_db": round(min(0.0, float(report.true_peak_dbtp)), 2)}
+            takes = [t.model_copy(update=loud) if t.seed == remix.seed else t for t in cur.takes]
+            self.library.update("remixes", remix_id, info=cur.model_copy(update={"takes": takes}).model_dump(mode="json"))
+
+    # -- the sound library and BASS DNA (v0.11.4) ---------------------------------------------------------------
+
+    def list_patches(self) -> list[BassPatch]:
+        """GET /patches: S1's bass library; preview_audio_id streams a short audition (rendered on first play)."""
+        synth = _synth()
+        if synth is None:
+            return []
+        library = [p.model_copy(update={"preview_audio_id": self._preview_id(synth, "patch", p.id)}) for p in synth.library.patches()]
+        growls = getattr(synth, "growls", None)  # v0.11.10: S3's designed voices, the SWAP SOUND tabs (tearout, top, ...)
+        if growls is None or not hasattr(growls, "designed_patches"):
+            return library
+        return library + [p.model_copy(update={"preview_audio_id": self._preview_id(synth, "designed", p.id)})
+                          for p in growls.designed_patches()]
+
+    def list_kits(self) -> list[DrumKit]:
+        """GET /kits: S1's drum kits; preview_audio_id streams a one-bar audition (rendered on first play)."""
+        synth = _synth()
+        return [k.model_copy(update={"preview_audio_id": self._preview_id(synth, "kit", k.id)}) for k in synth.kit.kits()] if synth else []
+
+    def _preview_id(self, synth: Any, kind: str, ref: str) -> str | None:
+        if not hasattr(synth, "preview"):
+            return None
+        pid = "pvw_" + hashlib.sha1(f"{kind}:{ref}".encode()).hexdigest()[:12]
+        self._previews[pid] = (kind, ref)
+        return pid
+
+    def list_flip_styles(self) -> list[FlipStyle]:
+        try:
+            from fvwks_fx.remix.flip import FLIP_STYLES
+        except ImportError:
+            return []
+        return [FlipStyle(id=k, name=v["name"], bpm=v["bpm"], half_time=v["half_time"], grid=v.get("grid", []))
+                for k, v in FLIP_STYLES.items()]
+
+    def bass_groove(self, song_id: str, start_bar: int, bars: int | None) -> BassGroove:
+        """GET /songs/{id}/bass/groove: BASS DNA of bars [start_bar, start_bar + bars) of the bass stem, on the song's
+        grid, half time as its section says; cached."""
+        make = getattr(fx, "bass_groove", None)
+        if not callable(make):
+            raise ApiException(501, "not_implemented", "BASS DNA arrives with the sound engine's REMIX update.")
+        song = self.get_song(song_id)
+        bass = next((s for s in song.stems if s.name == "bass"), None)
+        if song.analysis is None or song.stems_state != "done" or bass is None:
+            running = song.stems_state in ("queued", "running") or song.analysis_state in ("queued", "running")
+            raise ApiException(409, "stems_not_ready", "This song's bass stem isn't ready." if running else
+                               "This song has no stems yet.", hint=None if running else "Separate its stems first.",
+                               retryable=running)
+        grid = self._grid(song)
+        section = next((s for s in reversed((song.structure.sections if song.structure else [])) if s.start_bar <= start_bar), None)
+        half = bool(section and section.half_time)
+        key = request_hash("bass_groove", {"bass": bass.audio_id, "grid": grid.model_dump(mode="json"), "start_bar": start_bar,
+                                           "bars": bars, "half_time": half}, salt=self.fx_salt)
+        cached = self.cache.get_bytes(key)
+        if cached:
+            return BassGroove.model_validate_json(cached)
+        audio, sr = self._load_stem(bass.audio_id)
+        with self._fx_background:
+            groove = BassGroove.model_validate(make(audio, sr, grid, song_id=song_id, start_bar=start_bar, bars=bars,
+                                                    half_time=half))
+        self.cache.put_bytes("bass_groove", key, groove.model_dump_json().encode(), ".json", artifact_id=song_id)
+        return groove
+
+    def render_groove(self, req: GrooveRenderRequest) -> GrooveRenderResult:
+        """POST /grooves/render: a section's BASS DNA on a patch at the song's (or a given) tempo; cached."""
+        synth = _synth()
+        if synth is None:
+            raise ApiException(501, "not_implemented", "The bass synth arrives with the REMIX update.")
+        if req.patch_id not in {p["id"] for p in synth.library.entries()}:
+            raise NotFound("patch", req.patch_id)
+        if not synth.bass.usable(req.patch_id):
+            raise ApiException(409, "synth_unavailable", "This patch needs the Surge engine, which this build doesn't have.",
+                               hint="Pick a FoxBox patch.")
+        groove = self.bass_groove(req.song_id, req.start_bar, req.bars)
+        bpm = req.bpm or groove.bpm
+        key = request_hash("groove_render", {"groove": groove.model_dump(mode="json"), "patch": req.patch_id, "bpm": bpm,
+                                             "shift": req.shift_st}, salt=self.fx_salt)
+        audio_id = self._clip_audio(key)
+        if audio_id is None:
+            try:
+                with self._fx_background:
+                    audio = synth.bass.render_groove(groove, req.patch_id, start_bar=req.start_bar, bars=req.bars, bpm=bpm,
+                                                     shift_st=req.shift_st, sr=REMIX_SR)
+            except Exception as exc:  # noqa: BLE001
+                raise _passthrough(exc, 500, "synth_failed", "The bass render failed") from exc
+            audio_id = self.song_audio.put(audio, REMIX_SR, "rmc", compact=True)
+            self.cache.remember("groove_render", key, artifact_id=audio_id)
+        return GrooveRenderResult(audio_id=audio_id, duration_s=round(req.bars * 4 * 60.0 / bpm, 4), sample_rate=REMIX_SR)
+
+    # -- REMIX export (v0.11.4) ---------------------------------------------------------------------------------
+
+    def export_remix(self, remix_id: str, req: RemixExportRequest) -> Job:
+        """POST /remixes/{id}/export (a remix_export job): the mixdown as AIFF-24 / MP3, the Ableton Live 11 set, and
+        (visuals) a new Song whose structure is the arrangement's. GET /remixes/{id}/export has the result."""
+        self._remix_engine()
+        self.get_remix(remix_id)
+        self.export_root  # 409 export_dir_unavailable before any work
+        return _job(self.jobs.submit("remix_export", self._export_remix, remix_id, req, lane="remix",
+                                     dedupe_key=f"remix_export:{remix_id}", meta={"remix_id": remix_id}))
+
+    def remix_export(self, remix_id: str) -> RemixExportResult:
+        row = self.library.get("remixes", remix_id)
+        if row is None:
+            raise NotFound("remix", remix_id)
+        if not row["export"]:
+            raise NotFound("export", remix_id)
+        return RemixExportResult.model_validate(row["export"])
+
+    def _export_remix(self, ctx: JobContext, remix_id: str, req: RemixExportRequest) -> dict[str, Any] | None:
+        engine = self._remix_engine()
+        remix = self.get_remix(remix_id)
+        sources = self._remix_sources(remix)
+        clip_files: dict[str, Path] = {}
+        audio: dict[str, np.ndarray] = {}
+        for c in (c for lane in remix.lanes for c in lane.clips if c.audio_id and self.song_audio.exists(c.audio_id)):
+            audio[c.id] = self.song_audio.load(c.audio_id)[0]
+            clip_files[c.id] = self.song_audio.stream_path(c.audio_id)
+        master = Master()
+        with self._fx_background:
+            out = engine.run(remix, sources, stage="mixdown", audio=audio, master=master, sr=REMIX_SR,
+                             progress=lambda f, m: (ctx.check(), ctx.progress(0.8 * f, m)))
+        for c in (c for lane in remix.lanes for c in lane.clips if c.id in out.audio):  # clips it had to prepare now
+            clip_files[c.id] = self.song_audio.stream_path(self.song_audio.put(out.audio[c.id], REMIX_SR, "rmc", compact=True))
+        ctx.check()
+        title = (req.name or remix.name).strip() or remix.name
+        root = self.export_root
+        folder = writer.safe_path(root, writer.folder_name(title, "Remix"))
+        folder.mkdir(parents=True, exist_ok=True)
+        base, sr, mix = writer.folder_name(f"{title} {remix.recipe.upper()}", "Remix"), master.sample_rate, out.mix
+        bars = sum(s.bars for s in remix.sections) or None
+        files: list[ExportedFile] = []
+        warnings: list[str] = []
+        ctx.progress(0.85, "Writing files")
+        for fmt in dict.fromkeys(req.formats):
+            if fmt == "als":
+                continue
+            path = folder / f"{base}.{fmt}"
+            try:
+                if fmt == "mp3":
+                    from pedalboard.io import AudioFile
+                    with AudioFile(str(path), "w", sr, mix.shape[0], quality=320) as f:  # LAME inside pedalboard
+                        f.write(np.ascontiguousarray(mix, dtype=np.float32))
+                    depth = 0
+                else:
+                    depth = writer.write_track(path, mix, sr, fmt="aiff", bit_depth=24).bit_depth
+            except Exception as exc:  # noqa: BLE001
+                raise _write_error(exc, "export_failed", "Could not write the remix") from exc
+            f = ExportedFile(id=new_id("exp"), render_id=remix.id, variant="remix", title=title, filename=path.name,
+                             path=str(path), format=fmt, sample_rate=sr, bit_depth=depth, channels=mix.shape[0],
+                             n_samples=mix.shape[-1], duration_s=round(mix.shape[-1] / sr, 5), bpm=remix.bpm, key=remix.key,
+                             bars=bars, size_bytes=path.stat().st_size, created_at=utcnow())
+            self.library.insert("exports", id=f.id, render_id=remix.id, created_at=f.created_at, path=f.path,
+                                info=f.model_dump(mode="json"))
+            files.append(f)
+        rekordbox_xml = None
+        aiff = next((f for f in files if f.format == "aiff"), None)
+        if aiff is not None:  # TEMPO at bar 1, hot cues A.. at the drops, memory cues at every section
+            bar = remix.beats_per_bar * 60.0 / remix.bpm
+            starts = [((s.start_bar - 1) * bar, s) for s in remix.sections]
+            drops = [t for i, (t, s) in enumerate(starts) if s.kind == "drop" and (i == 0 or starts[i - 1][1].kind != "drop")]
+            cues = [(f"DROP {n + 1}", t, n) for n, t in enumerate(drops[:8])] + [(s.kind.upper(), t, -1) for t, s in starts]
+            track = RekordboxTrack(path=Path(aiff.path), name=title, duration_s=aiff.duration_s, size=aiff.size_bytes,
+                                   bpm=remix.bpm, key=remix.key, mix="remix", sample_rate=sr, bit_depth=24,
+                                   channels=aiff.channels, first_word_s=None, tail_s=None, cues=cues)
+            rekordbox_xml = str(write_rekordbox_xml(folder / "rekordbox.xml", [track], title,
+                                                    RekordboxOptions(local_root=root, product_version=VERSION)))
+        als_path = None
+        if "als" in req.formats:
+            ctx.progress(0.9, "Writing the Ableton set")
+            try:
+                from .als import write_als
+                als_path = str(write_als(remix, clip_files, folder, name=title))
+            except Exception as exc:  # noqa: BLE001 (BETA: the audio files still stand)
+                log.exception("als export failed for %s", remix_id)
+                warnings.append(f"The Ableton set couldn't be written: {exc}")
+        song_id = self._register_remix_song(mix, sr, title, remix).id if req.visuals else None
+        result = RemixExportResult(remix_id=remix.id, files=files, als_path=als_path, song_id=song_id, warnings=warnings,
+                                   rekordbox_xml_path=rekordbox_xml)
+        self.library.update("remixes", remix_id, export=result.model_dump(mode="json"))
+        return {"remix_id": remix_id, "files": len(files)}
+
+    def _register_remix_song(self, mix: np.ndarray, sr: int, name: str, remix: Remix) -> Song:
+        """The mixdown as a Song on the remix grid (bar 1 at 0 s) whose sections, drops and builds are the
+        arrangement's: VISUALS, TRACK and the pre-drop text know it exactly, with no re-analysis."""
+        bar = remix.beats_per_bar * 60.0 / remix.bpm
+        dur = mix.shape[-1] / sr
+        level = [float(np.sqrt(np.mean(mix[:, int((s.start_bar - 1) * bar * sr):int((s.start_bar - 1 + s.bars) * bar * sr)] ** 2)))
+                 for s in remix.sections]
+        top = max(level, default=0.0) or 1.0
+        sections = [SongSection(kind=s.kind, start_s=round(min(dur, (s.start_bar - 1) * bar), 3),
+                                end_s=round(min(dur, (s.start_bar - 1 + s.bars) * bar), 3), start_bar=s.start_bar,
+                                energy=round(v / top, 3)) for s, v in zip(remix.sections, level)]
+        drops = [x.start_s for i, x in enumerate(sections) if x.kind == "drop" and (i == 0 or sections[i - 1].kind != "drop")]
+        builds = [(sections[i - 1].start_s, x.start_s) for i, x in enumerate(sections)
+                  if i and x.kind == "drop" and sections[i - 1].kind == "build"]
+        structure = SongStructure(sections=sections, drops_s=drops, builds=builds, phrase_bars=8)
+        analysis = SongAnalysis(bpm=remix.bpm, bpm_confidence=1.0, key=remix.key, key_confidence=1.0 if remix.key else 0.0,
+                                downbeat_s=0.0, beats_per_bar=remix.beats_per_bar)
+        audio_id = self.song_audio.put(mix, sr, "sng", compact=True)
+        song = Song(id=new_id("sng"), name=name[:200], duration_s=round(dur, 5), sample_rate=int(sr), channels=mix.shape[0],
+                    peaks=peaks(mix, sr), audio_id=audio_id, analysis_state="done", analysis=analysis, structure=structure,
+                    created_at=utcnow())
+        self.library.insert("songs", id=song.id, name=song.name, created_at=song.created_at, audio_hash=audio_hash(mix, sr),
+                            audio_id=audio_id, analysis_state="done", info=song.model_dump(mode="json"))
+        with self._fx_background:
+            self._cache_mash(song, analysis, structure, mix, sr, None)
+        return song
+
+    def rate_take(self, remix_id: str, req: TakeFeedbackCreate) -> TakeFeedback:
+        """POST /remixes/{id}/feedback: one take rated. The take's style and choices are copied into the record (history
+        is never rewritten) and its rating shown on the take (no new rev: not an edit). The counts come from each
+        take's latest record (takes.prefs_from): a re-rating replaces the earlier one, a 0 withdraws it."""
+        with self._remix_lock:
+            cur = self.get_remix(remix_id)
+            take = next((t for t in cur.takes if t.seed == req.seed), None)
+            if take is None:
+                raise NotFound("take", str(req.seed))
+            fb = TakeFeedback(id=new_id("tfb"), remix_id=remix_id, seed=req.seed, style=take.style, choices=take.choices,
+                              rating=req.rating, tags=req.tags, note=req.note, created_at=utcnow())
+            self.library.insert("remix_feedback", id=fb.id, remix_id=remix_id, created_at=fb.created_at,
+                                data=fb.model_dump(mode="json"))
+            takes = [t.model_copy(update={"rating": req.rating}) if t.seed == req.seed else t for t in cur.takes]
+            self.library.update("remixes", remix_id, info=cur.model_copy(update={"takes": takes}).model_dump(mode="json"))
+        return fb
+
+    def _feedback_since_reset(self) -> dict[str, list[TakeFeedback]]:
+        """Every style's feedback rows since its last RESET, oldest first."""
+        reset = {r["id"]: r["data"].get("reset_at", "") for r in self.library.select("remix_prefs")}
+        out: dict[str, list[TakeFeedback]] = {}
+        for r in self.library.select("remix_feedback", order="created_at, rowid"):
+            f = TakeFeedback.model_validate(r["data"])
+            if f.created_at > reset.get(f.style, ""):
+                out.setdefault(f.style, []).append(f)
+        return out
+
+    def _remix_prefs(self, style: str) -> RemixPrefs:
+        return take_weights.prefs_from(self._feedback_since_reset().get(style, []), style)
+
+    def remix_prefs(self) -> RemixPrefsResult:
+        """GET /remix-prefs: the counts of every style rated since its last RESET."""
+        return RemixPrefsResult(styles=[take_weights.prefs_from(rows, style)
+                                        for style, rows in sorted(self._feedback_since_reset().items())])
+
+    def reset_remix_prefs(self, style: str) -> None:
+        """DELETE /remix-prefs/{style}: RESET. ROLL counts only that style's ratings made after now (the rows stay)."""
+        data = {"style": style, "reset_at": utcnow()}
+        if self.library.get("remix_prefs", style):
+            self.library.update("remix_prefs", style, data=data)
+        else:
+            self.library.insert("remix_prefs", id=style, data=data)
+
+    def delete_remix(self, remix_id: str) -> None:
+        """The arrangement (its prepared clips are content-addressed cache and go when evicted)."""
+        self.get_remix(remix_id)
+        for job in self.jobs.list(active_only=True):
+            if job.meta.get("remix_id") == remix_id:
+                self.jobs.cancel(job.id)
+        self.library.delete("remixes", [remix_id])
+
+    def request_lyrics(self, song_id: str) -> Job:
+        """POST /songs/{id}/lyrics: the song's timed words (a song_lyrics job), from the vocals stem when it has
+        stems, else the whole mix. Asking again returns the stored lyrics, unless they came from the mix and the
+        song has stems now."""
+        if not callable(getattr(voice, "transcribe", None)):
+            raise ApiException(501, "not_implemented", "This voice engine can't transcribe lyrics.")
+        song = self.get_song(song_id)
+        if not self._transcriber_ready():
+            raise ApiException(503, "model_not_installed", "Lyrics need the transcription model.",
+                               hint="Install it from VOICES → Models (about 2.9 GB).", model_id=TRANSCRIBE_MODEL)
+        if song.lyrics_state in ("queued", "running"):
+            for job in self.jobs.list(kind="song_lyrics", active_only=True):
+                if job.meta.get("song_id") == song_id:
+                    return _job(job)
+        if song.lyrics_state == "done":
+            stored = (self.library.get("songs", song_id) or {}).get("lyrics") or {}
+            if stored and not (stored.get("source") == "mix" and self._vocals_stem(song)):
+                return _job(self.jobs.complete(self.jobs.new_job("song_lyrics", meta={"song_id": song_id}),
+                                               message="Lyrics ready.", result={"song_id": song_id}))
+        self._set_song(song_id, lyrics_state="queued")
+        return _job(self.jobs.submit("song_lyrics", self._transcribe_song, song_id, lane="songs",
+                                     dedupe_key=f"song_lyrics:{song_id}", meta={"song_id": song_id}))
+
+    def lyrics(self, song_id: str) -> SongLyrics:
+        """GET /songs/{id}/lyrics."""
+        row = self.library.get("songs", song_id)
+        if row is None:
+            raise NotFound("song", song_id)
+        song = self._song(row)
+        if song.lyrics_state != "done" or not row.get("lyrics"):
+            running = song.lyrics_state in ("queued", "running")
+            raise ApiException(409, "lyrics_not_ready",
+                               "This song's lyrics are still being transcribed." if running else "This song has no lyrics yet.",
+                               hint=None if running else "Transcribe its lyrics first.", retryable=running)
+        return SongLyrics.model_validate(row["lyrics"])
+
+    def _vocals_stem(self, song: Song) -> SongStem | None:
+        if song.stems_state != "done":
+            return None
+        stem = next((s for s in song.stems if s.name == "vocals"), None)
+        return stem if stem is not None and self.song_audio.exists(stem.audio_id) else None
+
+    def _transcribe_song(self, ctx: JobContext, song_id: str) -> dict[str, Any] | None:
+        song = self._set_song(song_id, lyrics_state="running")
+        if song is None:
+            return None  # deleted while queued
+        stem = self._vocals_stem(song)  # the songs lane runs a stems job asked for first before this
+        words: list[SongWord] = []
+        try:
+            audio, sr = self._load_stem(stem.audio_id) if stem else self._song_audio(song_id)
+            x = resample(np.asarray(audio, np.float32).mean(axis=0), int(sr), ENGINE_SR)
+            spans = _lyric_windows(x, ENGINE_SR)
+            for i, (a, b) in enumerate(spans):
+                ctx.check()
+                ctx.progress(i / len(spans), "Transcribing lyrics")
+                part = x[a:b]
+                if float(np.max(np.abs(part), initial=0.0)) < 1e-3:  # a silent stretch (Whisper invents words there)
+                    continue
+                dur = round(part.size / ENGINE_SR, 6)
+                src = Source(info=SourceInfo(id=song_id, kind="import", name=song.name, sample_rate=ENGINE_SR,
+                                             duration_s=dur, segments=[Segment(index=0, start_s=0.0, end_s=dur)],
+                                             peaks=peaks(part[None, :], ENGINE_SR), audio_id="",
+                                             created_at=song.created_at),
+                             audio=part[None, :])
+                with self._background(), self._model_lock("aligner"):
+                    ctx.check()
+                    out = voice.transcribe(src)
+                offset = a / ENGINE_SR
+                words += [SongWord(text=w.text, start_s=round(offset + w.start_s, 3), end_s=round(offset + w.end_s, 3))
+                          for seg in out.info.segments for w in seg.words]
+        except Exception as exc:
+            missing = getattr(exc, "code", None) == "model_not_installed"
+            stopped = isinstance(exc, JobCancelled) or ctx.cancelled
+            self._set_song(song_id, lyrics_state="none" if missing or stopped else "error")
+            raise
+        lyrics = SongLyrics(song_id=song_id, source="vocals_stem" if stem else "mix", words=words)
+        if self.library.get("songs", song_id) is None:
+            return None
+        self.library.update("songs", song_id, lyrics=lyrics.model_dump(mode="json"))
+        self._set_song(song_id, lyrics_state="done")
+        return {"song_id": song_id, "words": len(words)}
 
     @staticmethod
     def _song_grid(song: Song) -> tuple[float, float, int]:
@@ -2143,8 +2890,16 @@ class EngineService:
     def audio_path(self, audio_id: str) -> Path:
         if not AudioStore.valid(audio_id):
             raise NotFound("audio", audio_id)
-        store = self.song_audio if audio_id.startswith(("sng_", "sgs_")) else self.audio  # songs and their stems
+        store = self.song_audio if audio_id.startswith(("sng_", "sgs_", "rmc_")) else self.audio  # songs, stems, remix clips
         path = store.stream_path(audio_id)
+        if path is None and audio_id.startswith("pvw_") and audio_id in self._previews and (synth := _synth()):
+            kind, ref = self._previews[audio_id]
+            try:
+                render = {"patch": synth.preview.preview, "kit": synth.preview.kit_preview,
+                          "designed": getattr(getattr(synth, "growls", None), "designed_preview", None)}[kind]
+                return Path(render(ref))
+            except Exception as exc:  # noqa: BLE001
+                raise _passthrough(exc, 500, "synth_failed", "The patch preview failed") from exc
         if path is None and audio_id.startswith("smp_"):
             if audio_id not in self._samples:
                 self.list_voices()
@@ -2348,3 +3103,66 @@ def _validate_export_dir(text: str, strict: bool = True) -> Path:
         raise ApiException(400, "invalid_settings", f"Can't write to {path}: {exc.strerror or exc}.",
                            hint="Pick a folder you own, e.g. in ~/Music.") from exc
     return path
+
+
+def _lyric_windows(x: np.ndarray, sr: int) -> list[tuple[int, int]]:
+    """Sample spans of at most LYRICS_WINDOW_S for the transcriber, each cut at the quietest half second of its last
+    LYRICS_SEEK_S so a cut rarely lands inside a word."""
+    hop, n, start = sr // 2, x.shape[-1], 0
+    spans = []
+    while n - start > LYRICS_WINDOW_S * sr:
+        lo = start + int((LYRICS_WINDOW_S - LYRICS_SEEK_S) * sr)
+        frames = x[lo:lo + int(LYRICS_SEEK_S * sr) // hop * hop].reshape(-1, hop)
+        cut = lo + int(np.argmin(np.mean(frames ** 2, axis=1))) * hop + hop // 2
+        spans.append((start, cut))
+        start = cut
+    spans.append((start, n))
+    return spans
+
+
+def _keep_prepared(old: Remix, new: Remix) -> list[RemixLane]:
+    """The new lanes, each clip keeping a prepared audio_id only when a clip of the old version sounded the same (its
+    source, shift, length, fades and gain, at the same remix tempo and seed). The client's own audio_id is never trusted."""
+    # ponytail: a source song's grid changing (its BPM override) isn't seen here; PREPARE's clip_key cache is
+    def sound(c: Any) -> str:
+        return json.dumps(c.model_dump(mode="json", exclude={"id", "at_beat", "audio_id"}), sort_keys=True)
+
+    have = {sound(c): c.audio_id for lane in old.lanes for c in lane.clips if c.audio_id} if (old.bpm, old.seed) == (new.bpm, new.seed) else {}
+    if old.bass_macros != new.bass_macros:  # v0.11.12: the knobs re-prepare only the engine bass (S2's patch prefixes)
+        have = {k: v for k, v in have.items() if not _engine_bass(json.loads(k))}
+    return [lane.model_copy(update={"clips": [c.model_copy(update={"audio_id": have.get(sound(c))}) for c in lane.clips]})
+            for lane in new.lanes]
+
+
+def _engine_bass(clip: dict) -> bool:
+    src = clip.get("src") or {}
+    return src.get("kind") == "groove" and str(src.get("patch_id", "")).startswith(("resample:", "hybrid:", "riddim:", "808:"))
+
+
+def _take_style(remix: Remix) -> str | None:
+    """What a take's ratings count under, before BUILD (S2's styles.take_style: the flip's style, else the bass
+    patch's), so ROLL draws from that style's prefs (plan v2 §7.7); None when the engine doesn't say."""
+    try:
+        from fvwks_fx.remix.styles import take_style
+    except ImportError:
+        return remix.flip.style_id if remix.flip else None
+    return take_style(remix)
+
+
+def _synth():
+    """S1's fvwks_synth (patches, kits, the bass renderer), or None in an engine built without it."""
+    try:
+        import fvwks_synth.bass
+        import fvwks_synth.kit
+        import fvwks_synth.library
+    except ImportError:
+        return None
+    try:
+        import fvwks_synth.preview  # noqa: F401 (help/s1-als: patch previews)
+    except ImportError:
+        pass
+    try:
+        import fvwks_synth.growls  # noqa: F401 (help/s3-growls: the designed voices)
+    except ImportError:
+        pass
+    return fvwks_synth

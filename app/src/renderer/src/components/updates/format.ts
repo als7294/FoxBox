@@ -1,5 +1,7 @@
 // Text for the updater's UI (the update bar and SETTINGS → UPDATES). Pure. Sizes are decimal, as Finder shows them.
 
+import { hideHome } from '@/lib/paths'
+
 const MB = 1_000_000
 
 /** A rejected bridge call's own message, without Electron's "Error invoking remote method '…': UpdateError: " wrapper. */
@@ -9,7 +11,7 @@ export function errorText(err: unknown): string {
     .replace(/^Error invoking remote method '[^']*': /, '')
     .replace(/^[A-Za-z]*Error: /, '')
     .trim()
-  return text || 'Something went wrong.'
+  return hideHome(text) || 'Something went wrong.'
 }
 
 /** "128 of 327 MB" (tenths under 10 MB, so a small download still moves). */

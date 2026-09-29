@@ -49,7 +49,7 @@ float L(vec2 o) { vec2 q = isf_FragNormCoord + o / RENDERSIZE; return luma(IMG_N
 void main() {
   float gx = -L(vec2(-1.0, 1.0)) - 2.0 * L(vec2(-1.0, 0.0)) - L(vec2(-1.0, -1.0)) + L(vec2(1.0, 1.0)) + 2.0 * L(vec2(1.0, 0.0)) + L(vec2(1.0, -1.0));
   float gy = -L(vec2(-1.0, -1.0)) - 2.0 * L(vec2(0.0, -1.0)) - L(vec2(1.0, -1.0)) + L(vec2(-1.0, 1.0)) + 2.0 * L(vec2(0.0, 1.0)) + L(vec2(1.0, 1.0));
-  float e = clamp(length(vec2(gx, gy)) * (1.2 + 2.0 * rms + 1.5 * onset), 0.0, 1.0);
+  float e = clamp(length(vec2(gx, gy)) * (1.2 + 2.0 * rms + 1.5 * onset + 1.5 * buildProgress + 2.0 * dropEnergy), 0.0, 1.0);
   vec2 uv = isf_FragNormCoord;
   vec3 base = IMG_NORM_PIXEL(inputImage, uv).rgb * 0.35;
   gl_FragColor = vec4(base + mix(accentColor.rgb, amberColor.rgb, e) * e, 1.0);

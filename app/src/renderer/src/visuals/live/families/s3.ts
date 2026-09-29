@@ -1,9 +1,10 @@
-// MILKDROP and SHADERS (S3), registered once at app start (S4 imports this module). Presets and user shaders load
-// on first use: when a picker lists the family, or a style is created.
+// MILKDROP, SHADERS and TEXT (S3), registered once at app start (S4 imports this module). Presets and user shaders
+// load on first use: when a picker lists the family, or a style is created.
 import { createIsf } from '../../engines/isf/engine'
 import { packShaders, shaderFiles, userShaders } from '../../engines/isf/library'
 import { createMilkdrop } from '../../engines/milkdrop/engine'
-import { favourites, loadPresets } from '../../engines/milkdrop/presets'
+import { favourites, isListed, loadPresets } from '../../engines/milkdrop/presets'
+import { createText, TEXT_STYLES } from '../../engines/text/engine'
 import { registerFamily, type StyleFamily, type VisualStyle } from '../registry'
 
 const CYCLES = [4, 8, 16] as const
@@ -27,10 +28,11 @@ const milkdrop: StyleFamily = {
     const fav = favourites()
     const cycles: VisualStyle[] = CYCLES.map((bars) => ({
       id: `milkdrop.cycle-${bars}`,
-      label: `AUTO · every ${bars} bars${fav.size >= 2 ? ' (favourites)' : ''}`,
+      label: `CYCLE · every ${bars} bars${fav.size >= 2 ? ' (favourites)' : ''}`,
       create: (canvas, opts) => createMilkdrop(canvas, opts, { preset: null, cycleBars: bars }),
     }))
-    const one = [...presets]
+    const one = presets
+      .filter(isListed)
       .sort((a, b) => Number(fav.has(b.slug)) - Number(fav.has(a.slug)))
       .map<VisualStyle>((p) => ({
         id: `milkdrop.${p.slug}`,
@@ -60,6 +62,13 @@ const shaders: StyleFamily = {
   },
 }
 
+/** 1.5: words right before a drop (the compositor hands them over with setText). STENCIL is a filter. */
+const text: StyleFamily = {
+  id: 'text',
+  label: 'TEXT',
+  styles: () => TEXT_STYLES.map((t) => ({ id: `text.${t.id}`, label: t.label, kind: t.kind, create: (canvas, opts) => createText(canvas, opts, t.id) })),
+}
+
 /** The file behind a user shader's style id, or undefined for FoxBox's own pack. */
 export const userShaderFile = (styleId: string): string | undefined => userFiles.get(styleId)
 
@@ -68,6 +77,7 @@ export const canImportShaders = (): boolean => shaderFiles() !== null
 
 registerFamily(milkdrop)
 registerFamily(shaders)
+registerFamily(text)
 
 /** Re-announce the families (pickers refresh): after favourites change or shaders are imported. */
 export function refreshS3Families(): void {

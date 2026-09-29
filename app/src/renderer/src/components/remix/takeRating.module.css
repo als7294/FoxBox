@@ -1,0 +1,112 @@
+/* TakeRating row (app/design/remix/README.md "TakeRating"): ▲ UP ▼ DOWN, the reasons, the readout under ROLL, RESET.
+   11 px floor, 24 px targets, AA text. */
+
+.rating {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.btn {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  transition: background 0.15s;
+}
+.btn[data-on='up'] {
+  border-color: var(--vb-rate-up);
+  background: rgba(127, 208, 138, 0.14);
+  color: var(--vb-rate-up);
+}
+.btn[data-on='down'] {
+  border-color: var(--vb-rate-down);
+  background: rgba(var(--vb-accent-rgb), 0.12);
+  color: var(--vb-rate-down);
+}
+
+/* The reasons scroll sideways and fade out at the right edge. */
+.chips {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 88%, transparent);
+  padding-right: 24px;
+}
+.chip {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.04);
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  animation: rise 0.25s ease-out both;
+}
+.chip:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+}
+.chip[data-on] {
+  border-color: var(--vb-ink);
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+.hint {
+  align-self: center;
+  padding-left: 6px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+
+/* Under ROLL: amber once ratings lean somewhere. */
+.taste {
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.taste[data-on] {
+  color: var(--vb-amber);
+}
+
+.reset {
+  flex: none;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.reset:hover {
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.reset[data-armed] {
+  color: var(--vb-accent);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

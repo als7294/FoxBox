@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch'
+import { hideHome } from '@/lib/paths'
 import { bridge, isMockMode } from '@/env'
 import type { paths } from './schema'
 import { ipcTransport, webTransport, type Transport } from './transport'
@@ -14,7 +15,8 @@ export class EngineError extends Error {
   readonly modelId: string | null
 
   constructor(status: number, body: Partial<ApiErrorBody> | null, fallback?: string) {
-    super(body?.message ?? fallback ?? `Engine error ${status}`)
+    // Engine messages can name files: never with the home folder on screen.
+    super(hideHome(body?.message ?? fallback ?? `Engine error ${status}`))
     this.name = 'EngineError'
     this.status = status
     this.code = body?.code ?? (status === 0 ? 'network' : `http_${status}`)

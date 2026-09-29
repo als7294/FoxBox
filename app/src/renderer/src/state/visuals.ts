@@ -1,18 +1,22 @@
 import { create } from 'zustand'
+import type { ClipAspect } from '@/components/clips/render'
 import { defaultStyleForMotion } from '@/visuals/live/families/s3'
 import { DEFAULT_SCENE, type BaseSpec, type EffectLayer, type Scene } from '@/visuals/live/compositor'
 
 /**
  * VISUALS (1.4): the scene (a base and a stack of effects), shared by the stage, the output window and clips.
  * `styleId` / `paletteId` stay for 1.3's single-style places (a clip's picture), and follow the scene: the top
- * enabled effect, else the base's style.
+ * enabled effect, else the base's style. `aspect` (1.5) is the stage's format: the stage renders at its clip size,
+ * the output window shows those frames, and SAVE CLIP / REC LIVE record in it.
  */
 interface VisualsState {
   scene: Scene
+  aspect: ClipAspect
   styleId: string
   paletteId: string
   setStyle(styleId: string): void
   setPalette(paletteId: string): void
+  setAspect(aspect: ClipAspect): void
   setBase(base: BaseSpec): void
   addEffect(styleId: string): void
   updateEffect(id: string, patch: Partial<Omit<EffectLayer, 'id'>>): void
@@ -26,6 +30,18 @@ const KEY = 'foxbox-visuals'
 function leadStyle(scene: Scene): string {
   const top = [...scene.effects].reverse().find((e) => e.enabled)
   return top?.styleId ?? (scene.base.kind === 'core' ? 'foxbox.core' : 'foxbox.core')
+}
+
+const ASPECTS: readonly ClipAspect[] = ['9:16', '16:9', '1:1']
+
+/** The saved format: 9:16 (phones) unless another was chosen. */
+function loadAspect(): ClipAspect {
+  try {
+    const raw = (JSON.parse(window.localStorage.getItem(KEY) ?? '{}') as { aspect?: unknown }).aspect
+    return ASPECTS.find((a) => a === raw) ?? '9:16'
+  } catch {
+    return '9:16'
+  }
 }
 
 function load(): Scene {
@@ -47,9 +63,9 @@ function load(): Scene {
   }
 }
 
-function save(scene: Scene): void {
+function save(scene: Scene, aspect: ClipAspect): void {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify({ scene }))
+    window.localStorage.setItem(KEY, JSON.stringify({ scene, aspect }))
   } catch {
     // storage off: the scene lasts this session
   }
@@ -62,21 +78,34 @@ export const useVisuals = create<VisualsState>((set, get) => {
   const initial = load()
   const apply = (scene: Scene) => {
     set({ scene, styleId: leadStyle(scene), paletteId: scene.paletteId })
-    save(scene)
+    save(scene, get().aspect)
   }
   return {
     scene: initial,
+    aspect: loadAspect(),
     styleId: leadStyle(initial),
     paletteId: initial.paletteId,
     // 1.3 pickers: one style = the top effect (added if there's none).
     setStyle: (styleId) => {
       const s = get().scene
       const top = s.effects.at(-1)
-      apply(top ? { ...s, effects: [...s.effects.slice(0, -1), { ...top, styleId }] } : { ...s, effects: [{ id: newId(), styleId, opacity: 1, blend: 'normal', reactTo: 'mix', enabled: true }] })
+      apply(
+        top
+          ? { ...s, effects: [...s.effects.slice(0, -1), { ...top, styleId }] }
+          : { ...s, effects: [{ id: newId(), styleId, opacity: 1, blend: 'normal', reactTo: 'mix', enabled: true }] },
+      )
     },
     setPalette: (paletteId) => apply({ ...get().scene, paletteId }),
+    setAspect: (aspect) => {
+      set({ aspect })
+      save(get().scene, aspect)
+    },
     setBase: (base) => apply({ ...get().scene, base }),
-    addEffect: (styleId) => apply({ ...get().scene, effects: [...get().scene.effects, { id: newId(), styleId, opacity: 0.85, blend: 'screen', reactTo: 'mix', enabled: true }] }),
+    addEffect: (styleId) =>
+      apply({
+        ...get().scene,
+        effects: [...get().scene.effects, { id: newId(), styleId, opacity: 0.85, blend: 'screen', reactTo: 'mix', enabled: true }],
+      }),
     updateEffect: (id, patch) => apply({ ...get().scene, effects: get().scene.effects.map((e) => (e.id === id ? { ...e, ...patch } : e)) }),
     removeEffect: (id) => apply({ ...get().scene, effects: get().scene.effects.filter((e) => e.id !== id) }),
     moveEffect: (id, by) => {

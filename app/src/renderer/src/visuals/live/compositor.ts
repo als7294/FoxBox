@@ -5,9 +5,11 @@
  * picture beneath it and transforms it; a 'generator' draws its own and is blended on top. The LIVE/VISUALS stage,
  * the output window and saved clips all draw the same Scene, so what you see is what you export.
  */
-import type { AudioFrame, StemId } from './registry'
+import type { AudioFrame, StemId, TextTrack } from './registry'
 
 export type BaseKind = 'none' | 'waveform' | 'core' | 'camera' | 'photo' | 'video'
+
+export type { FrameExtras, TextTrack } from './registry'
 
 export interface BaseSpec {
   kind: BaseKind
@@ -41,6 +43,8 @@ export interface EffectLayer {
   blend: BlendMode
   reactTo: ReactTo
   enabled: boolean
+  /** 1.5: the AUTO-VJ director never touches a locked layer (the DJ's pick stays as set). */
+  locked?: boolean
 }
 
 export interface Scene {
@@ -48,6 +52,31 @@ export interface Scene {
   /** Bottom first. */
   effects: EffectLayer[]
   paletteId: string
+  /** 1.5: the words TEXT layers show (the song's lyrics or the DJ's own), handed to each layer's setText. */
+  text?: TextTrack | null
+  /** 1.5: the photosensitivity limiter (at most 3 flashes a second). On unless explicitly false. */
+  flashLimit?: boolean
+}
+
+/**
+ * 1.5, the AUTO-VJ director (S2): asked once per frame with the frame and the scene, it returns a patch the
+ * compositor applies to that frame only (the saved scene never changes), or null for none.
+ */
+export interface Director {
+  frame(a: AudioFrame, scene: Scene): ScenePatch | null
+}
+
+export interface ScenePatch {
+  /** Per layer id: opacity / on-off for this frame, and named params pushed to the style (setParams). */
+  layers?: Record<string, { opacity?: number; enabled?: boolean; params?: Record<string, number> }>
+  /** 0–1: a punch-in (a quick zoom on the whole composite) plus a flash, both within the flash limiter. */
+  punch?: number
+  /** Degrees: a hue rotation of the whole composite (a palette flip on a drop, without rebuilding the layers). */
+  hueShift?: number
+  /** Motion speed multiplier for every layer (0.5 = half time), on dt. */
+  speed?: number
+  /** 0–2 on the whole composite, 1 = as is: a build drains toward mono, the drop comes back hot. */
+  saturation?: number
 }
 
 export const DEFAULT_SCENE: Scene = {
@@ -92,4 +121,7 @@ export interface BaseInstance {
   dispose(): void
 }
 
-export type BaseFactory = (spec: BaseSpec, opts: { paletteId: string; reduced: boolean; output: 'stage' | 'window' | 'clip' }) => BaseInstance | Promise<BaseInstance>
+export type BaseFactory = (
+  spec: BaseSpec,
+  opts: { paletteId: string; reduced: boolean; output: 'stage' | 'window' | 'clip' },
+) => BaseInstance | Promise<BaseInstance>

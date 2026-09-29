@@ -2,10 +2,14 @@ import { useRef, useState, type DragEvent } from 'react'
 import { uploadSource } from '@/api/upload'
 import { prepareUpload } from '@/audio/importFile'
 import { renderNow } from '@/state/renderController'
+import { songs } from '@/state/song'
 import { cleanupOf, currentDenoise, studio, useStudio } from '@/state/studio'
 import { CleanupControl } from './CleanupControl'
 import { TranscriptEditor } from './TranscriptEditor'
 import styles from './source.module.css'
+
+/** A voice take is seldom this long (16 bars at 140 BPM is 27 s): past it, IMPORT offers to use the file as the SONG. */
+const LONG_S = 30
 
 /** IMPORT: drop (or click to choose) any audio file. WAV/AIFF/FLAC/MP3 go up as-is; others are decoded to WAV here. */
 export function ImportDropzone() {
@@ -63,9 +67,11 @@ export function ImportDropzone() {
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
-        <span className={styles.dropTitle}>DROP AUDIO</span>
-        <span className={styles.dropBody}>WAV · AIFF · MP3 · M4A — WE MASK IT</span>
+        <span className={styles.dropTitle}>DROP A VOICE</span>
+        <span className={styles.dropBody}>A SPOKEN TAKE · WAV · AIFF · FLAC · MP3 · M4A — WE MASK IT</span>
         {busy ? <span className={styles.dropBusy}>{busy}</span> : <span className={styles.dropBody}>OR CLICK TO CHOOSE</span>}
+        {/* A song dropped here gets vocal-masked whole: say where songs go (UX #15). */}
+        <span className={styles.dropBody}>A WHOLE TRACK? USE SONG →</span>
       </button>
       <input
         ref={input}
@@ -95,6 +101,23 @@ export function ImportDropzone() {
                 }`
               : 're-sent on the next render'}
           </span>
+          {imported.source && imported.source.duration_s >= LONG_S && (
+            <span className={styles.songOffer}>
+              {Math.round(imported.source.duration_s)} s: a whole track?{' '}
+              <button
+                type="button"
+                className={styles.songOfferBtn}
+                onClick={() => {
+                  // The same file becomes the SONG (the drop plays over it) instead of being masked as a voice.
+                  void songs.importFile(new File([imported.blob], imported.uploadName), { open: false })
+                  studio.setImported(null)
+                  studio.setTab('type')
+                }}
+              >
+                USE AS THE SONG →
+              </button>
+            </span>
+          )}
         </div>
       )}
       <TranscriptEditor />

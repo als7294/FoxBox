@@ -61,12 +61,12 @@ float spec(float x) {
 void main() {
   vec2 uv = isf_FragNormCoord;
   float x = abs(uv.x - 0.5) * 2.0;
-  float bins = 56.0;
+  float bins = 56.0 + floor(buildProgress * 4.0) * 16.0;  // finer as it builds
   float i = floor(x * bins) / bins;
-  float h = spec(pow(i, 1.7) * 0.65) * (0.9 + 0.25 * onset);
+  float h = spec(pow(i, 1.7) * 0.65) * (0.9 + 0.25 * onset + 0.5 * dropEnergy);
   float y = abs(uv.y - 0.5) * 2.0;
   float bar = step(y, h) * step(0.2, fract(x * bins));
-  vec3 col = mix(accentColor.rgb, amberColor.rgb, clamp(y / max(h, 0.001), 0.0, 1.0));
+  vec3 col = mix(mix(accentColor.rgb, amberColor.rgb, clamp(y / max(h, 0.001), 0.0, 1.0)), inkColor.rgb, 0.5 * dropEnergy);
   vec3 c = mix(bgColor.rgb, col, bar) + accentColor.rgb * 0.12 * low * (1.0 - y);
   gl_FragColor = vec4(c, 1.0);
 }

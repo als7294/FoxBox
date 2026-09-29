@@ -61,8 +61,8 @@ void main() {
     vec2 cell = floor(q);
     vec2 f = fract(q) - 0.5;
     float h = hash(cell);
-    float star = smoothstep(0.08, 0.0, length(f - (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.6)) * step(0.75, h);
+    float star = smoothstep(0.08, 0.0, length(f - (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.6)) * step(0.75 - 0.2 * buildProgress, h);  // more stars as it builds
     c += mix(inkColor.rgb, iceColor.rgb, h) * star * depth * 1.5;
   }
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(c * (1.0 + buildProgress) + inkColor.rgb * dropHit * 0.3, 1.0);
 }

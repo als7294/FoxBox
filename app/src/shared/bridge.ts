@@ -1,15 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Type-only: nothing here may import from electron or node.
 
-export type EngineState =
-  | 'idle'
-  | 'starting'
-  | 'ready'
-  | 'unresponsive'
-  | 'restarting'
-  | 'offline'
-  | 'stopped'
-  | 'mock'
+export type EngineState = 'idle' | 'starting' | 'ready' | 'unresponsive' | 'restarting' | 'offline' | 'stopped' | 'mock'
 
 export interface EngineExit {
   code: number | null
@@ -44,15 +36,7 @@ export interface EngineStatus {
 export type MicAccess = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'
 
 /** Commands the native menu can send to the renderer. They mirror the keyboard shortcuts. */
-export type MenuCommand =
-  | 'render-final'
-  | 'export'
-  | 'save-preset'
-  | 'toggle-ab'
-  | 'toggle-loop'
-  | 'play'
-  | 'shortcuts'
-  | 'open-settings'
+export type MenuCommand = 'render-final' | 'export' | 'save-preset' | 'toggle-ab' | 'toggle-loop' | 'play' | 'shortcuts' | 'open-settings'
 
 export interface StartDragOptions {
   /** PNG data URL used as the drag image (for example a mini waveform). Falls back to the app icon. */
@@ -86,16 +70,7 @@ export interface EngineResponse {
  * Where an app update is. `installing` (swapping the app, then restarting) follows `ready` once the user presses
  * "Restart to update"; nothing installs on its own.
  */
-export type UpdatePhase =
-  | 'idle'
-  | 'checking'
-  | 'up-to-date'
-  | 'available'
-  | 'downloading'
-  | 'verifying'
-  | 'ready'
-  | 'installing'
-  | 'error'
+export type UpdatePhase = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'
 
 export interface UpdateTransfer {
   bytes_done: number
@@ -136,7 +111,6 @@ export interface UpdateState {
   defaultFeedUrl: string
   /** A GitHub token is stored (Keychain-encrypted) for a private releases repo. The token itself never leaves main. */
   hasToken: boolean
-  checkAutomatically: boolean
   /** Epoch ms of the last successful check. */
   lastChecked: number | null
   /** Development builds may use an http://localhost feed; packaged builds need https. */
@@ -159,9 +133,40 @@ export interface UpdatesBridge {
   setFeedUrl(url: string | null): Promise<UpdateState>
   /** Stores a read-only GitHub token (Keychain-encrypted; sent only to api.github.com). null removes it. */
   setToken(token: string | null): Promise<UpdateState>
-  setCheckAutomatically(on: boolean): Promise<UpdateState>
   dismissWhatsNew(): Promise<UpdateState>
   onState(listener: (state: UpdateState) => void): () => void
+}
+
+/**
+ * The update check at boot (packaged builds, after Setup): a newer version is installed before the Studio opens.
+ * checking: the boot screen holds its hand-over (4 s at most) · clear: go on (up to date, skipped, or CONTINUE
+ * pressed) · required: UPDATE REQUIRED, downloading then installing and relaunching · failed: the reason and
+ * CONTINUE (offline, the feed failing or timing out, two failed downloads, an install that can't happen), so a
+ * launch is never blocked; the update bar offers the update again later.
+ */
+export type BootUpdatePhase = 'checking' | 'clear' | 'required' | 'failed'
+
+export interface BootUpdateState {
+  phase: BootUpdatePhase
+  /** This app's version. */
+  current: string
+  /** The required version, once the check found one. */
+  version: string | null
+  sizeBytes: number | null
+  /** required: where the update is. */
+  step: 'downloading' | 'verifying' | 'installing' | null
+  download: UpdateTransfer | null
+  /** Download attempts so far (the second failure ends in `failed`). */
+  attempt: number
+  /** failed: why. */
+  error: string | null
+}
+
+export interface BootUpdateBridge {
+  getState(): Promise<BootUpdateState>
+  /** failed → clear: the Studio opens on the version it has. */
+  continue(): Promise<BootUpdateState>
+  onState(listener: (state: BootUpdateState) => void): () => void
 }
 
 // ---------------------------------------------------------------------------------------------- first-run setup
@@ -218,6 +223,8 @@ export interface FvwksBridge {
    * startDrag and reveal then accept. Rejects a bad name or an oversized clip.
    */
   saveClip(name: string, data: ArrayBuffer): Promise<string>
+  /** Free bytes on the export folder's volume (REMIX's LOW DISK strip); null when it can't be read. */
+  diskFree(): Promise<number | null>
   /** Native folder picker. Resolves null when cancelled. */
   chooseFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null>
   /** macOS microphone permission (systemPreferences.askForMediaAccess). */
@@ -234,8 +241,12 @@ export interface FvwksBridge {
   restartEngine(): Promise<void>
   onMenuCommand(listener: (command: MenuCommand) => void): () => void
   openLogs(): Promise<void>
+  /** Page zoom: ⌘+ / ⌘− / ⌘0 when no page handled them (REMIX zooms its timeline instead). */
+  zoom(step: -1 | 0 | 1): void
   /** App updates (checked, downloaded, verified and installed by main). */
   readonly updates: UpdatesBridge
+  /** The update check at boot (the boot screen's UPDATE REQUIRED). */
+  readonly bootUpdate: BootUpdateBridge
   /** The first-run Setup window. */
   readonly setup: SetupBridge
   /** 1.3: the stage visuals' output window (a projector or LED wall), and the user's ISF shaders for SHADERS. */
@@ -288,6 +299,7 @@ export const IPC = {
   startDrag: 'fvwks:start-drag',
   reveal: 'fvwks:reveal',
   saveClip: 'fvwks:save-clip',
+  diskFree: 'fvwks:disk-free',
   logError: 'fvwks:log-error',
   chooseFolder: 'fvwks:choose-folder',
   askMic: 'fvwks:ask-mic',
@@ -297,6 +309,7 @@ export const IPC = {
   openCameraSettings: 'fvwks:open-camera-settings',
   menuCommand: 'fvwks:menu-command',
   openLogs: 'fvwks:open-logs',
+  zoom: 'fvwks:zoom',
   updatesState: 'fvwks:updates-state',
   updatesGet: 'fvwks:updates-get',
   updatesCheck: 'fvwks:updates-check',
@@ -305,8 +318,10 @@ export const IPC = {
   updatesInstall: 'fvwks:updates-install',
   updatesSetFeed: 'fvwks:updates-set-feed',
   updatesSetToken: 'fvwks:updates-set-token',
-  updatesSetAuto: 'fvwks:updates-set-auto',
   updatesDismissWhatsNew: 'fvwks:updates-dismiss-whats-new',
+  bootUpdateState: 'fvwks:boot-update-state',
+  bootUpdateGet: 'fvwks:boot-update-get',
+  bootUpdateContinue: 'fvwks:boot-update-continue',
   setupInfo: 'fvwks:setup-info',
   setupComplete: 'fvwks:setup-complete',
   visualsDisplays: 'fvwks:visuals-displays',

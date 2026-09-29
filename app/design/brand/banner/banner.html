@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- The README banner and GitHub social preview (2560×1280). Re-render from app/: node design/brand/banner/render.mjs
+     The laptop is CSS; its screen is a real FoxBox capture (remix-screen.png: REMIX, web mock, demo data, 1512×950 @2x, under the menu bar). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FoxBox banner</title>
+<style>
+  @font-face { font-family: 'Big Shoulders Display'; font-weight: 800; src: url('../../../src/renderer/src/assets/fonts/big-shoulders-display-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url('../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 500; src: url('../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 700; src: url('../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+  :root { --bg: #0b0b0c; --ink: #e9e5da; --dim: #a9a59b; --ember: #ff4b2b; --amber: #ffb23e; }
+  html, body { margin: 0; width: 2560px; height: 1280px; overflow: hidden; background: var(--bg); }
+  body { position: relative; font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+
+  /* ground: a quiet vignette and one warm pool of light under the laptop (no neon) */
+  .ground { position: absolute; inset: 0; background:
+      radial-gradient(1200px 760px at 1720px 700px, rgba(255, 75, 43, 0.07), transparent 70%),
+      radial-gradient(1800px 1100px at 1280px 640px, #121214, var(--bg) 75%); }
+  .specks { position: absolute; inset: 0; opacity: 0.55; background-image:
+      radial-gradient(1.6px 1.6px at 12% 18%, rgba(255, 178, 62, 0.5), transparent 60%),
+      radial-gradient(1.4px 1.4px at 22% 74%, rgba(255, 75, 43, 0.45), transparent 60%),
+      radial-gradient(1.8px 1.8px at 7% 52%, rgba(255, 178, 62, 0.35), transparent 60%),
+      radial-gradient(1.4px 1.4px at 38% 12%, rgba(255, 75, 43, 0.4), transparent 60%),
+      radial-gradient(1.6px 1.6px at 44% 88%, rgba(255, 178, 62, 0.35), transparent 60%),
+      radial-gradient(1.4px 1.4px at 96% 10%, rgba(255, 75, 43, 0.35), transparent 60%),
+      radial-gradient(1.6px 1.6px at 90% 92%, rgba(255, 178, 62, 0.3), transparent 60%); }
+
+  /* left: the words */
+  .copy { position: absolute; left: 170px; top: 50%; transform: translateY(-52%); width: 900px; }
+  .mark { width: 92px; height: 92px; color: var(--ember); filter: drop-shadow(0 0 28px rgba(255, 75, 43, 0.45)); }
+  .word { margin: 34px 0 0; font: 800 236px/0.84 'Big Shoulders Display', sans-serif; letter-spacing: 0.01em; }
+  .word b { color: var(--ember); font-weight: 800; }
+  .stay { margin-top: 44px; font-weight: 700; font-size: 58px; letter-spacing: 0.01em; }
+  .small { margin-top: 20px; font-size: 30px; line-height: 1.45; color: var(--dim); max-width: 780px; }
+  .pillars { margin-top: 58px; font-weight: 500; font-size: 29px; letter-spacing: 0.24em; }
+  .pillars i { font-style: normal; color: var(--ember); padding: 0 0.3em; }
+
+  /* right: a space-black laptop, floating, a slight 3D turn toward the words */
+  .scene { position: absolute; left: 1310px; top: 110px; width: 1180px; height: 900px; perspective: 3200px; perspective-origin: 52% 30%; }
+  .glow { position: absolute; left: 1420px; top: 300px; width: 1040px; height: 620px; border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(255, 75, 43, 0.22), rgba(255, 75, 43, 0.06) 60%, transparent); filter: blur(60px); }
+  .shadow { position: absolute; left: 1420px; top: 1085px; width: 1000px; height: 70px; border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.5) 50%, transparent); filter: blur(18px); }
+  .laptop { position: absolute; left: 70px; top: 20px; width: 1040px; transform-style: preserve-3d;
+      transform: scale(0.9) rotateX(-10deg) rotateY(-16deg) rotateZ(0.4deg); }
+  .lid { position: relative; width: 1040px; height: 700px; border-radius: 30px 30px 8px 8px; transform-origin: 50% 100%;
+      transform: rotateX(14deg); background: linear-gradient(160deg, #3a3a3e, #1c1c1f 18%, #151517 70%, #232326);
+      box-shadow: inset 0 0 0 2px #2c2c30, inset 0 0 0 4px #0c0c0d; padding: 22px 22px 34px; box-sizing: border-box; padding: 20px 20px 30px; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 16px 16px 4px 4px; overflow: hidden; background: #000;
+      box-shadow: 0 0 0 2px #050506, 0 0 60px rgba(255, 75, 43, 0.12); }
+  /* a 14" MacBook Pro screen: FoxBox's own menu bar around the notch, the app (1512×950) below it */
+  .menubar { position: absolute; left: 0; right: 0; top: 0; height: 3.26%; display: flex; align-items: center; gap: 1.7%; padding-left: 2.4%;
+      box-sizing: border-box; background: #1c1c1e; font: 400 11px/1 system-ui, -apple-system, sans-serif; color: rgba(255, 255, 255, 0.86); }
+  .menubar b { font-weight: 700; }
+  .notch { position: absolute; left: 50%; top: 0; width: 6.6%; height: 3.4%; transform: translateX(-50%); background: #000; border-radius: 0 0 8px 8px; }
+  .screen img { position: absolute; left: 0; top: 3.26%; display: block; width: 100%; height: 96.74%; object-fit: cover; object-position: top; }
+  .screen::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(118deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015) 32%, transparent 46%); }
+  .chin { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font: 500 13px 'JetBrains Mono'; letter-spacing: 0.4em; color: #4a4a4f; }
+  .base { position: absolute; left: -38px; top: 700px; width: 1116px; height: 560px; transform-origin: 50% 0; transform: rotateX(90deg);
+      border-radius: 10px 10px 30px 30px; background: linear-gradient(180deg, #111113, #17171a 45%, #1d1d20);
+      box-shadow: inset 0 0 0 2px #26262a, inset 0 3px 0 rgba(255, 255, 255, 0.05); }
+  .base::before { content: ''; position: absolute; left: 12%; right: 12%; top: 7%; height: 44%; border-radius: 8px;
+      background: repeating-linear-gradient(90deg, #0b0b0c 0 52px, #151517 52px 58px), #0b0b0c; opacity: 0.95; }
+  .base::after { content: ''; position: absolute; left: 33%; right: 33%; top: 58%; height: 30%; border-radius: 12px; background: #19191c; box-shadow: inset 0 0 0 2px #232327; }
+  .front { position: absolute; left: -38px; top: 700px; width: 1116px; height: 18px; transform-origin: 50% 0;
+      transform: rotateX(90deg) translateY(560px) rotateX(-90deg); border-radius: 0 0 22px 22px;
+      background: linear-gradient(180deg, #2c2c31, #0f0f11); }
+</style>
+</head>
+<body>
+  <div class="ground"></div>
+  <div class="specks"></div>
+
+  <div class="copy">
+    <svg class="mark" viewBox="0 0 512 512" aria-hidden="true">
+      <defs><mask id="fb-cut"><rect width="512" height="512" fill="#fff"/>
+        <path d="M112 104 L196 190 L130 222 Z" fill="#000"/><path d="M400 104 L316 190 L382 222 Z" fill="#000"/>
+        <path d="M140 250 L248 290 L226 330 L176 306 Z" fill="#000"/><path d="M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/>
+        <path d="M56 298 L256 410 L456 298" fill="none" stroke="#000" stroke-width="28" stroke-linejoin="miter"/></mask></defs>
+      <path mask="url(#fb-cut)" fill="currentColor" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"/>
+    </svg>
+    <h1 class="word">FOX<b>BOX</b></h1>
+    <div class="stay">Stay stealthy.</div>
+    <div class="small">The toolkit for bass producers who’d rather stay anonymous.</div>
+    <div class="pillars">VOICE MASK<i>·</i>REMIX<i>·</i>VISUALS</div>
+  </div>
+
+  <div class="glow"></div>
+  <div class="shadow"></div>
+  <div class="scene">
+    <div class="laptop">
+      <div class="base"></div>
+      <div class="front"></div>
+      <div class="lid">
+        <div class="screen">
+          <div class="menubar"><b>FoxBox</b><span>File</span><span>Edit</span><span>Playback</span><span>View</span><span>Window</span><span>Help</span></div>
+          <div class="notch"></div>
+          <img src="remix-screen.png" alt="">
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

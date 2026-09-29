@@ -15,8 +15,9 @@ def build_openapi() -> dict:
     from fvwks_server.app import create_app
     from fvwks_server.config import Config
 
-    tmp = Path(tempfile.mkdtemp(prefix="fvwks-openapi-"))
-    return create_app(Config.from_env(str(tmp / "data"), str(tmp / "exports"))).openapi()
+    with tempfile.TemporaryDirectory(prefix="fvwks-openapi-", ignore_cleanup_errors=True) as d:  # never left behind
+        tmp = Path(d)
+        return create_app(Config.from_env(str(tmp / "data"), str(tmp / "exports"))).openapi()
 
 
 def main() -> int:

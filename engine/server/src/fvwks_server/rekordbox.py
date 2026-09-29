@@ -23,7 +23,7 @@ import os
 import re
 import uuid
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
@@ -63,6 +63,7 @@ class RekordboxTrack:
     channels: int = 2
     first_word_s: float | None = 0.0  # hot cue A
     tail_s: float | None = None  # memory cue: where the voice ends (end of the last word)
+    cues: list[tuple[str, float, int]] = field(default_factory=list)  # more marks: (name, s, Num 0.. = hot cue A.., -1 = memory)
     date_added: date | None = None
 
 
@@ -161,6 +162,12 @@ def build_rekordbox_xml(
         if opts.memory_cue_tail and t.tail_s is not None:
             tail = min(float(t.tail_s), max(0.0, t.duration_s - 0.001))
             ET.SubElement(el, "POSITION_MARK", Name="VOICE OUT", Type="0", Start=_seconds(tail), Num="-1")
+        for name, start, num in t.cues:
+            mark = {"Name": _xml_text(name), "Type": "0", "Start": _seconds(min(start, max(0.0, t.duration_s - 0.001))),
+                    "Num": str(num)}
+            if num >= 0:
+                mark.update(zip(("Red", "Green", "Blue"), map(str, HOT_CUE_RGB)))
+            ET.SubElement(el, "POSITION_MARK", mark)
     playlists = ET.SubElement(root, "PLAYLISTS")
     node_root = ET.SubElement(playlists, "NODE", Type="0", Name="ROOT", Count="1")
     playlist = ET.SubElement(node_root, "NODE", Name=_xml_text(playlist_name) or "GUY FVWKS", Type="1", KeyType="0",

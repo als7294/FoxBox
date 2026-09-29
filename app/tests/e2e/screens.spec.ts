@@ -39,7 +39,9 @@ test('every screen renders', async () => {
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'SHORTCUTS' })).toHaveCount(0)
 
-  for (const screen of ['VAULT', 'SETLIST', 'VOICES', 'SETTINGS'] as const) {
+  // PROD (05) is greyed out until its update: not reachable.
+  await expect(page.getByRole('navigation').getByRole('button', { name: /^PROD/ })).toHaveAttribute('aria-disabled', 'true')
+  for (const screen of ['REMIX', 'VAULT', 'VOICES', 'SETTINGS'] as const) {
     await page.getByRole('navigation').getByRole('button', { name: screen }).click()
     await expect(page.getByRole('heading', { name: screen, level: 1 })).toBeVisible()
     await waitWipe(page)

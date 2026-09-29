@@ -32,8 +32,8 @@
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 void main() {
   vec2 uv = isf_FragNormCoord;
-  float wob = (0.002 + 0.012 * onset) * (1.0 - 0.7 * calm);
-  uv.x += sin(uv.y * 40.0 + TIME * 6.0) * wob + (hash(vec2(floor(uv.y * 90.0), floor(TIME * 24.0))) - 0.5) * wob;
+  float wob = (0.002 + 0.012 * onset + 0.006 * buildProgress + 0.02 * dropHit) * (1.0 - 0.7 * calm);
+  uv.x += sin(uv.y * 40.0 + TIME * 6.0 + 6.28318 * bassWobblePhase * bassWobble) * wob + (hash(vec2(floor(uv.y * 90.0), floor(TIME * 24.0))) - 0.5) * wob;
   float band = smoothstep(0.02, 0.0, abs(fract(uv.y * 0.5 - TIME * 0.08) - 0.5) - 0.01);
   vec2 ul = uv - vec2(0.004, 0.0);
   vec2 ur = uv + vec2(0.004, 0.0);

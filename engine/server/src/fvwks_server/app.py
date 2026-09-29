@@ -26,14 +26,33 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from fvwks_contracts.models import (
     ApiError,
+    BassGroove,
+    BassPatch,
     BatchRequest,
+    DrumKit,
     ErrorEnvelope,
     ExportRequest,
     ExportResult,
+    FlipStyle,
+    GrooveRenderRequest,
+    GrooveRenderResult,
     Health,
     Job,
     Lexicon,
     LibraryPage,
+    MaskInfo,
+    MashMatch,
+    MashScanRequest,
+    MashScanResult,
+    Remix,
+    RemixCreate,
+    RemixExportRequest,
+    RemixBuildRequest,
+    RemixExportResult,
+    RemixPrefsResult,
+    RemixUpdate,
+    TakeFeedback,
+    TakeFeedbackCreate,
     MixInfo,
     MixRequest,
     ModelInfo,
@@ -51,6 +70,7 @@ from fvwks_contracts.models import (
     Settings,
     SignedModelManifest,
     Song,
+    SongLyrics,
     StemFeatures,
     SongUpdate,
     SourceInfo,
@@ -64,6 +84,7 @@ from fvwks_contracts.models import (
 
 from .config import VERSION, Config
 from .errors import ApiException, NotFound
+from .masks import MAX_RASTER, MEDIA
 from .service import MAX_SONG_BYTES, MAX_UPLOAD_BYTES, EngineService
 
 log = logging.getLogger("fvwks.engine")
@@ -256,6 +277,36 @@ def create_app(config: Config) -> FastAPI:
         data = await file.read()
         return await run_in_threadpool(fn, data, file.filename, name)
 
+    @r.get("/masks", response_model=list[MaskInfo], tags=["camera"], operation_id="listMasks")
+    def list_masks() -> list[MaskInfo]:
+        """v0.11.6: the user's imported face masks (the built-ins are app assets)."""
+        return service.masks.list()
+
+    @r.post("/masks", response_model=MaskInfo, tags=["camera"], operation_id="uploadMask")
+    async def upload_mask(file: UploadFile = File(...), name: str = Form(...)) -> MaskInfo:
+        """v0.11.6: a user mask: SVG <= 2 MB (re-checked: no script, foreignObject, on*= or outside refs) or PNG / WebP
+        <= 16 MB and <= 4096 px a side (read from its header)."""
+        if file.size is not None and file.size > MAX_RASTER:  # refuse before reading it into memory
+            raise ApiException(400, "file_too_large", "Masks are limited to 16 MB.")
+        data = await file.read(MAX_RASTER + 1)
+        return await run_in_threadpool(service.masks.add, data, name)
+
+    @r.get("/masks/{mask_id}/image", response_class=Response, tags=["camera"], operation_id="getMaskImage",
+           responses={200: {"content": {m: {} for m in MEDIA.values()}}})
+    def get_mask_image(mask_id: str) -> Response:
+        """v0.11.6: the mask's image with its own Content-Type; an SVG comes with CSP default-src 'none'."""
+        info, path = service.masks.get(mask_id)
+        headers = {"X-Content-Type-Options": "nosniff"}
+        if info.format == "svg":
+            headers["Content-Security-Policy"] = "default-src 'none'"
+        return FileResponse(path, media_type=MEDIA[info.format], headers=headers)
+
+    @r.delete("/masks/{mask_id}", status_code=204, response_class=Response, tags=["camera"], operation_id="deleteMask")
+    def delete_mask(mask_id: str) -> Response:
+        """v0.11.6: a user mask."""
+        service.masks.delete(mask_id)
+        return Response(status_code=204)
+
     @r.get("/songs", response_model=list[Song], tags=["songs"], operation_id="listSongs")
     def list_songs() -> list[Song]:
         return _songs("list_songs")()
@@ -283,6 +334,108 @@ def create_app(config: Config) -> FastAPI:
     def get_stem_features(song_id: str) -> StemFeatures:
         """v0.9: per-stem envelopes and onsets for the visuals (60 fps over the whole song)."""
         return _songs("stem_features")(song_id)
+
+    @r.post("/songs/{song_id}/lyrics", response_model=Job, tags=["songs"], operation_id="transcribeSongLyrics")
+    def transcribe_song_lyrics(song_id: str) -> Job:
+        """v0.10: timed lyrics (a song_lyrics job): from the vocals stem when the song has stems, else the mix."""
+        return _songs("request_lyrics")(song_id)
+
+    @r.get("/songs/{song_id}/lyrics", response_model=SongLyrics, tags=["songs"], operation_id="getSongLyrics")
+    def get_song_lyrics(song_id: str) -> SongLyrics:
+        """v0.10: the song's timed words (409 until its song_lyrics job is done)."""
+        return _songs("lyrics")(song_id)
+
+    @r.post("/remixes", response_model=Remix, tags=["remix"], operation_id="createRemix")
+    def create_remix(req: RemixCreate) -> Remix:
+        """v0.11: a new remix of song A (+ B for a mashup), empty until BUILD; starts stems on sources without them."""
+        return _songs("create_remix")(req)
+
+    @r.get("/remixes", response_model=list[Remix], tags=["remix"], operation_id="listRemixes")
+    def list_remixes(song_id: str | None = None, recipe: str | None = None) -> list[Remix]:
+        """v0.11.9: `song_id` / `recipe` narrow the list (RESUME)."""
+        return _songs("list_remixes")(song_id, recipe)
+
+    @r.get("/remixes/{remix_id}", response_model=Remix, tags=["remix"], operation_id="getRemix")
+    def get_remix(remix_id: str) -> Remix:
+        return _songs("get_remix")(remix_id)
+
+    @r.patch("/remixes/{remix_id}", response_model=Remix, tags=["remix"], operation_id="updateRemix")
+    def update_remix(remix_id: str, body: RemixUpdate) -> Remix:
+        """v0.11: save the arrangement at the rev it was edited from (409 remix_conflict when it's stale)."""
+        return _songs("update_remix")(remix_id, body)
+
+    @r.post("/remixes/{remix_id}/feedback", response_model=TakeFeedback, tags=["remix"], operation_id="rateRemixTake")
+    def rate_remix_take(remix_id: str, req: TakeFeedbackCreate) -> TakeFeedback:
+        """v0.11.8: rate one take (404 when the remix has no take with that seed); ROLL learns from it."""
+        return _songs("rate_take")(remix_id, req)
+
+    @r.get("/remix-prefs", response_model=RemixPrefsResult, tags=["remix"], operation_id="getRemixPrefs")
+    def get_remix_prefs() -> RemixPrefsResult:
+        """v0.11.8: the per-style option counts ROLL leans on."""
+        return _songs("remix_prefs")()
+
+    @r.delete("/remix-prefs/{style}", status_code=204, response_class=Response, tags=["remix"], operation_id="resetRemixPrefs")
+    def reset_remix_prefs(style: str) -> Response:
+        """v0.11.8: RESET, forget one style's ratings."""
+        _songs("reset_remix_prefs")(style)
+        return Response(status_code=204)
+
+    @r.post("/remixes/{remix_id}/build", response_model=Job, tags=["remix"], operation_id="buildRemix")
+    def build_remix(remix_id: str, req: RemixBuildRequest | None = None) -> Job:
+        """v0.11: the recipe → a draft arrangement (a remix_build job; a new rev). A mashup lines up on Remix.mash.
+        v0.11.9: a take with a saved arrangement (you switched away from it) gets it back; `fresh` rebuilds it."""
+        return _songs("build_remix")(remix_id, req)
+
+    @r.post("/remixes/{remix_id}/prepare", response_model=Job, tags=["remix"], operation_id="prepareRemix")
+    def prepare_remix(remix_id: str) -> Job:
+        """v0.11: render every clip without audio at the remix tempo and key (a remix_prepare job). Clips gain their
+        audio_id as they're ready (the playhead's first 16 bars and the first drop first): refetch the remix meanwhile."""
+        return _songs("prepare_remix")(remix_id)
+
+    @r.post("/remixes/{remix_id}/export", response_model=Job, tags=["remix"], operation_id="exportRemix")
+    def export_remix(remix_id: str, req: RemixExportRequest) -> Job:
+        """v0.11.4: the mixdown as AIFF / MP3, the Ableton Live 11 set (BETA), and (visuals) a new Song whose structure
+        is the arrangement's (a remix_export job; GET /remixes/{id}/export has the result)."""
+        return _songs("export_remix")(remix_id, req)
+
+    @r.get("/remixes/{remix_id}/export", response_model=RemixExportResult, tags=["remix"], operation_id="getRemixExport")
+    def get_remix_export(remix_id: str) -> RemixExportResult:
+        """v0.11.4: the latest export of this remix (404 until one exists)."""
+        return _songs("remix_export")(remix_id)
+
+    @r.delete("/remixes/{remix_id}", status_code=204, response_class=Response, tags=["remix"], operation_id="deleteRemix")
+    def delete_remix(remix_id: str) -> Response:
+        _songs("delete_remix")(remix_id)
+        return Response(status_code=204)
+
+    @r.get("/patches", response_model=list[BassPatch], tags=["remix"], operation_id="listPatches")
+    def list_patches() -> list[BassPatch]:
+        """v0.11: the bass library (preview_audio_id streams a short audition)."""
+        return _songs("list_patches")()
+
+    @r.get("/kits", response_model=list[DrumKit], tags=["remix"], operation_id="listKits")
+    def list_kits() -> list[DrumKit]:
+        return _songs("list_kits")()
+
+    @r.get("/flip-styles", response_model=list[FlipStyle], tags=["remix"], operation_id="listFlipStyles")
+    def list_flip_styles() -> list[FlipStyle]:
+        return _songs("list_flip_styles")()
+
+    @r.get("/songs/{song_id}/bass/groove", response_model=BassGroove, tags=["remix"], operation_id="getBassGroove")
+    def get_bass_groove(song_id: str, start_bar: int = Query(1, ge=1), bars: int | None = Query(None, ge=1, le=256)) -> BassGroove:
+        """v0.11: BASS DNA of a section of the song's bass stem (409 stems_not_ready until it's split); cached."""
+        return _songs("bass_groove")(song_id, start_bar, bars)
+
+    @r.post("/grooves/render", response_model=GrooveRenderResult, tags=["remix"], operation_id="renderGroove")
+    def render_groove(req: GrooveRenderRequest) -> GrooveRenderResult:
+        """v0.11.4: a section's BASS DNA re-played on a patch (the A/B audition); cached."""
+        return _songs("render_groove")(req)
+
+    @r.post("/mash/scan", response_model=MashScanResult, tags=["remix"], operation_id="scanMash")
+    def scan_mash(req: MashScanRequest) -> MashScanResult:
+        """v0.11.4 MASH RADAR (synchronous, cached features only): the other songs' parts that fit one part of this
+        song, ranked; songs not read yet are in `missing` (queued)."""
+        return _songs("mash_scan")(req)
 
     @r.post("/mix", response_model=MixInfo, tags=["songs"], operation_id="mixSong")
     def mix_song(req: MixRequest) -> MixInfo:

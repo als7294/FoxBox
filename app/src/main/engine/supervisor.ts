@@ -282,7 +282,7 @@ export class EngineSupervisor extends EventEmitter<{ status: [EngineStatus] }> {
       if (gen !== this.generation || this.stopping) return false
       if (code === 0) setup.onSuccess?.()
       if (code !== 0 || setup.needed()) {
-        const reason = `engine setup failed (${setup.describe}, exit ${code ?? 'error'}); see the engine log`
+        const reason = `The sound engine couldn't be ${setup.kind === 'update' ? 'updated' : 'installed'} (exit ${code ?? 'error'}); the engine log has the details`
         this.log?.line(reason)
         this.patch({ state: 'offline', lastError: reason, detail: null, setup: null })
         return false

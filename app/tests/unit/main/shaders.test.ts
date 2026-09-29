@@ -1,11 +1,12 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, it } from 'vitest'
+import { expect, it, onTestFinished } from 'vitest'
 import { importShaderFiles, listShaders, removeShader, SHADER_MAX_BYTES } from '../../../src/main/shaders'
 
 it('keeps user shaders to plain .fs files inside <data dir>/shaders', () => {
   const root = mkdtempSync(join(tmpdir(), 'shaders-'))
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   const dir = join(root, 'shaders')
   const src = join(root, 'picked')
   mkdirSync(src)

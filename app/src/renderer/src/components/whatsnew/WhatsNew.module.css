@@ -1,0 +1,195 @@
+/* WHAT'S NEW: full window, over everything but the boot (which hands over to it). Ink ground, the fox lattice low,
+   the animated mark, glass cards with numbered kickers and facet glyphs, one ember CTA. */
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  overflow: auto;
+  background: #070708;
+  animation: wnIn 420ms ease-out both;
+}
+.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+}
+.inner {
+  position: relative;
+  /* margin auto: centred when it fits, scrolls from the top when it doesn't */
+  margin: auto;
+  width: min(1040px, calc(100% - 64px));
+  padding: 28px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.mark {
+  filter: drop-shadow(0 0 calc(24px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35));
+}
+.kicker {
+  margin: 0;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-accent);
+}
+.title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: var(--vb-display-weight) clamp(44px, 6vw, 72px) / 0.92 var(--vb-font-display);
+  letter-spacing: 0.01em;
+  color: var(--vb-ink);
+}
+.subtitle {
+  font: 500 12px var(--vb-font-mono);
+  letter-spacing: 0.3em;
+  color: var(--vb-dim);
+}
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 136px;
+  padding: 16px 18px 14px;
+  background: var(--vb-glass-fill);
+  backdrop-filter: var(--vb-glass-blur);
+  border: 1px solid var(--vb-glass-edge);
+  border-top-color: var(--vb-glass-edge-top);
+  box-shadow: var(--vb-glass-inner), var(--vb-glass-shadow);
+  border-radius: var(--vb-glass-radius-lg);
+  corner-shape: var(--vb-glass-corner);
+  animation: wnCard 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.num {
+  font: 600 11px var(--vb-font-mono);
+  letter-spacing: 0.2em;
+  color: var(--vb-accent);
+}
+.glyph {
+  width: 34px;
+  height: 26px;
+  fill: none;
+  stroke: rgba(var(--vb-ink-rgb), 0.6);
+  stroke-width: 14;
+  stroke-linejoin: miter;
+  overflow: visible;
+}
+.cardTitle {
+  margin: 0;
+  font: var(--vb-display-weight) 24px / 1 var(--vb-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--vb-ink);
+}
+.cardBody {
+  margin: 0;
+  font: 400 12px / 1.55 var(--vb-font-mono);
+  color: rgba(var(--vb-ink-rgb), 0.78);
+}
+.ver {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-dim);
+}
+.more {
+  margin: 0;
+  padding: 0 0 0 18px;
+  width: 100%;
+  columns: 2 320px;
+  column-gap: 32px;
+  font: 400 11.5px / 1.7 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.foot {
+  /* Always in view (1280×800 would scroll it off): pinned to the bottom of the scrolling screen. */
+  position: sticky;
+  bottom: 0;
+  align-self: stretch;
+  padding: 16px 0 20px;
+  background: linear-gradient(transparent, #070708 38%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.go {
+  min-width: 220px;
+  height: 52px;
+  border: 0;
+  border-radius: var(--vb-glass-radius);
+  background: var(--vb-accent);
+  color: #0b0b0c;
+  font: var(--vb-display-weight) 22px / 1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 0 calc(28px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+.go:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 calc(40px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.5);
+}
+.go:focus-visible {
+  outline: 2px solid var(--vb-ink);
+  outline-offset: 3px;
+}
+.signoff {
+  margin: 0;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vb-dim);
+}
+@keyframes wnIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wnCard {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .card {
+    animation: none;
+  }
+}

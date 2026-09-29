@@ -73,8 +73,8 @@ void main() {
   vec2 p = (gl_FragCoord.xy - 0.5 * RENDERSIZE) / min(RENDERSIZE.x, RENDERSIZE.y);
   float r = length(p);
   float voice = max(voiceLevel, rms);
-  float core = smoothstep(0.1 + voice * 0.25, 0.0, r);
-  float halo = 0.03 / (abs(r - 0.3 - songLevel * 0.15) + 0.03) * songLevel;
+  float core = smoothstep(0.1 + voice * 0.25 + 0.3 * dropEnergy, 0.0, r);
+  float halo = 0.03 / (abs(r - 0.3 * (1.0 - 0.3 * buildProgress) - songLevel * 0.15) + 0.03) * (songLevel + buildProgress);
   vec3 c = bgColor.rgb + accentColor.rgb * core * (0.8 + onset * 0.6) + amberColor.rgb * core * core;
   c += iceColor.rgb * halo * 0.6;
   gl_FragColor = vec4(c, 1.0);

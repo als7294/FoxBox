@@ -1,3 +1,4 @@
+import { hideHome } from '@/lib/paths'
 import { create } from 'zustand'
 
 export type ToastTone = 'info' | 'success' | 'warn' | 'error'
@@ -32,7 +33,10 @@ export const useToasts = create<ToastStore>((set, get) => ({
     const id = nextId++
     // The design's 3.8 s (the toast sits over the OUTPUT actions); errors stay longer.
     const timeoutMs = t.timeoutMs ?? (t.tone === 'error' ? 10_000 : t.actions?.length || t.dragPath ? 6_000 : 3_800)
-    set({ items: [...get().items.filter((x) => x.message !== t.message).slice(-2), { ...t, id, timeoutMs }] })
+    // Never a home folder on screen (anonymous act): an engine error or a path in the text shows it as "~".
+    const shown = { ...t, message: hideHome(t.message), ...(t.detail ? { detail: hideHome(t.detail) } : {}) }
+    const rest = get().items.filter((x) => x.message !== shown.message)
+    set({ items: [...rest.slice(-2), { ...shown, id, timeoutMs }] })
     if (timeoutMs > 0) setTimeout(() => get().dismiss(id), timeoutMs)
     return id
   },

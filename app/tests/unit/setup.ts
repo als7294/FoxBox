@@ -25,3 +25,12 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
       dispatchEvent: () => false,
     }) as unknown as MediaQueryList
 }
+
+// jsdom has no ResizeObserver; @dnd-kit/dom (under REMIX's waveform-playlist) needs one at import. It never fires here.
+if (typeof window !== 'undefined' && typeof window.ResizeObserver !== 'function') {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}

@@ -47,20 +47,42 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [React](https://github.com/facebook/react) · [Vite](https://github.com/vitejs/vite) · TypeScript | UI | MIT / Apache-2.0 |
 | [wavesurfer.js](https://github.com/katspaugh/wavesurfer.js) | Waveforms | BSD-3-Clause |
 | [TanStack Query](https://github.com/TanStack/query) · [Zustand](https://github.com/pmndrs/zustand) · openapi-typescript/openapi-fetch | Data and state | MIT |
+| [Tone.js](https://github.com/Tonejs/Tone.js) | REMIX: prepared-clip playback | MIT |
+| [waveform-playlist](https://github.com/naomiaro/waveform-playlist) (Naomi Aro) · @waveform-playlist/playout | REMIX: the multitrack timeline | MIT |
+| [styled-components](https://github.com/styled-components/styled-components) | Styling inside waveform-playlist | MIT |
+| [dnd-kit](https://github.com/clauderic/dnd-kit) (@dnd-kit/react, dom, abstract) | Dragging clips on the REMIX timeline | MIT |
 | [Big Shoulders Display](https://fonts.google.com/specimen/Big+Shoulders+Display) · [JetBrains Mono](https://www.jetbrains.com/lp/mono/) | Bundled fonts | SIL OFL 1.1 |
 
-## LIVE and visuals (1.3)
+## Camera
+| Project | Use | License |
+|---|---|---|
+| [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 1.0.1 (vendored in `vendor/mediapipe`) | On-device face detection, face and hand landmarks, person segmentation | Apache-2.0 |
+| MediaPipe models: BlazeFace short-range, BlazeFace full-range (`blaze_face_full_range.tflite`, for small and far faces; pinned by sha256), Face Landmarker, Gesture Recognizer (hand landmarks + named gestures), Selfie Segmenter (float16, pinned by sha256) | Hiding faces, depth pass-through, hand signals, auto-framing | Apache-2.0 |
+
+## LIVE and visuals (1.3–1.5)
 | Project | Use | License |
 |---|---|---|
 | [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (Geraint Luff / Signalsmith Audio) | LIVE: real-time pitch and formant shift (vendored in `audio/live/vendor`) | MIT |
 | [three.js](https://github.com/mrdoob/three.js) | FOXBOX visual styles (WebGL) | MIT |
 | [postprocessing](https://github.com/pmndrs/postprocessing) | The stage's bloom, grain and vignette | Zlib |
+| [troika-three-text](https://github.com/protectwise/troika) · troika-three-utils · troika-worker-utils · webgl-sdf-generator (Jason Johnston / ProtectWise) | TEXT family: sharp GPU text before the drop | MIT |
+| [bidi-js](https://github.com/lojjic/bidi-js) (Jason Johnston) | Text direction for troika | MIT |
+| woff2otf · [fflate](https://github.com/101arrowz/fflate), bundled inside troika-three-text | Font decoding | Apache-2.0 · MIT |
+| [Color Thief](https://github.com/lokesh/color-thief) v3 (Lokesh Dhakar) | PALETTE FROM IMAGE | MIT |
 | [butterchurn](https://github.com/jberg/butterchurn) (Jordan Berg) | MILKDROP: Milkdrop 2 visualizer in WebGL 2 | MIT |
 | [butterchurn-presets](https://github.com/jberg/butterchurn-presets) (base pack, 100 presets) | MILKDROP presets; their equations precompiled into `visuals/engines/milkdrop/eqs.gen.js` (no eval) | MIT (the package) |
 | [interactive-shader-format-js](https://github.com/msfeldstein/interactive-shader-format-js) (Michael Feldstein) | SHADERS: ISF renderer | ISC |
 | FoxBox's own ISF shader pack (`visuals/engines/isf/shaders`, see its LICENSES.md) | SHADERS styles | MIT |
 | [Ableton Link](https://github.com/Ableton/link) (Ableton AG) | "Sync to Rekordbox": tempo and beat from the Link session (`native/link`, as the `link-helper` process) | GPL-2.0-or-later |
 | [asio](https://github.com/chriskohlhoff/asio) (Christopher Kohlhoff), standalone, via Link | Link's networking | BSL-1.0 |
+
+## REMIX (1.5)
+| Project | Use | License |
+|---|---|---|
+| [Surge XT](https://github.com/surge-synthesizer/surge) (Surge Synth Team), its Python module `surgepy`, built from a pinned commit with one small FoxBox patch (`setTempo`); the source and patch are in `engine/synth/native` | BASS DNA: re-plays a track's bass groove on a synth patch, run in a child process | GPL-3.0 |
+| Surge XT factory bass patches by A.Liv, qb and Kinsey Dulcet (12, each tagged CC0 in its own metadata) | REMIX bass sounds | CC0-1.0 |
+| [TR-808 samples by Michael Fischer (Technopolis)](https://github.com/tidalcycles/sounds-tr808-fischer), sampled from a real Roland TR-808 in 1994, via tidalcycles | GENRE FLIP drum kits | CC0-1.0 |
+| An empty Ableton Live 11 set skeleton (`fvwks_server/als_live11.xml`): default track, clip, scene and master structure only, normalized from a test fixture in [ableton-inspector](https://github.com/owenbush/ableton-inspector) (Owen Bush) | REMIX: the Ableton Live export (BETA), when Live isn't installed | MIT |
 
 The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
 Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that

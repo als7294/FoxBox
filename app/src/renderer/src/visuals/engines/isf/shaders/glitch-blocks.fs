@@ -63,7 +63,8 @@ float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 void main() {
   vec2 uv = isf_FragNormCoord;
   vec2 block = floor(uv * vec2(16.0, 24.0));
-  float tear = step(1.0 - onset * 0.6, hash(block + floor(TIME * 12.0)));
+  float tear = step(1.0 - min(onset * 0.6 + buildProgress * 0.3 + dropHit * 0.8, 0.95), hash(block + floor(TIME * 12.0)));
+  uv.x += sin(6.28318 * bassWobblePhase) * 0.02 * bassGrowl * bassWobble;  // the wobble shoves the frame
   uv.x += (hash(block.yy + floor(TIME * 20.0)) - 0.5) * 0.2 * tear;
   float scan = 0.5 + 0.5 * sin(uv.y * RENDERSIZE.y * 1.2);
   float band = smoothstep(0.02, 0.0, abs(fract(uv.y - TIME * 0.1) - 0.5) - 0.02);

@@ -10,13 +10,13 @@
   align-items: center;
   justify-content: space-between;
   margin: 0;
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .stems {
-  font: 700 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   padding: 3px 7px;
   border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
   border-radius: 999px;
@@ -34,8 +34,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .bars input {

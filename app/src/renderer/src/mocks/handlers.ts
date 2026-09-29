@@ -1,6 +1,19 @@
 import { http, HttpResponse, type HttpResponseResolver } from 'msw'
-import type { BatchRequest, ExportRequest, Lexicon, MixRequest, Preset, RenderRequest, Settings, SongUpdate, TakePatch, TTSRequest } from '@/api/types'
+import type {
+  BatchRequest,
+  ExportRequest,
+  Lexicon,
+  MixRequest,
+  Preset,
+  RenderRequest,
+  Settings,
+  SongUpdate,
+  TakePatch,
+  TTSRequest,
+} from '@/api/types'
+import type { GrooveRenderRequest, MashScanRequest, RemixCreate, RemixExportRequest, RemixUpdate } from '@/api/remix'
 import { MockError, mockEngine as engine } from './mockEngine'
+import type { TakeFeedbackCreate } from './remixSim'
 
 const API = '*/api'
 
@@ -8,7 +21,10 @@ function fail(err: unknown) {
   if (err instanceof MockError) {
     return HttpResponse.json({ error: { code: err.code, message: err.message, hint: err.hint, retryable: false } }, { status: err.status })
   }
-  return HttpResponse.json({ error: { code: 'internal', message: String((err as Error)?.message ?? err), hint: null, retryable: true } }, { status: 500 })
+  return HttpResponse.json(
+    { error: { code: 'internal', message: String((err as Error)?.message ?? err), hint: null, retryable: true } },
+    { status: 500 },
+  )
 }
 
 /** Wraps a resolver so MockErrors become the engine's {error:{…}} envelope. */
@@ -36,7 +52,10 @@ export const handlers = [
       return HttpResponse.json(job)
     }),
   ),
-  http.get(`${API}/jobs/:jobId`, safe(({ params }) => HttpResponse.json(engine.job(String(params.jobId))))),
+  http.get(
+    `${API}/jobs/:jobId`,
+    safe(({ params }) => HttpResponse.json(engine.job(String(params.jobId)))),
+  ),
   http.post(
     `${API}/jobs/:jobId/cancel`,
     safe(({ params }) => {
@@ -46,7 +65,10 @@ export const handlers = [
     }),
   ),
 
-  http.post(`${API}/sources/tts`, safe(async ({ request }) => HttpResponse.json(await engine.tts((await request.json()) as TTSRequest)))),
+  http.post(
+    `${API}/sources/tts`,
+    safe(async ({ request }) => HttpResponse.json(await engine.tts((await request.json()) as TTSRequest))),
+  ),
   http.post(
     `${API}/sources/upload`,
     safe(async ({ request }) => {
@@ -65,7 +87,10 @@ export const handlers = [
       HttpResponse.json(engine.updateTranscript(String(params.sourceId), ((await request.json()) as { script: string }).script)),
     ),
   ),
-  http.get(`${API}/sources/:sourceId`, safe(({ params }) => HttpResponse.json(engine.source(String(params.sourceId))))),
+  http.get(
+    `${API}/sources/:sourceId`,
+    safe(({ params }) => HttpResponse.json(engine.source(String(params.sourceId)))),
+  ),
 
   http.post(
     `${API}/script/preview`,
@@ -74,7 +99,11 @@ export const handlers = [
   http.get(`${API}/personas/candidates/:candidateId`, ({ params }) =>
     fail(new MockError(404, 'not_found', `persona candidate '${String(params.candidateId)}' not found`)),
   ),
-  http.post(`${API}/personas/design`, () => HttpResponse.json(engine.failedJob('persona_design', 'model_missing', 'Install Qwen3-TTS VoiceDesign first (not available in the mock).'))),
+  http.post(`${API}/personas/design`, () =>
+    HttpResponse.json(
+      engine.failedJob('persona_design', 'model_missing', 'Install Qwen3-TTS VoiceDesign first (not available in the mock).'),
+    ),
+  ),
 
   http.get(`${API}/presets`, () => HttpResponse.json(engine.presets())),
   http.post(
@@ -102,8 +131,14 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
-  http.post(`${API}/render`, safe(async ({ request }) => HttpResponse.json(await engine.render((await request.json()) as RenderRequest)))),
-  http.get(`${API}/renders/:renderId`, safe(({ params }) => HttpResponse.json(engine.renderInfo(String(params.renderId))))),
+  http.post(
+    `${API}/render`,
+    safe(async ({ request }) => HttpResponse.json(await engine.render((await request.json()) as RenderRequest))),
+  ),
+  http.get(
+    `${API}/renders/:renderId`,
+    safe(({ params }) => HttpResponse.json(engine.renderInfo(String(params.renderId)))),
+  ),
   http.post(
     `${API}/exports`,
     safe(async ({ request }) => {
@@ -135,7 +170,10 @@ export const handlers = [
   }),
 
   // v0.7 songs: analysis finishes after mockEngine.songAnalysisMs; the mix is the drop alone.
-  http.get(`${API}/songs`, () => HttpResponse.json([...engine.songs.keys()].map((sid) => engine.song(sid)))),
+  http.get(`${API}/songs`, () => {
+    engine.remix.seedDemoSongs() // only REMIX lists songs: its demo tracks appear here
+    return HttpResponse.json([...engine.songs.keys()].map((sid) => engine.song(sid)))
+  }),
   http.post(
     `${API}/songs`,
     safe(async ({ request }) => {
@@ -146,7 +184,17 @@ export const handlers = [
       return HttpResponse.json(engine.uploadSong(await file.arrayBuffer(), name, file instanceof File ? file.name : 'song.wav'))
     }),
   ),
-  http.get(`${API}/songs/:songId`, safe(({ params }) => HttpResponse.json(engine.song(String(params.songId))))),
+  http.get(
+    `${API}/songs/:songId/bass/groove`,
+    safe(({ params, request }) => {
+      const q = new URL(request.url).searchParams
+      return HttpResponse.json(engine.remix.groove(String(params.songId), Number(q.get('start_bar') ?? 1), Number(q.get('bars') ?? 8)))
+    }),
+  ),
+  http.get(
+    `${API}/songs/:songId`,
+    safe(({ params }) => HttpResponse.json(engine.song(String(params.songId)))),
+  ),
   http.patch(
     `${API}/songs/:songId`,
     safe(async ({ params, request }) => HttpResponse.json(engine.updateSong(String(params.songId), (await request.json()) as SongUpdate))),
@@ -155,9 +203,82 @@ export const handlers = [
     engine.songs.delete(String(params.songId))
     return new HttpResponse(null, { status: 204 })
   }),
-  http.post(`${API}/mix`, safe(async ({ request }) => HttpResponse.json(engine.mix((await request.json()) as MixRequest)))),
+  http.post(
+    `${API}/mix`,
+    safe(async ({ request }) => HttpResponse.json(engine.mix((await request.json()) as MixRequest))),
+  ),
 
-  http.post(`${API}/batch`, safe(async ({ request }) => HttpResponse.json(engine.batch((await request.json()) as BatchRequest)))),
+  // v0.11 REMIX: see mocks/remixSim.ts.
+  http.get(`${API}/remixes`, ({ request }) => {
+    const q = new URL(request.url).searchParams
+    return HttpResponse.json(engine.remix.list({ song_id: q.get('song_id'), recipe: q.get('recipe') }))
+  }),
+  http.post(
+    `${API}/remixes`,
+    safe(async ({ request }) => HttpResponse.json(engine.remix.create((await request.json()) as RemixCreate))),
+  ),
+  http.get(
+    `${API}/remixes/:remixId`,
+    safe(({ params }) => HttpResponse.json(engine.remix.get(String(params.remixId)))),
+  ),
+  http.patch(
+    `${API}/remixes/:remixId`,
+    safe(async ({ params, request }) =>
+      HttpResponse.json(engine.remix.update(String(params.remixId), (await request.json()) as RemixUpdate)),
+    ),
+  ),
+  http.delete(`${API}/remixes/:remixId`, ({ params }) => {
+    engine.remix.remove(String(params.remixId))
+    return new HttpResponse(null, { status: 204 })
+  }),
+  http.post(
+    `${API}/remixes/:remixId/build`,
+    safe(async ({ params, request }) => {
+      const body = (await request.text().then((t) => (t ? JSON.parse(t) : null))) as { fresh?: boolean } | null
+      return HttpResponse.json(engine.remix.build(String(params.remixId), Boolean(body?.fresh)))
+    }),
+  ),
+  http.post(
+    `${API}/remixes/:remixId/prepare`,
+    safe(({ params }) => HttpResponse.json(engine.remix.prepare(String(params.remixId)))),
+  ),
+  http.post(
+    `${API}/remixes/:remixId/export`,
+    safe(async ({ params, request }) =>
+      HttpResponse.json(engine.remix.export(String(params.remixId), (await request.json()) as RemixExportRequest)),
+    ),
+  ),
+  http.get(
+    `${API}/remixes/:remixId/export`,
+    safe(({ params }) => HttpResponse.json(engine.remix.exportResult(String(params.remixId)))),
+  ),
+  http.post(
+    `${API}/grooves/render`,
+    safe(async ({ request }) => HttpResponse.json(engine.remix.renderGroove((await request.json()) as GrooveRenderRequest))),
+  ),
+  http.post(
+    `${API}/remixes/:remixId/feedback`,
+    safe(async ({ params, request }) =>
+      HttpResponse.json(engine.remix.rate(String(params.remixId), (await request.json()) as TakeFeedbackCreate)),
+    ),
+  ),
+  http.get(`${API}/remix-prefs`, () => HttpResponse.json(engine.remix.prefs())),
+  http.delete(`${API}/remix-prefs/:style`, ({ params }) => {
+    engine.remix.resetPrefs(String(params.style))
+    return new HttpResponse(null, { status: 204 })
+  }),
+  http.get(`${API}/patches`, () => HttpResponse.json(engine.remix.patches())),
+  http.get(`${API}/kits`, () => HttpResponse.json(engine.remix.kits())),
+  http.get(`${API}/flip-styles`, () => HttpResponse.json(engine.remix.flipStyles())),
+  http.post(
+    `${API}/mash/scan`,
+    safe(async ({ request }) => HttpResponse.json(engine.remix.mashScan((await request.json()) as MashScanRequest))),
+  ),
+
+  http.post(
+    `${API}/batch`,
+    safe(async ({ request }) => HttpResponse.json(engine.batch((await request.json()) as BatchRequest))),
+  ),
 
   http.get(`${API}/settings`, () => HttpResponse.json(engine.settings)),
   http.put(

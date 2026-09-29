@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SongDeck } from '@/audio/live'
 import { Button } from '@/components/common/Button'
+import { useSongFile } from '@/components/song/SongStrip'
 import { scheduleRender } from '@/state/renderController'
-import { beatDropFromPeaks, songGrid, songKey, songs, useSong } from '@/state/song'
+import { beatDropFromPeaks, songGrid, songKey, useSong } from '@/state/song'
 import { studio } from '@/state/studio'
 import styles from './live.module.css'
 
@@ -28,7 +29,7 @@ export function LiveSongStrip({
   const grid = songGrid(song)
   const key = songKey(song)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const input = useRef<HTMLInputElement>(null)
+  const file = useSongFile({ open: false })
   const drop = deck?.dropAtS ?? beatDrop ?? (song ? beatDropFromPeaks(song.peaks) : null)
   // PLAY waits for the next bar: `pending` shows it's coming until the deck is actually playing.
   const [pending, setPending] = useState(false)
@@ -89,34 +90,23 @@ export function LiveSongStrip({
     scheduleRender()
   }
 
-  const picker = (
-    <input
-      ref={input}
-      type="file"
-      accept="audio/*,.aif,.aiff,.aifc"
-      hidden
-      onChange={(e) => {
-        const f = e.target.files?.[0]
-        e.target.value = ''
-        if (f) void songs.importFile(f, { open: false })
-      }}
-    />
-  )
   if (!song) {
     return (
-      <section className={styles.songStrip} data-empty aria-label="Song">
+      <section className={styles.songStrip} data-empty aria-label="Song" data-over={file.over || undefined} {...file.dropProps}>
         <span className={styles.cardTitle}>SONG</span>
-        <span className={styles.songEmpty}>{busy ?? 'Attach a track: the visuals and pads follow it.'}</span>
-        <Button size="sm" onClick={() => input.current?.click()} disabled={Boolean(busy)}>
+        <span className={styles.songEmpty} data-error={file.error ? true : undefined}>
+          {file.error ?? busy ?? 'Attach a track (or drop one here): the visuals and pads follow it.'}
+        </span>
+        <Button size="sm" onClick={file.choose} disabled={Boolean(busy)}>
           ♪ PICK A SONG
         </Button>
-        {picker}
+        {file.input}
       </section>
     )
   }
   const noDeck = !deck
   return (
-    <section className={styles.songStrip} aria-label="Song">
+    <section className={styles.songStrip} aria-label="Song" data-over={file.over || undefined} {...file.dropProps}>
       <div className={styles.songInfo}>
         <span className={styles.songName} title={song.name}>
           ♪ {song.name}
@@ -178,11 +168,16 @@ export function LiveSongStrip({
         <Button size="sm" disabled={!grid} onClick={useTempoAndKey} title="Set the session's BPM and key to the song's">
           USE TEMPO & KEY
         </Button>
-        <button type="button" className={styles.songSwap} onClick={() => input.current?.click()} title="Pick another song">
+        <button type="button" className={styles.songSwap} onClick={file.choose} title="Pick another song (or drop one here)">
           ⇄
         </button>
       </div>
-      {picker}
+      {file.error && (
+        <span className={styles.songEmpty} data-error>
+          {file.error}
+        </span>
+      )}
+      {file.input}
     </section>
   )
 }

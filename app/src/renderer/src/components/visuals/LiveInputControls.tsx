@@ -149,7 +149,7 @@ export function LiveInputControls({ onInput }: { onInput(input: LiveInput | null
           title="Listen to it (nothing is played back)"
           data-testid="visuals-input-start"
         >
-          {opening ? 'OPENING…' : '● LISTEN'}
+          {opening ? 'OPENING…' : '▶ START INPUT'}
         </Button>
       )}
     </div>

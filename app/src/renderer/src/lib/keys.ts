@@ -3,7 +3,18 @@ const ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] 
 
 // Camelot number for each minor root (A = minor, B = relative major).
 const MINOR_CAMELOT: Record<string, number> = {
-  'G#': 1, 'D#': 2, 'A#': 3, F: 4, C: 5, G: 6, D: 7, A: 8, E: 9, B: 10, 'F#': 11, 'C#': 12,
+  'G#': 1,
+  'D#': 2,
+  'A#': 3,
+  F: 4,
+  C: 5,
+  G: 6,
+  D: 7,
+  A: 8,
+  E: 9,
+  B: 10,
+  'F#': 11,
+  'C#': 12,
 }
 
 export interface KeyOption {
@@ -32,9 +43,9 @@ export function camelot(key: string): string {
   return n ? `${n}${minor ? 'A' : 'B'}` : '?'
 }
 
-export const KEY_OPTIONS: KeyOption[] = [
-  ...ROOTS.map((r) => `${r}m`),
-  ...ROOTS.map((r) => r),
-]
+export const KEY_OPTIONS: KeyOption[] = [...ROOTS.map((r) => `${r}m`), ...ROOTS.map((r) => r)]
   .map((value) => ({ value, camelot: camelot(value), label: `${value} · ${camelot(value)}` }))
   .sort((a, b) => parseInt(a.camelot) - parseInt(b.camelot) || a.camelot.localeCompare(b.camelot))
+
+/** A MIDI note as a pitch name: 37 → 'C#1' (middle C, 60, is C4). */
+export const pitchName = (midi: number): string => `${ROOTS[((Math.round(midi) % 12) + 12) % 12]}${Math.floor(Math.round(midi) / 12) - 1}`

@@ -100,3 +100,27 @@ def test_true_peak_ceiling_and_warnings():
     assert np.all(np.isfinite(out.audio))
     past = _mix(loud, drop, drop_start_s=5.0)
     assert past.audio.shape[1] == 7 * SR and any("past the song's end" in w for w in past.warnings)  # never cut
+
+
+def test_chroma_is_flat_for_pink_noise():
+    # broadband sound must not lean toward any pitch class (the old per-bin sum ramped 0.77 -> 1.24 from C to B)
+    from fvwks_fx.song import AN_SR, _chroma
+
+    rng = np.random.default_rng(0)
+    spec = np.fft.rfft(rng.standard_normal(AN_SR * 8))
+    spec[1:] /= np.sqrt(np.arange(1, spec.size))  # 1/f power
+    ch, _ = _chroma(np.fft.irfft(spec).astype(np.float32), 0.05)
+    prof = ch.mean(axis=0) * 12
+    assert prof.max() / prof.min() < 1.15
+
+
+@pytest.mark.parametrize("rate", [44100, 48000])
+def test_key_at_either_sample_rate(rate):
+    # the key must not depend on the file's rate (a rate mix-up reads ~1.5 semitones off)
+    from scipy import signal
+
+    x = song(140, 1.0, key="D#m", seed=5)
+    if rate != SR:
+        x = signal.resample_poly(x, rate, SR, axis=1).astype(np.float32)
+    a = api.analyze_song(x, rate)
+    assert (a.key, a.camelot) == ("Ebm", "2A")  # D#m, spelled as the engine names keys

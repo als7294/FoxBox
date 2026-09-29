@@ -1,8 +1,11 @@
 // SHADERS: one ISF shader (interactive-shader-format-js, ISC) on the stage canvas. FoxBox fills the inputs a shader
-// declares by name (see FOXBOX_INPUTS): levels, onset, beat phase, tempo, the spectrum as an image, and the
-// TRANSMISSION palette as colours. WebGL 1: the library's float passes are WebGL 1 textures.
+// declares by name (see FOXBOX_INPUTS): levels, onset, beat phase, tempo, the spectrum as an image, the 1.5 build /
+// drop / bass cues, S1's near mask, and the palette as colours (the picture's own while a PALETTE FROM IMAGE layer
+// is live). WebGL 1: the library's float passes are WebGL 1 textures.
 import { Renderer } from 'interactive-shader-format'
-import type { AudioFrame, Palette, StyleInstance, StyleOptions } from '../../live/registry'
+import type { AudioFrame, FrameExtras, Palette, StyleInstance, StyleOptions } from '../../live/registry'
+import { Cues, sectionCode } from './cues'
+import { imagePalette, paletteProbe, publishImagePalette, samplePalette, SAMPLE_MS } from './imagePalette'
 import { FOXBOX_INPUTS, type IsfShader } from './loader'
 
 const FFT_BINS = 512
@@ -42,8 +45,20 @@ export function createIsf(canvas: HTMLCanvasElement, opts: StyleOptions, shader:
   const set = (name: string, value: unknown) => {
     if (declared.has(name)) renderer.setValue(name, value)
   }
-  for (const [name, value] of Object.entries(paletteColors(opts.palette))) set(name, value)
+  // The palette: the scene's, or the picture's own while a PALETTE FROM IMAGE layer is live (1.5). An extracting
+  // filter samples the picture beneath it and publishes what it finds.
+  let shown: Palette | null = null
+  const usePalette = (p: Palette) => {
+    if (p === shown) return
+    shown = p
+    for (const [name, value] of Object.entries(paletteColors(p))) set(name, value)
+  }
+  usePalette(opts.palette)
+  const probe = shader.extractsPalette ? paletteProbe() : null
+  let sampled: Palette | null = null
+  let sinceSample = SAMPLE_MS
   set('calm', opts.reduced ? 1 : 0)
+  const cues = new Cues(opts.reduced)
 
   // The spectrum as a 512 × 1 greyscale image (ISF audioFFT: low frequencies on the left).
   const fftCanvas = document.createElement('canvas')
@@ -59,8 +74,23 @@ export function createIsf(canvas: HTMLCanvasElement, opts: StyleOptions, shader:
   black.width = black.height = 2
 
   return {
-    frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null) {
+    frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null, extras?: FrameExtras) {
       if (isFilter) set('inputImage', input ?? black)
+      if (probe) {
+        sinceSample += dt
+        if (input && sinceSample >= SAMPLE_MS) {
+          sinceSample = 0
+          sampled = samplePalette(input, probe, sampled)
+          publishImagePalette(sampled)
+        }
+        usePalette(sampled ?? opts.palette)
+      } else {
+        usePalette(imagePalette() ?? opts.palette)
+      }
+      // S1's camera "near" mask (a hand, a leaning face), for depth-aware filters (1.5).
+      const mask = extras?.passThrough?.mask ?? null
+      set('depthMask', mask ?? black)
+      set('hasDepth', mask ? 1 : 0)
       const calm = opts.reduced
       // An onset flashes and decays over ~150 ms (~600 ms and at a third of the height with reduced motion).
       const hit = a.active ? Math.min(1, a.onset / 2) * (calm ? 0.35 : 1) : 0
@@ -79,6 +109,29 @@ export function createIsf(canvas: HTMLCanvasElement, opts: StyleOptions, shader:
       set('drop', a.active && a.drop ? 1 : 0)
       set('songLevel', a.active ? (a.song?.rms ?? 0) : 0)
       set('voiceLevel', a.active ? (a.voice?.rms ?? a.rms) : 0)
+      // 1.5 build and drop, bass line, and the limited beat strobe (see FOXBOX_INPUTS for what each means)
+      cues.update(a, dt)
+      const on = a.active
+      set('buildProgress', on ? (a.buildProgress ?? 0) : 0)
+      set('preDrop', on && a.preDrop ? 1 : 0)
+      set('dropHit', cues.dropHit)
+      set('dropEnergy', on ? (a.dropEnergy ?? 0) * (calm ? 0.5 : 1) : 0)
+      set('dropIn', a.dropIn ?? -1)
+      set('dropIndex', a.dropIndex ?? 0)
+      set('section', sectionCode(a.section))
+      set('halfTime', a.feel?.halfTime ? 1 : 0)
+      const bass = on ? a.bass : undefined
+      set('bassOn', bass?.on ? 1 : 0)
+      set('bassHit', cues.bassHit)
+      set('bassHeld', bass?.on ? bass.heldBeats : 0)
+      set('bassHold', bass?.on ? Math.min(1, bass.heldBeats / Math.max(0.25, bass.expectBeats)) : 0)
+      set('bassSub', bass?.sub ?? 0)
+      set('bassGrowl', bass?.growl ?? 0)
+      set('bassPitch', bass?.pitch ?? 0)
+      set('bassGlide', bass?.glide ?? 0)
+      set('bassWobble', bass?.wobble.div ? 1 : 0)
+      set('bassWobblePhase', bass?.wobble.phase ?? 0)
+      set('beatFlash', cues.beatFlash)
       if (wantsFft && fft2d && fftPixels) {
         const d = fftPixels.data
         for (let i = 0; i < FFT_BINS; i++) {
@@ -95,6 +148,7 @@ export function createIsf(canvas: HTMLCanvasElement, opts: StyleOptions, shader:
       // The renderer draws at the canvas's backing size each frame.
     },
     dispose() {
+      if (probe) publishImagePalette(null)
       renderer.cleanup?.()
     },
   }

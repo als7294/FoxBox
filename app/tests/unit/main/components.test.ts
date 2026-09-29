@@ -1,11 +1,22 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { componentOf, COMPONENTS, hashComponents, listApp, readComponentsFile, removeParts, strayEntry, writeComponentsFile } from '../../../src/main/components'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  componentOf,
+  COMPONENTS,
+  hashComponents,
+  listApp,
+  readComponentsFile,
+  removeParts,
+  strayEntry,
+  writeComponentsFile,
+} from '../../../src/main/components'
 import { parseFeed, partsToUpdate } from '../../../src/main/updater'
 
 const h = (c: string) => c.repeat(64)
+const dirs: string[] = []
+afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })))
 
 describe('app components', () => {
   it('splits the bundle by path', () => {
@@ -19,7 +30,9 @@ describe('app components', () => {
   })
 
   it('hashes each part from its files, ignoring bytecode, and prunes a copy down to one part', () => {
-    const app = join(mkdtempSync(join(tmpdir(), 'fvwks-comp-')), 'FoxBox.app')
+    const root = mkdtempSync(join(tmpdir(), 'fvwks-comp-'))
+    dirs.push(root)
+    const app = join(root, 'FoxBox.app')
     const put = (rel: string, body = rel) => {
       mkdirSync(join(app, rel, '..'), { recursive: true })
       writeFileSync(join(app, rel), body)
@@ -54,7 +67,13 @@ describe('app components', () => {
   it('downloads only the parts whose hash changed', () => {
     const components = COMPONENTS.map((name, i) => ({ name, hash: h(String(i)), url: `${name}.zip`, size: 1000 * (i + 1), sha256: h('a') }))
     const feed = parseFeed(
-      { version: '1.2.1', released: '2026-09-27', notes: [], files: [{ name: 'FoxBox-1.2.1-arm64.zip', kind: 'zip', size: 9, sha256: h('b') }], components },
+      {
+        version: '1.2.1',
+        released: '2026-09-27',
+        notes: [],
+        files: [{ name: 'FoxBox-1.2.1-arm64.zip', kind: 'zip', size: 9, sha256: h('b') }],
+        components,
+      },
       'https://github.com/o/r/releases/latest/download/latest-mac.json',
       false,
     )
@@ -62,6 +81,12 @@ describe('app components', () => {
     const installed = { app: h('9'), electron: h('1'), 'engine-runtime': h('2'), 'engine-code': h('8') }
     expect(partsToUpdate(feed, installed)?.map((p) => p.name)).toEqual(['app', 'engine-code'])
     expect(partsToUpdate(feed, null)).toBeNull()
-    expect(parseFeed({ ...feed, files: [{ name: 'a.zip', kind: 'zip', size: 9, sha256: h('b') }], components: components.slice(1) }, 'https://x.example/f.json', false).components).toBeNull()
+    expect(
+      parseFeed(
+        { ...feed, files: [{ name: 'a.zip', kind: 'zip', size: 9, sha256: h('b') }], components: components.slice(1) },
+        'https://x.example/f.json',
+        false,
+      ).components,
+    ).toBeNull()
   })
 })

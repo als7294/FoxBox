@@ -2,14 +2,11 @@ import { usePresets, useRack, useVoices } from '@/api/queries'
 import { SourceTabs } from '@/components/layout/SourceTabs'
 import { ProgressOverlay } from '@/components/feedback/ProgressOverlay'
 import { Cartridge } from '@/components/output/Cartridge'
-import { ExportSheet } from '@/components/output/ExportSheet'
 import { RackDrawer, RackPanel } from '@/components/rack/RackPanel'
-import { SavePresetModal } from '@/components/rack/SavePresetModal'
 import { SignalView } from '@/components/signal/SignalView'
 import { SongDrawer } from '@/components/song/SongDrawer'
 import { useSong } from '@/state/song'
 import { isStale, useStudio } from '@/state/studio'
-import { useUi } from '@/state/ui'
 import styles from './studio.module.css'
 
 /**
@@ -25,8 +22,6 @@ export function StudioScreen() {
   const stale = useStudio(isStale)
   const rackOpen = useStudio((s) => s.rackOpen)
   const songOpen = useSong((s) => s.open)
-  const exportOpen = useUi((s) => s.exportSheetOpen)
-  const saveOpen = useUi((s) => s.savePresetOpen)
   const wet = exports.find((f) => f.variant === 'wet') ?? exports[0] ?? null
   return (
     <div className={styles.studio} data-rack-open={rackOpen || undefined}>
@@ -46,8 +41,6 @@ export function StudioScreen() {
       </div>
       {rackOpen && rack && <RackDrawer rack={rack} voices={voices} />}
       {songOpen && !rackOpen && <SongDrawer />}
-      <ExportSheet open={exportOpen} onClose={() => useUi.getState().setExportSheetOpen(false)} presets={presets} />
-      <SavePresetModal open={saveOpen} onClose={() => useUi.getState().setSavePresetOpen(false)} presets={presets} />
     </div>
   )
 }

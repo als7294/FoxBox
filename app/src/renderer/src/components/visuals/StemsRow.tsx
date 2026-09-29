@@ -20,7 +20,7 @@ const LABEL: Record<StemsState, string> = { none: 'NONE', queued: 'QUEUED', runn
 const SONG_POLL_MS = 1000
 
 /** The song as the engine has it now, into the song store (if it's still the loaded one). */
-async function refreshSong(id: string): Promise<Song | null> {
+export async function refreshSong(id: string): Promise<Song | null> {
   try {
     const fresh = await unwrap(api.GET('/api/songs/{song_id}', { params: { path: { song_id: id } } }))
     if (useSong.getState().song?.id === id) useSong.setState({ song: fresh })

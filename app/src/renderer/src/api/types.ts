@@ -36,7 +36,12 @@ export type RenderInfo = S['RenderInfo']
 export type RenderRequest = S['RenderRequest']
 export type Segment = S['Segment']
 export type Settings = S['Settings']
-export type Song = S['Song']
+/**
+ * v0.10's structure. `builds` is (build start s, drop hit s) pairs, typed number[][] rather than the schema's tuple:
+ * openapi-fetch's response mapping turns tuples into arrays, and Song must match what the client returns.
+ */
+export type SongStructure = Omit<S['SongStructure'], 'builds'> & { builds?: number[][] }
+export type Song = Omit<S['Song'], 'structure'> & { structure?: SongStructure | null }
 export type SongAnalysis = S['SongAnalysis']
 export type SongPlacement = S['SongPlacement']
 export type SongUpdate = S['SongUpdate']

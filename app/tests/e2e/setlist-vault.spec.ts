@@ -9,7 +9,8 @@ test.afterEach(async () => {
   await run?.app.close()
 })
 
-test('a 5-line setlist batch produces 5 files plus a playlist XML; the vault lists and exports them', async () => {
+// The SETLIST screen is parked behind PROD (WIP, 1.5) until the production update.
+test.skip('a 5-line setlist batch produces 5 files plus a playlist XML; the vault lists and exports them', async () => {
   run = await launchApp()
   const { page, dirs } = run
   await waitReady(page)

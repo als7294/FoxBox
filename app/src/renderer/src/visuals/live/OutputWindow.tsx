@@ -1,28 +1,40 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { bridge } from '@/env'
-import { onOutputMessage } from './output'
-import { CompositeStage } from './CompositeStage'
-import type { Scene } from './compositor'
-import { silentFrame, type AudioFrame } from './registry'
+import { onOutputFrame, takeFrame } from './output'
 
 /**
- * The output window (index.html?window=output): the VISUALS scene, full screen, nothing else. It draws the scene
- * itself from the frames the VISUALS page sends; Esc closes it.
+ * The output window (index.html?window=output): the VISUALS stage's picture, full screen, nothing else. It shows the
+ * frames the stage sends (at the stage's resolution, fitted on black) and draws nothing itself; while SAVE CLIP
+ * renders the stage pauses and the last frame holds. Esc closes it.
  */
 export function OutputWindow() {
-  const [scene, setScene] = useState<Scene | null>(null)
-  const latest = useRef<AudioFrame | null>(null)
-  useEffect(
-    () =>
-      onOutputMessage((m) => {
-        // 1.3's single style is a scene of one effect over nothing.
-        if (m.type === 'scene') setScene(m.scene)
-        else if (m.type === 'style')
-          setScene({ base: { kind: 'none' }, effects: [{ id: 's', styleId: m.styleId, opacity: 1, blend: 'normal', reactTo: 'mix', enabled: true }], paletteId: m.paletteId })
-        else latest.current = m.frame
-      }),
-    [],
-  )
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const view = canvas?.getContext('bitmaprenderer')
+    if (!canvas || !view) return
+    // One frame per display refresh: the newest one that came, shown, which lets the stage send the next (the first
+    // look also catches one that came before this mounted).
+    const show = () => {
+      raf = 0
+      const bmp = takeFrame()
+      if (!bmp) return
+      // The canvas takes the frame's own size (it would stay 300×150, squashing a 9:16 frame); CSS contains it.
+      if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+        canvas.width = bmp.width
+        canvas.height = bmp.height
+      }
+      view.transferFromImageBitmap(bmp)
+    }
+    let raf = requestAnimationFrame(show)
+    const off = onOutputFrame(() => {
+      if (!raf) raf = requestAnimationFrame(show)
+    })
+    return () => {
+      off()
+      cancelAnimationFrame(raf)
+    }
+  }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && void bridge()?.visuals.close()
     window.addEventListener('keydown', onKey)
@@ -30,7 +42,7 @@ export function OutputWindow() {
   }, [])
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000', cursor: 'none' }} data-testid="visuals-output">
-      {scene && <CompositeStage scene={scene} output="window" source={() => latest.current ?? silentFrame(performance.now() / 1000)} />}
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   )
 }

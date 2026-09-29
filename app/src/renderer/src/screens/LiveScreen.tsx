@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { usePresets, useRack } from '@/api/queries'
 import { MACRO_IDS, type MacroId, type Preset } from '@/api/types'
@@ -21,7 +22,8 @@ import { click } from '@/audio/recorder'
 import { SaveClip } from '@/components/clips/SaveClip'
 import { Button } from '@/components/common/Button'
 import common from '@/components/common/common.module.css'
-import { Screen, ScreenHeader } from '@/components/layout/Screen'
+import { Screen } from '@/components/layout/Screen'
+import { TOP_SLOT_ID } from '@/components/layout/TopBar'
 import { LiveMeters } from '@/components/live/LiveMeters'
 import { LiveSongStrip } from '@/components/live/LiveSongStrip'
 import styles from '@/components/live/live.module.css'
@@ -40,6 +42,7 @@ import { useSong } from '@/state/song'
 import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
+import { useVisuals } from '@/state/visuals'
 
 type Status = 'off' | 'starting' | 'on' | 'error'
 type TalkMode = 'open' | 'ptt' | 'latch'
@@ -77,6 +80,11 @@ const bindingText = (b: MidiBinding | undefined) => (b ? `${b.kind === 'cc' ? 'C
 export function LiveScreen() {
   const [status, setStatus] = useState<Status>('off')
   const [error, setError] = useState<string | null>(null)
+  // The top bar's slot: the live strip lives there, not in a page header. VISUALS stays mounted (App.tsx) but the top
+  // bar makes a new slot on each visit, so find it again whenever the page shows.
+  const [topSlot, setTopSlot] = useState<HTMLElement | null>(null)
+  const onPage = useUi((u) => u.screen === 'live')
+  useEffect(() => setTopSlot(onPage ? document.getElementById(TOP_SLOT_ID) : null), [onPage])
   const [live, setLive] = useState<LiveEngine | null>(null)
   const [inputs, setInputs] = useState<MediaDeviceInfo[]>([])
   const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([])
@@ -127,6 +135,7 @@ export function LiveScreen() {
     return () => setClipAudio(null)
   }, [source, live, liveInput])
   const stageCanvas = useRef<HTMLCanvasElement | null>(null)
+  const aspect = useVisuals((s) => s.aspect)
 
   const liveRef = useRef<LiveEngine | null>(null)
   liveRef.current = live
@@ -340,7 +349,7 @@ export function LiveScreen() {
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (useUi.getState().screen !== 'live' || e.metaKey || e.ctrlKey || e.altKey) return
-      if ((e.target as HTMLElement | null)?.closest('input, select, textarea')) return
+      if (e.target instanceof Element && e.target.closest('input, select, textarea')) return
       if (e.key === ' ') {
         e.preventDefault()
         if (!e.repeat) talk(true)
@@ -505,31 +514,28 @@ export function LiveScreen() {
 
   return (
     <Screen className={styles.screen} data-testid="live-screen" data-learning={learning || undefined}>
-      <ScreenHeader code="02" kicker="STAGE" title="VISUALS">
-        <div className={styles.headBar}>
-          <span className={styles.status} data-status={status} role="status">
-            {status === 'on' ? '● LIVE' : status === 'starting' ? 'STARTING…' : status === 'error' ? 'NO INPUT' : 'OFF'}
-          </span>
-          <span className={styles.readout} title="Round trip: output, input and the pitch shifter">
-            <b>{latency != null ? Math.round(latency) : '—'}</b> MS
-          </span>
-          <span className={styles.readout}>
-            <b>{Math.round(bpm)}</b> BPM
-          </span>
-          <span className={styles.readout}>
-            <b>{key}</b> KEY
-          </span>
-          <LiveMeters bus={live?.bus ?? null} />
-          {source === 'mic' && !headphones && (
-            <span className={styles.warn} title="On speakers the mic hears the mask and feeds back: use headphones">
-              ⚠ HEADPHONES
+      <h1 className="sr-only">VISUALS</h1>
+      {topSlot &&
+        createPortal(
+          <div className={styles.headBar}>
+            <span className={styles.status} data-status={status} role="status">
+              {status === 'on' ? '● LIVE' : status === 'starting' ? 'STARTING…' : status === 'error' ? 'NO INPUT' : 'LIVE OFF'}
             </span>
-          )}
-        </div>
-      </ScreenHeader>
+            <span className={styles.readout} title="Round trip: output, input and the pitch shifter">
+              <b>{latency != null ? Math.round(latency) : '—'}</b> MS
+            </span>
+            <LiveMeters bus={live?.bus ?? null} />
+            {source === 'mic' && !headphones && (
+              <span className={styles.warn} title="On speakers the mic hears the mask and feeds back: use headphones">
+                ⚠ HEADPHONES
+              </span>
+            )}
+          </div>,
+          topSlot,
+        )}
       {error && <p className={styles.error}>{error}</p>}
 
-      <div className={styles.grid} data-voice={voiceIsOpen ? 'open' : 'closed'}>
+      <div className={styles.grid} data-voice={voiceIsOpen ? 'open' : 'closed'} data-aspect={aspect}>
         <aside className={styles.side}>
           <section className={styles.card} aria-label="Audio source" data-testid="visuals-source">
             <h2 className={styles.cardTitle}>AUDIO SOURCE</h2>
@@ -596,17 +602,23 @@ export function LiveScreen() {
             {source !== 'input' &&
               (on ? (
                 <Button variant="secondary" onClick={() => void stop()} data-testid="live-stop">
-                  {source === 'track' ? '■ STOP AUDIO' : '■ END LIVE'}
+                  {source === 'track' ? '■ STOP TRACK' : '■ STOP MIC'}
                 </Button>
               ) : (
                 <Button
                   variant="primary"
                   onClick={() => void start()}
-                  disabled={status === 'starting'}
-                  title={source === 'track' ? 'Start the audio to play the song here (the mic stays off)' : undefined}
+                  disabled={status === 'starting' || (source === 'track' && !song)}
+                  title={
+                    source === 'track'
+                      ? song
+                        ? 'Play the song here (the mic stays off)'
+                        : 'Pick or drop a song first'
+                      : 'Open the mic through the mask'
+                  }
                   data-testid="live-start"
                 >
-                  {source === 'track' ? '▶ START AUDIO' : '● GO LIVE'}
+                  {source === 'track' ? '▶ START TRACK' : '● START MIC'}
                 </Button>
               ))}
           </section>
@@ -647,6 +659,7 @@ export function LiveScreen() {
             <span className={styles.voiceSummary}>
               {presetName ?? 'CUSTOM'} · {on ? talkText : 'OFF'}
             </span>
+            {!on && <span className={styles.hint}>START the audio source for the pads, TAKE and REC SET</span>}
             <div className={styles.flex} />
             {on && source !== 'mic' && (
               <button
@@ -728,13 +741,7 @@ export function LiveScreen() {
                     setTalkMode(m)
                   }}
                 />
-                <button
-                  type="button"
-                  className={styles.mute}
-                  data-on={muted || undefined}
-                  onClick={() => setMuted(!muted)}
-                  disabled={!on}
-                >
+                <button type="button" className={styles.mute} data-on={muted || undefined} onClick={() => setMuted(!muted)} disabled={!on}>
                   {muted ? 'MUTED' : 'MUTE'}
                 </button>
                 <button
@@ -783,7 +790,7 @@ export function LiveScreen() {
                       size="sm"
                       value={quantize}
                       options={[
-                        { value: 'auto', label: 'AUTO', title: 'Each FX on its own grid (swell on the bar, stutter on 1/16)' },
+                        { value: 'auto', label: 'EACH', title: 'Each FX on its own grid (swell on the bar, stutter on 1/16)' },
                         { value: '1/16', label: '1/16' },
                         { value: 'beat', label: 'BEAT' },
                         { value: 'bar', label: 'BAR' },

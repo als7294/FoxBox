@@ -1,6 +1,164 @@
-# S1 VOICE: status
+# S1 VOICE + CAMERA: status
 
-Updated 2026-09-27. Branch `session/s1-voice`, on main (contracts v0.6). Owner of `engine/voice/`.
+Updated 2026-09-29. Current work: REMIX on `help/s1-als` (from session/s4-app a8dce76). 1.5 "SMART VISUALS" is merged. I own
+`engine/voice/` and the camera/clip files (`app/src/renderer/src/components/camera/`, `components/clips/`). S4 owns
+the VISUALS page, the compositor and `visuals/live/bases/*`.
+
+## REMIX sound design (help/s1-riddim, 2026-09-29)
+
+- **`riddim.py`:**
+  - R1, the square-FM wub: comb, flanger, and a saw-down LFO restarted per note, at 1/4, 1/4T, 1/8 or 1/8T.
+  - R2, the formant yoi.
+  - Both are growl engines, routed in `growls._ENGINES` as "riddim" and "yoi".
+- **`bass808.py`:**
+  - `render_808_line(notes)`: glides only where notes overlap (80/240 ms, ±12).
+  - The start is a ≤ +7 st drop settled by 30 ms, per the user's "too high and whiny".
+  - Parallel saturation, 4x oversampled.
+  - `render_darkhit`: on pitch, a low-pass bloom with grit.
+- **`candy.py`:** an arp, a power-up and coin sounds, in key.
+- **`drums.py`:** the §3.1 kit, synthesized: kicks (default, riddim, tearout), the L1–L4 snare stack, the pan snare,
+  the clap with its room, hats, impact, crash, reverse cymbal.
+  - Call: `render_drum(voice, sr, vel, seed, variant, root_hz, length_s)`, with a seeded micro-variation per hit.
+  - S2 sequences it.
+- **`riddim.py`, added:** `render_squeak` (the top layer) and `late_with_delay` (the off-grid "d" hit).
+- **Seeded options** (the user's "there isn't always a correct answer"):
+  - R1's variant is its LFO rate;
+  - `r2_blend(seed)`;
+  - `bass808.glide_times(seed)`.
+- **Checks:** `synth/tests/test_s1_voices.py`.
+- **Auditions:** in the main checkout's `out/growl-audition/` (riddim-r1-*, yoi-r2-*, 808-s1-*, darkhit-s1-*, drums-s1-*), rendered by
+  scratch scripts.
+- **Open:** "darkhit" isn't a `render_growl` style yet (S3 routes it); S2 calls bass808 directly.
+- **C11** (help/s1-c11): `riddim.AXES` (R1 rate pool, throat, comb; R2 blend), `bass808.AXES` (glide, drop) and
+  `hybrid.AXES`, all in `growls.AXES`. Each is resolved per take and passed down as `axes`
+  (`riddim.option(axes, axis)`).
+- **M1.15** (`hybrid.py`): "wobble", the old-school wobble (variant = rate), and "dswub", the downsample wub (variant
+  = step shape). Both are `render_growl` styles.
+  - Loops: `out/growl-audition/wobble-s1.mp3` and `dswub-s1-*.mp3`.
+
+## REMIX: fvwks_synth, previews, the Ableton Live 11 export (2026-09-29)
+
+- **fvwks_synth** (help/s1-synth 6162908, merged as a8dce76):
+  - Surge XT runs in a child process: its HOME, CFFIXED_USER_HOME and SURGE_DATA_HOME are inside the engine data dir.
+    `native/build_surgepy.sh` pins the Surge commit and applies our `setTempo` patch.
+  - It has 12 CC0 Surge patches and 5 FoxBox patches, plus 4 TR-808 kits (Michael Fischer, via tidalcycles, CC0) and
+    the FoxBox kit.
+  - `bass.render_groove(...)` and `kit.render_kit(kit_id, hits, *, bpm, beats, sr)`, velocities 0–1. The PM has S2
+    aligning prepare.py to these; keep the names.
+- **Previews** (bb6ceb1):
+  - `preview.preview(patch_id)` and `kit_preview(kit_id)` each return a cached WAV of one bar at 140 BPM,
+    loudness-matched (-16 dBFS RMS, peak ≤ -1 dBFS).
+  - They're cached in `<bass.configure dir>/previews`, keyed by content.
+  - Cold: 4.6 s for everything. Warm: 3 ms.
+- **.als writer** (56fb196, df4c735, BETA): `fvwks_server.als.write_als(remix, clip_audio, out_dir, name=None)` returns
+  `<out_dir>/<name> Project/<name>.als`, with the audio copied into `Samples/Imported`.
+  - Template: an installed Live's own `DefaultLiveSet.als`, else `als_live11.xml` (Live 11's default document
+    structure, with no set content).
+  - It writes the tempo (knob and master envelope), the meter, a track per lane (name, colour, gain, mute), warped
+    arrangement clips (gain, fades), and locators at the sections.
+  - IDs are unique, NextPointeeId is above them all, and there's a clip slot per scene.
+- **Validation:**
+  - Structure, against owenbush/ableton-inspector's Live 11/12 fixtures (MIT, read only):
+    - every element path we write exists in real sets;
+    - the child order matches Live 11.3's.
+    - It caught Live 12's `MainTrack`/`IsSongTempoLeader` renames (handled).
+  - Round trip, through ableton-inspector's reader: tempo, meter, locators, tracks and project-relative samples all
+    come back.
+- **Open:**
+  - Fade lengths are written in beats, which is unconfirmed.
+  - It's untested in real Live (there's no Live on this Mac).
+
+## 1.5 SMART VISUALS handoff (2026-09-28)
+
+**Scope (from the PM):**
+1. Depth pass-through: a near face or hand comes through the effect layers, still encrypted.
+2. At least 6 new irreversible face styles.
+3. Hand and body signals for effects and S2's director.
+4. AUTO-FRAME: a 16:9 camera into a 9:16 output follows the person.
+
+**Done**, on help/s1-smartcam:
+- `f61c803`: eight styles in `faceStyles.ts` (GLITCH, ASCII, REDACTED, LOW-POLY, FOX MASK, STATIC, HALFTONE,
+  THERMAL VOID), plus MOSAIC/BLUR/SOLID, through `compose.maskRegion`, so live and clips match.
+  - Irreversible by construction: image styles see only a grid of at most 16 cells across; REDACTED, STATIC and
+    FOX MASK use no picture.
+  - They animate with `FaceMask.react` (a stem pulse).
+  - Also here: the MediaPipe models and `camMath.ts` (unit-tested).
+- `5040390`: `smartCamera.ts` (tracking, near mask, signals, AUTO-FRAME), `nearMask.ts`, `CameraControls.tsx`,
+  `smartCameraBase.ts` (a drop-in CAMERA base), `vision.ts`, and the store's `passThrough` and `autoFrame`.
+- `d0374c2`: GestureRecognizer replaces hand_landmarker (named gestures in the signals), sticky calibration, and the
+  landmarker at 0.6 confidence.
+
+**APIs** (all sent to S4):
+- `nearMask()` in `components/camera/nearMask.ts` returns `{ mask, level } | null`.
+  - null when PASS-THROUGH is off, there's no camera, or nothing is near.
+  - The mask is in the camera base's frame at 1/4 size; its alpha is how near.
+  - S4 passes it as `Compositor.frame(a, dt, { passThrough })` (68c951c).
+  - Tell S4 to drop `ctx.globalAlpha = pass.level` in compositorEngine: my alpha already carries the level, so
+    multiplying again squares the fade.
+- `cameraSignals()` in `smartCamera.ts` returns
+  `{ at, calibrating, near, head: { x, y, yaw, roll, lean } | null, hands: [{ x, y, pinch, open, near, gesture }] }`.
+  - x/y are 0–1 in the drawn frame.
+  - gesture is one of fist | open | point | thumbs-up | thumbs-down | victory | love, or null.
+  - `recalibrateCamera()` is exported too.
+- AUTO-FRAME: `camMath.autoFrame()`, applied inside `smartCamera.draw` when `settings.autoFrame` is on and the
+  camera is more than 1.3× wider than the output. Clips can pass `FrameInput.crop` (compose.drawFrame).
+- S4 wiring, not yet done by S4. A local patch of all three is in my scratchpad at `smartcam/s4-hooks.patch`:
+  1. `bases/index.ts`: `case 'camera': return smartCameraBase(palette)`.
+  2. CompositeStage: `c.frame(src, dt, { passThrough: nearMask() })`.
+  3. BasePanel: `{base.kind === 'camera' && <CameraControls />}`.
+
+**Verified end to end** (fake camera: the public-domain portrait resting, then leaning in, then panning; the y4m is
+`scratchpad/smartcam/lean.y4m`, and the harness is `scratchpad/smartcam.mjs` on a temporary merge with the patch):
+- near goes 0 → 1.00 on the lean and back to 0;
+- the pass-through shows the encrypted face through the tunnel;
+- AUTO-FRAME follows the pan;
+- all 11 styles render.
+Hands aren't e2e-tested (a still portrait has none); their maths is unit-tested.
+
+**Since the handoff:**
+- `bf80107` SMART CAM 4: the models run in `vision.worker.ts` (a classic worker; renderer `worker.format: 'iife'`).
+  The stage went from ~44 to 80-111 fps. `faceTrack.mergeBoxes` gives one cover per face (the detector and the
+  landmarker both reported it).
+- `2125ad1`: SAVE CLIP renders the stage's scene text (`useSceneText()`).
+- S4 wired all three hooks (ea4dc48, d30ab50).
+
+**Next:**
+- MediaPipe's graphs try to POST usage logs to odml.pa.googleapis.com. The CSP blocks them (nothing leaves); they
+  only fill the console with errors.
+- BlazeFace (0.35, fail-safe) covers a "face" in the portrait's hands on the fake camera. This is the same as 1.4,
+  and deliberately kept.
+- Hands are unit-tested only (the fake camera has none).
+
+**Open decisions:** none pending. The PM accepted Canvas-2D styles, the ~50-landmark LOW-POLY, and depth from
+matrix z + segmenter + palm-vs-face (no depth model; Depth Anything V2 Small only as a fallback, with the user's OK).
+
+**Standing rules:**
+- **Ponytail (level full)**, from the user: climb the ladder (does it need to exist → in the codebase → stdlib →
+  platform → an installed dep → one line → the minimum). Fix at the root. No unrequested abstractions or deps.
+  Shortest correct diff after reading fully. Leave one runnable check. Mark corner-cuts with `ponytail:`. Never
+  simplify away validation, data-loss handling, security or accessibility. Reports: sha first, then at most three
+  lines. SKILL.md: ~/.claude/plugins/cache/ponytail/ponytail/4.10.0/skills/ponytail/SKILL.md.
+- **Downloads:** under 1 GB need no approval; over 1 GB needs the user's OK. Report every new package or model to
+  the PM with why, what it does in plain English, and how popular it is. Don't edit THIRD_PARTY_NOTICES; the PM
+  does them on main.
+- **Approved OSS:** MediaPipe tasks-vision models (face landmarker, gesture recognizer, selfie segmenter);
+  pmndrs/postprocessing and three.js passes for styles if needed; Depth Anything V2 Small as a fallback only.
+  Avoid jeelizFaceFilter and three's AsciiEffect.
+- **Test song** `~/<test media>/song-1.m4a`: local only. Never commit it, copy it into the repo,
+  or show its original title (import it as "song-1").
+- **No old brand anywhere** (code, tests, fixtures, docs, UI, screenshots, commits, GitHub). GUY FVWKS is fine.
+- **Git:** identity SmittyTech <89995047+als7294@users.noreply.github.com>; never the credit email. Never `git push`
+  (publish via scripts/publish_snapshot.sh). Never commit engine/uv.lock. Never bare `git stash`. Commit per
+  milestone and send shas to S4 and the PM.
+- **Camera:** never run the real camera from tools; use the fake camera (y4m). Test launches use temp data dirs
+  (FVWKS_*_DIR). Don't write to other worktrees' files.
+
+## Earlier: 1.4 (stems, SAVE CLIP), all shipped in 1.4.0
+- `help/s1-stems`: separate_stems on HT-Demucs MLX (vendored model code, no new runtime dep), the stems-htdemucs
+  model (84 MB).
+- `help/s1-clip`: SAVE CLIP (offline WebCodecs render, mp4.ts muxer, elst-compensated AAC, 6 ms limiter
+  lookahead removed); stems-driven features; `help/s1-clip-pause` 168497b (clipRendering flag).
+
 
 ## Handover (2026-09-27, wrap-up)
 Everything that ships is merged, either by S4 (camera, app) or in main (engine). Nothing is left uncommitted.

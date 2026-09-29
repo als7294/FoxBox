@@ -24,7 +24,7 @@ from typing import Any, Iterable, Iterator
 
 import numpy as np
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 7
 
 _SCHEMA_V1 = """
 CREATE TABLE sources (
@@ -147,7 +147,35 @@ CREATE INDEX mixes_song ON mixes(song_id);
 CREATE INDEX mixes_request_hash ON mixes(request_hash);
 """
 
-_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, 4: _SCHEMA_V4}
+_SCHEMA_V5 = """
+ALTER TABLE songs ADD COLUMN lyrics TEXT;      -- v0.10: SongLyrics JSON once a song_lyrics job is done
+"""
+
+_SCHEMA_V6 = """
+CREATE TABLE remixes (                         -- v0.11: REMIX arrangements (local only, like songs)
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  info           TEXT NOT NULL,                -- Remix JSON: the arrangement is the truth
+  export         TEXT                          -- the last RemixExportResult JSON
+);
+"""
+
+_SCHEMA_V7 = """
+CREATE TABLE remix_feedback (                  -- v0.11.8: every take rating (the history; local only)
+  id             TEXT PRIMARY KEY,
+  remix_id       TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  data           TEXT NOT NULL                 -- TakeFeedback JSON
+);
+CREATE TABLE remix_prefs (                     -- v0.11.8: per style (id = the style): {reset_at}, the last RESET
+  id             TEXT PRIMARY KEY,
+  created_at     TEXT NOT NULL,
+  data           TEXT NOT NULL                 -- the counts are computed from remix_feedback after reset_at
+);
+"""
+
+_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, 4: _SCHEMA_V4, 5: _SCHEMA_V5, 6: _SCHEMA_V6, 7: _SCHEMA_V7}
 
 # Columns stored as JSON text, per table, with their empty value.
 _JSON_COLUMNS: dict[str, dict[str, Any]] = {
@@ -158,12 +186,16 @@ _JSON_COLUMNS: dict[str, dict[str, Any]] = {
     "presets": {"data": {}},
     "personas": {"data": {}},
     "cache": {"meta": {}},
-    "songs": {"info": {}},
+    "songs": {"info": {}, "lyrics": {}},
     "mixes": {"info": {}},
+    "remixes": {"info": {}, "export": {}},
+    "remix_feedback": {"data": {}},
+    "remix_prefs": {"data": {}},
 }
 _BOOL_COLUMNS = {"takes": {"starred"}}
 _ID_PREFIX = {"sources": "src", "renders": "rnd", "takes": "tak", "exports": "exp", "presets": "pre",
-              "personas": "per", "cache": "cch", "songs": "sng", "mixes": "mix"}
+              "personas": "per", "cache": "cch", "songs": "sng", "mixes": "mix", "remixes": "rmx",
+              "remix_feedback": "tfb", "remix_prefs": "prf"}
 TABLES = tuple(_JSON_COLUMNS)
 
 

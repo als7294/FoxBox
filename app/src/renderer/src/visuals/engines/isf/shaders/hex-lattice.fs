@@ -65,7 +65,7 @@ float spec(float x) {
 }
 float hexDist(vec2 p) { p = abs(p); return max(dot(p, normalize(vec2(1.0, 1.73))), p.x); }
 void main() {
-  vec2 p = (gl_FragCoord.xy - 0.5 * RENDERSIZE) / min(RENDERSIZE.x, RENDERSIZE.y) * 9.0;
+  vec2 p = (gl_FragCoord.xy - 0.5 * RENDERSIZE) / min(RENDERSIZE.x, RENDERSIZE.y) * (9.0 - 3.0 * buildProgress);  // zooms in through a build
   vec2 r = vec2(1.0, 1.73);
   vec2 h = r * 0.5;
   vec2 a = mod(p, r) - h, b = mod(p - h, r) - h;
@@ -76,5 +76,6 @@ void main() {
   float edge = smoothstep(0.02, 0.06, 0.5 - hexDist(g));
   vec3 col = mix(accentColor.rgb, amberColor.rgb, s) * s * edge;
   col += inkColor.rgb * onset * 0.2 * edge * step(0.6, s);
+  col += inkColor.rgb * dropEnergy * 0.5 * edge * s;
   gl_FragColor = vec4(bgColor.rgb + col, 1.0);
 }

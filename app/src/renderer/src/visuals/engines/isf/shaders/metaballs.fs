@@ -59,8 +59,9 @@ void main() {
   float f = 0.0;
   for (int i = 0; i < 5; i++) {
     float fi = float(i);
-    vec2 c = 0.28 * vec2(cos(TIME * (0.3 + 0.1 * fi) + fi * 1.3), sin(TIME * (0.4 + 0.07 * fi) + fi * 2.1));
-    float r = 0.05 + 0.06 * (fi < 2.0 ? low : fi < 4.0 ? mid : high);
+    vec2 c = 0.28 * (1.0 - 0.6 * buildProgress + 1.2 * dropEnergy) * vec2(  // gathered by a build, blown out by the drop
+      cos(TIME * (0.3 + 0.1 * fi) + fi * 1.3), sin(TIME * (0.4 + 0.07 * fi) + fi * 2.1));
+    float r = 0.05 + 0.06 * (fi < 2.0 ? low : fi < 4.0 ? mid : high) + 0.04 * bassSub * bassOn;
     f += r * r / dot(p - c, p - c);
   }
   float inside = smoothstep(0.9, 1.1, f);

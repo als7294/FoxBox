@@ -17,7 +17,7 @@
 .headBtn[data-size] {
   --h: 36px;
   padding: 0 14px;
-  font-size: 10.5px;
+  font-size: var(--vb-text-min);
 }
 .headBtn[aria-expanded='true'] {
   border-color: rgba(var(--vb-amber-rgb), 0.45);
@@ -90,8 +90,8 @@
   flex: none;
   padding: 0 14px;
   border-top: 1px solid var(--vb-line);
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;

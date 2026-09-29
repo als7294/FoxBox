@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { api, unwrap } from '@/api/client'
-import { StemTrack, StemTrackReader, type StemFeaturesJson } from '@/audio/live/stems'
+import { StemTrack, StemTrackReader, type BassSectionJson, type StemFeaturesJson } from '@/audio/live/stems'
 import { withTrackStems } from './inputSource'
 import type { FrameSource } from './liveSource'
 
@@ -55,7 +55,13 @@ export function useTrackStems(songId: string | null, stemsState: string | undefi
   return reader
 }
 
-/** The TRACK source with `stems` at the playhead; the source untouched when there's no reader. */
-export function trackSourceWithStems(source: FrameSource, reader: StemTrackReader | null, playhead: () => number): FrameSource {
-  return reader ? withTrackStems(source, reader, playhead) : source
+/** The TRACK source with `stems` at the playhead (and `bass` / `feel` given the song's structure `sections`); the
+ * source untouched when there's no reader. */
+export function trackSourceWithStems(
+  source: FrameSource,
+  reader: StemTrackReader | null,
+  playhead: () => number,
+  sections?: readonly BassSectionJson[],
+): FrameSource {
+  return reader ? withTrackStems(source, reader, playhead, sections) : source
 }

@@ -205,7 +205,7 @@ function VoiceCard({
           })
         }
       >
-        {playing ? '■ Playing' : loading ? '… Loading' : '▶ Audition'}
+        {playing ? '■ Stop' : loading ? '… Loading' : '▶ Play'}
       </Button>
     </Panel>
   )
@@ -285,7 +285,7 @@ export function VoicesScreen() {
   const [mode, setMode] = useState<RowMode>('picks')
   return (
     <Screen>
-      <ScreenHeader code="05" kicker="VOICES & MODELS" title="VOICES">
+      <ScreenHeader compact code="06" kicker="VOICES & MODELS" title="VOICES">
         {all.length > PICKS && (
           <div className={styles.headTools}>
             <Segmented

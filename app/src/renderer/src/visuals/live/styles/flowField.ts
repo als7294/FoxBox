@@ -4,11 +4,17 @@
  * frame, so they leave silk-like streaks. The bands steer the field (lows push the speed, mids fold the noise finer,
  * highs light up sparks); a kick throws a burst of particles out of the centre, each bar re-seeds the field and the
  * beat drop fires a big burst and a bloom surge.
+ *
+ * Song structure (structure.ts): up a build the streams draw in toward the middle, quicken, fold finer and heat; the
+ * held breath stops them where they are; the drop hit throws them out in ice. A held sub spins the central vortex for
+ * the note's length (harder as it holds), a stab fires a small burst, a wobble folds the field at the LFO's rate, a
+ * glide turns the hue.
  */
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Points, ShaderMaterial, Vector2 } from 'three'
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Points, ShaderMaterial, Vector2, Vector3 } from 'three'
 import { makePost, makeRenderer } from '../post'
 import type { AudioFrame, StyleInstance, StyleOptions, VisualStyle } from '../registry'
 import { Cues, easeBands } from './audioKit'
+import { GRADE_GLSL, Structure } from './structure'
 import { disposeScenes, floatType, GLSL_HASH, paletteUniforms, PingPong, quadCamera, quadMaterial, quadScene, renderTo } from './feedback'
 
 /** The position texture's side: SIDE² particles. */
@@ -75,6 +81,8 @@ uniform float uBurst;
 uniform float uBurstK;
 uniform float uSeed;
 uniform float uInit;
+uniform float uPull;
+uniform float uVortex;
 varying vec2 vUv;
 ${GLSL_HASH}
 ${SIMPLEX}
@@ -105,8 +113,10 @@ void main() {
   vec2 v = curl(p.xy, t) * uSpeed;
   // A slow vortex about the middle keeps the picture composed; the burst throws particles outward.
   vec2 rad = p.xy / max(0.03, length(p.xy));
-  v += vec2(-rad.y, rad.x) * uSpeed * 0.35 * exp(-dot(p.xy, p.xy) * 0.8);
+  v += vec2(-rad.y, rad.x) * uSpeed * uVortex * exp(-dot(p.xy, p.xy) * 0.8);
   v += rad * p.z;
+  // A build draws the streams in; the drop hit pushes them out.
+  v -= p.xy * uPull;
   p.xy += v * uDt;
   p.z *= exp(-uDt * 4.5);
   p.w -= uDt;
@@ -134,6 +144,7 @@ uniform vec3 uInk;
 uniform vec3 uIce;
 uniform float uBright;
 uniform float uTime;
+uniform float uFlip;
 varying vec3 vCol;
 ${GLSL_HASH}
 float h1(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -149,6 +160,7 @@ void main() {
   float spark = step(0.965, k);
   c = mix(c, uInk, spark);
   c = mix(c, mix(uAmber, uInk, 0.3), smoothstep(0.3, 1.2, p.z));
+  c = mix(c, mix(uIce, uInk, 0.4), uFlip);
   float fadeIn = clamp((6.5 - p.w) * 2.0, 0.0, 1.0);
   float fadeOut = clamp(p.w * 2.5, 0.0, 1.0);
   // Slow, large clouds of density: some streams glow, others sink into the dark.
@@ -183,13 +195,15 @@ uniform vec3 uBg;
 uniform vec3 uAccent;
 uniform float uFlare;
 uniform vec2 uRes;
+uniform vec3 uGrade;
 varying vec2 vUv;
+${GRADE_GLSL}
 void main() {
   vec3 t = texture2D(uTrail, vUv).rgb;
   // A soft shoulder so dense streams glow rather than clip.
   t = t / (1.0 + 0.35 * t);
   vec2 p = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
-  vec3 col = uBg + uAccent * exp(-dot(p, p) * 5.0) * uFlare * 0.08 + t;
+  vec3 col = uBg + grade(uAccent * exp(-dot(p, p) * 5.0) * uFlare * 0.08 + t, uGrade);
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -213,6 +227,8 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uBurstK: { value: 0 },
     uSeed: { value: 0 },
     uInit: { value: 1 },
+    uPull: { value: 0 },
+    uVortex: { value: 0.35 },
   }
   const { scene: simScene } = quadScene(quadMaterial(SIM_FRAG, simU))
 
@@ -240,6 +256,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uHigh: { value: 0 },
     uBright: { value: 0.1 },
     uTime: simU.uTime,
+    uFlip: { value: 0 },
   }
   const pointMats: ShaderMaterial[] = []
   // Each particle draws twice: where it is and half a step back (so fast ones streak instead of dotting).
@@ -261,12 +278,20 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   }
 
   const res = new Vector2(w, h)
-  const showU = { ...pal, uTrail: { value: trail.read.texture }, uFlare: { value: 0 }, uRes: { value: res } }
+  const showU = {
+    ...pal,
+    uTrail: { value: trail.read.texture },
+    uFlare: { value: 0 },
+    uRes: { value: res },
+    uGrade: { value: new Vector3(0, 0, 1) },
+  }
   const { scene } = quadScene(quadMaterial(SHOW_FRAG, showU))
   const post = makePost(renderer, scene, cam, opts, { bloom: 1.0, grain: 0.2, vignette: 0.66 })
 
   const bands = { low: 0, mid: 0, high: 0 }
   const cues = new Cues(opts.reduced)
+  const st = new Structure(opts.reduced)
+  let stab = 0
   let time = 0
   let live = 0
 
@@ -276,21 +301,39 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       const s = step / 1000
       easeBands(bands, a, step)
       cues.step(a, step)
+      st.step(a, step)
+      // Structure's time: the held breath stops the streams where they are, half-time slows them, a build quickens them.
+      const ts = st.timeScale
       const env = cues.kick
       live += ((a.active ? 1 : 0) - live) * Math.min(1, s * 2)
       const calm = opts.reduced ? 0.45 : 1
       // Lows push the speed, mids fold the field finer; idle it barely drifts.
-      simU.uSpeed.value = (0.045 + live * (0.05 + 0.16 * bands.low + 0.05 * bands.high)) * calm
-      simU.uScale.value = 0.85 + 0.75 * bands.mid * live
-      time += s * (0.4 + 0.6 * live + 1.2 * bands.mid) * calm
+      simU.uSpeed.value = (0.045 + live * (0.05 + 0.16 * bands.low + 0.05 * bands.high)) * calm * (1 + 0.3 * st.groove)
+      // Finer up a build, folding with the wobble; the director's zoom enlarges it.
+      simU.uScale.value = ((0.85 + 0.75 * bands.mid * live) * (1 + 0.5 * st.tension) * (1 + 0.4 * st.wobble)) / st.zoom
+      simU.uPull.value = (0.6 * st.tension - 0.5 * st.burst) * calm
+      simU.uVortex.value = 0.35 * (1 + 2 * st.subHold * (0.5 + 0.5 * st.subStretch))
+      time += s * (0.4 + 0.6 * live + 1.2 * bands.mid) * calm * ts
       // A new bar re-seeds the field: the streams take new courses (not under reduced motion).
       if (cues.newBar && !opts.reduced) time += 2.9
       simU.uTime.value = time
-      simU.uDt.value = s
+      simU.uDt.value = s * ts
       const kick = a.song ? a.song.onset : a.onset
       const hit = a.active && kick >= 1
-      simU.uBurst.value = cues.dropStart ? (opts.reduced ? 0.04 : 0.14) : hit ? Math.min(1.5, kick) * (opts.reduced ? 0.01 : 0.025) : 0
-      simU.uBurstK.value = (opts.reduced ? 0.5 : 2.0) * (cues.dropStart ? 1.7 : 1)
+      const landed = cues.dropStart || (st.hit && cues.drop < 0.5)
+      const stabbed = st.stab > stab + 0.3
+      stab = st.stab
+      const k = st.intensity * (1 + 0.5 * st.groove)
+      simU.uBurst.value = landed
+        ? opts.reduced
+          ? 0.04
+          : 0.14
+        : hit
+          ? Math.min(1.5, kick) * (opts.reduced ? 0.01 : 0.025) * k
+          : stabbed
+            ? st.stab * (opts.reduced ? 0.005 : 0.015) * st.intensity
+            : 0
+      simU.uBurstK.value = (opts.reduced ? 0.5 : 2.0) * (landed ? 1.7 : 1)
       simU.uSeed.value = Math.random() * 100
       simU.uPos.value = pos.read.texture
       renderTo(renderer, pos.write, simScene, cam)
@@ -304,13 +347,16 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       pointU.uPos.value = pos.read.texture
       pointU.uPrev.value = pos.write.texture
       pointU.uHigh.value = bands.high * live
-      pointU.uBright.value = 0.026 + 0.03 * live + 0.03 * env + 0.015 * cues.drop
+      // Frozen streams redraw in place (they'd stack up), so they dim while the breath is held.
+      pointU.uBright.value = (0.026 + 0.03 * live + 0.03 * env + 0.015 * cues.drop) * (1 - 0.6 * st.hold)
+      pointU.uFlip.value = 0.7 * st.burst
+      showU.uGrade.value.set(st.heat, st.hue, st.gain)
       pointU.uSize.value = Math.max(1.2, Math.min(w, h) / 480)
       renderTo(renderer, trail.write, trailScene, cam)
       trail.swap()
       showU.uTrail.value = trail.read.texture
       showU.uFlare.value = env
-      post.render(dt, Math.min(1, env * 0.4 + bands.low * 0.3 * live + cues.drop * 0.8))
+      post.render(dt, Math.min(1, env * 0.4 + bands.low * 0.3 * live + cues.drop * 0.8 + 0.5 * st.burst))
     },
     resize(width: number, height: number) {
       w = Math.max(1, Math.round(width))
@@ -328,6 +374,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       disposeScenes(simScene, trailScene, scene)
       renderer.dispose()
     },
+    setParams: (p) => st.setParams(p),
   }
 }
 

@@ -29,4 +29,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fvwks_fx = ["presets/*.json"]
+fvwks_fx = ["presets/*.json", "remix/styles/*.json"]

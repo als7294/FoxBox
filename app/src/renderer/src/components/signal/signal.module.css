@@ -22,13 +22,13 @@
   min-width: 0;
 }
 .title {
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .status {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   padding: 4px 8px;
   border: 1px solid rgba(var(--vb-ink-rgb), 0.12);
@@ -50,8 +50,8 @@
   align-items: center;
   gap: 10px;
   margin-right: 10px;
-  font: 500 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .legend span {
@@ -87,7 +87,7 @@
   border-radius: var(--vb-r1);
   background: transparent;
   color: var(--vb-ink);
-  font: 700 10.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   white-space: nowrap;
 }
@@ -109,7 +109,7 @@
   border-radius: 1px;
   background: transparent;
   color: var(--vb-dim);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   white-space: nowrap;
 }
@@ -124,7 +124,7 @@
   border-radius: var(--vb-r1);
   background: transparent;
   color: var(--vb-dim);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   white-space: nowrap;
 }
@@ -206,8 +206,8 @@
   position: absolute;
   left: 14px;
   top: 12px;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 /* The caption, centred under the sphere: the word being said in the display face (accent for a throw), the beat
@@ -267,8 +267,8 @@
 }
 .capBar {
   padding-left: 0.16em;
-  font: 500 10.5px/1 var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min)/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -294,8 +294,8 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .readoutV {
@@ -341,8 +341,8 @@
   border-top: 1px solid var(--vb-line);
 }
 .kicker {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -383,7 +383,7 @@
 }
 .fitLine {
   min-width: 0;
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -464,7 +464,7 @@
   border-radius: var(--vb-r1);
   background: rgba(var(--vb-amber-rgb), 0.06);
   color: var(--vb-amber);
-  font: 700 9.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   transition: background var(--vb-fast);
   white-space: nowrap;
@@ -474,7 +474,7 @@
 }
 .verdict {
   min-width: 0;
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -497,7 +497,7 @@
   gap: 8px;
 }
 .tpWarn {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-accent);
   white-space: nowrap;
@@ -546,7 +546,7 @@
   background: var(--vb-accent);
 }
 .pending {
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-amber);
   white-space: nowrap;
@@ -574,15 +574,15 @@
   display: none;
 }
 .tipTitle {
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-amber);
 }
 .tipLine {
   font: 400 11px/1.4 var(--vb-font-mono);
 }
 .tipNote {
-  font: 400 10px/1.4 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.4 var(--vb-font-mono);
   color: var(--vb-dim);
 }
 
@@ -712,14 +712,13 @@
   top: 6px;
   right: 6px;
   z-index: 3;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: 1px solid transparent;
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-dim);
   font: 500 16px/1 var(--vb-font-mono);
-  opacity: 0.6;
   transition: opacity var(--vb-fast), color var(--vb-fast), border-color var(--vb-fast);
 }
 .core:hover .coreClose,
@@ -821,8 +820,8 @@
   padding: 0;
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -929,7 +928,7 @@
   border-radius: var(--vb-glass-radius, var(--vb-r1));
   corner-shape: var(--vb-glass-corner);
   background: var(--vb-glass-fill, transparent);
-  font: 600 9px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
@@ -967,7 +966,7 @@
   bottom: 0;
   width: 1px;
   background: rgba(var(--vb-ink-rgb), 0.06);
-  font: 500 8.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   padding-left: 3px;
   line-height: 12px;
@@ -980,7 +979,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .block {
@@ -1055,7 +1054,28 @@
     display: none;
   }
   .arrangeModes button {
-    padding: 0 6px;
+    padding: 0 4px;
+  }
+}
+.fitShort {
+  display: none;
+}
+/* A narrow ARRANGE header (1280 and 1512 alike): the fit chip shows its short form ('▲ 0.98×', '◇ WAIT') and
+   END ⇥ BEAT becomes ⇥ BEAT; their titles keep the whole story. */
+.arrangeHead {
+  container: arrhead / inline-size;
+}
+@container arrhead (max-width: 520px) {
+  .fitLong,
+  .endWord {
+    display: none;
+  }
+  .fitShort {
+    display: inline;
+  }
+  .fitChip {
+    padding: 0 4px;
+    letter-spacing: 0;
   }
 }
 .arrange {

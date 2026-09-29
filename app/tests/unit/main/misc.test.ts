@@ -80,6 +80,6 @@ describe('CSP', () => {
     expect(csp).not.toContain('127.0.0.1')
     // WebAssembly may compile (the camera clip's face detector); JS eval stays off.
     expect(csp).not.toContain("'unsafe-eval'")
-    expect(csp).toContain('connect-src \'self\' vbx:')
+    expect(csp).toContain("connect-src 'self' vbx: blob:;")
   })
 })

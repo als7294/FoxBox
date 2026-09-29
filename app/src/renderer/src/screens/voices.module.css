@@ -73,8 +73,8 @@
 }
 .kicker {
   min-width: 0;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -85,7 +85,7 @@
   flex: none;
   padding: 2px 5px;
   border-radius: var(--vb-r1);
-  font: 700 9px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -128,7 +128,7 @@
   padding: 3px 5px;
   border: 1px solid var(--vb-line-2);
   border-radius: var(--vb-r1);
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-dim);
   text-transform: uppercase;
@@ -137,7 +137,7 @@
 .f0 {
   flex: none;
   padding: 3px 5px;
-  font: 500 9px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -147,7 +147,7 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .card .audition {

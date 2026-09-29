@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import { tildePath } from '@/lib/paths'
 import { bridge } from '@/env'
 import styles from './common.module.css'
 
@@ -163,8 +164,8 @@ export function PathPicker(p: { label: string; value: string; onChange(v: string
       {(id, describedBy) => (
         <span className={styles.pathRow}>
           {b ? (
-            <output id={id} className={styles.pathValue} aria-describedby={describedBy} title={p.value}>
-              <bdi>{p.value || '—'}</bdi>
+            <output id={id} className={styles.pathValue} aria-describedby={describedBy} title={tildePath(p.value)}>
+              <bdi>{p.value ? tildePath(p.value) : '—'}</bdi>
             </output>
           ) : (
             <input id={id} className={styles.input} data-mono value={p.value} aria-describedby={describedBy} onChange={(e) => p.onChange(e.target.value)} />

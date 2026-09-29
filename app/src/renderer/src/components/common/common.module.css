@@ -8,17 +8,17 @@
   min-width: 0;
 }
 .fieldLabel {
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.18em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   text-transform: uppercase;
 }
 .fieldHint {
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .fieldError {
-  font: 500 10px/1.45 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.45 var(--vb-font-mono);
   color: var(--vb-accent);
 }
 .input {
@@ -92,7 +92,7 @@ textarea.input {
   display: none;
 }
 .unit {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   color: var(--vb-dim);
 }
@@ -133,7 +133,7 @@ textarea.input {
   border-left: 1px solid rgba(var(--vb-ink-rgb), 0.16);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
 .pathBtn:hover {
@@ -153,7 +153,7 @@ textarea.input {
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 10px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -246,61 +246,6 @@ textarea.input {
   border-color: rgba(var(--vb-ink-rgb), 0.3);
 }
 
-/* ---------------------------------------------------------------- modal (native <dialog>) */
-.modal {
-  background: var(--vb-panel);
-  color: var(--vb-ink);
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.35);
-  border-radius: var(--vb-r3);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
-  padding: 0;
-  width: min(520px, 90vw);
-}
-.modal[data-wide] {
-  width: min(860px, 92vw);
-}
-.modal::backdrop {
-  background: rgba(5, 5, 6, 0.78);
-}
-.modal[open] {
-  animation: modalIn 0.32s var(--vb-ease);
-}
-@keyframes modalIn {
-  from {
-    opacity: 0;
-    clip-path: inset(0 0 100% 0);
-  }
-  to {
-    opacity: 1;
-    clip-path: inset(0 0 0 0);
-  }
-}
-.modalHeader,
-.modalFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 20px 22px 0;
-}
-.modalHeader h2 {
-  font: var(--vb-display-weight) 26px/1 var(--vb-font-display);
-  letter-spacing: 0.12em;
-}
-.modalFooter {
-  justify-content: flex-end;
-  padding: 14px 22px 20px;
-  border-top: 1px solid var(--vb-line);
-}
-.modalBody {
-  padding: 16px 22px 20px;
-  max-height: 70vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
 /* ---------------------------------------------------------------- tooltip */
 .tooltipWrap {
   position: relative;
@@ -351,7 +296,7 @@ textarea.input {
   color: var(--vb-dim);
 }
 .privacyMore {
-  font: 400 10px/1.5 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.5 var(--vb-font-mono);
   color: var(--vb-dim);
 }
 .privacyMore summary {
@@ -371,7 +316,7 @@ textarea.input {
   border-radius: var(--vb-r1);
   background: var(--vb-well);
   color: var(--vb-ink);
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   user-select: all;
   word-break: break-all;
 }

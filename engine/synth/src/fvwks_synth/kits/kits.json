@@ -1,0 +1,50 @@
+[
+ {
+  "id": "tr808-boom",
+  "name": "808 BOOM",
+  "source": "cc0",
+  "license": "CC0-1.0",
+  "credit": "TR-808 samples by Michael Fischer (Technopolis), via tidalcycles, CC0",
+  "files": {
+   "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD0075.WAV",
+   "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD2550.WAV",
+   "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  }
+ },
+ {
+  "id": "tr808-punch",
+  "name": "808 PUNCH",
+  "source": "cc0",
+  "license": "CC0-1.0",
+  "credit": "TR-808 samples by Michael Fischer (Technopolis), via tidalcycles, CC0",
+  "files": {
+   "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD2525.WAV",
+   "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD5050.WAV",
+   "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  }
+ },
+ {
+  "id": "tr808-classic",
+  "name": "808 CLASSIC",
+  "source": "cc0",
+  "license": "CC0-1.0",
+  "credit": "TR-808 samples by Michael Fischer (Technopolis), via tidalcycles, CC0",
+  "files": {
+   "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD5050.WAV",
+   "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD0000.WAV",
+   "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  }
+ },
+ {
+  "id": "tr808-bright",
+  "name": "808 BRIGHT",
+  "source": "cc0",
+  "license": "CC0-1.0",
+  "credit": "TR-808 samples by Michael Fischer (Technopolis), via tidalcycles, CC0",
+  "files": {
+   "kick": "tidalcycles/sounds-tr808-fischer@85fbecf bd8/BD7525.WAV",
+   "snare": "tidalcycles/sounds-tr808-fischer@85fbecf sd8/SD7575.WAV",
+   "hats": "tidalcycles/sounds-tr808-fischer@85fbecf ch8/CH.WAV"
+  }
+ }
+]

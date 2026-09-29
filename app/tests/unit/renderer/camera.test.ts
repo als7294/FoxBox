@@ -20,7 +20,7 @@ import {
   TAIL_S,
   voiceEndOf,
 } from '../../../src/renderer/src/state/song'
-import { HOLD_MS, iou, pad, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
+import { HOLD_MS, iou, mergeBoxes, pad, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
 import { clipName, extensionOf, pickMimeType } from '../../../src/renderer/src/components/camera/recording'
 import { box, concat, defragment, fullBox, u32 } from '../../../src/renderer/src/components/camera/remux'
 import { filmTime, onsetOf } from '../../../src/renderer/src/components/camera/filmSync'
@@ -342,5 +342,14 @@ describe('clip watermark', () => {
     expect(markPose(at(0.75)).eyeX).toBeCloseTo(10)
     expect(markPose(at(0.65, 2)).eyeX).toBeCloseTo(-11) // again, two loops later
     expect(markPose(at(0.95)).eyeX).toBe(0)
+  })
+})
+
+describe('mergeBoxes', () => {
+  it('two finders on one face give one box (their union); a separate face stays separate', () => {
+    const det = { x: 408, y: 101, w: 134, h: 134 }
+    const mesh = { x: 406, y: 90, w: 123, h: 141 }
+    const other = { x: 177, y: 291, w: 156, h: 156 }
+    expect(mergeBoxes([det, other, mesh])).toEqual([{ x: 406, y: 90, w: 136, h: 145 }, other])
   })
 })

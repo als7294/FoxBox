@@ -1,12 +1,112 @@
-# S4 APP — status (FoxBox)
+# S4 APP + RELEASE — status (FoxBox)
 
-Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.2.1)
+Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART VISUALS + fixes + REMIX, in progress; 1.4.0 is live)
+
+## Now: the 1.5 lean wrap-up (the user's call: ship 1.5, then 1.5.1)
+
+- **Merged:** M3.5, the REMIX HARDWARE design with the timeline, markers, bass layers and v0.11.12 controls (e559638, 702e518); help/s3-remix e50d45e; help/s3-growls e0f905b; help/s1-camfix a01e5f1. S2's final sha is pending (help/s2-bassdna was at b46715c).
+- **Hidden for 1.5.1:**
+  - REMIX ALL (off behind `REMIX_ALL`; the queue and its test stay);
+  - REMIX's LINK dot;
+  - the TEAROUT flip card (never built; it waits for S2's C18).
+- **Live-set fixes:**
+  - LS1 (e2dcf79);
+  - LS15 and LS9 (cea5d5c);
+  - LS2–LS7 (0e852b3), code-reviewed OK by S5;
+  - LS8 and LS10 are 1.5.1 unless the PM says otherwise.
+- **Docs:** c3536b8 updates the README and WHAT'S NEW (the 1.5.0 notes).
+- **Checks:** the full unit suite passes (560, 1 skipped) and typecheck is clean.
+- **RC steps:**
+  - merge S2;
+  - `git archive` into scratch, build surgepy, then `release.mjs --no-bump`;
+  - check codesign on surgepy and that the .so has no home path;
+  - check latest-mac.json reuses runtime v1.2.1;
+  - one 15-minute isolated smoke (`--use-mock-keychain`, .test bundle id);
+  - send the RC path to the PM.
+
+## 1.5 handoff (read first)
+
+**Scope (from the PM)**
+- (a) VISUALS layout: the preview IS the output. ASPECT (9:16 default | 16:9 | 1:1) drives the stage, the output window, SAVE CLIP and REC LIVE. The stage is as large as possible. It renders once at output resolution and feeds the output window those frames (ImageBitmaps over the MessagePort), not a second compositor.
+- (b) Compositor: the near-mask pass-through, TEXT plumbing, the AUTO-VJ director hook, and a flash limiter (WCAG 2.3.1).
+- (c) A mandatory update at boot: ≤4 s check; UPDATE REQUIRED with progress; never brick (offline, feed error, or 2 failed downloads → error + CONTINUE); Setup unaffected.
+- (d) Remove every `.FoxBox.app.previous-*` after a confirmed start.
+- (e) WHAT'S NEW: full-window, on-brand, **no mascot**. The animated mark, the lattice bg, glass cards with 01/02 kickers and facet glyphs, LET'S GO, "Stay stealthy.". It merges the notes of skipped versions and works offline.
+- (f) SETLIST → PROD: greyed out with a WIP badge, not clickable. Don't build PROD.
+- (g) Merges plus the 1.5.0 build; engine-runtime must reuse v1.2.1.
+
+**Done on session/s4-app**
+- 271f292 (d): sweep backups.
+- a15c9e6 (f): PROD WIP.
+- 53c2e76: v0.10 API types; Song.builds typed number[][] because openapi-fetch maps the tuples.
+- 68c951c (b): shapes, AudioFrame structure/bass fields (S2's names), TextTrack/setText, setParams, FrameExtras, setDirector/ScenePatch.
+- e091fbb: layers get `extras`.
+- 8d6ac29: FlashGuard (WCAG 2.3.1, a 16×16 GPU probe, damping mixes toward the last frame).
+- 94756dd (e): WHAT'S NEW.
+- ac88c93: S2's asks, EffectLayer.locked and ScenePatch.saturation.
+- Merged: S2 help/s2-smart (ebb57f7) and S1 help/s1-smartcam (f61c803, 5040390).
+- d30ab50: the CAMERA base is S1's smartCameraBase.
+
+**Merged since** (all helpers are done):
+- (a) `s4-visuals-aspect`, merged at 7490170:
+  - `aspect` lives in the visuals store (9:16 default), with its control on the stage bar. SAVE CLIP and REC LIVE follow it.
+  - The stage renders at CLIP_SIZE. The output window just shows the stage's ImageBitmaps over the MessagePort, one in flight, acked by `shown`.
+  - Leaving VISUALS freezes the output on its last frame.
+  - Not tried in Electron yet; the bar-wrap stage-height formula needs checking there.
+- Styles `s4-visuals-structure`: the shared `styles/structure.ts` plus all 7 FOXBOX styles, with setParams.
+- (c) `s4-boot-update`, merged at 964c2c7. `FVWKS_SKIP_BOOT_UPDATE=1` skips it; the quick-launch harness sets it.
+- 99c3db8: the "check automatically" toggle is gone (the user's call). The background check always runs; old updates.json files still load.
+- 8a6cd04: CSP `connect-src` gains `blob:` for S3's TEXT fonts.
+
+**Also done since**
+- ea4dc48: S1's near mask goes to the stage's frame extras (CAMERA base), and CameraControls sit in BASE.
+- 134284f: the AUTO toggle (EFFECTS header) drives `autoDirector`, with a per-layer LOCK while it's on.
+- 5b9f250: TRACK frames carry the song's structure.
+- 0102bf2: Scene.text comes from lyrics or the drop script (visuals/live/sceneText.ts, not persisted). It POSTs /lyrics once stems are done.
+- Merged S3 help/s3-smart 63a6400 (lyrics routes, smart ISF, imagePalette; deps troika-three-text and colorthief).
+- Walked in Electron (built app, isolated): the stage is 1080×1920 at 9:16, and the output window mirrors the stage's frames at 16:9.
+
+**1.5.0 state (2026-09-29, latest)**
+- session/s4-app 32ff3ec plus the ghosting fix 02a7371: vitest 527, engine suite green (~620).
+- Merged: REMIX (page on S3's generated routes, v0.11.5), S1 synth (CC0) and .als, S2 bassdna/lock, S3 remix server and 15fix, S5 UX (type floor, #13/#1/#18, #6/#14/#16), and main up to v0.11.5.
+- Candidate e072e5f in scratch rc2/ (one tree only; the test HOME is removed after each launch). S3's step-3 OUTPUT re-check PASSED, and my isolated launch passed.
+  - Feed reuses electron and runtime from v1.2.1; app 16.1 MB + engine-code 5.8 MB, about 22 MB to update.
+  - Release fixes from this round (all committed): bundle_engine ships fvwks_synth; surgepy builds with -ffile-prefix-map (no home path); app.asar excludes node_modules (113 → 33 MB).
+- Still to come: S1 help/s1-faces, S3 /api/masks, S5 P1/P2 batches, the Claude Design package for REMIX (the user runs it), then release notes for REMIX and the final candidate.
+- The rc/ checkpoint (4a73d0b) is still in scratch; drop it once the final candidate exists.
+
+**Plan change (user, 2026-09-29): one big 1.5.0 = SMART VISUALS + the fixes + REMIX.** The 4a73d0b candidate is a checkpoint only; never move it to app/release.
+- Merged: S2 keyfix (b3b4c9b, facbf77), S1 calibration 80ff949, main (contracts v0.11.2). API types in fd1ecd2.
+- REMIX deps in 9e52887: tone, @waveform-playlist/browser + playout, styled-components, @dnd-kit/{react,dom,abstract}. All reported to the PM. Signal's piano roll and react-timeline-editor are deferred.
+- In flight: a helper is building the REMIX page Phase 1 (unstyled, functional, MSW mocks, TS types mirroring contracts v0.11.2 until the OpenAPI has the routes) in its own worktree. Merge it when it reports. The styling comes from the user's Claude Design bundle.
+
+**1.5.0 candidate (built, not published, 2026-09-29)**
+- Sha `4a73d0b`. Built into the scratchpad's `rc/app/release/1.5.0/`, deliberately NOT app/release, because the PM's watcher publishes that folder.
+- Feed: electron and engine-runtime are reused from v1.2.1. New: app 24.4 MB (the MediaPipe models and vision worker) and engine-code 1.5 MB, so the update is about 26 MB.
+- Checked: vitest 513; isolated quick launch passed (engine ready at 11.5 s); in Electron, the 9:16 stage, the output mirror, and TEXT with no CSP errors.
+- S1's QA passed with no blockers: the packaged vision worker loads all models; SAVE CLIP at 9:16 with TEXT runs at 3.6× realtime and matches the stage; the camera styles, AUTO-FRAME and pass-through were checked on a dev build with the fake camera. For 1.5.1, S1 is fixing calibration taking a leaned-in baseline.
+- Waiting on the QA walk (asked): S3 for pre-drop TEXT, MILKDROP cuts, AUTO-VJ and LOCK, output equal to the preview, the boot update, WHAT'S NEW.
+- The 1.5.1 queue, to merge only after 1.5.0 is published: S2 help/s2-keyfix (b3b4c9b, facbf77: key detection) and S1 help/s1-smartcam 80ff949 (calibration from resting frames).
+- When the PM says go: `mv` the folder atomically into app/release/1.5.0 (copy to `.tmp`, then mv), then send `S4 RELEASE 1.5.0 4a73d0b`.
+
+**Rules (standing)**
+- ponytail (full): shortest correct diff; no new deps or abstractions; one runnable check; `ponytail:` marks.
+- Downloads under 1 GB need no approval; over 1 GB needs the user's OK. Report every new package or model to the PM (why, what, how popular).
+- Lean QA, but walk the headline flows.
+- Isolated test launches only: S4's bundle id is `com.smittytech.foxbox.test.s4`, with its own temp HOME and CDP port 9314 (`S4_CDP_PORT`). Quit only by the PID you launched; never killall/pkill FoxBox or quit by name or id (rule of 2026-09-29).
+- Release: build from `git archive` of a sha. engine/uv.lock (gitignored, never committed) must match the v1.2.1 runtime (wrapt pinned to 2.5.0, no new Python deps; vendor into engine-code instead). Check latest-mac.json's engine-runtime URL before writing the release dir. Write the release dir atomically (`.tmp` + mv), because the PM's watcher publishes it.
+- Prettier: `--no-semi --single-quote --print-width 140 --trailing-comma all` on touched files only.
+- No credit email in git. No old act name. No absolute home paths in this file.
+
 
 ## Handover: cutting a release (1.2.1)
 
 **Steps**
 1. Bump and write the notes, then commit: `npm version <x.y.z> --no-git-tag-version` in `app/`, and write `app/release-notes/<x.y.z>.md` (one `-` line per note).
-2. Build from a clean export, so nothing uncommitted ships:
+2. **REMIX, from 1.5.0: surgepy (Surge XT's Python module, GPL-3.0, 8 MB) is git-ignored.** In step 3, after the `git archive` and before `release.mjs`, build it into the export:
+   `sh <tmp>/engine/synth/native/build_surgepy.sh <scratch>/surge-work`. It uses the pinned Surge commit plus our setTempo patch, needs a ~420 MiB download the first time (keep the work dir for reuse), and builds in ~1.5 min. It lands in `<tmp>/engine/synth/src/fvwks_synth/_native/`.
+   After the build, check that the app has it and that it's signed: `find <app> -name 'surgepy*.so' -exec codesign -v --strict {} \;` (it should be under Resources/engine/code/fvwks_synth/_native/). Without it, the FoxBox patches still work, but the Surge ones grey out.
+3. Build from a clean export, so nothing uncommitted ships (run step 2's surgepy build inside it, before release.mjs):
    ```
    git archive <sha> | tar -x -C <tmp>
    ln -s <worktree>/app/node_modules <tmp>/app/node_modules
@@ -17,12 +117,12 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-27 (FoxBox 1.2.1)
    - This takes about 10 min: electron-vite, S3's `bundle_engine.sh`, electron-builder, the DMG and zips.
    - `--prev-feed <url|file>` is the feed to reuse parts from. The default is the latest GitHub release's `latest-mac.json`.
    - `--asset-base <url>` sets where the new parts will be downloaded from. The default is `https://github.com/als7294/FoxBox/releases/download/v<version>/`.
-3. The output goes to `app/release/<version>/`:
+4. The output goes to `app/release/<version>/`:
    - `FoxBox-<v>-arm64.dmg`, for first installs;
    - `FoxBox-<v>-arm64.zip`, the full app, which clients before 1.2 use;
    - `FoxBox-<part>-<hash16>.zip` for each new part;
    - `latest-mac.json`.
-4. Publish (the coordinator does this): `gh release create v<version> --repo als7294/FoxBox` with every file release.mjs lists. The tag name must match the part URLs in the feed.
+5. Publish (the coordinator does this): `gh release create v<version> --repo als7294/FoxBox` with every file release.mjs lists. The tag name must match the part URLs in the feed.
 
 **Parts** (`app/src/main/components.ts`)
 | Part | What's in it | Size |

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useRekordboxExport, useSettings } from '@/api/queries'
-import type { ExportedFile, Preset } from '@/api/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { fileName } from '@/lib/paths'
+import { usePresets, useRekordboxExport, useSettings } from '@/api/queries'
+import type { ExportedFile } from '@/api/types'
 import { Button } from '@/components/common/Button'
 import { SelectField, TextField } from '@/components/common/Fields'
-import { Modal } from '@/components/common/Modal'
-import { rekordboxSteps } from '@/components/feedback/StepsModal'
+import { rekordboxSteps } from '@/components/feedback/StepsPanel'
 import { Segmented } from '@/components/rack/Segmented'
 import { Switch } from '@/components/rack/Switch'
 import { exportCurrent } from '@/state/renderController'
@@ -15,15 +15,13 @@ import { useUi } from '@/state/ui'
 import { FileRow } from './FileRow'
 import styles from './output.module.css'
 
-export interface ExportSheetProps {
-  open: boolean
-  onClose(): void
-  presets: readonly Preset[]
-}
-
-/** EXPORT ▾: format, variants (wet/dry/alt preset), stems and title; results as draggable rows; rekordbox.xml. */
-export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
+/**
+ * EXPORT…: format, variants (wet/dry/alt preset), stems and title; results as draggable rows; rekordbox.xml. Inline in
+ * the OUTPUT panel, in place of the cartridge while it's open: no modal (UX #11).
+ */
+export function ExportSheet({ onClose }: { onClose(): void }) {
   const settings = useSettings().data
+  const presets = usePresets().data ?? []
   const presetId = useStudio((s) => s.presetId)
   const phase = useStudio((s) => s.phase)
   const [format, setFormat] = useState<'aiff' | 'wav'>('aiff')
@@ -40,15 +38,16 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
   // v0.7: offered once a song is placed (it has a grid); sent as ExportRequest.bake.
   const bakeAt = useMemo(() => songPlacement({ song, placement }), [song, placement])
   const rekordbox = useRekordboxExport()
+  // It replaces the button that opened it: take the focus so the keyboard (and Esc) land here.
+  const root = useRef<HTMLElement>(null)
+  useEffect(() => root.current?.focus(), [])
 
   useEffect(() => {
-    if (!open) return
-    setFiles([])
     if (settings) {
       setFormat(settings.format)
       setBitDepth(settings.bit_depth as 16 | 24)
     }
-  }, [open, settings])
+  }, [settings])
 
   const variants = [...(wet ? ['wet'] : []), ...(dry ? ['dry'] : []), ...(alt ? [`alt:${alt}`] : [])]
   const busy = phase !== 'idle'
@@ -58,7 +57,7 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
     for (const w of warnings) toast.warn('EXPORT WARNING', { detail: w })
     if (out.length) {
       setFiles(out)
-      toast.success(`EXPORTED ${out.length} FILE${out.length === 1 ? '' : 'S'}`, { detail: out[0]!.path, dragPath: out[0]!.path })
+      toast.success(`EXPORTED ${out.length} FILE${out.length === 1 ? '' : 'S'}`, { detail: fileName(out[0]!.path), dragPath: out[0]!.path })
     }
   }
 
@@ -69,7 +68,7 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
       onClose()
       useUi.getState().setModal({
         title: 'REKORDBOX XML EXPORTED',
-        body: `${res.path} · playlist “${res.playlist}” · ${res.tracks} track${res.tracks === 1 ? '' : 's'}`,
+        body: `${fileName(res.path)} · playlist “${res.playlist}” · ${res.tracks} track${res.tracks === 1 ? '' : 's'}`,
         steps: rekordboxSteps(res.playlist),
         revealPath: res.path,
       })
@@ -79,70 +78,83 @@ export function ExportSheet({ open, onClose, presets }: ExportSheetProps) {
   }
 
   return (
-    <Modal
-      title="EXPORT"
-      open={open}
-      onClose={onClose}
-      wide
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            CLOSE
-          </Button>
-          <Button variant="ink" disabled={busy || variants.length === 0} onClick={() => void run()} data-testid="export-confirm">
-            {busy ? 'WORKING…' : 'EXPORT'}
-          </Button>
-        </>
-      }
+    <section
+      ref={root}
+      tabIndex={-1}
+      className={styles.sheet}
+      aria-label="Export"
+      data-testid="export-sheet"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          onClose()
+        }
+      }}
     >
-      <div className={styles.sheetGrid}>
-        <Segmented
-          label="FORMAT"
-          value={format}
-          options={[
-            { value: 'aiff' as const, label: 'AIFF' },
-            { value: 'wav' as const, label: 'WAV' },
-          ]}
-          onChange={(v) => setFormat(v)}
-        />
-        <Segmented
-          label="BIT DEPTH"
-          value={bitDepth}
-          options={[
-            { value: 24 as const, label: '24-BIT' },
-            { value: 16 as const, label: '16-BIT' },
-          ]}
-          onChange={(v) => setBitDepth(v)}
-        />
-        <SelectField
-          label="ALT PRESET"
-          value={alt}
-          options={[{ value: '', label: 'None' }, ...presets.filter((p) => p.id !== presetId).map((p) => ({ value: p.id, label: p.name }))]}
-          onChange={setAlt}
-        />
-        <TextField label="TITLE" value={title} placeholder="FROM THE SCRIPT" onChange={setTitle} />
-        <div className={styles.sheetSwitches}>
-          <Switch label="WET" checked={wet} onChange={setWet} />
-          <Switch label="DRY" checked={dry} onChange={setDry} />
-          <Switch label="STEMS" checked={stems} onChange={setStems} />
-          {bakeAt && <Switch label={`ALSO BAKE INTO SONG · BAR ${bakeAt.at_bar}`} checked={bake} onChange={setBake} />}
-        </div>
+      <div className={styles.head}>
+        <span className={styles.title}>EXPORT</span>
+        <button type="button" className={styles.sheetClose} aria-label="Close export options" onClick={onClose}>
+          ×
+        </button>
       </div>
-      {files.length > 0 && (
-        <>
-          <h3 className={styles.sheetHeading}>EXPORTED · DRAG A ROW OUT</h3>
-          <ul className={styles.files}>
-            {files.map((f) => (
-              <FileRow key={f.id} file={f} />
-            ))}
-          </ul>
-          <div className={styles.xmlRow}>
-            <Button variant="amber" onClick={() => void writeXml()} disabled={rekordbox.isPending}>
-              WRITE REKORDBOX.XML
-            </Button>
+      <div className={styles.sheetBody}>
+        <div className={styles.sheetGrid}>
+          <Segmented
+            label="FORMAT"
+            value={format}
+            options={[
+              { value: 'aiff' as const, label: 'AIFF' },
+              { value: 'wav' as const, label: 'WAV' },
+            ]}
+            onChange={(v) => setFormat(v)}
+          />
+          <Segmented
+            label="BIT DEPTH"
+            value={bitDepth}
+            options={[
+              { value: 24 as const, label: '24-BIT' },
+              { value: 16 as const, label: '16-BIT' },
+            ]}
+            onChange={(v) => setBitDepth(v)}
+          />
+          <SelectField
+            label="ALT PRESET"
+            value={alt}
+            options={[{ value: '', label: 'None' }, ...presets.filter((p) => p.id !== presetId).map((p) => ({ value: p.id, label: p.name }))]}
+            onChange={setAlt}
+          />
+          <TextField label="TITLE" value={title} placeholder="FROM THE SCRIPT" onChange={setTitle} />
+          <div className={styles.sheetSwitches}>
+            <Switch label="WET" checked={wet} onChange={setWet} />
+            <Switch label="DRY" checked={dry} onChange={setDry} />
+            <Switch label="STEMS" checked={stems} onChange={setStems} />
+            {bakeAt && <Switch label={`ALSO BAKE INTO SONG · BAR ${bakeAt.at_bar}`} checked={bake} onChange={setBake} />}
           </div>
-        </>
-      )}
-    </Modal>
+        </div>
+        {files.length > 0 && (
+          <>
+            <h3 className={styles.sheetHeading}>EXPORTED · DRAG A ROW OUT</h3>
+            <ul className={styles.files}>
+              {files.map((f) => (
+                <FileRow key={f.id} file={f} />
+              ))}
+            </ul>
+            <div className={styles.xmlRow}>
+              <Button variant="amber" onClick={() => void writeXml()} disabled={rekordbox.isPending}>
+                WRITE REKORDBOX.XML
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+      <div className={styles.sheetFoot}>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          CLOSE
+        </Button>
+        <Button variant="ink" size="sm" disabled={busy || variants.length === 0} onClick={() => void run()} data-testid="export-confirm">
+          {busy ? 'WORKING…' : 'EXPORT'}
+        </Button>
+      </div>
+    </section>
   )
 }

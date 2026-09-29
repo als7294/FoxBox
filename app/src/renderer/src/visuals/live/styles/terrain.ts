@@ -6,6 +6,11 @@
  * the way in; each bar leaves a brighter row line; the drop surges the glow and dips the camera. The voice is the sun
  * low on the horizon behind it all.
  *
+ * Song structure (structure.ts): up a build the land rises, the flight speeds and dips lower and the light heats; the
+ * held breath stops the land; the drop hit throws the ridges up in ice. A held sub raises the canyon walls for the
+ * note's length (spreading as it holds), a stab flashes the newest row, a wobble pumps the heights, a glide sways the
+ * flight.
+ *
  * The rows are a 128 × 128 RGBA byte texture used as a ring buffer (height, kick flash, bar line), written at 40 rows/s;
  * the heights and the lines are all in the shaders.
  */
@@ -26,6 +31,7 @@ import { makePost, makeRenderer } from '../post'
 import type { AudioFrame, StyleInstance, StyleOptions, VisualStyle } from '../registry'
 import { ease } from './audioKit'
 import { Cues, fullscreenTriangle, glPalette, logSpectrum, v3 } from './gl'
+import { GRADE_GLSL, Structure } from './structure'
 
 const FREQ = 128
 const ROWS = 128
@@ -40,6 +46,8 @@ uniform float uHead;
 uniform float uFrac;
 uniform float uAmp;
 uniform float uTime;
+uniform float uSub;
+uniform float uSubW;
 varying float vAge;
 varying float vH;
 varying vec3 vRow;
@@ -56,6 +64,8 @@ void main() {
   // Heights: peaks stand up, the floor stays low; the far edge rises out of the ground as a row arrives.
   float rise = smoothstep(0.0, 1.5, age);
   float h = pow(t.r, 2.2) * uAmp * rise;
+  // A held sub: the canyon walls stand up, spreading inward as the note holds.
+  h += uSub * 0.3 * pow(1.0 - s, uSubW) * rise;
   vec3 p = vec3(position.x, h, ${FAR_Z.toFixed(1)} + age * ${(DEPTH / (ROWS - 1)).toFixed(5)});
   vAge = age;
   vH = h;
@@ -76,11 +86,15 @@ uniform vec3 uIce;
 uniform float uAmp;
 uniform float uGain;
 uniform float uFlash;
+uniform float uFlip;
+uniform vec3 uGrade;
 varying float vAge;
 varying float vH;
 varying vec3 vRow;
 varying float vX;
 varying float vDist;
+
+${GRADE_GLSL}
 
 // An anti-aliased line on the integer values of c, fading out where the lines get denser than ~2 px.
 float lines(float c, float width) {
@@ -93,6 +107,7 @@ void main() {
   float hN = clamp(vH / max(uAmp, 1e-3), 0.0, 1.0);
   vec3 col = mix(uAccent * 0.8, uAmber, smoothstep(0.2, 0.7, hN));
   col = mix(col, uInk, smoothstep(0.75, 1.0, hN) * 0.7);
+  col = mix(col, mix(uIce, uInk, 0.4), uFlip);
   // Row lines (the contour of each spectrum) and sparser lines across them.
   float row = lines(vAge, 0.7);
   float across = lines(vX / 8.0, 0.5) * 0.28;
@@ -107,7 +122,7 @@ void main() {
   c *= uGain;
   // Fog: distance softens the horizon a little; the oldest rows melt away before they pass under the camera.
   float fog = (1.0 - 0.5 * smoothstep(3.5, 7.5, vDist)) * (1.0 - smoothstep(${(ROWS * 0.5).toFixed(1)}, ${(ROWS * 0.95).toFixed(1)}, vAge));
-  gl_FragColor = vec4(uBg + c * fog * (1.0 + 0.5 * uFlash), 1.0);
+  gl_FragColor = vec4(uBg + grade(c * fog * (1.0 + 0.5 * uFlash), uGrade), 1.0);
 }
 `
 
@@ -120,11 +135,13 @@ uniform float uHorizon;
 uniform float uAspect;
 uniform float uSun;
 uniform float uGlow;
+uniform vec3 uGrade;
 varying vec2 vUv;
+${GRADE_GLSL}
 void main() {
   vec2 p = vec2((vUv.x - 0.5) * uAspect, vUv.y - uHorizon);
   float band = exp(-p.y * p.y * 60.0);
-  vec3 c = uBg + uAccent * band * uGlow;
+  vec3 c = uAccent * band * uGlow;
   // The sun: a soft ember disc on the horizon that grows and warms with the voice.
   float r = length(p - vec2(0.0, 0.02));
   float size = 0.05 + 0.05 * uSun;
@@ -132,7 +149,7 @@ void main() {
   float halo = exp(-r * r / (size * size) * 0.35);
   c += mix(uAccent, uAmber, 0.3 + 0.5 * uSun) * (core * (0.1 + 0.45 * uSun) + halo * (0.025 + 0.1 * uSun));
   c += uInk * core * uSun * uSun * 0.2;
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(uBg + grade(c, uGrade), 1.0);
 }
 `
 
@@ -177,13 +194,24 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
     uTime: { value: 0 },
     uGain: { value: 1 },
     uFlash: { value: 0 },
+    uSub: { value: 0 },
+    uSubW: { value: 6 },
+    uFlip: { value: 0 },
+    uGrade: { value: new Vector3(0, 0, 1) },
   }
   const geo = new PlaneGeometry(WIDTH, 1, FREQ * 2 - 2, ROWS - 1)
   const mat = new ShaderMaterial({ vertexShader: TERRAIN_VERT, fragmentShader: TERRAIN_FRAG, uniforms: u })
   const terrain = new Mesh(geo, mat)
   terrain.frustumCulled = false
 
-  const skyU = { ...colours, uHorizon: { value: 0.6 }, uAspect: { value: w / h }, uSun: { value: 0 }, uGlow: { value: 0.03 } }
+  const skyU = {
+    ...colours,
+    uHorizon: { value: 0.6 },
+    uAspect: { value: w / h },
+    uSun: { value: 0 },
+    uGlow: { value: 0.03 },
+    uGrade: u.uGrade,
+  }
   const skyMat = new ShaderMaterial({ vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, uniforms: skyU, depthTest: false })
   const tri = fullscreenTriangle()
   const sky = new Mesh(tri, skyMat)
@@ -196,6 +224,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   const post = makePost(renderer, scene, camera, opts, { bloom: 1.15, grain: 0.2, vignette: 0.68 })
 
   const cues = new Cues(reduced)
+  const st = new Structure(reduced)
   const horizon = new Vector3()
   let clock = 0
   let head = 0
@@ -206,11 +235,14 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
   return {
     frame(a: AudioFrame, dt: number) {
       const step = Math.min(100, Math.max(0, dt))
-      const s = step / 1000
-      clock += s
       cues.update(a, step)
+      st.step(a, step)
+      // Structure's time: the flight speeds up a build and stops in the held breath; half-time slows it.
+      const s = (step / 1000) * st.timeScale
+      clock += s
       const { bands, kick, live, voice, drop } = cues
       const calm = reduced ? 0.4 : 1
+      const k = st.intensity * (1 + 0.4 * st.groove)
 
       // The newest row: the log spectrum (silence when idle, plus a slow swell so the land never lies dead flat).
       logSpectrum(a.active ? a.fft : null, a.sampleRate, spec)
@@ -225,7 +257,8 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       while (rowClock >= 1) {
         rowClock -= 1
         head = (head + 1) % ROWS
-        const flash = Math.round(Math.min(1, (kick * calm) / 1.2 + drop * 0.6) * 255)
+        // The flash: kicks, the drop, the hit's burst and bass stabs.
+        const flash = Math.round(Math.min(1, (kick * calm * k) / 1.2 + drop * 0.6 + st.burst + st.stab * 0.8 * calm) * 255)
         const bar = Math.round(barMark * 255)
         barMark = 0
         for (let i = 0; i < FREQ; i++) {
@@ -239,16 +272,18 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       }
 
       // The camera: flying down the canyon, drifting side to side; the drop punches the lens in.
-      if (cues.dropHit) dip = calm
+      if (cues.dropHit || (st.hit && cues.drop < 0.5)) dip = calm
       dip = ease(dip, 0, step, 900)
-      const fov = 46 - 7 * dip
+      const fov = (46 - 7 * dip) / st.zoom
       if (Math.abs(camera.fov - fov) > 0.01) {
         camera.fov = fov
         camera.updateProjectionMatrix()
       }
       const sway = reduced ? 0.06 : 0.16
-      camera.position.set(Math.sin(clock * 0.09) * sway, 0.78 + 0.04 * Math.sin(clock * 0.13), 0.9)
-      camera.lookAt(Math.sin(clock * 0.09 + 0.8) * sway * 0.4, 0.12, FAR_Z * 0.8)
+      // Up a build the flight dips toward the ridges; a glide sways it off the line.
+      const bend = st.glide * 0.25
+      camera.position.set(Math.sin(clock * 0.09) * sway + bend, 0.78 + 0.04 * Math.sin(clock * 0.13) - 0.08 * st.tension, 0.9)
+      camera.lookAt(Math.sin(clock * 0.09 + 0.8) * sway * 0.4 + bend * 0.5, 0.12, FAR_Z * 0.8)
       camera.rotateZ(Math.sin(clock * 0.07) * (reduced ? 0.005 : 0.018))
       camera.updateMatrixWorld()
       horizon.set(0, 0, FAR_Z - 30).project(camera)
@@ -256,13 +291,17 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       u.uHead.value = head
       u.uFrac.value = rowClock
       u.uTime.value = clock
-      u.uAmp.value = 0.3 + 0.6 * live
-      u.uGain.value = 0.45 + 0.5 * live + 0.35 * drop
+      u.uAmp.value = (0.3 + 0.6 * live) * (1 + 0.3 * st.tension + 0.15 * st.groove + 0.25 * st.burst + 0.15 * st.wobble)
+      u.uGain.value = (0.45 + 0.5 * live + 0.35 * drop) * (1 + 0.25 * st.groove)
       u.uFlash.value = drop
+      u.uSub.value = st.subHold * live
+      u.uSubW.value = 6 - 4 * st.subStretch
+      u.uFlip.value = 0.7 * st.burst
+      u.uGrade.value.set(st.heat, st.hue, st.gain)
       skyU.uHorizon.value = horizon.y * 0.5 + 0.5
       skyU.uSun.value = voice * live
-      skyU.uGlow.value = 0.012 + 0.025 * bands.low * live + 0.06 * drop
-      post.render(dt, Math.min(1, (0.35 * Math.min(1, kick) + 0.3 * a.rms) * live + 0.8 * drop))
+      skyU.uGlow.value = 0.012 + 0.025 * bands.low * live + 0.06 * drop + 0.05 * st.subHold * live + 0.04 * st.groove
+      post.render(dt, Math.min(1, (0.35 * Math.min(1, kick) + 0.3 * a.rms) * live + 0.8 * drop + 0.6 * st.burst))
     },
     resize(width: number, height: number) {
       w = Math.max(1, Math.round(width))
@@ -281,6 +320,7 @@ function create(canvas: HTMLCanvasElement, opts: StyleOptions): StyleInstance {
       rows.dispose()
       renderer.dispose()
     },
+    setParams: (p) => st.setParams(p),
   }
 }
 

@@ -177,19 +177,19 @@ def _beat_phase(att: np.ndarray, period_s: float) -> float:
 
 
 def _chroma(x: np.ndarray, hop_s: float) -> tuple[np.ndarray, float]:
-    """Harmonic chroma frames (frames, 12), each frame L1-normalized, and the frame rate. 11.025 kHz, 4096 FFT."""
+    """Harmonic chroma frames (frames, 12), each frame L1-normalized, and the frame rate. 11.025 kHz, 4096 FFT.
+    The power per pitch class, then compressed (^0.25): summing a compressed value per FFT bin instead would weight
+    each class by its bins-per-semitone count, a fixed ramp from C to B that broadband sound (drums, growls) turns
+    into a false key (S3's finding)."""
     sr = AN_SR // 2
     y = signal.resample_poly(x, 1, 2)
     hop = max(256, int(round(hop_s * sr)))
     f = np.fft.rfftfreq(4096, 1.0 / sr)
     use = (f >= 55.0) & (f <= 2000.0)
     mag = _mag_frames(y.astype(np.float32), 4096, hop)[:, use]
-    mag = ndimage.median_filter(mag, size=(9, 1), mode="nearest")  # keep the sustained (harmonic) part
+    pw = ndimage.median_filter(mag, size=(9, 1), mode="nearest") ** 2  # keep the sustained (harmonic) part
     pc = np.round(69.0 + 12.0 * np.log2(f[use] / 440.0)).astype(np.int64) % 12
-    m = np.sqrt(mag)
-    ch = np.zeros((mag.shape[0], 12))
-    for p in range(12):
-        ch[:, p] = m[:, pc == p].sum(axis=1)
+    ch = np.stack([pw[:, pc == k].sum(axis=1) for k in range(12)], axis=1) ** 0.25
     tot = ch.sum(axis=1, keepdims=True)
     return ch / np.maximum(tot, EPS), sr / hop
 

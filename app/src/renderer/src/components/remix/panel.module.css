@@ -1,0 +1,696 @@
+/* The context panel: BASS DNA · MASH RADAR · GENRE FLIP, and the docked SWAP SOUND card (app/design/remix, HARDWARE). */
+
+.side {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--vb-rack);
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  box-shadow: var(--vb-rack-inset);
+}
+.side :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.tabs {
+  position: relative;
+  display: flex;
+  height: 40px;
+  flex: none;
+  border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+}
+.tabs > button {
+  flex: 1;
+  height: 100%;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.tabs > button:hover,
+.tabs > button[aria-selected='true'] {
+  color: var(--vb-ink);
+}
+/* The ember indicator glides under the selected tab. */
+.tabBar {
+  position: absolute;
+  bottom: -1px;
+  width: 33.33%;
+  height: 2px;
+  display: flex;
+  justify-content: center;
+  transition: left 0.35s var(--vb-ease-glide);
+  pointer-events: none;
+}
+.tabBar::after {
+  content: '';
+  width: 70%;
+  height: 2px;
+  background: var(--vb-accent);
+  box-shadow: 0 0 8px var(--vb-accent);
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise 0.3s ease-out;
+}
+
+/* ---------------------------------------------------------------- shared bits */
+.label {
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.dim {
+  font: 400 var(--vb-text-min) / 1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.warn {
+  font: 500 var(--vb-text-min) / 1.45 var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.note {
+  padding: 12px;
+  border: 1px dashed rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-ctl-radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.note > b {
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.note[data-tone='amber'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.45);
+}
+.sweep {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+}
+.sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  background: var(--vb-amber);
+  animation: sweep 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+.seg {
+  display: flex;
+  height: 32px; /* 24 px targets inside the 3 px well */
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  border-radius: var(--vb-ctl-radius);
+  padding: 3px;
+  gap: 3px;
+  background: var(--vb-well);
+}
+.seg > button {
+  flex: 1;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.seg > button:hover {
+  color: var(--vb-ink);
+}
+.seg > button[aria-checked='true'] {
+  background: var(--vb-ink);
+  color: var(--vb-well);
+}
+.chip {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.chip[aria-pressed='true'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.55);
+  background: rgba(var(--vb-amber-rgb), 0.08);
+  color: var(--vb-amber);
+}
+.fix {
+  height: 28px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.5);
+  border-radius: 2px;
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  color: var(--vb-amber);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.06em;
+}
+.ctl {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+}
+.ctl:hover:not(:disabled) {
+  background: var(--vb-ctl-fill-hi);
+}
+.ctl:disabled {
+  opacity: 0.45;
+}
+.ink {
+  composes: ctl;
+  background: var(--vb-ink);
+  color: var(--vb-well);
+}
+.ink:hover:not(:disabled) {
+  background: #fff;
+}
+.ink[data-done] {
+  background: none;
+  border: 1px solid var(--vb-ok);
+  color: var(--vb-ok);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- BASS DNA */
+.target {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.target > b {
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.target > span {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.dna {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 0 8px;
+}
+.pitches {
+  height: clamp(84px, 12cqh, 120px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2px 0;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.roll {
+  position: relative;
+  height: clamp(84px, 12cqh, 120px);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  border-radius: 2px;
+  background: var(--vb-well-deep);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+.roll > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rowLabel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.wobble {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  height: 30px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+}
+.wobble > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+}
+.wobble small {
+  height: 11px;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.curves {
+  width: 100%;
+  height: 32px;
+}
+.knobs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  justify-items: center;
+}
+/* The Studio's MacroKnob at the design's 58 px; these bass macros drive no rack params, so no mapping list. */
+.knobs [role='slider'] {
+  width: 58px;
+  height: 58px;
+}
+.knobs [role='slider'] > div {
+  font-size: 15px;
+}
+.knobs ul {
+  display: none;
+}
+
+/* PatchPicker / KitPicker: sound rows with an LED, the name, the engine tag and a 2 s audition. */
+.families {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well);
+}
+.families > button {
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  transition: background 0.15s;
+}
+.families > button[aria-selected='true'] {
+  background: var(--vb-ink);
+  color: var(--vb-well);
+}
+.sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sound {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: 2px;
+  background: var(--vb-well);
+  overflow: hidden;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+  animation: rise 0.22s ease-out both;
+}
+.sound[data-on] {
+  border-color: rgba(var(--vb-amber-rgb), 0.55);
+  background: linear-gradient(90deg, rgba(var(--vb-amber-rgb), 0.1), transparent 70%), var(--vb-well);
+}
+.sound[data-off] {
+  opacity: 0.45;
+}
+.soundLed {
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 1px;
+  background: var(--vb-led-off);
+}
+.sound[data-on] .soundLed {
+  background: var(--vb-amber);
+  box-shadow: 0 0 6px var(--vb-amber);
+}
+.soundPick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--vb-ink);
+  text-align: left;
+}
+.soundPick[data-stack] {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+.soundPick > b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.soundPick > span {
+  flex: none;
+  font: 700 var(--vb-text-min) / 1.2 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.aud {
+  height: 24px;
+  min-width: 46px;
+  flex: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.aud[data-on] {
+  color: var(--vb-amber);
+}
+.aud:disabled {
+  opacity: 0.45;
+}
+/* The 2 s audition sweeps along the row's foot. */
+.audLine {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--vb-amber);
+  transform-origin: left;
+  animation: aud 2s linear forwards;
+}
+
+/* ---------------------------------------------------------------- MASH RADAR */
+.bpm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.bpm > b {
+  font: 700 15px var(--vb-font-display);
+}
+.step {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+}
+.status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  overflow: hidden;
+}
+.status > .sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+}
+.result {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 6px 10px;
+  padding: 9px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-ctl-radius);
+  background: #0e0e10;
+  box-shadow: inset 0 1px 0 rgba(var(--vb-ink-rgb), 0.05);
+  animation: rise 0.35s ease-out both;
+}
+.result[data-lined] {
+  border-color: var(--vb-ok);
+}
+.score {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  grid-row: 1 / 3;
+  --ring: var(--vb-score-low);
+}
+.score[data-band='good'] {
+  --ring: var(--vb-score-good);
+}
+.score[data-band='mid'] {
+  --ring: var(--vb-score-mid);
+}
+.score > b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 16px/1 var(--vb-font-display);
+}
+.resultTitle {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.resultTitle > b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.resultTitle > span {
+  font: 500 var(--vb-text-min) / 1.2 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.reasons {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.reasons > span {
+  padding: 2px 6px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 2px;
+  font: 500 var(--vb-text-min) / 1.2 var(--vb-font-mono);
+}
+.resultActions {
+  grid-column: 1 / 3;
+  display: flex;
+  gap: 6px;
+}
+.resultActions > button {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- GENRE FLIP */
+.flips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.flip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-ctl-radius);
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.flip:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.35);
+}
+.flip[aria-checked='true'] {
+  border-color: var(--vb-accent);
+  box-shadow: inset 0 0 14px rgba(var(--vb-accent-rgb), 0.18);
+}
+.flip > b {
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.flip > span {
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(16, 5px);
+  grid-auto-rows: 4px;
+  gap: 2px;
+}
+.steps > span {
+  background: rgba(var(--vb-ink-rgb), 0.1);
+}
+.steps > span[data-hit] {
+  background: var(--vb-ink);
+}
+.steps > span[data-hit='ghost'] {
+  background: rgba(var(--vb-ink-rgb), 0.4);
+}
+.flip[aria-checked='true'] .steps > span[data-hit=''] {
+  background: var(--vb-accent);
+}
+.fader {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+}
+.fader > input {
+  width: 100%;
+  accent-color: var(--vb-amber);
+}
+.fader > output {
+  text-align: right;
+}
+.heat {
+  display: grid;
+  grid-template-columns: 18px repeat(16, minmax(0, 1fr));
+  gap: 2px;
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+}
+.heat > span {
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 1px;
+  letter-spacing: -0.04em;
+}
+.heat > [data-head] {
+  height: auto;
+  font-weight: 500;
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- docked SWAP SOUND (glass: the one popover-like card) */
+.swap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.1), rgba(var(--vb-ink-rgb), 0.04)), rgba(20, 20, 23, 0.94);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.14);
+  border-top-color: rgba(var(--vb-ink-rgb), 0.3);
+  border-radius: var(--vb-rack-radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: rise 0.22s ease-out;
+}
+.swapHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.swapHead > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.swapHead b {
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.swapHead span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.swapHead > button {
+  height: 24px;
+  padding: 0 6px;
+  flex: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  white-space: nowrap;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sweep {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+@keyframes aud {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

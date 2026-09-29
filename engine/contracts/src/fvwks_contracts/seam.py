@@ -38,6 +38,11 @@ from .models import (
     Segment,
     SourceInfo,
     SongAnalysis,
+    SongStructure,
+    BassGroove,
+    MashMatch,
+    MashScanRequest,
+    Song,
     SongPlacement,
     SourceKind,
     TTSRequest,
@@ -74,6 +79,19 @@ class StemFeatureData:
     fps: float
     tracks: list[str]  # the four stems in STEM_NAMES order, then "mix"
     data: np.ndarray  # uint8, shape (frames, len(tracks), 2): (rms, onset) as documented on StemFeatures
+    bass: np.ndarray | None = None  # v0.10.1: uint8 (frames, 4) per StemFeatures.bass_b64; None when not computed
+
+
+@dataclass
+class MashFeatures:
+    """v0.11.3: one song as MASH RADAR sees it. `feats` comes from FxAPI.mash_features (per-part arrays, a few KB,
+    npz-ready); the server computes it once in the analysis/stems job, caches it next to the song, and recomputes it
+    when the song's analysis or structure changes. A scan never touches audio."""
+
+    song_id: str
+    analysis: SongAnalysis
+    structure: "SongStructure"
+    feats: dict[str, np.ndarray]
 
 
 @dataclass
@@ -136,11 +154,37 @@ class FxAPI(Protocol):
         ...
 
 
+    # v0.10 structure (optional; the server checks with getattr)
+    def song_structure(self, audio: np.ndarray, sr: int, analysis: SongAnalysis, *,
+                       stems: dict[str, np.ndarray] | None = None) -> "SongStructure":
+        """Sections, drops, builds and phrases of a whole song on its grid (`analysis`). `audio` is (channels, n) float32
+        at `sr`; `stems` (STEM_NAMES → same shape) refine it when present (drum/bass entries mark drops)."""
+        ...
+
     # v0.9 stems (optional, like the song methods: the server checks with getattr)
     def stem_features(self, stems: dict[str, np.ndarray], sr: int, mix: np.ndarray, *,
                       analysis: SongAnalysis | None = None, fps: float = 60.0) -> StemFeatureData:
         """Per-stem envelopes and onsets for the visuals. `stems` maps each of STEM_NAMES to (channels, n) float32
         at `sr`; `mix` is the whole song at `sr`. Onsets may lean on the song's beat grid (`analysis`)."""
+        ...
+
+    # v0.11 REMIX (optional; the server checks with getattr)
+    def bass_groove(self, bass: np.ndarray, sr: int, analysis: SongAnalysis, *, song_id: str = "",
+                    start_bar: int = 1, bars: int | None = None) -> "BassGroove":
+        """BASS DNA of bars [start_bar, start_bar + bars) of a song's bass stem (`bass`, (channels, n) float32 at `sr`)
+        on its grid (`analysis`): notes and glides, per-bar wobble, level and growl curves, all in beats."""
+        ...
+
+    def mash_features(self, audio: np.ndarray, sr: int, analysis: SongAnalysis, structure: "SongStructure", *,
+                      vocals: np.ndarray | None = None) -> dict[str, np.ndarray]:
+        """MASH RADAR per-part features of one song (`audio`, and the vocals stem when there is one, (channels, n)
+        float32 at `sr`). Call it in the analysis/stems job and cache it (npz), never in the scan path."""
+        ...
+
+    def mash_scan(self, request: "MashScanRequest", query: MashFeatures,
+                  library: "list[MashFeatures]") -> "list[MashMatch]":
+        """MASH RADAR: rank the library songs' parts against the query song's part (request.song_id), cached features
+        only."""
         ...
 
 

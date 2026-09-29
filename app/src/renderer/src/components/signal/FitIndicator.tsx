@@ -20,6 +20,8 @@ export interface View {
   status: FitReport['status'] | 'none'
   icon: string
   state: string
+  /** The state in a few characters, for the ARRANGE header at 1280 (the full state is in its title). */
+  short: string
   delta: string
   verdict: string
   chips: { label: string; bars: BarsChoice | null }[]
@@ -27,25 +29,26 @@ export interface View {
 
 export function fitView(fit: FitReport | null, bars: number | null, requested: BarsSetting | null): View {
   // (bars is the render's resolved count here: AUTO only exists before a render)
-  if (!fit) return { status: 'none', icon: '◇', state: 'WAITING', delta: '', verdict: 'Render to measure the speech against the bars.', chips: [] }
+  if (!fit) return { status: 'none', icon: '◇', state: 'WAITING', short: 'WAIT', delta: '', verdict: 'Render to measure the speech against the bars.', chips: [] }
   const diff = fit.speech_s - fit.available_s
   const delta = fit.status === 'free' ? '' : `${diff >= 0 ? '+' : '−'}${f2(Math.abs(diff))} s`
   const suggested = (fit.suggested_bars ?? null) as BarsChoice | null
   const chips = suggested && suggested !== bars ? [{ label: `GO ${suggested} BARS`, bars: suggested }] : []
   switch (fit.status) {
     case 'free':
-      return { status: 'free', icon: '◇', state: 'FREE', delta, verdict: 'Grid follows the speech length', chips: [] }
+      return { status: 'free', icon: '◇', state: 'FREE', short: 'FREE', delta, verdict: 'Grid follows the speech length', chips: [] }
     case 'fits': {
       const air = fit.available_s > 0 && fit.speech_s / fit.available_s < 0.9
       return air
-        ? { status: 'fits', icon: '▼', state: 'SHORT', delta, verdict: fit.message || `${f2(-diff)} s of air`, chips }
-        : { status: 'fits', icon: '✓', state: 'LOCKED', delta, verdict: fit.message || `Sits on ${bars} bars`, chips: [] }
+        ? { status: 'fits', icon: '▼', state: 'SHORT', short: 'SHORT', delta, verdict: fit.message || `${f2(-diff)} s of air`, chips }
+        : { status: 'fits', icon: '✓', state: 'LOCKED', short: 'LOCKED', delta, verdict: fit.message || `Sits on ${bars} bars`, chips: [] }
     }
     case 'stretched':
       return {
         status: 'stretched',
         icon: '▲',
         state: `STRETCHED ${f2(fit.stretch_ratio ?? 1)}×`,
+        short: `${f2(fit.stretch_ratio ?? 1)}×`,
         delta,
         verdict: fit.message,
         chips,
@@ -57,6 +60,7 @@ export function fitView(fit: FitReport | null, bars: number | null, requested: B
         status: 'extended',
         icon: '⇥',
         state: `EXTENDED ${asked}${bars} BARS`,
+        short: `${bars} BARS`,
         delta: '',
         verdict: fit.message || `Grew to ${bars} bars so nothing is cut`,
         chips: bars && bars !== requested ? [{ label: `KEEP ${bars} BARS`, bars: bars as BarsChoice }] : [],
@@ -67,6 +71,7 @@ export function fitView(fit: FitReport | null, bars: number | null, requested: B
         status: 'overflow',
         icon: '!',
         state: 'OVERFLOW',
+        short: 'OVER',
         delta,
         verdict: fit.message || `Overflows by ${f2(diff)} s`,
         chips: chips.length ? chips : [{ label: 'FREE LENGTH', bars: null }],

@@ -179,7 +179,17 @@ export function VoicePicker({ voices }: { voices: readonly Voice[] }) {
         <div className={styles.voicesHead}>
           <span className={styles.kicker}>VOICE</span>
           {installed.length > base.length ? (
-            <button type="button" className={styles.showAll} aria-expanded={all} onClick={() => setAll(!all)}>
+            <button
+              type="button"
+              className={styles.showAll}
+              aria-expanded={all}
+              onClick={(e) => {
+                setAll(!all)
+                // Keep the chosen voice in view once the long list is open.
+                const list = e.currentTarget.closest(`.${styles.voices}`)
+                requestAnimationFrame(() => list?.querySelector(`[data-voice-id="${CSS.escape(voiceId ?? '')}"]`)?.scrollIntoView({ block: 'nearest' }))
+              }}
+            >
               {all ? `${installed.length} INSTALLED · LESS` : `${list.length} OF ${installed.length} · ALL`}
             </button>
           ) : (

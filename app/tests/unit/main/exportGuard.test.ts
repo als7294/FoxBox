@@ -34,8 +34,27 @@ describe('ExportGuard', () => {
     expect(guard.resolveDraggable(file)).toMatch(/drop\.aiff$/)
   })
 
+  it("takes a REMIX export's Ableton set and rekordbox.xml (v0.11.5), still only inside the root", () => {
+    for (const f of ['mix.als', 'rekordbox.xml']) writeFileSync(join(root, f), 'x')
+    const result = { remix_id: 'rmx1', files: [exported(join(root, 'drop.aiff'))], warnings: [] }
+    guard.noteResponse(
+      'GET',
+      '/api/remixes/rmx1/export',
+      json({ ...result, als_path: join(root, 'mix.als'), rekordbox_xml_path: join(root, 'rekordbox.xml') }),
+    )
+    expect(guard.resolveDraggable(join(root, 'mix.als'))).toMatch(/mix\.als$/)
+    expect(guard.resolveDraggable(join(root, 'rekordbox.xml'))).toMatch(/rekordbox\.xml$/)
+    expect(guard.resolveDraggable(join(root, 'drop.aiff'))).toMatch(/drop\.aiff$/)
+    guard.noteResponse('GET', '/api/remixes/rmx1/export', json({ ...result, als_path: join(dir, 'secret.aiff') }))
+    expect(guard.resolveDraggable(join(dir, 'secret.aiff'))).toBeNull()
+  })
+
   it('refuses paths outside the root, traversal, symlink escapes, other types and junk', () => {
-    guard.noteResponse('POST', '/api/exports', exportsResponse(join(root, '..', 'secret.aiff'), join(root, 'link.aiff'), join(root, 'drop.txt'), join(dir, 'secret.aiff')))
+    guard.noteResponse(
+      'POST',
+      '/api/exports',
+      exportsResponse(join(root, '..', 'secret.aiff'), join(root, 'link.aiff'), join(root, 'drop.txt'), join(dir, 'secret.aiff')),
+    )
     expect(guard.resolveDraggable(join(root, '..', 'secret.aiff'))).toBeNull()
     expect(guard.resolveDraggable(join(dir, 'secret.aiff'))).toBeNull()
     expect(guard.resolveDraggable(join(root, 'link.aiff'))).toBeNull()
@@ -58,7 +77,11 @@ describe('ExportGuard', () => {
     mkdirSync(moved)
     writeFileSync(join(moved, 'new.wav'), 'x')
     guard.noteResponse('GET', '/api/settings', json({ export_dir: moved }))
-    guard.noteResponse('GET', '/api/library?limit=50', json({ items: [{ id: 't1', exports: [exported(join(moved, 'new.wav'))] }], total: 1 }))
+    guard.noteResponse(
+      'GET',
+      '/api/library?limit=50',
+      json({ items: [{ id: 't1', exports: [exported(join(moved, 'new.wav'))] }], total: 1 }),
+    )
     expect(guard.root).toBe(moved)
     expect(guard.resolveDraggable(join(moved, 'new.wav'))).toBeTruthy()
     const reloaded = new ExportGuard(join(dir, 'roots.json'))
@@ -77,9 +100,17 @@ describe('ExportGuard', () => {
     expect(guard.resolveDraggable(join(root, 'drop.aiff'))).toBeNull()
     // …but a finished batch names its rekordbox.xml, and a RekordboxResult carries the path.
     writeFileSync(join(root, 'set_rekordbox.xml'), '<x/>')
-    guard.noteResponse('GET', '/api/jobs/j1', json({ id: 'j1', kind: 'batch', state: 'done', message: `5 files · ${join(root, 'set_rekordbox.xml')}` }))
+    guard.noteResponse(
+      'GET',
+      '/api/jobs/j1',
+      json({ id: 'j1', kind: 'batch', state: 'done', message: `5 files · ${join(root, 'set_rekordbox.xml')}` }),
+    )
     expect(guard.resolveDraggable(join(root, 'set_rekordbox.xml'))).toBeTruthy()
-    guard.noteResponse('POST', '/api/exports/rekordbox', json({ path: join(root, 'drop.aiff'), filename: 'drop.aiff', tracks: 1, playlist: 'p' }))
+    guard.noteResponse(
+      'POST',
+      '/api/exports/rekordbox',
+      json({ path: join(root, 'drop.aiff'), filename: 'drop.aiff', tracks: 1, playlist: 'p' }),
+    )
     expect(guard.resolveDraggable(join(root, 'drop.aiff'))).toBeTruthy()
   })
 })

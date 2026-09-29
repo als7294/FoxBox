@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, normalize, relative, sep } from 'node:path'
 
-const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3', '.mp4'])
+const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3', '.mp4', '.als'])
 const MAX_ROOTS = 16
 const MAX_RETURNED = 20_000
 const MAX_JSON_BYTES = 32 * 1024 * 1024
@@ -30,6 +30,11 @@ function isExportedFile(o: Obj): o is Obj & { path: string } {
 /** POST /api/exports/rekordbox → RekordboxResult. */
 function isRekordboxResult(o: Obj): o is Obj & { path: string } {
   return typeof o.path === 'string' && typeof o.filename === 'string' && typeof o.tracks === 'number' && typeof o.playlist === 'string'
+}
+
+/** GET /api/remixes/{id}/export → RemixExportResult (v0.11.5): its Ableton set and rekordbox.xml sit beside the files. */
+function isRemixExport(o: Obj): o is Obj & { als_path?: unknown; rekordbox_xml_path?: unknown } {
+  return typeof o.remix_id === 'string' && Array.isArray(o.files)
 }
 
 /** A finished batch job names the rekordbox.xml it wrote in its message. */
@@ -121,6 +126,7 @@ export class ExportGuard {
       }
       if (!isObject(v)) return
       if (isExportedFile(v) || isRekordboxResult(v)) this.noteReturnedPath(v.path)
+      else if (isRemixExport(v)) for (const p of [v.als_path, v.rekordbox_xml_path]) this.noteReturnedPath(p)
       else if (isFinishedBatch(v)) for (const xml of v.message.match(XML_IN_MESSAGE) ?? []) this.noteReturnedPath(xml)
       for (const item of Object.values(v)) if (item && typeof item === 'object') walk(item, depth + 1)
     }

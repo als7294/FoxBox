@@ -21,14 +21,14 @@
   padding: 0 14px;
 }
 .title {
-  font: 700 10.5px var(--vb-font-mono);
-  letter-spacing: 0.22em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 /* The state, at a glance: EMPTY · PREVIEW · FINAL vNN · STALE · EXPORTING… · ✓ EXPORTED */
 .badge {
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   padding: 4px 8px;
   border: 1px solid var(--vb-glass-edge, rgba(var(--vb-ink-rgb), 0.12));
   border-radius: 999px;
@@ -94,7 +94,7 @@
   cursor: grabbing;
 }
 .cart[data-empty] {
-  opacity: 0.55;
+  /* Dashed and flat says empty; no opacity, so its guidance stays readable (UX #5: it was 2.5:1). */
   border-style: dashed;
   box-shadow: none;
 }
@@ -112,7 +112,7 @@
   color: var(--vb-dim);
 }
 .filename {
-  font: 500 9.5px/1.4 var(--vb-font-mono);
+  font: 500 var(--vb-text-min)/1.4 var(--vb-font-mono);
   color: var(--vb-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -159,8 +159,8 @@
   border-left: 1px solid var(--vb-line);
 }
 .readouts dt {
-  font: 500 8.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .readouts dd {
@@ -182,8 +182,8 @@
   min-height: 26px;
   border-radius: var(--vb-r1);
   border: 1px dashed rgba(var(--vb-ink-rgb), 0.14);
-  font: 600 9px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   text-align: center;
 }
@@ -209,10 +209,10 @@
 }
 .export {
   flex: 1;
-  border: 0;
-  border-radius: var(--vb-r1) 0 0 var(--vb-r1);
-  background: var(--vb-ink);
-  color: var(--vb-bg);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.28);
+  border-radius: var(--vb-r1);
+  background: none;
+  color: var(--vb-ink);
   font: var(--vb-display-weight) 15px/1 var(--vb-font-display);
   letter-spacing: 0.18em;
   display: flex;
@@ -222,24 +222,7 @@
   white-space: nowrap;
 }
 .export:hover:not(:disabled) {
-  background: #fff;
-}
-.exportKey {
-  font: 500 10px var(--vb-font-mono);
-  letter-spacing: 0;
-}
-.exportMore {
-  width: 34px;
-  flex: none;
-  border: 0;
-  border-left: 1px solid rgba(var(--vb-panel-rgb), 0.6);
-  border-radius: 0 var(--vb-r1) var(--vb-r1) 0;
-  background: var(--vb-ink);
-  color: var(--vb-bg);
-  font: 700 11px var(--vb-font-mono);
-}
-.exportMore:hover:not(:disabled) {
-  background: #fff;
+  background: rgba(var(--vb-ink-rgb), 0.08);
 }
 .pair {
   display: grid;
@@ -254,7 +237,7 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 9.5px var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
   white-space: nowrap;
 }
@@ -263,9 +246,43 @@
 }
 
 /* export sheet (EXPORT ▾) */
+.sheet {
+  flex: 1;
+  min-height: 0;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sheetClose {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: none;
+  color: var(--vb-dim);
+  font: 500 16px/1 var(--vb-font-mono);
+}
+.sheetClose:hover {
+  color: var(--vb-ink);
+}
+.sheetBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sheetFoot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* One column: the OUTPUT panel is narrow. */
 .sheetGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px 16px;
   align-items: end;
 }
@@ -277,8 +294,8 @@
 }
 .sheetHeading {
   margin: 4px 0 0;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.2em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
 }
 .files {
@@ -310,19 +327,19 @@
   color: var(--vb-dim);
 }
 .fileName {
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   word-break: break-all;
 }
 /* A saved clip's long generated name, in a narrow column: one line, ellipsis (the full path on hover). */
 .clipName {
   min-width: 0;
-  font: 500 10.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mono {
-  font: 500 9.5px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-dim);
   white-space: nowrap;
 }
@@ -330,8 +347,8 @@
   border: 0;
   background: none;
   color: var(--vb-amber);
-  font: 700 9.5px var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   padding: 0;
 }
 .linkButton:hover {
@@ -343,13 +360,13 @@
   gap: 10px;
 }
 .warn {
-  font: 500 10px var(--vb-font-mono);
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
   color: var(--vb-accent);
 }
 .muted {
   margin: 0;
   color: var(--vb-dim);
-  font: 400 10px/1.45 var(--vb-font-mono);
+  font: 400 var(--vb-text-min)/1.45 var(--vb-font-mono);
 }
 
 /* Short windows (1280×800): the bottom row is 318px high, so the cartridge tightens up to keep EXPORT in view. */

@@ -1,0 +1,384 @@
+/* REMIX sources: SourceSlot rows, MatchBadge, the track picker and the empty drop page (app/design/remix, HARDWARE). */
+
+.flex {
+  flex: 1;
+}
+.spacer {
+  width: 10px;
+  flex: none;
+}
+.slot,
+.badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 8px;
+  min-width: 0;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  background: #0e0e10;
+  box-shadow: var(--vb-well-inset);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.slot {
+  flex: 1;
+}
+.slot :focus-visible,
+.empty :focus-visible,
+.picker :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+/* Only real drop targets highlight. */
+.slot[data-state='over'] {
+  border: 2px dashed var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.07);
+}
+.letter {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--vb-src-a);
+  border-radius: 2px;
+  color: var(--vb-src-a);
+  font: 800 15px/1 var(--vb-font-display);
+}
+.letter[data-slot='B'] {
+  border-color: var(--vb-src-b);
+  color: var(--vb-src-b);
+}
+.title {
+  min-width: 0;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title > b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 18px/1 var(--vb-font-display);
+  letter-spacing: 0.04em;
+}
+.title > span,
+.meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.release {
+  font: 800 18px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+  color: var(--vb-dim);
+}
+.slot[data-state='over'] .release {
+  color: var(--vb-accent);
+}
+.bad {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  color: var(--vb-amber);
+}
+.wave {
+  flex: 1;
+  min-width: 80px;
+  height: 36px;
+  fill: rgba(var(--vb-src-a-rgb), 0.45);
+}
+.slot[data-slot='B'] .wave {
+  fill: rgba(var(--vb-src-b-rgb), 0.45);
+}
+.stems {
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid rgba(127, 208, 138, 0.5);
+  border-radius: 2px;
+  color: var(--vb-ok);
+  font: 700 var(--vb-text-min) / 1 var(--vb-font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.stems[data-tone='dim'] {
+  border-color: rgba(var(--vb-ink-rgb), 0.14);
+  color: var(--vb-dim);
+}
+.stems[data-tone='busy'] {
+  border-color: rgba(var(--vb-amber-rgb), 0.55);
+  color: var(--vb-amber);
+}
+.stems[data-tone='bad'] {
+  border-color: var(--vb-accent);
+  color: var(--vb-accent);
+}
+.btn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 9px;
+  flex: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  color: var(--vb-ink);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--vb-ctl-fill-hi);
+}
+
+/* MatchBadge (168w): the score ring, AUTO-MATCH, the shift and stretch; amber when the keys are too far apart. */
+.badge {
+  width: 168px;
+  flex: none;
+}
+.badge text {
+  fill: var(--vb-ink);
+  font: 700 15px var(--vb-font-display);
+}
+.badge[data-far] .title > b {
+  color: var(--vb-amber);
+}
+.badge .title > b {
+  font-size: 15px;
+}
+
+/* YOUR TRACKS → A: a glass list under its button. */
+.picker {
+  position-area: bottom span-right;
+  margin: 6px 0 0;
+  width: 360px;
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  background: #18181b;
+  color: var(--vb-ink);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: var(--vb-ctl-radius);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+}
+.picker:popover-open {
+  display: flex;
+  animation: pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pickerHead {
+  padding: 4px 6px 6px;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.16em;
+  color: var(--vb-dim);
+}
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pickRow > button[role='option'] {
+  flex: 1;
+  min-width: 0;
+}
+.tick {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.tick::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.35);
+  border-radius: 2px;
+}
+.tick[aria-checked='true']::before {
+  border-color: var(--vb-amber);
+  background: var(--vb-amber);
+}
+.all {
+  margin-top: 4px;
+  height: 32px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--vb-ink);
+  color: var(--vb-well);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+}
+.all:disabled {
+  opacity: 0.45;
+}
+.picker > button,
+.pickRow > button[role='option'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-ink);
+  text-align: left;
+}
+.picker > button:hover,
+.picker > button[aria-selected='true'] {
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+.picker b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.picker > button > span {
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- the empty page: one big drop zone */
+.empty {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  background: var(--vb-rack);
+  box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.6);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.empty[data-over] {
+  border: 2px dashed var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.07);
+}
+.kicker {
+  font: 500 var(--vb-text-min) / 1 var(--vb-font-mono);
+  letter-spacing: 0.22em;
+  color: var(--vb-dim);
+}
+.empty[data-over] .kicker {
+  color: var(--vb-accent);
+}
+.empty > h2 {
+  margin: 0;
+  font: 800 clamp(48px, 7cqh, 72px) / 0.9 var(--vb-font-display);
+  letter-spacing: 0.08em;
+  text-align: center;
+  transition: transform 0.25s var(--vb-ease-snap);
+}
+.empty[data-over] > h2 {
+  transform: scale(1.04);
+}
+.empty > p {
+  margin: 0;
+  font: 500 12px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+  text-align: center;
+}
+.recipes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: min(940px, 100%);
+  margin-top: 10px;
+}
+.recipe {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 14px 20px;
+  text-align: left;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-ctl-radius);
+  background: #0e0e10;
+  color: var(--vb-ink);
+  transition: border-color 0.2s;
+  animation: rise 0.4s ease-out both;
+}
+.recipe:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.3);
+}
+.recipe[aria-pressed='true'] {
+  border-color: var(--vb-accent);
+}
+.recipeLed {
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 1px;
+  background: var(--vb-led-off);
+}
+.recipe[aria-pressed='true'] .recipeLed {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px var(--vb-accent);
+}
+.recipeName {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.recipeName > span {
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.recipeName > b {
+  font: 800 18px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.recipeLine {
+  font: 400 12px/1.5 var(--vb-font-mono);
+  text-wrap: pretty;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

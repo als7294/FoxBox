@@ -14,7 +14,7 @@ describe('voiceMeta', () => {
   it('reads F0 from the f0:<hz> tag and keeps it out of the chips', () => {
     const v = { tags: ['us', 'mid', 'f0:141.7', 'bright'] }
     expect(voiceF0(v)).toBe(141.7)
-    expect(f0Label(v)).toBe('F0 142 Hz')
+    expect(f0Label(v)).toBe('142 Hz')
     expect(visibleTags(v)).toEqual(['mid', 'bright'])
     expect(voiceF0({ tags: ['deep'] })).toBeNull()
     expect(f0Label(null)).toBeNull()

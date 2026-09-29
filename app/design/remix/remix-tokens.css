@@ -1,0 +1,86 @@
+/*
+ * REMIX 1.5 tokens: add to app/src/renderer/src/styles/tokens.css.
+ * Everything else (--vb-bg, --vb-panel, --vb-ink, --vb-dim, --vb-accent, --vb-amber, --vb-ice, --vb-ok,
+ * --vb-font-*, --vb-glass-*) is unchanged and reused as-is.
+ */
+:root {
+  /* text floor (UX audit): nothing renders below this */
+  --vb-text-min: 11px;
+  --vb-hit-min: 24px;
+
+  /* HARDWARE surfaces (REMIX look: recessed wells instead of glass panels) */
+  --vb-rack: #101012;                 /* panel body */
+  --vb-rack-edge: rgba(0, 0, 0, 0.7); /* dark hairline around panels */
+  --vb-rack-inset: inset 0 2px 10px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(var(--vb-ink-rgb), 0.05);
+  --vb-well: #0b0b0c;                 /* clip + control wells */
+  --vb-well-deep: #080809;            /* groove roll */
+  --vb-well-inset: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+  --vb-rack-radius: 4px;
+  --vb-ctl-radius: 3px;
+  --vb-led-off: rgba(var(--vb-ink-rgb), 0.1);
+  --vb-ctl-fill: rgba(var(--vb-ink-rgb), 0.07);
+  --vb-ctl-fill-hi: rgba(var(--vb-ink-rgb), 0.14);
+
+  /* sources: colour-blind-safe pair (Okabe–Ito sky blue vs reddish purple), always labelled A / B */
+  --vb-src-a: #7cc8ff;               /* = --vb-ice */
+  --vb-src-a-rgb: 124, 200, 255;
+  --vb-src-b: #e79bd0;
+  --vb-src-b-rgb: 231, 155, 208;
+  --vb-src-fox: #e9e5da;             /* anything FoxBox makes: SYNTH BASS, KIT, TOP (ink, dark text on its tag) */
+
+  /* sections: each also carries a label + LED stripe, never colour alone */
+  --vb-sec-intro: #9aa3b5;
+  --vb-sec-build: #d9c46a;
+  --vb-sec-drop: #ff4b2b;            /* = --vb-accent: the drop is the hot moment */
+  --vb-sec-break: #6fc2b0;
+  --vb-sec-outro: #8f86a8;
+
+  /* timeline: canvas tokens for waveform-playlist (RemixPlaylist reads these via cssVar()) */
+  --vb-tl-bg: var(--vb-rack);
+  --vb-tl-ruler-bg: #0e0e10;
+  --vb-tl-bar: rgba(var(--vb-ink-rgb), 0.1);
+  --vb-tl-phrase: rgba(var(--vb-ink-rgb), 0.3);       /* ruler tick every 8 bars */
+  --vb-tl-phrase-line: rgba(var(--vb-ink-rgb), 0.045); /* full-height line every 8 bars */
+  --vb-tl-phrase-32: rgba(var(--vb-ink-rgb), 0.09);    /* every 32 bars */
+  --vb-tl-lane-line: rgba(0, 0, 0, 0.6);
+  --vb-tl-clip-body: #0a0a0b;
+  --vb-tl-clip-edge: rgba(0, 0, 0, 0.75);
+  --vb-tl-clip-radius: 2px;
+  --vb-tl-wave-a: rgba(var(--vb-src-a-rgb), 0.36);
+  --vb-tl-wave-a-hi: rgba(var(--vb-src-a-rgb), 0.55); /* clips in the selected section */
+  --vb-tl-wave-b: rgba(var(--vb-src-b-rgb), 0.36);
+  --vb-tl-wave-fox: rgba(var(--vb-ink-rgb), 0.62);
+  --vb-tl-wave-held: rgba(var(--vb-src-a-rgb), 0.42);  /* the long held 808 blocks */
+  --vb-tl-wave-preparing-opacity: 0.22;
+  --vb-tl-select: var(--vb-ink);                        /* 1px ring + 4px trim handles */
+  --vb-tl-trim-w: 4px;
+  --vb-tl-playhead: var(--vb-ink);
+  --vb-tl-playhead-glow: 0 0 6px rgba(var(--vb-ink-rgb), 0.35);
+  --vb-tl-loop: var(--vb-amber);
+  --vb-tl-loop-fill: rgba(var(--vb-amber-rgb), 0.04);
+  --vb-tl-insert: var(--vb-amber);                      /* drag-reorder insertion line */
+  --vb-tl-first-hit-flash: rgba(var(--vb-accent-rgb), 0.22);
+  --vb-tl-shimmer: linear-gradient(100deg, transparent 25%, rgba(var(--vb-ink-rgb), 0.18) 50%, transparent 75%);
+  --vb-tl-shimmer-hatch: repeating-linear-gradient(135deg, rgba(var(--vb-ink-rgb), 0.035) 0 4px, transparent 4px 8px);
+
+  /* drop anatomy markers (shape + label + colour) */
+  --vb-mk-gap-edge: var(--vb-ink);      /* dashed outline, "GAP ▸" */
+  --vb-mk-first-hit: var(--vb-accent);  /* solid ember, "◆ FIRST HIT" */
+  --vb-mk-pause: var(--vb-ice);         /* ice outline, "‖ PAUSE" */
+  --vb-mk-switch: var(--vb-amber);      /* bare amber glyph, "⇄ SWITCH" */
+
+  /* scores + ratings */
+  --vb-score-good: var(--vb-ok);        /* ≥ 80 */
+  --vb-score-mid: var(--vb-amber);      /* 65–79 */
+  --vb-score-low: var(--vb-dim);        /* < 65; the number always shows */
+  --vb-rate-up: var(--vb-ok);
+  --vb-rate-down: var(--vb-accent);
+
+  /* motion */
+  --vb-ease-snap: cubic-bezier(0.2, 1.3, 0.3, 1);  /* section drop-in overshoot, take cards */
+  --vb-ease-glide: cubic-bezier(0.2, 0.9, 0.2, 1); /* reorder, zoom, tab indicator */
+  --vb-dur-reorder: 0.3s;
+  --vb-dur-place: 0.55s;   /* SectionBlock vbDrop */
+  --vb-dur-reveal: 0.75s;  /* Clip waveform print-in, left → right */
+  --vb-dur-prepare: 1.3s;  /* shimmer period */
+}

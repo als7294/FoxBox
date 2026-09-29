@@ -4,12 +4,36 @@
  * `input` and replaces it at its opacity, a 'generator' draws its own picture and is blended on with its blend mode.
  * Every layer gets the frame for the stem it follows (frameFor). Synchronous per frame, so the live stage, the output
  * window and the offline clip renderer (S1) all drive it the same way: setScene, resize, then frame(a, dt).
+ *
+ * 1.5: the AUTO-VJ director (setDirector) patches each frame (layer opacity and params, speed, a punch-in, a hue
+ * flip); S1's camera mask lets the base come through the layers (FrameExtras.passThrough); TEXT layers get the scene's
+ * words (setText); and a WCAG 2.3.1 flash guard holds the picture to at most 3 flashes a second (Scene.flashLimit, on).
  */
-import { BLEND_OP, frameFor, type BaseFactory, type BaseInstance, type EffectLayer, type Scene } from './compositor'
+import {
+  BLEND_OP,
+  frameFor,
+  type BaseFactory,
+  type BaseInstance,
+  type Director,
+  type EffectLayer,
+  type FrameExtras,
+  type Scene,
+  type ScenePatch,
+} from './compositor'
+import { cellsFromRgba, FlashGuard, NO_HOLD } from './flashGuard'
 import { paletteById } from './palettes'
 import { findStyle, type AudioFrame, type StyleInstance } from './registry'
 
 let baseFactory: BaseFactory | null = null
+let director: Director | null = null
+
+/** The AUTO-VJ director (S2), or null for none. Every compositor asks it once per frame. */
+export function setDirector(d: Director | null): void {
+  director = d
+}
+
+/** The flash guard's grid (cells per side). */
+const PROBE = 16
 
 /** The base renderers (visuals/live/bases), registered at app start; until then the base is the palette ground. */
 export function setBaseFactory(f: BaseFactory): void {
@@ -52,6 +76,11 @@ export class Compositor {
   private h = 2
   /** Base and layer creations still running (ready() waits on them). */
   private readonly starting = new Set<Promise<unknown>>()
+  /** Scratch for the mask pass and the punch / hue pass; the last frame shown, and a tiny probe, for the limiter. */
+  private scratch: HTMLCanvasElement | null = null
+  private probe: CanvasRenderingContext2D | null = null
+  private readonly guard = new FlashGuard()
+  private lastT = -Infinity
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -64,6 +93,7 @@ export class Compositor {
 
   /** Applies a scene: only what changed is rebuilt (a base or a layer whose style or palette changed). */
   setScene(scene: Scene): void {
+    const textChanged = scene.text !== this.scene?.text
     this.scene = scene
     const reduced = reducedMotion()
     const b = scene.base
@@ -103,6 +133,7 @@ export class Compositor {
       if (have) this.dropLayer(e.id, have)
       this.addLayer(e, key, scene.paletteId, reduced)
     }
+    if (textChanged) for (const l of this.layers.values()) l.inst?.setText?.(scene.text ?? null)
   }
 
   resize(width: number, height: number): void {
@@ -113,6 +144,8 @@ export class Compositor {
     this.h = h
     this.canvas.width = w
     this.canvas.height = h
+    if (this.scratch) ((this.scratch.width = w), (this.scratch.height = h))
+    this.guard.reset()
     this.base?.inst?.resize(w, h)
     for (const l of this.layers.values()) {
       l.canvas.width = w
@@ -121,38 +154,136 @@ export class Compositor {
     }
   }
 
-  frame(a: AudioFrame, dt: number): void {
+  frame(a: AudioFrame, dt: number, extras?: FrameExtras): void {
     const { ctx, w, h } = this
     const scene = this.scene
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
+    ctx.filter = 'none'
     ctx.fillStyle = paletteById(scene?.paletteId).bg
     ctx.fillRect(0, 0, w, h)
     if (!scene) return
+    let patch: ScenePatch | null = null
+    try {
+      patch = director?.frame(a, scene) ?? null
+    } catch (err) {
+      console.warn('visuals: the director failed a frame', err)
+    }
+    const step = dt * Math.max(0, patch?.speed ?? 1)
+    // The director's look: a hue flip, saturation and a punch-in (a quick zoom, brightened), drawn into the base and
+    // each generator layer as it goes down, not onto the finished picture, so a locked layer (EffectLayer.locked) is
+    // shielded from all of the patch: no look, its own opacity and params, its own speed. A filter layer's input
+    // already carries the look, so its output is drawn as it is.
+    const punch = Math.min(1, Math.max(0, patch?.punch ?? 0))
+    const hue = patch?.hueShift ?? 0
+    const sat = Math.min(2, Math.max(0, patch?.saturation ?? 1))
+    const look = [
+      hue ? `hue-rotate(${hue}deg)` : '',
+      sat !== 1 ? `saturate(${sat})` : '',
+      punch > 0 ? `brightness(${1 + 0.4 * punch})` : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+    const z = 1 + 0.08 * punch
+    const put = (src: CanvasImageSource, plain: boolean): void => {
+      if (plain || (!look && punch === 0)) {
+        ctx.drawImage(src, 0, 0, w, h)
+        return
+      }
+      ctx.filter = look || 'none'
+      ctx.drawImage(src, (w - w * z) / 2, (h - h * z) / 2, w * z, h * z)
+      ctx.filter = 'none'
+    }
     const base = this.base?.inst
     if (base) {
       try {
-        base.frame(a, dt)
-        ctx.drawImage(base.canvas, 0, 0, w, h)
+        base.frame(a, step)
+        put(base.canvas, false)
       } catch (err) {
         console.warn(`visuals: base ${scene.base.kind} failed a frame`, err)
       }
     }
     for (const e of scene.effects) {
       const layer = this.layers.get(e.id)
-      if (!e.enabled || !layer?.inst || e.opacity <= 0) continue
+      const locked = Boolean(e.locked)
+      const over = locked ? undefined : patch?.layers?.[e.id]
+      const opacity = over?.opacity ?? e.opacity
+      if (!(over?.enabled ?? e.enabled) || !layer?.inst || opacity <= 0) continue
       try {
-        layer.inst.frame(frameFor(a, e.reactTo), dt, layer.kind === 'filter' ? this.canvas : null)
+        if (over?.params) layer.inst.setParams?.(over.params)
+        // `false`: the layer drew nothing this frame (TEXT between drops), so there's nothing to composite.
+        if (layer.inst.frame(frameFor(a, e.reactTo), locked ? dt : step, layer.kind === 'filter' ? this.canvas : null, extras) === false)
+          continue
       } catch (err) {
         console.warn(`visuals: ${e.styleId} failed a frame`, err)
         continue
       }
-      ctx.globalAlpha = Math.min(1, e.opacity)
+      ctx.globalAlpha = Math.min(1, opacity)
       ctx.globalCompositeOperation = layer.kind === 'filter' ? 'source-over' : BLEND_OP[e.blend]
-      ctx.drawImage(layer.canvas, 0, 0, w, h)
+      put(layer.canvas, locked || layer.kind === 'filter')
     }
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
+    // S1's near mask: the base (the camera, faces still hidden) through every layer where the mask is set.
+    const pass = extras?.passThrough
+    if (pass && base && pass.level > 0) {
+      const sc = this.scratchCtx()
+      sc.globalCompositeOperation = 'copy'
+      sc.drawImage(base.canvas, 0, 0, w, h)
+      sc.globalCompositeOperation = 'destination-in'
+      sc.drawImage(pass.mask, 0, 0, w, h)
+      sc.globalCompositeOperation = 'source-over'
+      // The mask's alpha already is each region's nearness: drawn at full opacity (level only gates it).
+      put(sc.canvas, false)
+    }
+    if (scene.flashLimit !== false) this.limitFlashes(a.time)
+  }
+
+  /**
+   * Photosensitivity (WCAG 2.3.1, flashGuard.ts): the composite, downsampled on the GPU to 16×16, is checked for
+   * flashes; past 3 a second this frame's brightness is held back (a gain, a lift, less red), just enough to stay under
+   * the threshold. Never a mix with an earlier frame: that double-exposed a moving camera.
+   */
+  private limitFlashes(t: number): void {
+    const { ctx, w, h } = this
+    const probe = (this.probe ??= makeCtx(PROBE, PROBE, false))
+    if (!probe) return
+    if (t < this.lastT) this.guard.reset()
+    this.lastT = t
+    probe.drawImage(this.canvas, 0, 0, PROBE, PROBE)
+    const hold = this.guard.observe(t, cellsFromRgba(probe.getImageData(0, 0, PROBE, PROBE).data))
+    if (hold === NO_HOLD) return
+    // CSS brightness() scales sRGB values; the guard's gain is in linear light.
+    const filters = [
+      hold.gain !== 1 ? `brightness(${hold.gain ** (1 / 2.2)})` : '',
+      hold.saturate !== 1 ? `saturate(${hold.saturate})` : '',
+    ]
+    const filter = filters.filter(Boolean).join(' ')
+    if (filter) {
+      const sc = this.scratchCtx()
+      sc.globalCompositeOperation = 'copy'
+      sc.drawImage(this.canvas, 0, 0)
+      sc.globalCompositeOperation = 'source-over'
+      ctx.globalCompositeOperation = 'copy'
+      ctx.filter = filter
+      ctx.drawImage(sc.canvas, 0, 0, w, h)
+      ctx.filter = 'none'
+      ctx.globalCompositeOperation = 'source-over'
+    }
+    if (hold.lift > 0) {
+      // A uniform lift (added light), sized for the darkest pixels: sRGB-encoded.
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = Math.min(1, hold.lift <= 0.0031308 ? 12.92 * hold.lift : 1.055 * hold.lift ** (1 / 2.4) - 0.055)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, w, h)
+      ctx.globalAlpha = 1
+      ctx.globalCompositeOperation = 'source-over'
+    }
+  }
+
+  private scratchCtx(): CanvasRenderingContext2D {
+    const c = (this.scratch ??= makeCanvas(this.w, this.h))
+    return c.getContext('2d')!
   }
 
   dispose(): void {
@@ -186,6 +317,7 @@ export class Compositor {
           })
           if (layer.gone) return inst.dispose()
           inst.resize(canvas.width, canvas.height)
+          inst.setText?.(this.scene?.text ?? null)
           layer.inst = inst
         })
         .catch((err: unknown) => console.warn(`visuals: ${e.styleId} failed to start`, err)),
@@ -223,4 +355,15 @@ export class Compositor {
     b.inst?.dispose()
     b.inst = null
   }
+}
+
+function makeCanvas(w: number, h: number): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  return c
+}
+
+function makeCtx(w: number, h: number, read: boolean): CanvasRenderingContext2D | null {
+  return makeCanvas(w, h).getContext('2d', { willReadFrequently: read })
 }

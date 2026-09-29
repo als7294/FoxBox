@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { tildePath } from '@/lib/paths'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { sampleLines } from '@/state/defaultLines'
 import { EngineError } from '@/api/client'
@@ -6,7 +7,7 @@ import { useBatch, useCancelJob, useJob, usePresets, useRekordboxExport, useSett
 import type { Job } from '@/api/types'
 import { Button } from '@/components/common/Button'
 import { TextField } from '@/components/common/Fields'
-import { rekordboxSteps } from '@/components/feedback/StepsModal'
+import { rekordboxSteps, StepsPanel } from '@/components/feedback/StepsPanel'
 import { Panel, Screen, ScreenHeader } from '@/components/layout/Screen'
 import { SetlistTable, type LineDefaults, type LineView } from '@/components/output/SetlistTable'
 import type { TableEmpty } from '@/components/output/VaultTable'
@@ -210,7 +211,7 @@ export function SetlistScreen() {
       const { dir, file } = splitPath(xml.path)
       useUi.getState().setModal({
         title: 'FOLDER + REKORDBOX XML EXPORTED',
-        body: `${dir} · ${plural(ids.length, 'file')} · ${file}`,
+        body: `${tildePath(dir)} · ${plural(ids.length, 'file')} · ${file}`,
         steps: rekordboxSteps(xml.playlist),
         revealPath: xml.path,
       })
@@ -256,7 +257,7 @@ export function SetlistScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="04" kicker="BATCH" title="SETLIST">
+      <ScreenHeader compact code="05" kicker="BATCH" title="SETLIST">
         <div className={s.playlist}>
           <TextField label="PLAYLIST NAME" value={playlist} onChange={(name) => store.setPlaylist(name)} disabled={busy} />
         </div>
@@ -311,6 +312,7 @@ export function SetlistScreen() {
           {busy ? 'RENDERING…' : 'RENDER ALL'}
         </Button>
       </ScreenHeader>
+      <StepsPanel />
       {pasteOpen && (
         <div ref={pastePanel} id="setlist-paste" className={s.pastePanel}>
           <textarea

@@ -25,7 +25,6 @@ function stateOf(patch: Partial<UpdateState> = {}): UpdateState {
     feedIsDefault: true,
     defaultFeedUrl: DEFAULT_FEED_URL,
     hasToken: false,
-    checkAutomatically: true,
     lastChecked: null,
     allowLocalFeed: false,
     installBlocked: null,
@@ -52,7 +51,6 @@ function fakeUpdates(initial: Partial<UpdateState> = {}) {
     install: vi.fn(current),
     setFeedUrl: vi.fn(async (_url: string | null) => state),
     setToken: vi.fn(async (_token: string | null) => state),
-    setCheckAutomatically: vi.fn(async (on: boolean) => set({ checkAutomatically: on })),
     dismissWhatsNew: vi.fn(current),
     onState: vi.fn((listener: (s: UpdateState) => void) => {
       listeners.add(listener)
@@ -258,17 +256,6 @@ describe('SETTINGS → UPDATES', () => {
     fireEvent.click(within(card()).getByRole('button', { name: 'Check now' }))
     await act(async () => {})
     expect(bar()).toHaveTextContent('FoxBox 1.0.1 available')
-  })
-
-  it('switches automatic checks', async () => {
-    const { api } = fakeUpdates()
-    await show(<UpdatesCard />)
-    const auto = screen.getByRole('switch', { name: 'Check automatically' })
-    expect(auto).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(auto)
-    expect(api.setCheckAutomatically).toHaveBeenCalledWith(false)
-    await act(async () => {})
-    expect(auto).toHaveAttribute('aria-checked', 'false')
   })
 
   it('names the default source, shows a custom feed, and Use default goes back to it', async () => {

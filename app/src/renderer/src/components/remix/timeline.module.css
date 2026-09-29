@@ -1,0 +1,1151 @@
+/* REMIX timeline, HARDWARE look (app/design/remix/README.md · RemixTimeline). */
+
+.panel {
+  --tl-head: clamp(166px, 11.6cqw, 176px);
+  --tl-line: rgba(var(--vb-ink-rgb), 0.06);
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--vb-rack);
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  box-shadow: var(--vb-rack-inset);
+  font: 500 11px/1.4 var(--vb-font-mono);
+}
+
+.panel button {
+  border: 0;
+  padding: 0;
+  font: 700 11px var(--vb-font-mono);
+  color: var(--vb-ink);
+  background: none;
+}
+
+/* ---------------------------------------------------------------- head + EditToolbar */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  flex: none;
+  min-width: 0;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--tl-line);
+}
+
+.title {
+  flex: none;
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status[data-busy] {
+  color: var(--vb-amber);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.panel .btn {
+  height: 26px;
+  min-width: 28px;
+  padding: 0 8px;
+  border-radius: 2px;
+  background: var(--vb-ctl-fill);
+  white-space: nowrap;
+}
+
+.panel .btn:hover:not(:disabled) {
+  background: var(--vb-ctl-fill-hi);
+}
+
+.panel .glyph {
+  font-size: 13px;
+  padding: 0;
+}
+
+.panel .glyph:disabled {
+  opacity: 0.4;
+}
+
+.snap {
+  display: flex;
+  height: 28px; /* 24 px targets inside the 2 px well */
+  padding: 2px;
+  gap: 2px;
+}
+
+.snap > span {
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  color: var(--vb-amber);
+  letter-spacing: 0.06em;
+}
+
+.panel .snap button {
+  padding: 0 7px;
+  border-radius: 1px;
+  color: var(--vb-dim);
+}
+
+.panel .snap button[aria-checked='true'] {
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+
+.panel .follow {
+  background: none;
+  color: var(--vb-dim);
+  letter-spacing: 0.06em;
+}
+
+.panel .follow[aria-pressed='true'] {
+  background: var(--vb-ctl-fill-hi);
+  color: var(--vb-ink);
+}
+
+.zoom {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--vb-line-2);
+  border-radius: 2px;
+  background: var(--vb-well);
+}
+
+.panel .zoom button {
+  width: 26px;
+  height: 24px;
+  font-size: 13px;
+}
+
+.panel .zoom button:nth-child(2) {
+  width: auto;
+  min-width: 74px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+  border-right: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+}
+
+.panel .zoom button:hover:not(:disabled) {
+  background: rgba(var(--vb-ink-rgb), 0.08);
+}
+
+/* ---------------------------------------------------------------- section tool row, keys-too-far strip */
+
+.sectionTools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  flex: none;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--tl-line);
+  background: var(--vb-card);
+  animation: vbRise 0.18s ease-out;
+}
+
+.sectionTools > strong {
+  padding: 0 6px 0 2px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.panel .toggleOn {
+  background: rgba(var(--vb-amber-rgb), 0.16);
+  color: var(--vb-amber);
+}
+
+.gap14 {
+  width: 14px;
+  flex: none;
+}
+
+.panel .cut {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--vb-accent);
+  white-space: nowrap;
+}
+
+.panel .cut[data-confirm] {
+  border-color: var(--vb-accent);
+  background: rgba(var(--vb-accent-rgb), 0.14);
+}
+
+.panel .esc {
+  height: 26px;
+  padding: 0 6px;
+  color: var(--vb-dim);
+}
+
+.keysFar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid rgba(var(--vb-amber-rgb), 0.35);
+  background: rgba(var(--vb-amber-rgb), 0.06);
+  animation: vbRise 0.3s ease-out;
+}
+
+.keysFar > span {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.keysFar b,
+.keysFar > i {
+  color: var(--vb-amber);
+  font-style: normal;
+  letter-spacing: 0.12em;
+}
+
+.panel .amber {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.55);
+  border-radius: 2px;
+  background: rgba(var(--vb-amber-rgb), 0.08);
+  color: var(--vb-amber);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- header column */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.headCol {
+  position: relative;
+  z-index: 5;
+  width: var(--tl-head);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--vb-tl-lane-line);
+  background: var(--vb-rack);
+}
+
+.headBar,
+.headSections {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--tl-line);
+  color: var(--vb-dim);
+}
+
+.headBar {
+  height: 36px;
+  letter-spacing: 0.14em;
+}
+
+.headSections {
+  height: 46px;
+  justify-content: space-between;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.headSections > b {
+  color: var(--vb-ink);
+}
+
+/* A lane: open ones share the height (≥ 38px), closed ones are 26px. The rows on both sides use the same rule. */
+.laneHead,
+.lane {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 38px;
+  border-bottom: 1px solid var(--vb-tl-lane-line);
+  transition:
+    flex 0.3s var(--vb-ease-glide),
+    opacity 0.2s;
+}
+
+.laneHead[data-closed],
+.lane[data-closed] {
+  flex: 0 0 26px;
+  min-height: 26px;
+}
+
+.laneHead {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 4px 0 2px;
+}
+
+.laneHead[aria-selected='true'] {
+  background: rgba(var(--vb-ink-rgb), 0.03);
+}
+
+.laneRow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.panel .caret {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: var(--vb-dim);
+  transition: transform 0.2s;
+}
+
+.laneHead[data-closed] .caret {
+  transform: rotate(-90deg);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vb-src-a);
+}
+
+.dot[data-src='B'] {
+  background: var(--vb-src-b);
+}
+
+.dot[data-src='fox'] {
+  background: var(--vb-src-fox);
+}
+
+.panel .laneName {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  text-align: left;
+  font: 800 13px/1 var(--vb-font-display);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.panel .ms {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 2px;
+  color: var(--vb-dim);
+}
+
+.panel .ms[aria-pressed='true'] {
+  background: var(--vb-ink);
+  color: var(--vb-bg);
+}
+
+.panel .ms[data-solo][aria-pressed='true'] {
+  background: var(--vb-ice);
+}
+
+.laneCtl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 28px;
+}
+
+.panel .swapBtn {
+  flex: none;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: 2px;
+  background: var(--vb-well);
+  white-space: nowrap;
+}
+
+.panel .swapBtn:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+
+/* The lane gain: a 2px track with an amber fill up to the thumb (4×12 ink), −24…+6 dB. */
+.fader {
+  flex: 1;
+  min-width: 24px;
+  height: 24px;
+  margin: 0;
+  appearance: none;
+  background:
+    linear-gradient(var(--vb-amber), var(--vb-amber)) 0 50% / var(--pct) 2px no-repeat,
+    linear-gradient(var(--vb-led-off), var(--vb-led-off)) 0 50% / 100% 2px no-repeat;
+  cursor: ew-resize;
+}
+
+.fader::-webkit-slider-thumb {
+  width: 4px;
+  height: 12px;
+  border-radius: 0;
+  appearance: none;
+  background: var(--vb-ink);
+}
+
+/* SWAP ALL ▾: a light-dismiss popover under its button (the small popovers are glass). */
+.swapMenu {
+  inset: auto;
+  margin: 4px 0 0;
+  position-area: bottom span-right;
+  position-try-fallbacks: flip-block;
+  width: 260px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 6px;
+  color: var(--vb-ink);
+  font: 500 11px/1.4 var(--vb-font-mono);
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 3px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+}
+
+.swapMenu > strong {
+  display: block;
+  padding: 6px 8px;
+  color: var(--vb-dim);
+  letter-spacing: 0.16em;
+}
+
+.swapMenu > button {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  font-weight: 700;
+  text-align: left;
+  letter-spacing: 0.06em;
+}
+
+.swapMenu > button:hover {
+  background: rgba(var(--vb-ink-rgb), 0.06);
+}
+
+.swapMenu > p {
+  margin: 6px 8px 4px;
+  color: var(--vb-dim);
+}
+
+/* ---------------------------------------------------------------- viewport, ruler, markers */
+
+.viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tracks {
+  position: relative;
+  min-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ruler {
+  position: relative;
+  height: 36px;
+  flex: none;
+  border-bottom: 1px solid var(--tl-line);
+  background: var(--vb-tl-ruler-bg);
+  cursor: text;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  height: 4px;
+  border-left: 1px solid var(--vb-tl-bar);
+}
+
+.tick[data-phrase] {
+  height: 9px;
+  border-left-color: var(--vb-tl-phrase);
+}
+
+.barNo {
+  position: absolute;
+  top: 3px;
+  padding-left: 4px;
+  line-height: 1;
+  color: var(--vb-dim);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.loopBar {
+  position: absolute;
+  top: 0;
+  height: 3px;
+  background: var(--vb-tl-loop);
+  box-shadow: 0 0 8px rgba(var(--vb-amber-rgb), 0.6);
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  bottom: 2px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+  border-radius: 1px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: left 0.28s;
+}
+
+.mark[data-kind='gap'] {
+  transform: translateX(calc(-100% - 2px));
+  background: var(--vb-well);
+  border: 1px dashed var(--vb-mk-gap-edge);
+}
+
+.mark[data-kind='first'] {
+  background: var(--vb-mk-first-hit);
+  color: var(--vb-bg);
+}
+
+.mark[data-kind='pause'] {
+  background: var(--vb-well);
+  border: 1px solid var(--vb-mk-pause);
+  color: var(--vb-mk-pause);
+}
+
+.mark[data-kind='switch'] {
+  transform: translateX(-50%);
+  color: var(--vb-mk-switch);
+}
+
+/* ---------------------------------------------------------------- sections */
+
+.sectionLane {
+  position: relative;
+  height: 46px;
+  flex: none;
+  border-bottom: 1px solid var(--tl-line);
+}
+
+.block {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  padding: 0 1px;
+  cursor: grab;
+  touch-action: none;
+  transition:
+    left var(--vb-dur-reorder) var(--vb-ease-glide),
+    width var(--vb-dur-reorder) var(--vb-ease-glide);
+}
+
+.block:focus-visible {
+  outline: none;
+}
+
+.block:focus-visible > div {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+
+/* Dragging: it follows the pointer, lifted 3px; the others slide aside. */
+.block[data-drag] {
+  z-index: 20;
+  cursor: grabbing;
+  transition: none;
+  transform: translate(var(--dx), -3px);
+}
+
+.block > div {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 6px 0 14px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--vb-well);
+  border: 1px solid var(--vb-rack-edge);
+  transition:
+    box-shadow 0.2s,
+    background 0.2s;
+  /* The drop-in sits on the body, so the block's own transform (the drag) never restarts it. */
+  animation: vbDrop var(--vb-dur-place) var(--vb-ease-snap) both;
+  animation-delay: var(--delay);
+}
+
+.block[aria-selected='true'] {
+  z-index: 4;
+}
+
+.block[aria-selected='true'] > div {
+  background: var(--vb-card);
+  border-color: var(--vb-tl-select);
+  box-shadow:
+    0 0 0 1px var(--vb-tl-select),
+    0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+.led {
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 1px;
+  background: var(--c);
+  box-shadow: 0 0 6px var(--c);
+}
+
+.blockTop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.blockName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+}
+
+.blockBars {
+  margin-left: auto;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+
+.blockSrc {
+  line-height: 1;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The playing section: a ring and a glow in its colour (the glow drops out in a GAP or PAUSE). */
+.now {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  z-index: 3;
+  display: none;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px var(--c),
+    0 0 14px color-mix(in srgb, var(--c) 33%, transparent);
+}
+
+.now[data-gap] {
+  box-shadow: inset 0 0 0 1px var(--c);
+}
+
+.insert {
+  position: absolute;
+  z-index: 9;
+  top: 1px;
+  bottom: 1px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--vb-tl-insert);
+  box-shadow: 0 0 10px var(--vb-tl-insert);
+  transition: left 0.18s;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- lanes + clips */
+
+.lanes {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lane[aria-selected='true'] {
+  background: rgba(var(--vb-ink-rgb), 0.02);
+}
+
+.lane[data-quiet] {
+  opacity: 0.35;
+}
+
+.hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.clip {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  z-index: 1;
+  padding: 0 1px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.clip[aria-selected='true'] {
+  z-index: 3;
+}
+
+.clip[data-join-prev] {
+  padding-left: 0;
+}
+
+.clip[data-join-next] {
+  padding-right: 0;
+}
+
+.clip > div {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--vb-tl-clip-radius);
+  background: var(--vb-tl-clip-body);
+  border: 1px solid var(--vb-tl-clip-edge);
+  transition: box-shadow 0.2s;
+}
+
+.clip[data-join-prev] > div {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.clip[data-join-next] > div {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.clip[aria-selected='true'] > div {
+  box-shadow: 0 0 0 1px var(--vb-tl-select);
+}
+
+.clip:focus-visible {
+  outline: none;
+}
+
+.clip:focus-visible > div {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+
+/* Stepped-bar waveform (viewBox 0 0 100 20, stretched): prints in left to right, a lane at a time. */
+.wave {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 100%;
+  height: calc(100% - 10px);
+  fill: var(--vb-tl-wave-a);
+  transition: opacity 0.5s;
+  animation: vbReveal var(--vb-dur-reveal) cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+
+.clip[data-hi] .wave {
+  fill: var(--vb-tl-wave-a-hi);
+}
+
+.clip[data-src='B'] .wave {
+  fill: var(--vb-tl-wave-b);
+}
+
+.clip[data-src='fox'] .wave {
+  fill: var(--vb-tl-wave-fox);
+}
+
+.clip[data-held] .wave {
+  fill: var(--vb-tl-wave-held);
+}
+
+.clip[data-state='preparing'] .wave {
+  opacity: var(--vb-tl-wave-preparing-opacity);
+}
+
+.tags {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 3px;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tag,
+.badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 4px;
+  border-radius: 1px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag {
+  background: rgba(11, 11, 12, 0.75);
+  color: var(--vb-src-a);
+}
+
+.tag[data-src='B'] {
+  color: var(--vb-src-b);
+}
+
+.tag[data-src='fox'] {
+  background: var(--vb-src-fox);
+  color: var(--vb-bg);
+}
+
+.badge {
+  background: rgba(11, 11, 12, 0.8);
+  color: var(--vb-amber);
+}
+
+.prep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--vb-tl-shimmer-hatch);
+}
+
+.prep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--vb-tl-shimmer);
+  animation: vbShimmer var(--vb-dur-prepare) linear infinite;
+}
+
+.prep > span {
+  position: absolute;
+  z-index: 1;
+  right: 6px;
+  bottom: 4px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.1em;
+}
+
+.trim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--vb-tl-trim-w);
+  background: var(--vb-tl-select);
+  cursor: ew-resize;
+}
+
+.trim + .trim {
+  right: 0;
+}
+
+.marquee {
+  position: absolute;
+  z-index: 6;
+  border: 1px dashed var(--vb-ink);
+  background: rgba(var(--vb-ink-rgb), 0.04);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- through the lanes: phrases, loop, flash, playhead */
+
+.overlay {
+  position: absolute;
+  inset: 36px 0 0;
+  pointer-events: none;
+}
+
+.phrase {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--vb-tl-phrase-line);
+}
+
+.phrase[data-32] {
+  border-left-color: var(--vb-tl-phrase-32);
+}
+
+.loopBand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--vb-tl-loop-fill);
+  border-left: 1px solid rgba(var(--vb-amber-rgb), 0.45);
+  border-right: 1px solid rgba(var(--vb-amber-rgb), 0.45);
+}
+
+/* A drop's first hit: one ember bar through every lane, fading over 0.4s (a single fade, never a strobe). */
+.flash {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  opacity: 0;
+  background: var(--vb-tl-first-hit-flash);
+}
+
+.flash[data-on] {
+  animation: vbHitFlash 0.4s ease-out;
+}
+
+.playhead {
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--vb-tl-playhead);
+  box-shadow: var(--vb-tl-playhead-glow);
+}
+
+.playhead::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  border: 5px solid transparent;
+  border-top: 7px solid var(--vb-tl-playhead);
+  border-bottom: 0;
+}
+
+/* ---------------------------------------------------------------- overview strip */
+
+.overview {
+  display: flex;
+  height: 24px;
+  flex: none;
+  border-top: 1px solid var(--vb-tl-lane-line);
+}
+
+.overview > span {
+  display: flex;
+  align-items: center;
+  width: var(--tl-head);
+  flex: none;
+  padding: 0 12px;
+  color: var(--vb-dim);
+  white-space: nowrap;
+  border-right: 1px solid var(--vb-tl-lane-line);
+}
+
+.map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--vb-well);
+  cursor: grab;
+  touch-action: none;
+}
+
+.map > i {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  border-right: 1px solid var(--vb-well);
+  background: var(--c);
+  opacity: 0.55;
+  transition:
+    left 0.28s,
+    width 0.28s;
+}
+
+.mapWin {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.55);
+  border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.05);
+}
+
+.mapHead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-left: 1px solid var(--vb-tl-playhead);
+}
+
+/* ---------------------------------------------------------------- ShortcutsOverlay (a panel over the lanes' corner, not a dialog) */
+
+.keys {
+  position: absolute;
+  z-index: 26;
+  right: 10px;
+  top: 48px;
+  width: 340px;
+  max-height: calc(100% - 58px);
+  overflow: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--vb-raise);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
+  border-radius: 3px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+  animation: vbPop 0.2s ease-out;
+}
+
+.keys > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.16em;
+}
+
+.keys dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.keys dt {
+  color: var(--vb-dim);
+}
+
+.keys dd {
+  margin: 0;
+  text-align: right;
+}
+
+.keys kbd {
+  font-weight: 700;
+}
+
+@keyframes vbDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scaleY(0.5);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(3px) scaleY(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vbReveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes vbShimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vbRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vbPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vbHitFlash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

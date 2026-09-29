@@ -45,6 +45,7 @@ import { decodeWav, encodeWav, type PcmAudio } from '@/audio/wav'
 import { segmentsOf } from '@/lib/markup'
 import { fixtureForVoice, loadFixture } from './fixtures'
 import { MockInstaller } from './installSim'
+import { MockRemix } from './remixSim'
 
 // The Kokoro voices the stub engine lists (contracts/examples/voices.json only shows the first few).
 const KOKORO: [string, string, string, 'male' | 'female', boolean, string[]][] = [
@@ -138,7 +139,7 @@ function gainTo(x: Float32Array, peakDb: number): Float32Array {
   return x.map((v) => v * g)
 }
 
-function peaksOf(x: Float32Array, sr: number, buckets = 800): Peaks {
+export function peaksOf(x: Float32Array, sr: number, buckets = 800): Peaks {
   const min: number[] = []
   const max: number[] = []
   const step = x.length / buckets
@@ -290,6 +291,8 @@ export class MockEngine {
   readonly jobs = new Map<string, Job & { startedAt: number }>()
   /** Models, install jobs (bytes, rate, ETA) and first-run health: see installSim.ts. */
   readonly installer = new MockInstaller(this.jobs)
+  /** v0.11 REMIX: remixes, the sound library, BUILD / PREPARE / MASH RADAR jobs: see remixSim.ts. */
+  readonly remix = new MockRemix(this)
   readonly userPresets = new Map<string, Preset>()
   // v0.3 contracts: AUTO bars is the default.
   settings: Settings = { ...(structuredClone(settingsExample) as Settings), default_bars: 'auto' }
@@ -338,7 +341,10 @@ export class MockEngine {
 
   private addSource(
     pcm: PcmAudio,
-    info: Omit<SourceInfo, 'id' | 'audio_id' | 'peaks' | 'duration_s' | 'sample_rate' | 'created_at' | 'analysis_state' | 'transcript_state'>,
+    info: Omit<
+      SourceInfo,
+      'id' | 'audio_id' | 'peaks' | 'duration_s' | 'sample_rate' | 'created_at' | 'analysis_state' | 'transcript_state'
+    >,
   ): SourceInfo {
     const ch = pcm.channels[0]!
     const spoken = info.kind !== 'tts'
@@ -361,9 +367,12 @@ export class MockEngine {
     // v0.3: recordings and imports get a transcript + word timings in the background.
     if (spoken) {
       // Never after the end: a short transcriptMs (tests) must not have "running" overwrite "done".
-      setTimeout(() => {
-        if (full.transcript_state === 'queued') full.transcript_state = 'running'
-      }, Math.min(150, this.transcriptMs / 2))
+      setTimeout(
+        () => {
+          if (full.transcript_state === 'queued') full.transcript_state = 'running'
+        },
+        Math.min(150, this.transcriptMs / 2),
+      )
       setTimeout(() => {
         if (!this.transcriptModel) {
           full.transcript_state = 'error'
@@ -397,7 +406,12 @@ export class MockEngine {
     if (src.info.kind === 'tts') throw new MockError(409, 'invalid_request', 'TTS lines are edited in the script, not as a transcript.')
     if (!script.trim()) throw new MockError(422, 'invalid_request', 'script: must not be empty')
     if (!this.transcriptModel) {
-      throw new MockError(503, 'model_not_installed', 'Word timings for recordings need the whisper-aligner model.', 'Install it in VOICES → models.')
+      throw new MockError(
+        503,
+        'model_not_installed',
+        'Word timings for recordings need the whisper-aligner model.',
+        'Install it in VOICES → models.',
+      )
     }
     this.retranscribe(src.info, script)
     src.info.transcript_state = 'done'
@@ -422,18 +436,21 @@ export class MockEngine {
       return seg
     })
     const warnings = (req.script.match(/\*/g)?.length ?? 0) % 2 ? ["Unmatched '*': the echo runs to the end of the line."] : []
-    return this.addSource({ sampleRate: 48_000, channels: [ch] }, {
-      kind: 'tts',
-      name: req.name ?? null,
-      script: req.script,
-      script_hash: slugify(req.script),
-      voice_id: voiceId,
-      speed,
-      segments,
-      bpm: req.bpm ?? 120,
-      warnings,
-      denoise: null,
-    })
+    return this.addSource(
+      { sampleRate: 48_000, channels: [ch] },
+      {
+        kind: 'tts',
+        name: req.name ?? null,
+        script: req.script,
+        script_hash: slugify(req.script),
+        voice_id: voiceId,
+        speed,
+        segments,
+        bpm: req.bpm ?? 120,
+        warnings,
+        denoise: null,
+      },
+    )
   }
 
   preview(script: string): ScriptPreview {
@@ -464,17 +481,28 @@ export class MockEngine {
     const mono = pcm.channels.length > 1 ? pcm.channels[0]!.map((v, i) => (v + pcm.channels[1]![i]!) / 2) : pcm.channels[0]!
     const ch = resample(mono, pcm.sampleRate, 48_000)
     const duration = ch.length / 48_000
-    return this.addSource({ sampleRate: 48_000, channels: [ch] }, {
-      kind,
-      name,
-      script: null,
-      script_hash: null,
-      voice_id: null,
-      speed: null,
-      segments: [{ index: 0, text: null, start_s: 0, end_s: duration, flags: { beat_break: false, throw: false, pause_after_s: 0, pause_after_beats: 0 } }],
-      // v0.3: DeepFilterNet3 strength, Full by default.
-      denoise: denoise ?? 1,
-    })
+    return this.addSource(
+      { sampleRate: 48_000, channels: [ch] },
+      {
+        kind,
+        name,
+        script: null,
+        script_hash: null,
+        voice_id: null,
+        speed: null,
+        segments: [
+          {
+            index: 0,
+            text: null,
+            start_s: 0,
+            end_s: duration,
+            flags: { beat_break: false, throw: false, pause_after_s: 0, pause_after_beats: 0 },
+          },
+        ],
+        // v0.3: DeepFilterNet3 strength, Full by default.
+        denoise: denoise ?? 1,
+      },
+    )
   }
 
   private macroValue(map: MacroMap, macros: Macros, module: string, param: string): number | null {
@@ -498,7 +526,14 @@ export class MockEngine {
     const macros: Macros = req.macros ?? preset?.macros ?? { depth: 0.5, grit: 0.5, machine: 0.5, space: 0.5 }
     const macroMap: MacroMap = req.macro_map ?? preset?.macro_map ?? {}
     // v0.1 rule: preset hints fill only the fields the client did not send.
-    const requested = { bpm: 140, bars: 'auto' as number | 'auto' | null, key: 'Am', first_word_beat: 0, ...(preset?.arrange_hint ?? {}), ...req.arrange }
+    const requested = {
+      bpm: 140,
+      bars: 'auto' as number | 'auto' | null,
+      key: 'Am',
+      first_word_beat: 0,
+      ...(preset?.arrange_hint ?? {}),
+      ...req.arrange,
+    }
     const master = { mode: 'club', sample_rate: 44100, ...(preset?.master_hint ?? {}), ...req.master }
     const sr = master.sample_rate ?? 44100
     const mask = (chain.modules ?? []).find((m) => m.id === 'mask')
@@ -520,7 +555,10 @@ export class MockEngine {
     const verbDecay = Number(chainParam(chain, 'space', 'reverb_decay_s') ?? 1.2)
     const tailRoom = requested.auto_tail === false ? 0 : Number(Math.min(4, 0.25 + (verbMix > 0.02 ? verbDecay * 0.5 : 0)).toFixed(2))
     const maxStretch = requested.max_stretch ?? 0.08
-    const asked = requested.bars === 'auto' ? resolveAutoBars(speech, requested.bpm, requested.first_word_beat ?? 0, tailRoom / beat, maxStretch) : requested.bars
+    const asked =
+      requested.bars === 'auto'
+        ? resolveAutoBars(speech, requested.bpm, requested.first_word_beat ?? 0, tailRoom / beat, maxStretch)
+        : requested.bars
     const arrange = { ...requested, snap_end: requested.snap_end ?? 'beat', auto_tail: requested.auto_tail ?? true, bars: asked }
     const fitsIn = (b: number) => b * barSeconds(arrange.bpm) - tailRoom
     let status: FitReport['status'] = arrange.bars ? 'fits' : 'free'
@@ -623,10 +661,20 @@ export class MockEngine {
       timings_ms: { total: this.latencyMs },
       warnings: ['Mock engine: audio is a crude stand-in, not the real rack.'].slice(0, src.info.kind === 'tts' ? 0 : 1),
     }
-    const stored: StoredRender = { info, wet, dry, preset, script: src.info.script ?? null, voiceId: src.info.voice_id ?? null, sourceKind: src.info.kind, sourceId: src.info.id }
+    const stored: StoredRender = {
+      info,
+      wet,
+      dry,
+      preset,
+      script: src.info.script ?? null,
+      voiceId: src.info.voice_id ?? null,
+      sourceKind: src.info.kind,
+      sourceId: src.info.id,
+    }
     this.renders.set(info.id, stored)
     if (req.quality === 'final') {
-      if (req.auto_export !== false) info.export = this.exportOne(stored, 'wet', this.settings.format ?? 'aiff', this.settings.bit_depth ?? 24, null)
+      if (req.auto_export !== false)
+        info.export = this.exportOne(stored, 'wet', this.settings.format ?? 'aiff', this.settings.bit_depth ?? 24, null)
       this.addTake(stored)
     }
     return info
@@ -643,7 +691,13 @@ export class MockEngine {
       id: id('take'),
       render_id: r.info.id,
       source_id: r.sourceId,
-      title: r.script ? r.script.replace(/[*|[\]]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() : 'recording',
+      title: r.script
+        ? r.script
+            .replace(/[*|[\]]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase()
+        : 'recording',
       created_at: now(),
       starred: false,
       tags: [],
@@ -726,7 +780,12 @@ export class MockEngine {
     const starred = q.get('starred')
     const preset = q.get('preset_id')
     const items = [...this.takes.values()]
-      .filter((t) => (!text || `${t.title} ${t.script ?? ''}`.toLowerCase().includes(text)) && (starred == null || String(t.starred) === starred) && (!preset || t.preset_id === preset))
+      .filter(
+        (t) =>
+          (!text || `${t.title} ${t.script ?? ''}`.toLowerCase().includes(text)) &&
+          (starred == null || String(t.starred) === starred) &&
+          (!preset || t.preset_id === preset),
+      )
       .reverse()
     const offset = Number(q.get('offset') ?? 0)
     const limit = Number(q.get('limit') ?? 50)
@@ -741,7 +800,14 @@ export class MockEngine {
       state: 'queued',
       progress: 0,
       message: null,
-      items: req.lines.map((l, index) => ({ index, label: l.title ?? l.script.slice(0, 40), state: 'queued', progress: 0, error: null, result_ids: [] })),
+      items: req.lines.map((l, index) => ({
+        index,
+        label: l.title ?? l.script.slice(0, 40),
+        state: 'queued',
+        progress: 0,
+        error: null,
+        result_ids: [],
+      })),
       result_ids: [],
       error: null,
       created_at: now(),
@@ -757,7 +823,13 @@ export class MockEngine {
         item.state = 'running'
         try {
           if (/FAIL/.test(line.script)) throw new Error('TTS failed for this line (mock: lines containing FAIL fail).')
-          const src = await this.tts({ script: line.script, voice_id: line.voice_id ?? req.voice_id, speed: req.speed, bpm: line.bpm ?? null, name: line.title ?? null })
+          const src = await this.tts({
+            script: line.script,
+            voice_id: line.voice_id ?? req.voice_id,
+            speed: req.speed,
+            bpm: line.bpm ?? null,
+            name: line.title ?? null,
+          })
           const info = await this.render({
             source_id: src.id,
             preset_id: line.preset_id ?? req.preset_id,
@@ -787,7 +859,14 @@ export class MockEngine {
             stems: false,
             auto_export: false,
           })
-          const files = this.exportFiles({ render_ids: [info.id], format: req.export?.format ?? 'aiff', bit_depth: req.export?.bit_depth ?? 24, variants: req.export?.variants ?? ['wet'], stems: false, title: line.title ?? null })
+          const files = this.exportFiles({
+            render_ids: [info.id],
+            format: req.export?.format ?? 'aiff',
+            bit_depth: req.export?.bit_depth ?? 24,
+            variants: req.export?.variants ?? ['wet'],
+            stems: false,
+            title: line.title ?? null,
+          })
           item.result_ids = files.map((f) => f.id)
           job.result_ids.push(...item.result_ids)
           item.state = 'done'
@@ -843,6 +922,7 @@ export class MockEngine {
       analysis_state: 'queued',
       analysis: null,
       stems_state: 'none',
+      lyrics_state: 'none',
       bpm_override: null,
       downbeat_override_s: null,
       key_override: null,
@@ -874,7 +954,8 @@ export class MockEngine {
     if ('downbeat_override_s' in body) s.downbeat_override_s = body.downbeat_override_s ?? null
     if ('key_override' in body) {
       const m = body.key_override ? /^([A-G][#b]?)(m?)$/.exec(body.key_override.trim()) : null
-      if (body.key_override && !m) throw new MockError(422, 'invalid_request', `key_override: unknown key '${body.key_override}'.`, 'Use a key like Am, F#m or C.')
+      if (body.key_override && !m)
+        throw new MockError(422, 'invalid_request', `key_override: unknown key '${body.key_override}'.`, 'Use a key like Am, F#m or C.')
       const flat: Record<string, string> = { 'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', Gb: 'F#' }
       s.key_override = m ? `${flat[m[1]!] ?? m[1]!}${m[2]}` : null
     }
@@ -904,7 +985,19 @@ export class MockEngine {
   }
 
   failedJob(kind: Job['kind'], code: string, message: string): Job {
-    const job = { id: id('job'), kind, state: 'error' as const, progress: 0, message: null, items: [], result_ids: [], error: { code, message, hint: null, retryable: false }, created_at: now(), updated_at: now(), startedAt: Date.now() }
+    const job = {
+      id: id('job'),
+      kind,
+      state: 'error' as const,
+      progress: 0,
+      message: null,
+      items: [],
+      result_ids: [],
+      error: { code, message, hint: null, retryable: false },
+      created_at: now(),
+      updated_at: now(),
+      startedAt: Date.now(),
+    }
     this.jobs.set(job.id, job)
     return this.job(job.id)
   }

@@ -9,7 +9,7 @@
   color: var(--vb-dim);
   border: 1px solid rgba(var(--vb-ink-rgb), 0.16);
   border-radius: 6px;
-  font: 600 10px var(--vb-font-mono);
+  font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.1em;
   cursor: pointer;
 }

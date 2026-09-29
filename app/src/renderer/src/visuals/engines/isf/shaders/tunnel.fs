@@ -62,13 +62,13 @@
 void main() {
   vec2 p = (gl_FragCoord.xy - 0.5 * RENDERSIZE) / min(RENDERSIZE.x, RENDERSIZE.y);
   float r = length(p) + 1e-3;
-  float a = atan(p.y, p.x);
-  float z = 0.35 / r + TIME * bpm / 120.0;
+  float a = atan(p.y, p.x) + 0.3 * sin(6.28318 * bassWobblePhase) * bassWobble * bassGrowl;
+  float z = 0.35 * (1.0 + buildProgress) / r + TIME * bpm / 120.0;  // deeper through a build
   float rings = smoothstep(0.45, 0.5, fract(z)) * smoothstep(0.55, 0.5, fract(z));
   float spokes = 0.5 + 0.5 * cos(a * 8.0 + z * 0.5);
   float pulse = 1.0 - beatPhase;
   vec3 col = mix(accentColor.rgb, amberColor.rgb, spokes);
-  vec3 c = mix(bgColor.rgb, col, rings * (0.35 + rms * 1.4 + 0.3 * pulse * pulse)) * smoothstep(0.0, 0.25, r);
+  vec3 c = mix(bgColor.rgb, col, rings * (0.35 + rms * 1.4 + 0.3 * pulse * pulse + 2.0 * dropEnergy)) * smoothstep(0.0, 0.25, r);
   c += amberColor.rgb * high * 0.15 * spokes * smoothstep(0.4, 0.0, r);
   gl_FragColor = vec4(c, 1.0);
 }

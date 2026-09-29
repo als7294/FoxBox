@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.9 contracts: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v0.11.12 contracts: Remix.bass_macros (GRIT/WOBBLE/SUB/GLIDE), Remix.top_layers (ear candy BUILD places), FlipStyle.grid (a 2-bar kick/snare preview); v0.11.11: RemixLane.role adds top (the design package's TOP lane); v0.11.10: RemixTake loudness (short_term_max_lufs, true_peak_db) for the TakeCard readout; BassPatch.category adds tearout and top for SWAP SOUND tabs; v0.11.9: a take keeps its own edited arrangement (RemixTake.sections/lanes), RemixBuildRequest.fresh; v0.11.8: REMIX takes (RemixTake with the choices BUILD resolved), take ratings (TakeFeedback) and the per-style counts ROLL leans on (RemixPrefs); v0.11.7: Remix.seed, so BUILD makes distinct reproducible takes; v0.11.6: camera face masks (MaskInfo, /api/masks); v0.11.5: remix export writes rekordbox.xml cues at the drops; kit previews; v0.11.4: REMIX gaps closed (sync MASH RADAR scan result, chosen MashMatch on the Remix, groove render request/result, export result route, mp3 exports); v0.11.3: seam MashFeatures + FxAPI.mash_features, mash_scan over cached features; v0.11.2: KitClipSrc carries inline hits; v0.11.1: BassGroove in beats (as built); v0.11: REMIX (recipes, arrangement, BASS DNA groove, MASH RADAR matches, sound library); v0.10.1: bass-line intelligence (StemFeatures.bass_b64, SongSection bass fields); v0.10: song structure (sections, drops, phrases) + timed lyrics for SMART VISUALS; v0.9: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -14,7 +14,7 @@ Conventions:
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -426,8 +426,8 @@ class ExportedFile(Model):
     variant: str = Field(description="'wet' | 'dry' | 'alt:<preset_id>' | 'stem:<name>' | 'baked' (v0.7: the song with the drop in it)")
     title: str
     filename: str
-    path: str = Field(description="Absolute path inside the export root.")
-    format: Literal["aiff", "wav"]
+    path: str = Field(description="Absolute path inside the export root. For drag-out and REVEAL only: never shown on screen (the act is anonymous).")
+    format: Literal["aiff", "wav", "mp3"]
     sample_rate: int
     bit_depth: int
     channels: int
@@ -579,7 +579,8 @@ class JobItem(Model):
 
 class Job(Model):
     id: str
-    kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis", "song_stems"]
+    kind: Literal["model_install", "batch", "analysis", "persona_design", "song_analysis", "song_stems", "song_lyrics",
+                  "remix_build", "remix_prepare", "remix_export"]
     state: JobState
     progress: float = Field(default=0.0, ge=0, le=1)
     message: str | None = None
@@ -719,6 +720,11 @@ class Song(Model):
     stems_state: Literal["none", "queued", "running", "done", "error"] = Field(
         default="none", description="v0.9: stem separation, started with POST /api/songs/{id}/stems.")
     stems: list["SongStem"] = Field(default_factory=list, description="v0.9: the separated stems once stems_state is 'done'.")
+    structure: "SongStructure | None" = Field(default=None, description="v0.10: sections, drops and phrases (after analysis; refined after stems).")
+    lyrics_state: Literal["none", "queued", "running", "done", "error"] = Field(
+        default="none", description="v0.10: lyrics transcription, started with POST /api/songs/{id}/lyrics.")
+
+
 
 
 class SongUpdate(Model):
@@ -794,8 +800,485 @@ class StemFeatures(Model):
     frames: int = Field(ge=0)
     tracks: list[Literal["drums", "bass", "vocals", "other", "mix"]]
     data_b64: str
+    bass_b64: str = Field(default="", description=(
+        "v0.10.1: bass-line intelligence at the same fps, base64 of uint8, 4 bytes per frame: [0] flags (bit0 bass note "
+        "on, bit1 note onset this frame); [1] sub weight < 60 Hz, 0-255 normalised per song; [2] growl weight 100-600 Hz, "
+        "0-255 normalised per song; [3] sub f0 as MIDI x 2 (0 = none). Empty when not computed."))
 
 
-Song.model_rebuild()  # v0.9: Song.stems refers to SongStem, defined after it
+# --- v0.10: structure and lyrics (SMART VISUALS) -----------------------------------------------------------------
+
+SectionKind = Literal["intro", "verse", "build", "drop", "breakdown", "outro"]
+
+
+class SongSection(Model):
+    """One part of a song on its own grid (v0.10). Sections tile the song in order, without gaps or overlaps."""
+
+    kind: SectionKind
+    start_s: float = Field(ge=0)
+    end_s: float = Field(ge=0)
+    start_bar: int = Field(ge=1, description="Song bar (1-based, on the song's grid) where the section starts.")
+    energy: float = Field(ge=0, le=1, description="Mean loudness/density of the section, normalised per song.")
+    bass_style: Literal["deep", "trap", "dubstep", "other"] | None = Field(default=None, description="v0.10.1; None without bass.")
+    half_time: bool = Field(default=False, description="v0.10.1: snare on beat 3 only (a 70 feel at 140).")
+    note_beats: float | None = Field(default=None, gt=0, description="v0.10.1: median bass-note length in beats.")
+    wobble_div: str | None = Field(default=None, description="v0.10.1: dominant bass LFO as a beat division, e.g. '1/8', '1/8T', '1/16'.")
+    wobble_anchor_s: float | None = Field(default=None, ge=0, description="v0.10.1: an LFO peak in song time; phase = frac((t - anchor) / period).")
+
+
+class SongStructure(Model):
+    """Where a song builds, drops and breathes (v0.10), for the AUTO-VJ director and pre-drop text.
+
+    `drops_s` are the drop hits (the first beat of each drop section) in song time. `builds` pairs each build's start
+    with the drop it leads into. `phrase_bars` is the phrase length the sections snap to (8 or 16).
+    `energy` is a coarse loudness/density curve at `energy_fps` over the whole song, 0-255, normalised per song.
+    """
+
+    sections: list[SongSection]
+    drops_s: list[float] = Field(default_factory=list)
+    builds: list[tuple[float, float]] = Field(default_factory=list, description="(build start s, drop hit s) pairs.")
+    phrase_bars: int = Field(default=8, ge=1)
+    energy_fps: float = Field(default=10.0, gt=0)
+    energy_b64: str = Field(default="", description="base64 of uint8, one value per frame at energy_fps.")
+    from_stems: bool = Field(default=False, description="True once refined with stems (drums/bass entries).")
+
+
+class SongWord(Model):
+    """A sung or spoken word in a song, in song time (v0.10)."""
+
+    text: str
+    start_s: float = Field(ge=0)
+    end_s: float = Field(ge=0)
+
+
+class SongLyrics(Model):
+    """Timed words of a song (v0.10): GET /api/songs/{id}/lyrics. Transcribed from the vocals stem when there is one."""
+
+    song_id: str
+    source: Literal["vocals_stem", "mix"]
+    words: list[SongWord] = Field(default_factory=list)
+
+
+# --- v0.11: REMIX (1.6) ------------------------------------------------------------------------------------------
+# One Remix document is the truth: the app edits it, the engine renders it, and the export is the engine's mixdown of the
+# same document. No generative AI: stems, DSP, Surge XT patches and kits only. Local tracks only.
+
+RemixRecipe = Literal["vip", "mashup", "flip"]
+RemixSlot = Literal["A", "B"]
+MashPart = Literal["build", "drop", "vocals"]
+
+
+class GrooveNote(Model):
+    """One bass note of a BASS DNA groove (v0.11.1), in beats from the groove's first bar line (the push and swing stay)."""
+
+    beat: float = Field(ge=0)
+    beats: float = Field(gt=0)
+    midi: float = Field(description="Settled pitch, fractional (the track's tuning); an unpitched note holds the pitch before it.")
+    vel: float = Field(default=1.0, ge=0, le=1)
+    glide_to: float | None = Field(default=None, description="MIDI the note slides to (808 glide), when it slides.")
+    bend: list[tuple[float, float]] | None = Field(default=None, description="(beats into the note, MIDI) points: the slide's shape and timing.")
+
+
+class GrooveWobble(Model):
+    """The bass LFO in one growl-heavy bar of a groove (v0.11.1)."""
+
+    bar: int = Field(ge=0, description="From the groove's first bar (0-based).")
+    div: str = Field(description="Beat division: '1/4T', '1/8', '1/8T', '1/16', '1/16T'.")
+    depth: float = Field(ge=0, le=1, description="How far the LFO swings the growl.")
+    shape: str = Field(default="sine", description="Only 'sine' is told apart so far.")
+    phase: float = Field(ge=0, le=1, description="LFO phase at the bar line, 0 = its peak.")
+
+
+class BassGroove(Model):
+    """BASS DNA (v0.11.1): how a section of a song's bass moves, re-playable on any patch at any tempo.
+    GET /api/songs/{id}/bass/groove?start_bar&bars. Everything is in beats, so it re-times by rendering at another bpm.
+
+    Maps onto MIDI for the synth: notes → note on/off + vel; midi remainder, glide_to and `bend` → pitch bend (±12 st);
+    level → CC11 (the sidechain bounce); growl → CC74 (cutoff / drive); wobble → a tempo-synced LFO at `div`, phase-locked.
+    """
+
+    song_id: str
+    start_bar: int = Field(ge=1, description="1-based, as SongSection.start_bar.")
+    bars: int = Field(ge=1)
+    bpm: float = Field(gt=0, description="The source tempo the groove was read at.")
+    half_time: bool = False
+    notes: list[GrooveNote] = Field(default_factory=list)
+    wobble: list[GrooveWobble] = Field(default_factory=list)
+    per_beat: int = Field(default=24, ge=1, description="Curve samples per beat.")
+    level_b64: str = Field(default="", description="base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the bounce.")
+    growl_b64: str = Field(default="", description="base64 of uint8, per_beat samples a beat, 0-255 for 0-1: the growl share.")
+
+
+class BassPatch(Model):
+    """A bass sound for BASS DNA (v0.11). Surge XT factory patches ship CC0-tagged only."""
+
+    id: str
+    name: str
+    category: Literal["wobble", "reese", "growl", "808", "riddim", "tearout", "top"] = Field(description="v0.11.10 adds tearout (the designed tearout voices) and top (ear candy, squeak): the SWAP SOUND tabs.")
+    engine: Literal["surge", "foxbox"]
+    preview_audio_id: str | None = None
+
+
+class DrumKit(Model):
+    """A drum kit for GENRE FLIP (v0.11)."""
+
+    id: str
+    name: str
+    source: Literal["foxbox", "cc0"]
+    preview_audio_id: str | None = Field(default=None, description="v0.11.5: a 2 s kit audition (GET /api/audio/{id}).")
+
+
+class FlipGridRow(Model):
+    """One drum row of a FLIP card preview (v0.11.12): 16-step strings per bar, 'x' hit, 'g' ghost, '-' rest."""
+
+    voice: Literal["kick", "snare", "hats"]
+    bars: list[str] = Field(default_factory=list, max_length=2)
+
+
+class FlipStyle(Model):
+    """A GENRE FLIP target (v0.11), e.g. half-time trap, riddim, deep dubstep, 140 dubstep."""
+
+    id: str
+    name: str
+    grid: list[FlipGridRow] = Field(default_factory=list, description="v0.11.12: the style's default drum option, first 2 bars, for the card preview.")
+    bpm: float = Field(gt=0, description="Suggested remix tempo.")
+    half_time: bool = False
+
+
+class MashMatch(Model):
+    """A MASH RADAR result (v0.11): the matched song's part that fits the query's part.
+
+    `shift_st` and `tempo_ratio` apply to the matched song; the remix runs at the query's tempo and key.
+    """
+
+    song_id: str
+    part: MashPart
+    start_bar: int = Field(ge=1, description="Matched song's bar where its part starts.")
+    bars: int = Field(ge=1)
+    score: float = Field(ge=0, le=100)
+    shift_st: int = Field(ge=-6, le=6)
+    tempo_ratio: float = Field(gt=0)
+    reasons: list[str] = Field(default_factory=list, description="Plain lines, e.g. 'key +2 st', 'tempo 0.97x', 'bass style match'.")
+    from_start_bar: int = Field(default=1, ge=1, description="The query's part it was scored against.")
+
+
+class MashScanRequest(Model):
+    """POST /api/mash/scan (v0.11.4: synchronous, cached features only).
+
+    `part` is the QUERY song's (slot A's) part. A "build" or "vocals" part is scored over other songs' drops; a "drop"
+    part takes other songs' builds, vocals and drops on top. `borrow` narrows the results to that kind of the matched
+    song's part. The UI's "borrow B's DROP" sends part="build"; "borrow B's BUILD / VOCALS" sends part="drop" plus that
+    borrow value.
+    """
+
+    song_id: str
+    part: MashPart
+    borrow: MashPart | None = Field(default=None, description="Only return matches whose own part is this kind.")
+    start_bar: int | None = Field(default=None, ge=1, description="One part of the query song; None = every part of that kind.")
+    bass_styles: list[Literal["deep", "trap", "dubstep", "other"]] | None = None
+    bpm_min: float | None = Field(default=None, gt=0)
+    bpm_max: float | None = Field(default=None, gt=0)
+    key_compatible_only: bool = False
+    top: int = Field(default=50, ge=1, le=200)
+
+
+class MashScanResult(Model):
+    """What POST /api/mash/scan returns (v0.11.4). Songs without cached features are skipped, listed in `missing`,
+    and queued for feature computation, so a later scan includes them."""
+
+    matches: list[MashMatch] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list, description="Song ids not scanned yet (features queued).")
+
+
+class GrooveRenderRequest(Model):
+    """POST /api/grooves/render (v0.11.4): a section's BASS DNA re-played on a patch, e.g. the A/B audition."""
+
+    song_id: str
+    start_bar: int = Field(ge=1)
+    bars: int = Field(ge=1, le=64)
+    patch_id: str
+    bpm: float | None = Field(default=None, gt=0, description="None = the song's own tempo.")
+    shift_st: float = Field(default=0.0, ge=-12, le=12)
+
+
+class GrooveRenderResult(Model):
+    audio_id: str = Field(description="Stream with GET /api/audio/{audio_id}.")
+    duration_s: float
+    sample_rate: int
+
+
+class RemixSource(Model):
+    slot: RemixSlot
+    song_id: str
+
+
+class RemixSection(Model):
+    """A block of the remix on its own bar grid (v0.11). Sections tile the remix in order."""
+
+    kind: SectionKind
+    start_bar: int = Field(ge=1)
+    bars: int = Field(ge=1)
+    from_slot: RemixSlot = "A"
+    from_start_bar: int = Field(default=1, ge=1, description="Where this block comes from in that source song.")
+
+
+class StemClipSrc(Model):
+    kind: Literal["stem"] = "stem"
+    slot: RemixSlot
+    stem: StemName
+    start_beat: float = Field(ge=0, description="Offset into the source song, in its beats from its downbeat.")
+
+
+class GrooveClipSrc(Model):
+    kind: Literal["groove"] = "groove"
+    slot: RemixSlot
+    start_bar: int = Field(ge=1, description="Source song bar where the groove is taken from.")
+    bars: int = Field(ge=1)
+    patch_id: str
+
+
+class KitHit(Model):
+    """One drum hit of a GENRE FLIP clip (v0.11.2), in beats from the clip start."""
+
+    beat: float = Field(ge=0)
+    voice: Literal["kick", "snare", "hats"]
+    vel: float = Field(default=1.0, ge=0, le=1)
+
+
+class KitClipSrc(Model):
+    """Drums played on a kit (v0.11.2). A flip's pattern is per song and per bar (loudness, fills), so the hits are inline;
+    `pattern_id` is only for library loops."""
+
+    kind: Literal["kit"] = "kit"
+    kit_id: str
+    hits: list[KitHit] = Field(default_factory=list)
+    pattern_id: str | None = None
+
+
+ClipSrc = Annotated[Union[StemClipSrc, GrooveClipSrc, KitClipSrc], Field(discriminator="kind")]
+
+
+class RemixClip(Model):
+    """A clip on a lane (v0.11), placed in remix beats. The engine prepares it at the remix tempo and key."""
+
+    id: str
+    at_beat: float = Field(ge=0)
+    beats: float = Field(gt=0)
+    src: ClipSrc
+    shift_st: float = Field(default=0.0, ge=-12, le=12)
+    fade_in_beats: float = Field(default=0.0, ge=0)
+    fade_out_beats: float = Field(default=0.0, ge=0)
+    gain_db: float = Field(default=0.0, ge=-48, le=12)
+    audio_id: str | None = Field(default=None, description="The prepared audio (GET /api/audio/{id}); None until prepared.")
+
+
+class RemixLane(Model):
+    id: str
+    role: Literal["drums", "bass", "vocals", "other", "synth_bass", "kit", "top"] = Field(description="v0.11.11 adds top: ear candy and squeak clips (patch_id top:*), drawn between DRUMS and SYNTH BASS in the design package.")
+    slot: RemixSlot | None = None
+    gain_db: float = Field(default=0.0, ge=-48, le=12)
+    mute: bool = False
+    solo: bool = False
+    clips: list[RemixClip] = Field(default_factory=list)
+
+
+class FlipSettings(Model):
+    style_id: str
+    kit_id: str
+    swing: float = Field(default=0.0, ge=0, le=1)
+
+
+TakeTag = Literal["growls", "rhythm", "mix", "arrangement", "sounds_like_trap", "too_long", "whiny", "boring", "love_it"]
+
+
+class TakeChoice(Model):
+    """One option BUILD picked on one variation axis for a take (v0.11.8), e.g. axis 'riddim.drums', option 'seesaw'.
+    Where the research disagrees, every credible option stays; the seed picks one and ratings tilt the odds."""
+
+    axis: str = Field(min_length=1, max_length=64)
+    option: str = Field(min_length=1, max_length=64)
+
+
+class RemixTake(Model):
+    """A take (v0.11.8): one seed of this remix plus what BUILD resolved for it. BUILD records (or refreshes) the take for Remix.seed."""
+
+    seed: int = Field(ge=0)
+    style: str = Field(description="What ROLL counts ratings under: the flip style_id, or the VIP/mashup bass style (e.g. 'riddim', 'tearout', 'trap_hybrid').")
+    choices: list[TakeChoice] = Field(default_factory=list, description="Resolved by BUILD; read-only for clients.")
+    name: str | None = Field(default=None, max_length=200)
+    starred: bool = False
+    rating: Literal[-1, 0, 1] = Field(default=0, description="The latest rating (display only; the history is TakeFeedback).")
+    short_term_max_lufs: float | None = Field(default=None, description="v0.11.10: the take's prepared mix, short-term (3 s) max, as on STUDIO's cartridge; filled when PREPARE finishes (club target -7.0).")
+    true_peak_db: float | None = Field(default=None, le=0, description="v0.11.10: the same mix's true peak (dBTP, 4x oversampled; club ceiling -1.0).")
+    sections: list[RemixSection] | None = Field(default=None, description="v0.11.9: this take's own arrangement, your edits included. Saved when you switch away (a PATCH to another seed); None until then.")
+    lanes: list[RemixLane] | None = Field(default=None, description="v0.11.9: as `sections`. BUILD at this seed restores the saved arrangement instead of rebuilding.")
+    created_at: str
+
+
+class RemixBuildRequest(Model):
+    """POST /api/remixes/{id}/build body (v0.11.9; optional). By default BUILD at a seed whose take has a saved
+    arrangement restores it, so edits survive switching takes. fresh=True discards those edits and rebuilds from the take's choices."""
+
+    fresh: bool = False
+
+
+class RemixTakeEdit(Model):
+    """A kept take in RemixUpdate.takes (v0.11.8): only the name and the star are editable."""
+
+    seed: int = Field(ge=0)
+    name: str | None = Field(default=None, max_length=200)
+    starred: bool = False
+
+
+class TakeFeedbackCreate(Model):
+    """POST /api/remixes/{id}/feedback (v0.11.8): rate one take. 404 if the remix has no take with that seed."""
+
+    seed: int = Field(ge=0)
+    rating: Literal[-1, 0, 1]
+    tags: list[TakeTag] = Field(default_factory=list, max_length=9)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class TakeFeedback(Model):
+    """A stored rating (v0.11.8). style and choices are copied from the take when it's rated, so later edits never rewrite history."""
+
+    id: str
+    remix_id: str
+    seed: int = Field(ge=0)
+    style: str
+    choices: list[TakeChoice] = Field(default_factory=list)
+    rating: Literal[-1, 0, 1]
+    tags: list[TakeTag] = Field(default_factory=list)
+    note: str | None = None
+    created_at: str
+
+
+class PrefOption(Model):
+    """Rating counts for one option on one axis (v0.11.8). Each take counts once, from its latest feedback (a re-rating replaces
+    the earlier one; rating 0 withdraws it). ROLL draws θ ~ Beta(1 + up, 1 + down) per option, weights it by the option's default
+    weight, keeps a 5% floor, and draws from that (a weighted Thompson draw: plain counting, no AI). Tag-scoped credit makes these floats."""
+
+    option: str
+    up: float = Field(default=0.0, ge=0)
+    down: float = Field(default=0.0, ge=0)
+
+
+class PrefAxis(Model):
+    axis: str
+    options: list[PrefOption] = Field(default_factory=list)
+
+
+class RemixPrefs(Model):
+    """One style's counts (v0.11.8). DELETE /api/remix-prefs/{style} resets them (the UI's RESET, two steps)."""
+
+    style: str
+    ratings: int = Field(default=0, ge=0, description="Takes of this style whose latest rating isn't 0: the TasteReadout's 'ROLL leans on N ratings'.")
+    axes: list[PrefAxis] = Field(default_factory=list)
+
+
+class RemixPrefsResult(Model):
+    """GET /api/remix-prefs (v0.11.8)."""
+
+    styles: list[RemixPrefs] = Field(default_factory=list)
+
+
+class BassMacros(Model):
+    """The four BASS DNA knobs (v0.11.12), 0-1 each; 0.5 is the style's default. PREPARE maps them onto the engine bass:
+    GRIT = midbus drive and OTT depth, WOBBLE = LFO/movement depth, SUB = sub level, GLIDE = 808 glide time."""
+
+    grit: float = Field(default=0.5, ge=0, le=1)
+    wobble: float = Field(default=0.5, ge=0, le=1)
+    sub: float = Field(default=0.5, ge=0, le=1)
+    glide: float = Field(default=0.5, ge=0, le=1)
+
+
+TopLayer = Literal["arp", "powerup", "coin"]
+
+
+class Remix(Model):
+    """A remix (v0.11): the arrangement document. Local-only, like Songs."""
+
+    id: str
+    name: str
+    recipe: RemixRecipe
+    sources: list[RemixSource] = Field(min_length=1, max_length=2)
+    bpm: float = Field(gt=0)
+    key: str | None = None
+    beats_per_bar: int = Field(default=4, ge=1)
+    sections: list[RemixSection] = Field(default_factory=list)
+    lanes: list[RemixLane] = Field(default_factory=list)
+    bass_patch_id: str | None = Field(default=None, description="VIP / DROP SWAP: the patch BASS DNA plays on.")
+    flip: FlipSettings | None = Field(default=None, description="GENRE FLIP. The target tempo is Remix.bpm (BUILD sets it from the style; PATCH bpm to change it).")
+    mash: MashMatch | None = Field(default=None, description="MASHUP: the partner part LINE IT UP chose (B's part, start bar, shift, ratio). BUILD uses it; None = BUILD picks the best match itself.")
+    seed: int = Field(default=0, ge=0, description="v0.11.7: BUILD's variation seed. The same doc and seed give the same remix; a new seed is a new take (voices, patterns, switch-ups, fills). The app's ROLL/TAKES set it.")
+    takes: list[RemixTake] = Field(default_factory=list, description="v0.11.8: the kept takes, oldest first. BUILD adds or refreshes the take for `seed`.")
+    bass_macros: BassMacros | None = Field(default=None, description="v0.11.12: None = the style's defaults. A change re-prepares only the engine-bass clips.")
+    top_layers: list[TopLayer] = Field(default_factory=list, description="v0.11.12: ear candy BUILD places on a TOP lane, in key: arp across the drops, powerup into each drop, coin on fills.")
+    build_state: Literal["none", "queued", "running", "done", "error"] = "none"
+    rev: int = Field(default=0, ge=0, description="Bumped on every save; PATCH must send the rev it edited.")
+    created_at: str
+    updated_at: str
+
+
+class RemixCreate(Model):
+    recipe: RemixRecipe
+    sources: list[RemixSource] = Field(min_length=1, max_length=2)
+    mash: MashMatch | None = None
+    seed: int = Field(default=0, ge=0)
+    name: str | None = Field(default=None, max_length=200)
+
+
+class RemixUpdate(Model):
+    """PATCH body: the whole arrangement at `rev`. A stale rev is rejected (409), so edits never overwrite each other."""
+
+    rev: int = Field(ge=0)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    bpm: float | None = Field(default=None, gt=0)
+    key: str | None = None
+    sections: list[RemixSection] | None = None
+    lanes: list[RemixLane] | None = None
+    bass_patch_id: str | None = None
+    flip: FlipSettings | None = None
+    mash: MashMatch | None = None
+    seed: int | None = Field(default=None, ge=0, description="Set it, then POST build, for a new take.")
+    bass_macros: BassMacros | None = None
+    top_layers: list[TopLayer] | None = Field(default=None, description="v0.11.12: set, then POST build (TOP clips are placed by BUILD).")
+    takes: list[RemixTakeEdit] | None = Field(default=None, description="v0.11.8: the takes to keep (rename, star). A seed left out is deleted; style, choices and rating stay as recorded.")
+
+
+class RemixExportRequest(Model):
+    formats: list[Literal["aiff", "mp3", "als"]] = Field(min_length=1)
+    visuals: bool = Field(default=True, description="Register the mixdown as a Song whose structure comes from the arrangement.")
+    name: str | None = Field(default=None, max_length=200)
+
+
+class RemixExportResult(Model):
+    remix_id: str
+    files: list[ExportedFile] = Field(default_factory=list)
+    als_path: str | None = Field(default=None, description="The Ableton Live 11 set (BETA until opened in Live).")
+    rekordbox_xml_path: str | None = Field(default=None, description="v0.11.5: rekordbox.xml for the AIFF: TEMPO at bar 1, hot cues at each DROP, memory cues at each section start.")
+    song_id: str | None = Field(default=None, description="The mixdown registered as a Song, when visuals is on.")
+    warnings: list[str] = Field(default_factory=list)
+
+
+# --- v0.11.6: camera face masks ---------------------------------------------------------------------------------
+# A mask is an opaque texture drawn on FoxBox's face-UV template (1024 x 1024), painted onto the live face mesh.
+# User masks are local-only files in the data dir: the renderer sanitises SVG (no scripts, foreignObject, event
+# handlers, external href/url()) and caps the size BEFORE upload; the server re-checks the type and size and stores it.
+
+class MaskInfo(Model):
+    """A face mask (v0.11.6). GET /api/masks lists built-ins and user masks; the image is at GET /api/masks/{id}/image."""
+
+    id: str
+    name: str = Field(min_length=1, max_length=80)
+    kind: Literal["builtin", "user"]
+    format: Literal["svg", "png", "webp"]
+    width: int = Field(gt=0, le=4096)
+    height: int = Field(gt=0, le=4096)
+    size_bytes: int = Field(ge=0, le=16 * 1024 * 1024, description="SVG <= 2 MB; PNG/WebP <= 16 MB.")
+    created_at: str
+
+
+Song.model_rebuild()  # v0.9/v0.10: Song refers to SongStem and SongStructure, defined after it
 ExportRequest.model_rebuild()  # v0.7: ExportRequest.bake refers to SongPlacement, defined above
 Arrange.model_rebuild()  # v0.8: Arrange.chop_slots refers to ChopSlot, defined after it

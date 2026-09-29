@@ -3,11 +3,11 @@ import { Button } from '@/components/common/Button'
 import { SavedClip } from '@/components/clips/SavedClip'
 import clips from '@/components/clips/clips.module.css'
 import { startLiveCapture, type LiveCapture } from '@/components/clips/liveCapture'
-import type { ClipAspect } from '@/components/clips/render'
 import { Segmented } from '@/components/rack/Segmented'
 import type { SongDeck } from '@/audio/live/songDeck'
 import { toast } from '@/state/toasts'
 import { useViewPrefs } from '@/state/viewPrefs'
+import { useVisuals } from '@/state/visuals'
 import { getClipAudio } from './page'
 import styles from './visuals.module.css'
 
@@ -20,7 +20,7 @@ const DROP_FALLBACK_S = 20
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 /**
- * EXPORT → REC LIVE: films the stage as it plays (S1's live capture), with the active AUDIO SOURCE's sound
+ * EXPORT → REC LIVE: films the stage as it plays (S1's live capture), in its format, with the active AUDIO SOURCE's sound
  * (getClipAudio: the masked output or the live input, never the dry mic), then saved like SAVE CLIP. On TRACK,
  * THE DROP cues the song a few bars before its drop, plays it and stops by itself after the drop (with the CAMERA
  * base, that's you filmed through the drop).
@@ -38,7 +38,7 @@ export function LiveRecord({
   const [range, setRange] = useState<'free' | 'drop'>('free')
   const timer = useRef<number | null>(null)
   const watermark = useViewPrefs((v) => v.clipWatermark)
-  const [aspect, setAspect] = useState<ClipAspect>('16:9')
+  const aspect = useVisuals((s) => s.aspect)
   const [t0, setT0] = useState<number | null>(null)
   const [now, setNow] = useState(0)
   const [clip, setClip] = useState<{ blob: Blob; name: string; seconds: number } | null>(null)
@@ -128,19 +128,6 @@ export function LiveRecord({
           onChange={setRange}
         />
       )}
-      <Segmented<ClipAspect>
-        label="Live format"
-        hideLabel
-        size="sm"
-        value={aspect}
-        disabled={recording}
-        options={[
-          { value: '9:16', label: '9:16', title: 'Reels, TikTok, Shorts' },
-          { value: '16:9', label: '16:9', title: 'YouTube, projectors' },
-          { value: '1:1', label: '1:1', title: 'Square posts' },
-        ]}
-        onChange={setAspect}
-      />
       <div className={clips.actions}>
         {recording ? (
           <>
@@ -154,14 +141,19 @@ export function LiveRecord({
         ) : (
           <Button
             size="sm"
-            variant="secondary"
+            variant={audioReady ? 'danger' : 'secondary'}
             disabled={!audioReady}
             onClick={start}
-            title={audioReady ? 'Film the stage as it plays, with the sound' : 'Start the audio source first (GO LIVE, START AUDIO or LISTEN)'}
+            title={
+              audioReady
+                ? `Film the stage as it plays (${aspect}), with the sound`
+                : 'START the audio source first'
+            }
           >
             {dropMode ? '● REC THE DROP' : '● REC'}
           </Button>
         )}
+        {!recording && !audioReady && <span className={styles.kicker}>START the audio source first</span>}
       </div>
       {clip && !recording && (
         <>

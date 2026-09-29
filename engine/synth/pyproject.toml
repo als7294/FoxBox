@@ -1,0 +1,11 @@
+[project]
+name = "fvwks-synth"
+version = "0.1.0"
+description = "REMIX sound sources: Surge XT (surgepy) and FoxBox's own synth, the kit sampler, the patch and kit library (owned by S1)."
+requires-python = ">=3.12,<3.13"
+# Nothing beyond what the engine runtime already has: surgepy is a built .so shipped in the package (native/build_surgepy.sh).
+dependencies = ["fvwks-contracts", "numpy>=1.26", "scipy>=1.13", "soundfile>=0.12"]
+
+[build-system]
+requires = ["uv_build>=0.8,<0.13"]
+build-backend = "uv_build"

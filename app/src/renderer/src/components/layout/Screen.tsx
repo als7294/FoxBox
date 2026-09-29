@@ -11,7 +11,27 @@ export function Screen({ className, children, ...rest }: HTMLAttributes<HTMLDivE
 }
 
 /** "02 / LIBRARY" kicker over the big display title, with the screen's controls to the right. */
-export function ScreenHeader({ code, kicker, title, children }: { code: string; kicker: string; title: string; children?: ReactNode }) {
+export function ScreenHeader({
+  code,
+  kicker,
+  title,
+  compact,
+  children,
+}: {
+  code: string
+  kicker: string
+  title: string
+  /** Just the screen's own controls: the rail already names the page (the big title repeated it). */
+  compact?: boolean
+  children?: ReactNode
+}) {
+  if (compact)
+    return (
+      <header className={styles.screenHead} data-compact data-reveal="2">
+        <h1 className="sr-only">{title}</h1>
+        {children}
+      </header>
+    )
   return (
     <header className={styles.screenHead} data-reveal="2">
       <div className={styles.screenTitleBox}>

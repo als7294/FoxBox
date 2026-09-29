@@ -308,6 +308,15 @@ describe('Updater', () => {
     return { updater, userData, relaunch, states }
   }
 
+  it('a feed that hangs past the timeout reads as "didn\'t answer in time", not "couldn\'t reach"', async () => {
+    const hang: typeof fetch = (_url, init) =>
+      new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject((init.signal as AbortSignal).reason)))
+    const updater = new Updater({ currentVersion: '0.1.0', userData: temp(), packaged: true, appBundle: null, fetch: hang, defaultFeedUrl: FEED })
+    const state = await updater.check(30)
+    expect(state.phase).toBe('error')
+    expect(state.error?.message).toBe("The update server didn't answer in time.")
+  })
+
   it('checks, offers only newer versions, and never a downgrade', async () => {
     const { updater } = make()
     expect((await updater.check()).error?.code).toBe('no_feed')
@@ -371,6 +380,26 @@ describe('Updater', () => {
     await vi.waitFor(() => expect(existsSync(join(apps, backup!))).toBe(false))
     next.dismissWhatsNew()
     expect(new Updater({ currentVersion: '0.2.0', userData, packaged: true, appBundle }).getState().whatsNew).toBeNull()
+  })
+
+  it('still loads a settings file from before 1.5 that turned automatic checks off (the field is ignored now)', () => {
+    const userData = temp()
+    writeFileSync(join(userData, 'updates.json'), JSON.stringify({ feedUrl: null, checkAutomatically: false, lastChecked: 1234 }))
+    const state = new Updater({ currentVersion: '1.5.0', userData, packaged: true, appBundle: null }).getState()
+    expect(state.lastChecked).toBe(1234)
+    expect(state).not.toHaveProperty('checkAutomatically')
+  })
+
+  it('a confirmed start sweeps every backup an older version left beside the app, and nothing else', async () => {
+    const apps = temp()
+    const appBundle = fakeApp(join(apps, 'FoxBox.app'), '1.5.0')
+    const stale = [1, 2, 3, 4, 5].map((n) => fakeApp(join(apps, `.FoxBox.app.previous-17${n}`), '1.3.0'))
+    const other = fakeApp(join(apps, '.Other.app.previous-171'), '1.0.0')
+    const userData = temp()
+    await new Updater({ currentVersion: '1.5.0', userData, packaged: true, appBundle }).confirmLaunch()
+    for (const b of stale) expect(existsSync(b)).toBe(false)
+    expect(existsSync(other)).toBe(true)
+    expect(existsSync(appBundle)).toBe(true)
   })
 
   it('clears the new app (afterSwap) after the swap and before the relaunch; a failure there never fails the update', async () => {

@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { fileName } from '@/lib/paths'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, audioUrl, unwrap } from '@/api/client'
 import { useDeleteTake, useLibrary, usePatchTake, usePresets, useRekordboxExport, useSettings, useVoices } from '@/api/queries'
@@ -7,7 +8,7 @@ import { loadAudioBuffer } from '@/audio/cache'
 import { routeToOutput } from '@/audio/player'
 import { player } from '@/audio/playerInstance'
 import { Button } from '@/components/common/Button'
-import { rekordboxSteps } from '@/components/feedback/StepsModal'
+import { rekordboxSteps, StepsPanel } from '@/components/feedback/StepsPanel'
 import { Panel, Screen, ScreenHeader } from '@/components/layout/Screen'
 import { voiceLabel } from '@/components/output/SetlistTable'
 import { takeFile, takeLabel, VaultTable, type TableEmpty } from '@/components/output/VaultTable'
@@ -278,7 +279,7 @@ export function VaultScreen() {
       const res = await rekordbox.mutateAsync({ export_ids: ids, playlist: settings?.rekordbox?.playlist_default || DEFAULT_PLAYLIST })
       useUi.getState().setModal({
         title: 'REKORDBOX XML EXPORTED',
-        body: `Playlist “${res.playlist}” · ${res.tracks} tracks · ${res.path}`,
+        body: `Playlist “${res.playlist}” · ${res.tracks} track${res.tracks === 1 ? '' : 's'} · ${fileName(res.path)}`,
         steps: rekordboxSteps(res.playlist),
         revealPath: res.path,
       })
@@ -375,9 +376,9 @@ export function VaultScreen() {
 
   return (
     <Screen>
-      <ScreenHeader code="03" kicker="LIBRARY" title="VAULT">
+      <ScreenHeader compact code="04" kicker="LIBRARY" title="VAULT">
         <span className={v.count} aria-live="polite">
-          {lib.data ? rows.length : '—'} OF {total ?? '—'} DROPS
+          {lib.data ? rows.length : '—'} OF {total ?? '—'} DROP{total === 1 ? '' : 'S'}
         </span>
         <div className={v.spacer} />
         <div className={v.chips} role="group" aria-label="Filter">
@@ -403,6 +404,7 @@ export function VaultScreen() {
           }}
         />
       </ScreenHeader>
+      <StepsPanel />
       <Panel className={v.panel} data-reveal="3">
         <VaultTable
           takes={rows}

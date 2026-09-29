@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { bridge } from '@/env'
 import { useToasts } from '@/state/toasts'
+import { useUi } from '@/state/ui'
 import { animate } from '@/visuals/motion'
 import styles from './feedback.module.css'
 
@@ -11,12 +12,14 @@ export function Toast() {
   const t = items[items.length - 1]
   const ref = useRef<HTMLDivElement>(null)
   const b = bridge()
+  // REMIX shows notifications in its transport's status display instead (design/remix: no floating toasts there).
+  const onRemix = useUi((u) => u.screen === 'remix')
   useEffect(() => {
     if (!t) return
     animate(
       ref.current,
       [
-        { opacity: 0, transform: 'translateY(14px)', clipPath: 'inset(0 0 100% 0)' },
+        { opacity: 0, transform: 'translateY(-14px)', clipPath: 'inset(0 0 100% 0)' },
         { opacity: 1, offset: 0.5 },
         { opacity: 0.4, offset: 0.6 },
         { opacity: 1, transform: 'none', clipPath: 'inset(0 0 0 0)' },
@@ -24,7 +27,7 @@ export function Toast() {
       { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' },
     )
   }, [t?.id])
-  if (!t) return null
+  if (!t || onRemix) return null
   return (
     <div ref={ref} className={styles.toast} data-tone={t.tone} role={t.tone === 'error' ? 'alert' : 'status'} aria-live="polite">
       <div className={styles.toastHead}>

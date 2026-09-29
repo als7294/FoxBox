@@ -72,7 +72,7 @@
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 void main() {
   vec2 uv = isf_FragNormCoord;
-  float t = clamp(luma(IMG_NORM_PIXEL(inputImage, uv).rgb) * (0.85 + 0.5 * rms), 0.0, 1.0);
+  float t = clamp(luma(IMG_NORM_PIXEL(inputImage, uv).rgb) * (0.85 + 0.5 * rms + 0.3 * buildProgress + 0.4 * dropEnergy), 0.0, 1.0);
   vec3 c = mix(bgColor.rgb, iceColor.rgb, smoothstep(0.0, 0.3, t));
   c = mix(c, accentColor.rgb, smoothstep(0.3, 0.6, t));
   c = mix(c, amberColor.rgb, smoothstep(0.6, 0.85, t));

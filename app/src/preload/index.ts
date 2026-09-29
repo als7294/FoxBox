@@ -6,6 +6,8 @@ import {
   audioUrlFor,
   IPC,
   type BootInfo,
+  type BootUpdateBridge,
+  type BootUpdateState,
   type DisplayInfo,
   type EngineRequest,
   type EngineResponse,
@@ -45,9 +47,14 @@ const updates: UpdatesBridge = {
   install: () => invokeState(IPC.updatesInstall),
   setFeedUrl: (url) => invokeState(IPC.updatesSetFeed, url),
   setToken: (token) => invokeState(IPC.updatesSetToken, token),
-  setCheckAutomatically: (on) => invokeState(IPC.updatesSetAuto, on),
   dismissWhatsNew: () => invokeState(IPC.updatesDismissWhatsNew),
   onState: (listener) => subscribe<UpdateState>(IPC.updatesState, listener),
+}
+
+const bootUpdate: BootUpdateBridge = {
+  getState: () => ipcRenderer.invoke(IPC.bootUpdateGet) as Promise<BootUpdateState>,
+  continue: () => ipcRenderer.invoke(IPC.bootUpdateContinue) as Promise<BootUpdateState>,
+  onState: (listener) => subscribe<BootUpdateState>(IPC.bootUpdateState, listener),
 }
 
 const setup: SetupBridge = {
@@ -91,6 +98,7 @@ const bridge: FvwksBridge = {
   reveal: (path: string) => ipcRenderer.invoke(IPC.reveal, path) as Promise<boolean>,
   logError: (scope: string, message: string, stack?: string) => ipcRenderer.send(IPC.logError, scope, message, stack),
   saveClip: (name: string, data: ArrayBuffer) => ipcRenderer.invoke(IPC.saveClip, name, data) as Promise<string>,
+  diskFree: () => ipcRenderer.invoke(IPC.diskFree) as Promise<number | null>,
   chooseFolder: (options) => ipcRenderer.invoke(IPC.chooseFolder, options ?? {}) as Promise<string | null>,
   askMicAccess: () => ipcRenderer.invoke(IPC.askMic) as Promise<boolean>,
   askCameraAccess: () => ipcRenderer.invoke(IPC.askCamera) as Promise<boolean>,
@@ -102,7 +110,9 @@ const bridge: FvwksBridge = {
   restartEngine: () => ipcRenderer.invoke(IPC.engineRestart) as Promise<void>,
   onMenuCommand: (listener) => subscribe<MenuCommand>(IPC.menuCommand, listener),
   openLogs: () => ipcRenderer.invoke(IPC.openLogs) as Promise<void>,
+  zoom: (step) => ipcRenderer.send(IPC.zoom, step),
   updates,
+  bootUpdate,
   setup,
   visuals,
   link,

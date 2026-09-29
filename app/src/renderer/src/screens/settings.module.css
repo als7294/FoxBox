@@ -16,6 +16,9 @@
     'export loud camera'
     'naming naming rb'
     'defaults defaults engine';
+  /* Rows fit their cards (.panel's min-height: 0 let equal rows squeeze and hide content at 1280×800). */
+  grid-template-rows: repeat(4, max-content);
+  grid-auto-rows: max-content;
   gap: 12px;
   align-content: start;
 }
@@ -68,8 +71,8 @@
 }
 .caption {
   min-width: 0;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   text-transform: uppercase;
   white-space: nowrap;
@@ -135,7 +138,7 @@
 /* ---------------------------------------------------------------- studio defaults */
 .defaultsGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 96px 170px 112px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 88px 204px 112px;
   gap: 10px;
   align-items: start;
 }
@@ -143,8 +146,8 @@
 /* ---------------------------------------------------------------- engine */
 .engineState {
   flex: none;
-  font: 500 9.5px var(--vb-font-mono);
-  letter-spacing: 0.16em;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   text-transform: uppercase;
   white-space: nowrap;
@@ -215,8 +218,8 @@
   padding: 0 11px;
   border: 1px solid rgba(var(--vb-ink-rgb), 0.12);
   border-radius: var(--vb-r2);
-  font: 500 10px/1 var(--vb-font-mono);
-  letter-spacing: 0.14em;
+  font: 500 var(--vb-text-min)/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
   color: var(--vb-dim);
   text-transform: uppercase;
   white-space: nowrap;

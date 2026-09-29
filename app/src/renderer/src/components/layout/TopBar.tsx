@@ -3,6 +3,7 @@ import easterMarkUrl from '../../../../../design/brand/foxbox-mark-easter.svg?ur
 import { useSettings, useUpdateSettings } from '@/api/queries'
 import type { Settings } from '@/api/types'
 import { bridge } from '@/env'
+import { isEngineUsable, useEngine } from '@/state/engine'
 import { renderFinal, scheduleRender } from '@/state/renderController'
 import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
@@ -42,16 +43,23 @@ const formatLabel = (f: Format) => `${f.format.toUpperCase()} ${f.bit}/${f.rate 
  * still almost all the time, then every 17 s the fox glances left and right and flicks an ear (still under
  * prefers-reduced-motion).
  */
-export function Mark() {
+export function Mark({ size = 26 }: { size?: number }) {
   const ref = useRef<HTMLImageElement>(null)
   useFrame(() => {
     if (ref.current) ref.current.style.opacity = String(0.7 + vis.beatPulse * 0.3)
   })
-  return <img ref={ref} src={easterMarkUrl} width={26} height={26} alt="" aria-hidden="true" draggable={false} className={styles.mark} />
+  return (
+    <img ref={ref} src={easterMarkUrl} width={size} height={size} alt="" aria-hidden="true" draggable={false} className={styles.mark} />
+  )
 }
+
+/** Where a screen can put its own status in the top bar (VISUALS' live strip). */
+export const TOP_SLOT_ID = 'vb-top-slot'
 
 function RenderButton() {
   const phase = useStudio((s) => s.phase)
+  // The one filled primary belongs to the Studio (UX #13); on other screens RENDER is an outline.
+  const quiet = useUi((u) => u.screen !== 'studio')
   const prog = useRef<HTMLSpanElement>(null)
   useFrame((now) => {
     const el = prog.current
@@ -59,11 +67,13 @@ function RenderButton() {
     const t0 = vis.finalT0
     el.style.transform = `scaleX(${t0 ? 1 - Math.exp(-(now - t0) / 1100) : 0})`
   })
-  const label = phase === 'synthesizing' ? 'SYNTH…' : phase === 'finalizing' ? 'RENDERING' : 'RENDER'
+  const engineUp = useEngine((s) => isEngineUsable(s.status))
+  const label = phase === 'finalizing' ? 'RENDERING' : phase === 'synthesizing' && engineUp ? 'SYNTH…' : 'RENDER'
   return (
     <button
       type="button"
       className={styles.render}
+      data-quiet={quiet || undefined}
       data-testid="render-button"
       aria-keyshortcuts="Meta+Enter"
       title="Final render: writes the file (⌘↩)"
@@ -119,6 +129,8 @@ export function TopBar() {
       </div>
       <EngineStatus />
       <div className={styles.flex} />
+      {/* VISUALS portals its live strip here: one header row, no page title repeating the rail (UX #18). */}
+      {onLive && <div id={TOP_SLOT_ID} className={styles.topSlot} />}
       <TempoField />
       <KeyPicker />
       {!onLive && (

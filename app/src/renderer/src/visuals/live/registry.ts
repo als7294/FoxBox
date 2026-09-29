@@ -43,6 +43,70 @@ export interface AudioFrame {
   // ---- 1.4 stems (additive; S2 feeds them for a separated track, or approximates them live). Absent = no stems.
   /** Per stem: level (linear 0–1) and onset (≥ 1 on a hit, else 0). Kick → drums.onset, sub → bass.rms, … */
   stems?: Partial<Record<StemId, { rms: number; onset: number }>>
+  // ---- 1.5 structure (additive; S2 fills them from the song's structure on TRACK, from a live detector on LIVE INPUT).
+  // Absent = unknown. `drop` above stays as it is (at a drop, for about a bar).
+  section?: SongSection
+  /** 0–1, eased, through a build; 0 outside builds. */
+  buildProgress?: number
+  /** The held breath before a drop: its last beat, or the gap where the low end cuts. */
+  preDrop?: boolean
+  /** Beats until the next drop hit, when predictable. */
+  dropIn?: number | null
+  /** True on the one frame a drop lands. */
+  dropHit?: boolean
+  /** 1 at a drop's hit, decaying to 0 over about a bar. */
+  dropEnergy?: number
+  /** 1 for the first drop, 2 for the second, … (the second can look different). */
+  dropIndex?: number
+  /** Bass-line intelligence, for bass music (deep, trap, dubstep). */
+  bass?: BassLine
+  feel?: { halfTime: boolean; style: 'deep' | 'trap' | 'dubstep' | 'other' }
+}
+
+export type SongSection = 'intro' | 'verse' | 'build' | 'drop' | 'breakdown' | 'outro'
+
+export interface BassLine {
+  /** A bass note is sounding. */
+  on: boolean
+  /** True on one frame at each new note. */
+  noteOn: boolean
+  /** How long the current note has held, in beats. */
+  heldBeats: number
+  /** The section's typical note length in beats (0.25 riddim stabs … 16 held subs). */
+  expectBeats: number
+  /** 0–1 sub weight (< 60 Hz). */
+  sub: number
+  /** 0–1 mid-bass growl (100–600 Hz). */
+  growl: number
+  /** Sub f0 in Hz (< ~120), null when absent or unpitched. */
+  pitch: number | null
+  /** Semitones per beat of the current slide (0 = none; 808 glides). */
+  glide: number
+  /** The dominant LFO as a beat division ('1/4', '1/8', '1/8T', '1/16', …) and its 0–1 phase. */
+  wobble: { div: string | null; phase: number }
+}
+
+/**
+ * 1.5, per frame, beside the AudioFrame: things that aren't sound. `passThrough` (S1's camera "near" mask): where the
+ * mask is set, the base (the encrypted camera) comes through every layer above it, at `level` (0–1): a hand or a
+ * leaning face in front of the effects.
+ */
+export interface FrameExtras {
+  passThrough?: { mask: CanvasImageSource; level: number } | null
+}
+
+/** A timed word for TEXT styles (1.5): from the song's lyrics, or typed by the DJ. Song time, seconds. */
+export interface TimedWord {
+  text: string
+  start_s: number
+  end_s: number
+}
+
+/** What a TEXT style shows (1.5): the words, and where the drop lands (pre-drop text builds toward it). */
+export interface TextTrack {
+  words: TimedWord[]
+  /** Song time of the next/first drop hit, or null. */
+  drop_s: number | null
 }
 
 /** 1.4: the separated parts of a track (S1 separates, S2 measures). */
@@ -72,8 +136,19 @@ export interface StyleInstance {
   /**
    * Draw one frame. `dt` in ms since the last one. `input` (1.4): the composite beneath this layer (the base, and
    * any layers under it) at the canvas's size; a filter draws from it (ISF inputImage), a generator may ignore it.
+   * Return `false` when nothing was drawn this frame (e.g. TEXT between drops): the compositor then skips the layer.
    */
-  frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null): void
+  frame(a: AudioFrame, dt: number, input?: CanvasImageSource | null, extras?: FrameExtras): void | boolean
+  /**
+   * 1.5, TEXT styles only (S3's family): the words to show. The compositor calls it when the layer is created and
+   * whenever the scene's text changes; other styles leave it out.
+   */
+  setText?(text: TextTrack | null): void
+  /**
+   * 1.5, optional: named parameters the AUTO-VJ director may push (0–1, the style decides what they mean, e.g.
+   * 'intensity', 'speed', 'zoom'). Unknown names are ignored.
+   */
+  setParams?(params: Record<string, number>): void
   /** The canvas's backing size changed (CSS px × dpr). */
   resize(width: number, height: number): void
   dispose(): void
@@ -129,5 +204,17 @@ export async function findStyle(id: string): Promise<VisualStyle | null> {
 
 /** A silent frame (nothing playing), for idle drawing and tests. */
 export function silentFrame(time: number, bpm = 140): AudioFrame {
-  return { time, rms: 0, bands: { low: 0, mid: 0, high: 0 }, onset: 0, fft: null, waveL: null, waveR: null, sampleRate: 48_000, bpm, beatPhase: 0, active: false }
+  return {
+    time,
+    rms: 0,
+    bands: { low: 0, mid: 0, high: 0 },
+    onset: 0,
+    fft: null,
+    waveL: null,
+    waveR: null,
+    sampleRate: 48_000,
+    bpm,
+    beatPhase: 0,
+    active: false,
+  }
 }

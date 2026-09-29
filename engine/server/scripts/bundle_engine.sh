@@ -9,7 +9,8 @@
 #     python/          uv-managed CPython (python-build-standalone), trimmed
 #     venv/            `uv venv --relocatable` with the locked dependencies; fvwks-code.pth puts ../code on sys.path
 #     requirements.txt what was installed (uv export, no header)
-#   code/              our packages: fvwks_contracts, fvwks_voice, fvwks_fx, fvwks_server (+ package data)
+#   code/              our packages: fvwks_contracts, fvwks_voice, fvwks_fx, fvwks_server, fvwks_synth (+ package data,
+#                      and surgepy in fvwks_synth/_native when build_surgepy.sh has run)
 #   components.json    {"runtime": sha256, "code": sha256}: each a sha256 of the component's sorted file manifest
 #   bin/fvwks-engine   launcher with the same flags as the dev entry point:
 #                      --port 0 --token T --data-dir D [--export-dir E] --exit-with-parent
@@ -61,7 +62,7 @@ install() { VIRTUAL_ENV="$RT/venv" uv pip install --quiet --python "$RT/venv/bin
 install -r "$RT/requirements.txt"
 # Our packages go to code/, without dist-info (nothing reads their metadata), found through a .pth whose relative
 # line site.py resolves against site-packages, so the runtime never changes when only our code does.
-install --no-deps --target "$OUT/code" "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server"
+install --no-deps --target "$OUT/code" "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server" "$ENGINE/synth"
 rm -rf "$OUT"/code/*.dist-info "$OUT/code/bin"
 echo "../../../../../code" > "$SITE/fvwks-code.pth"
 
@@ -124,7 +125,7 @@ chmod +x "$OUT/bin/fvwks-engine"
 
 echo "==> smoke test"
 "$OUT/bin/fvwks-engine" --version
-"$RT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, mutagen, soundfile
+"$RT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, fvwks_synth.bass, mutagen, soundfile
 from fvwks_server.writer import cover_art; cover_art()  # package data (the AIFF cover art) is in'
 echo "==> no build paths"
 # Fails the build if any file (or symlink) still names the build folder, uv's interpreter folder or the builder's

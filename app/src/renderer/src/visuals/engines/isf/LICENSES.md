@@ -38,6 +38,11 @@ CC BY-NC-SA. Today every shader is original work written for FoxBox, released un
 | `filters/thermal.fs` | A thermal camera: brightness through ice, accent, amber to white; hotter with the level. | Original, written for FoxBox | MIT |
 | `filters/vhs.fs` | Worn tape: tracking wobble on hits, colour bleed, scanlines and noise. | Original, written for FoxBox | MIT |
 | `filters/zoom-pulse.fs` | Punches in on every hit and breathes with the beat. | Original, written for FoxBox | MIT |
+| `filters/depth-focus.fs` | Depth focus: the near subject (S1's near mask) sharp, the rest racked out of focus through a build. | Original, written for FoxBox | MIT |
+| `filters/motion-trails.fs` | Motion trails: only what moves leaves a trail (frame difference). | Original, written for FoxBox | MIT |
+| `filters/palette-from-image.fs` | Palette from image: repaints the picture in its own main colours (Color Thief) and shares them. | Original, written for FoxBox | MIT |
+| `filters/beat-strobe.fs` | Beat strobe: flashes on beats and drop hits, at most 3 a second. | Original, written for FoxBox | MIT |
+| `filters/bass-wobble.fs` | Bass wobble: the wobble LFO warps the picture, a held sub stretches it. | Original, written for FoxBox | MIT |
 
 ## MIT license (the shaders above)
 

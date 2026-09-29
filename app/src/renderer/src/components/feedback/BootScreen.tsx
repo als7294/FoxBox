@@ -3,9 +3,13 @@ import { CreditLink } from '@/components/common/CreditLink'
 import bootBgUrl from '../../../../../design/brand/foxbox-boot-bg.svg?url'
 import { AnimatedFoxMark } from '@/components/common/AnimatedFoxMark'
 import { FoxMark } from '@/components/common/FoxMark'
+import type { BootUpdateState } from '@shared/bridge'
 import { useLexicon, useRack } from '@/api/queries'
 import { audioContext } from '@/audio/player'
+import { rateText, transferText } from '@/components/updates/format'
+import { useBootUpdate } from '@/components/updates/useBootUpdate'
 import { bridge, isMockMode } from '@/env'
+import { formatBytes } from '@/lib/format'
 import { bootStage, reached, type BootStage } from '@/state/bootStage'
 import { engineHealth, useEngine } from '@/state/engine'
 import { useStudio } from '@/state/studio'
@@ -130,12 +134,49 @@ function useFacts(): Facts {
   }
 }
 
+/** UPDATE REQUIRED in place of the progress: the new version, its size, the download, then installing. */
+function UpdateRequired({ u }: { u: BootUpdateState }) {
+  const d = u.download
+  const frac = u.step === 'downloading' ? (d && d.bytes_total > 0 ? d.bytes_done / d.bytes_total : 0) : 1
+  const retry = u.attempt > 1 ? 'RETRY · ' : ''
+  const say =
+    u.step === 'installing'
+      ? 'Installing · FoxBox restarts'
+      : u.step === 'verifying'
+        ? 'Verifying the update'
+        : d
+          ? `${retry}${transferText(d.bytes_done, d.bytes_total)}${d.rate_bps ? ` · ${rateText(d.rate_bps)}` : ''}`
+          : `${retry}Downloading${u.sizeBytes ? ` ${formatBytes(u.sizeBytes)}` : ''}`
+  return (
+    <div className={styles.bootProgress} data-testid="boot-update">
+      <div className={styles.bootUpdateHead}>
+        <span className={styles.bootFail}>UPDATE REQUIRED</span>
+        <span>
+          {u.current} → {u.version}
+          {u.sizeBytes ? ` · ${formatBytes(u.sizeBytes)}` : ''}
+        </span>
+      </div>
+      <div className={styles.bootBarTrack} aria-hidden="true">
+        <div className={styles.bootBar} style={{ transform: `scaleX(${clamp(frac)})` }} />
+      </div>
+      <div className={styles.bootPct} aria-live="polite">
+        <span className={styles.bootPctNum}>
+          {u.step === 'downloading' ? `${Math.round(clamp(frac) * 100)}%` : u.step === 'verifying' ? 'VERIFY' : 'INSTALL'}
+        </span>
+        <span className={styles.bootStage}>{say}</span>
+      </div>
+    </div>
+  )
+}
+
 /**
  * The boot sequence from the design, and a real loading screen: each line types out when its stage is reached
  * (engine up, the voice model loading with the engine's progress, warm), the bar and meter follow the overall
  * progress, and the Studio only appears once the engine is fully ready: then the screen fades into it (~300 ms).
  * A failed start, or no progress for a minute, turns into an error with RETRY and SHOW LOG. Skipping (any key or
- * click) only shortens the hand-over once the engine is ready. On a first run it follows Setup.
+ * click) only shortens the hand-over once the engine is ready. On a first run it follows Setup. The update check
+ * at boot holds the hand-over too: UPDATE REQUIRED installs and relaunches; a failed check or download shows the
+ * reason and CONTINUE.
  */
 export function BootScreen() {
   const booting = useUi((s) => s.booting)
@@ -147,6 +188,9 @@ function Boot() {
   const facts = useFacts()
   const factsRef = useRef(facts)
   factsRef.current = facts
+  const update = useBootUpdate()
+  const updateRef = useRef(update.state)
+  updateRef.current = update.state
   const defs = useMemo(() => lines(), [])
   const [shown, setShown] = useState<Shown[]>([])
   const [cursorLine, setCursorLine] = useState(0)
@@ -169,7 +213,7 @@ function Boot() {
 
   const finish = useRef(() => {})
   finish.current = () => {
-    if (leaving.current || factsRef.current.stage.id !== 'ready') return
+    if (leaving.current || factsRef.current.stage.id !== 'ready' || updateRef.current.phase !== 'clear') return
     leaving.current = true
     revealPanels(document, 160)
     const el = rootRef.current
@@ -252,7 +296,8 @@ function Boot() {
         }
         lineTs = (now - t0.current) / 1000
       }
-      ci = Math.min(text.length, ci + 2)
+      // Once the engine is ready the rest types 3× faster: the hand-over isn't held up by the typing.
+      ci = Math.min(text.length, ci + (readyAt.current != null ? 6 : 2))
       const full = ci >= text.length
       const last = li === defs.length - 1
       let okT = ''
@@ -275,6 +320,11 @@ function Boot() {
     }, 16)
     return () => window.clearInterval(id)
   }, [defs])
+
+  // The boot log was done while the update check still held the hand-over: go on once it clears.
+  useEffect(() => {
+    if (update.state.phase === 'clear' && typed.current) finish.current()
+  }, [update.state.phase])
 
   // Once the engine is ready, any key or click skips the rest of the hand-over (never before: no half-ready Studio).
   useEffect(() => {
@@ -312,9 +362,15 @@ function Boot() {
   })
 
   const f = facts
-  const ready = f.stage.id === 'ready'
+  const u = update.state
+  const ready = f.stage.id === 'ready' && u.phase === 'clear'
   const stageText = STAGE_TEXT[f.stage.id] ?? ''
-  const say = f.stage.id === 'model' && f.stage.detail ? f.stage.detail : stageText
+  const say =
+    f.stage.id === 'ready' && u.phase === 'checking'
+      ? 'Checking for updates'
+      : f.stage.id === 'model' && f.stage.detail
+        ? f.stage.detail
+        : stageText
   return (
     <div
       ref={rootRef}
@@ -353,7 +409,20 @@ function Boot() {
         <span ref={subRef} className={styles.bootKicker}>
           STAY STEALTHY
         </span>
-        {failure ? (
+        {u.phase === 'required' ? (
+          <UpdateRequired u={u} />
+        ) : u.phase === 'failed' ? (
+          <div className={styles.bootError} role="alert" data-testid="boot-update-failed" onPointerDown={(e) => e.stopPropagation()}>
+            <p className={styles.bootErrorText}>
+              <span className={styles.bootFail}>[ UPDATE ]</span> {u.error}
+            </p>
+            <div className={styles.bootActions}>
+              <button type="button" className={styles.bootAction} onClick={update.proceed} autoFocus>
+                CONTINUE
+              </button>
+            </div>
+          </div>
+        ) : failure ? (
           <div className={styles.bootError} role="alert" onPointerDown={(e) => e.stopPropagation()}>
             <p className={styles.bootErrorText}>
               <span className={styles.bootFail}>[ FAIL ]</span> {failure === STALLED ? 'The engine is taking too long to get ready.' : failure}

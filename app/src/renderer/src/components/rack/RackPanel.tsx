@@ -11,6 +11,7 @@ import { Knob } from './Knob'
 import { MacroKnob } from './MacroKnob'
 import { ModuleCard } from './ModuleCard'
 import { PresetStrip } from './PresetStrip'
+import { SavePresetForm } from './SavePresetForm'
 import styles from './rack.module.css'
 
 const DRAWER_ID = 'rack-drawer'
@@ -31,6 +32,7 @@ export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: re
   const enabled = useMemo(() => new Map((chain.modules ?? []).map((m) => [m.id, m.enabled])), [chain])
   const active = rack.modules.filter((m) => isActive(m, enabled)).length
   const save = () => useUi.getState().setSavePresetOpen(true)
+  const saving = useUi((s) => s.savePresetOpen)
   return (
     <section className={styles.rack} aria-label="Rack" data-reveal="4">
       <button
@@ -48,7 +50,7 @@ export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: re
         </span>
         <span className={styles.openLabel}>OPEN RACK</span>
         <span className={styles.openMeta}>
-          {rack.modules.length} MODULES · {active} ACTIVE
+          {rack.modules.length + 1} MODULES · {active} ACTIVE
         </span>
         <span className={styles.flex} />
         <span className={styles.openArrow} aria-hidden="true">
@@ -57,12 +59,16 @@ export function RackPanel({ rack, presets }: { rack: RackDescriptor; presets: re
       </button>
       <div className={styles.rackHead}>
         <div className={styles.rackTitle}>
-          <span className={styles.panelTitle}>RACK</span>
+          <span className={styles.panelTitle}>PRESETS</span>
           <button type="button" className={styles.saveBtn} aria-label="Save preset, Command S" aria-keyshortcuts="Meta+S" onClick={save}>
             + SAVE
           </button>
         </div>
-        <PresetStrip presets={presets} activeId={presetId} dirty={dirty} onSelect={selectPreset} onSave={save} />
+        {saving ? (
+          <SavePresetForm presets={presets} onClose={() => useUi.getState().setSavePresetOpen(false)} />
+        ) : (
+          <PresetStrip presets={presets} activeId={presetId} dirty={dirty} onSelect={selectPreset} onSave={save} />
+        )}
       </div>
       <div className={styles.macros}>
         {MACRO_IDS.map((id: MacroId) => {
@@ -157,7 +163,7 @@ export function RackDrawer({ rack, voices }: { rack: RackDescriptor; voices: rea
       <div className={styles.drawerHead}>
         <span className={styles.drawerTitle}>RACK</span>
         <span className={styles.drawerMeta}>
-          {rack.modules.length} MODULES · {presetName ?? 'CUSTOM'}
+          {rack.modules.length + 1} MODULES · {presetName ?? 'CUSTOM'}
           {dirty ? ' *' : ''}
         </span>
         <span className={styles.flex} />
