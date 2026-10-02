@@ -114,6 +114,10 @@ text.clear()
 osc_text = place(box.create(oscinDAT, 'in_text'), 0, 1)
 setp(osc_text, 'port', TEXT_PORT)
 setp(osc_text, 'callbacks', callbacks.name)
+# its rows capped (the callbacks keep what matters in `text`): unclamped, an OSC In DAT grows all set long (S3)
+for name, value in (('clamp', True), ('maxlines', 20)):
+    if hasattr(osc_text.par, name):
+        setp(osc_text, name, value)
 
 osc_out = place(box.create(oscoutDAT, 'out_foxbox'), 0, 3)
 for p in ('netaddress', 'address'):  # "Network Address" (its name differs between TouchDesigner builds)
@@ -136,16 +140,29 @@ setp(camera, 'sendername', CAMERA)
 # FoxBox's camera whenever it appears, twice a second.
 finder = place(box.create(executeDAT, 'camera_finder'), 2, -1)
 finder.text = f'''
+import json
+
 def onFrameStart(frame):
     if frame % 30:
         return
     par = op('camera').par.sendername
-    have = par.eval()
-    if (have == {CAMERA!r} or have.endswith(':' + {CAMERA!r})) and op('camera').width > 2:
-        return  # found and live: no need to ask Syphon's directory again (menuNames lists every server)
+    if me.fetch('found', None) == par.eval():
+        return  # found before: no need to ask Syphon's directory again (menuNames lists every server). Not the
+        # width: an unconnected Syphon In has a default size, so the bare name we start on looked found and the
+        # camera never connected (1.5.2)
     want = next((n for n in par.menuNames if n == {CAMERA!r} or n.endswith(':' + {CAMERA!r})), None)
-    if want and par.eval() != want:
-        par.val = want
+    if want:
+        if par.eval() != want:
+            par.val = want
+        me.store('found', want)
+        try:  # the server it bound to, for FoxBox's checks (status.json's camera)
+            with open(r'{STATUS_PATH}') as f:
+                status = json.load(f)
+            status['camera'] = want
+            with open(r'{STATUS_PATH}', 'w') as f:
+                json.dump(status, f)
+        except Exception:
+            pass
     return
 '''
 setp(finder, 'framestart', True)
@@ -159,6 +176,9 @@ def onFrameStart(frame):
     if t is None or now - t >= 1.0:
         if t is not None:
             op('out_foxbox').sendOSC('/foxbox/td_fps', [(frame - f) / (now - t)])
+            cam = op('camera')  # bound: the finder found FoxBox's camera and is on it
+            found = op('camera_finder').fetch('found', None)
+            op('out_foxbox').sendOSC('/foxbox/td_camera', [1 if found and cam.par.sendername.eval() == found else 0, cam.width, cam.height])
         me.store('t', now)
         me.store('f', frame)
     return

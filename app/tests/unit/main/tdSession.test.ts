@@ -70,6 +70,20 @@ describe('TouchDesigner as a VISUALS base (1.6)', () => {
     expect(activate).toMatch(/masked != MASKED\[0\]:\s+forget\(\)/) // on a change, either way
   })
 
+  it("binds FoxBox's camera by the name it found, and says so (1.5.2 never bound it)", () => {
+    const template = readFileSync(join(__dirname, '../../../../touchdesigner/foxbox_setup.py'), 'utf8')
+    const files = new Map(toeFiles(template, { enabled: true, host: '127.0.0.1', outPort: 7000, inPort: 7001 }, '/s.json', 'b', readPresets(join(__dirname, '../../../../touchdesigner/presets'))))
+    const script = (files.get('project1/foxbox_setup.text') as Buffer).subarray(27).toString('utf8')
+    const finder = /finder\.text = f'''([\s\S]*?)'''/.exec(script)![1]!
+    expect(finder).not.toMatch(/\.width/) // an unbound Syphon In has a default size: never proof it's bound
+    expect(finder).toMatch(/me\.fetch\('found', None\) == par\.eval\(\)/) // stops asking only once found
+    expect(finder).toMatch(/me\.store\('found', want\)/)
+    expect(finder).toMatch(/status\['camera'\] = want/) // status.json's camera: the "<app>:<server>" it bound
+    expect(script).toMatch(/'\/foxbox\/td_camera', \[1 if found/) // bound, w, h each second, with td_fps
+    expect(script).toMatch(/\('maxlines', 20\)/) // the text OSC In DAT capped
+    expect(files.get('project1/foxbox_boot.text')?.toString('utf8')).toContain("status['in_text_rows']")
+  })
+
   it("encodes a DAT's text as toeexpand does", () => {
     const b = datText('hé')
     expect(b.subarray(0, 3).toString('latin1')).toBe('2\n*')

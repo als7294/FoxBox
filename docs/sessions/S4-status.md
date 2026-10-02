@@ -41,6 +41,10 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART 
 - **td5 / RC merge order (the PM's checklist):** S3's tip (flicker fix, OUTPUT-black fix if on S3's side, PLEXUS/MOSAIC v3, FINGER WINDOWS + gesture commands) → S1's help/s1-td-presets (7f339b1+) → S2's help/s2-td-sound (the 4 hand presets with mode "hands") → help/s4-prod → help/s5-visuals (RC only). Then typecheck, vitest --maxWorkers=4, and PROD shows BODY 10 / HANDS 4+.
 - **Closed:** the "black perform pop-out" was TouchDesigner's own Perform window (S3's e721b3f hides TD entirely); FoxBox's OUTPUT measured fine in every arrangement. Kept as insurance: the occluded-window switches, OUTPUT's 50 ms show timer, and main.log's `[OUTPUT] N frames received, M shown` line.
 - **Heavy work** (builds, packaged runs) only in the slot the PM assigns; vitest at --maxWorkers=4.
+- **td5** (int/td5 e141760) was tested by the user. OUTPUT logged 234/234 frames. The camera prompt needed a LaunchServices re-register (`lsregister -f`) of the staged copy before tccutil knew its .test id. The lag was mostly an unrelated Blender render.
+- **RC kit, in `.claude/s4-keep`:** build.sh (`build.sh <sha> --release`), rc-smoke.mjs (boot, 1.5.2 WHAT'S NEW, rail, PROD setup, the new VISUALS, OUTPUT frames in main.log), and release-notes-1.5.2.md (the GitHub body, with the tccutil line; the update size gets filled from the RC's components).
+- **1.5.2 is held (the user's call) until all 15 effects are v3 TouchDesigner networks within budget.** int/rc (in the `.claude/int-td5` checkout) already has S5 c71cc8d and S3 5953f4a. S1's and S2's preset branches merge as they land, then the presets folder is pinned to the final set (presets only, never foxbox_setup.py), the v2 knob bridge goes, and the addon is rebuilt from int/rc's syphon_host.mm. Nothing gets published until the PM asks the user.
+- **Into the RC on top of int/td5:** S5's camera-blocked fix (help/s5-visuals c71cc8d+), the full v3 preset set when S1/S2 have optimised it (then remove PROD's v2 knob bridge, marked `ponytail:`), and S3's App Nap finding.
 
 ## 1.5.2 plan: TouchDesigner (S3's free TD + OSC + Syphon route)
 

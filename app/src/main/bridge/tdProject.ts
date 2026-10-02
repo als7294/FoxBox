@@ -49,6 +49,8 @@ def measure():
     run("me.module.measure()", fromOP=me, delayFrames=300)
     box = op('/project1/foxbox')
     status['errors_running'] = [o.path + ': ' + o.errors() for o in box.findChildren() if o.errors()] if box else []
+    text = op('/project1/foxbox/in_text')
+    status['in_text_rows'] = text.numRows if text else None  # capped at 20 (a set-long OSC In DAT grows otherwise)
     with open(STATUS, 'w') as f:
         json.dump(status, f)
 `
