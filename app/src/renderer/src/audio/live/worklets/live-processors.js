@@ -747,3 +747,503 @@ class Limit extends AudioWorkletProcessor {
   }
 }
 registerProcessor('fvwks-limit', Limit)
+
+// --------------------------------------------------------------------------------------------------------- stemfx
+// STRINGS' bass-remix FX on the song's stems (inputs: drums, bass, vocals, other; out: their sum), locked to the song's
+// beat ({bpm, anchor}: the context time of a beat, posted as the grid moves). Each is a straight pass at 0.
+//   wobble       an LFO low-pass on the bass, `wobbleRate` cycles a beat (1/4 to 1/16T); depth (wobbleDepth) widens the
+//                sweep and lifts the resonance (capped)
+//   growl        a talking formant filter on the bass, vowel o (0) - a (0.5) - i (1)
+//   tear         TEAROUT: the bass driven hard (Airwindows Density's drive, DeRez2's rate and bit crush, a low-pass
+//                after), at the dry bass's own peak: louder by density, not by level
+//   gate         RIDDIM: the bass chopped `gateRate` times a beat (1/8T at 3), half open, 2 ms edges; gate = the depth
+//   subdrop      the bass dives an octave (a granular shift, ~120 ms), the rest dipping like a brake and ducking under it
+//   bassSemi     the 808 slide: the bass bent up to ±24 semitones, glided (~35 ms); vibrato: the shake's 6 Hz, ±1 st
+//   pump         everything but the drums ducked on each beat, swelling back (a sidechain pump)
+//   world        GLASS's worlds on the whole picture's sound, `worldWet` in, `worldTilt` their one control:
+//                1 HEAT (tape drive, a warm low-pass, a heavier sub; tilt: drive), 2 SKELETON (only the drums and the sub,
+//                with dub echoes; tilt: their feedback), 3 8-BIT (bits and rate crushed above 120 Hz, the sub clean; tilt:
+//                8 to 3 bits), 4 SHIMMER (the synths and vocals an octave up on top; tilt: its level), 5 MIRROR (beat
+//                ping-pong echoes, their lows mono; tilt: 1/8 to 3/8 notes), 6 GLITCH (grid stutters on the 16ths; tilt: how
+//                many)
+// Engaging a bass FX from rest waits for the next 16th, then snaps in (1.5 ms) with a pad hit (an Accent: TEAROUT's a
+// heavier slam); letting go releases in ~20 ms. The bass is mono below 150 Hz (its side high-passed), every parameter is
+// smoothed, a driven bass and the sum soft-clip.
+class Svf { // Zavalishin's TPT state-variable filter: stays stable swept fast
+  constructor() { this.ic1 = 0; this.ic2 = 0; this.lp = 0; this.bp = 0; this.hp = 0 }
+  run(v, g, k) { // g = tan(pi fc / fs), k = 1 / Q
+    const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2
+    const v3 = v - this.ic2, v1 = a1 * this.ic1 + a2 * v3, v2 = this.ic2 + a2 * this.ic1 + a3 * v3
+    this.ic1 = 2 * v1 - this.ic1; this.ic2 = 2 * v2 - this.ic2
+    this.lp = v2; this.bp = v1; this.hp = v - k * v1 - v2
+  }
+}
+class Shifter { // a granular pitch shifter: two heads over a delay line, sin² crossfaded (ratio 0.5 an octave down, 2 up)
+  constructor(size) { this.b = new Float32Array(size); this.w = 0; this.ph = 0 }
+  run(x, ratio, win) {
+    const b = this.b, n = b.length
+    b[this.w] = x
+    this.ph += (1 - ratio) / win
+    this.ph -= Math.floor(this.ph)
+    let y = 0
+    for (let h = 0; h < 2; h++) {
+      const p = (this.ph + h * 0.5) % 1
+      let r = this.w - (p * win + 1)
+      if (r < 0) r += n
+      const i0 = Math.floor(r), f = r - i0, s = b[i0] + (b[(i0 + 1) % n] - b[i0]) * f, g = Math.sin(Math.PI * p)
+      y += s * g * g
+    }
+    this.w = (this.w + 1) % n
+    return y
+  }
+}
+// Airwindows Density and DeRez2 (Chris Johnson, MIT: github.com/airwindows/airwindows), ported for TEAROUT
+const HALF_PI = 1.57079633, LOG256 = Math.log(256)
+function density(x, dens) { // a sine bridge-rectifier drive: each whole unit of `dens` past 1 folds it once more
+  for (let count = dens; count > 1; count -= 1) { const b = Math.sin(Math.min(Math.abs(x) * HALF_PI, HALF_PI)); x = x > 0 ? b : -b }
+  let out = Math.abs(dens)
+  while (out > 1) out -= 1
+  const r = Math.min(Math.abs(x) * HALF_PI, HALF_PI), b = dens > 0 ? Math.sin(r) : 1 - Math.cos(r)
+  return x > 0 ? x * (1 - out) + b * out : x * (1 - out) - b * out
+}
+class DeRez { // the rate (a softened sample-and-hold) and the bits (in mu-law) crushed; tA, soften, tB as DeRez2 sets them
+  constructor() { this.incA = 0; this.incB = 0; this.pos = 0; this.held = 0; this.last = 0; this.lastOut = 0; this.lastDry = 0 }
+  run(x, tA, soften, tB, hard) {
+    const dry = x
+    this.incA = (this.incA * 999 + tA) / 1000; this.incB = (this.incB * 999 + tB) / 1000
+    this.pos += this.incA
+    let y = this.held
+    if (this.pos > 1) {
+      this.pos -= 1
+      this.held = this.last * this.pos + x * (1 - this.pos)
+      y = y * (1 - soften) + this.held * soften
+    }
+    if (y !== this.lastOut) { this.lastOut = y; y = y * hard + this.lastDry * (1 - hard) }
+    this.lastDry = dry
+    let t = y
+    y = Math.max(-1, Math.min(1, y))
+    y = t * hard + ((Math.sign(y) * Math.log(1 + 255 * Math.abs(y))) / LOG256) * (1 - hard)
+    if (this.incB > 0.0005) y = Math.sign(y) * Math.ceil(Math.abs(y) / this.incB) * this.incB * (1 - this.incB)
+    t = y
+    y = Math.max(-1, Math.min(1, y))
+    y = t * hard + ((Math.sign(y) * (Math.pow(256, Math.abs(y)) - 1)) / 255) * (1 - hard)
+    this.last = dry
+    return y
+  }
+}
+const knee = (v, th) => { const a = Math.abs(v); return a <= th ? v : Math.sign(v) * (th + (1 - th) * Math.tanh((a - th) / (1 - th))) }
+const VOWELS = [[450, 800], [800, 1150], [300, 2300]] // o, a, i: F1, F2 (Hz)
+const MIRROR_NOTES = [0.5, 0.75, 1, 1.5] // beats: 1/8, 3/16, 1/4, 3/8 notes
+const hash01 = (k) => { const x = Math.sin(k * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
+class Accent { // the pad hit as an FX engages: a thump (a sine falling 160 -> 48 Hz, ~70 ms) and a click; mono
+  constructor() { this.at = -1; this.amt = 0; this.ph = 0; this.seed = 7 }
+  trigger(at, amt) { // two FX on the same step: one hit, the louder
+    if (this.at >= 0 && Math.abs(at - this.at) < 0.03) this.amt = Math.max(this.amt, amt)
+    else { this.at = at; this.amt = amt; this.ph = 0 }
+  }
+  run(now) {
+    if (this.at < 0 || now < this.at) return 0
+    const t = now - this.at
+    if (t > 0.25) { this.at = -1; return 0 }
+    this.ph += (2 * Math.PI * (48 + 112 * Math.exp(-t * 35))) / sampleRate
+    this.seed = (this.seed * 1664525 + 1013904223) >>> 0
+    const click = (this.seed / 2 ** 31 - 1) * Math.exp(-t * 900)
+    return this.amt * (0.55 * Math.sin(this.ph) * Math.exp(-t * 14) * Math.min(1, t * 2000) + 0.12 * click)
+  }
+}
+const ENGAGE = ['wob', 'gro', 'tea', 'gat', 'sub'] // the hands' bass FX: engaged on the grid with a hit
+class StemFx extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      ...['wobble', 'wobbleDepth', 'growl', 'tear', 'gate', 'pump', 'subdrop', 'worldWet', 'worldTilt'].map((n) => param(n, 0, 0, 1)),
+      param('vowel', 0.5, 0, 1), param('wobbleRate', 2, 0.25, 8), param('gateRate', 3, 0.25, 8), param('world', 0, 0, 6),
+      param('bassSemi', 0, -24, 24), param('vibrato', 0, 0, 1),
+    ]
+  }
+  constructor() {
+    super()
+    this.bpm = 120; this.anchor = 0
+    this.v = { wob: 0, dep: 0, gro: 0, vow: 0.5, tea: 0, gat: 0, pum: 0, sub: 0, wet: 0, tilt: 0, vib: 0, lfc: Math.log(2000), gEnv: 1, dly: 0, dipAt: -1e9,
+      semi: 0, dive: 0, bend: 0 }
+    this.side = [new Svf(), new Svf()]; this.wf = [new Svf(), new Svf()]; this.f1 = [new Svf(), new Svf()]; this.f2 = [new Svf(), new Svf()]
+    this.derez = [new DeRez(), new DeRez()]; this.post = [0, 0]; this.envB = [0, 0]; this.subOn = false
+    this.engOn = {}; this.engAt = {}; this.accent = new Accent()
+    this.down = [new Shifter(8192), new Shifter(8192)]; this.up = new Shifter(4096)
+    this.dip = [0, 0]; this.sum = [0, 0]; this.lo = [new Svf(), new Svf()]; this.subLp = new Svf(); this.echoHp = [new Svf(), new Svf()]
+    const n = Math.ceil(3 * sampleRate)
+    this.pp = [new Float32Array(n), new Float32Array(n)]; this.ppW = 0 // MIRROR's and SKELETON's ping-pong
+    this.gb = [new Float32Array(n), new Float32Array(n)]; this.gbW = 0; this.gStep = -1; this.gFrom = 0; this.gOn = false // GLITCH
+    this.crushHeld = [0, 0]; this.crushI = 0
+    this.port.onmessage = (e) => { if (e.data && e.data.bpm > 0) { this.bpm = e.data.bpm; this.anchor = e.data.anchor || 0 } }
+  }
+  process(inputs, outputs, p) {
+    const out = outputs[0], oL = out[0], oR = out[1] || out[0]
+    const io = (k) => { const x = inputs[k]; return x && x[0] ? [x[0], x[1] || x[0]] : null }
+    const D = io(0), B = io(1), V = io(2), O = io(3)
+    const sr = sampleRate, n = oL.length, sm = 1 - Math.exp(-1 / (0.012 * sr)), smFc = 1 - Math.exp(-1 / (0.003 * sr))
+    const smGate = 1 - Math.exp(-1 / (0.002 * sr)), smDly = 1 - Math.exp(-1 / (0.05 * sr)), beatS = 60 / this.bpm
+    const tg = (fc) => Math.tan((Math.PI * Math.min(fc, sr * 0.45)) / sr)
+    const gSplit = tg(150), gPost = 1 - Math.exp((-2 * Math.PI * 3000) / sr), g120 = tg(120), g90 = tg(90)
+    const t = { wob: p.wobble[0], dep: p.wobbleDepth[0], gro: p.growl[0], vow: p.vowel[0], tea: p.tear[0], gat: p.gate[0], pum: p.pump[0],
+      sub: p.subdrop[0], wet: p.worldWet[0], tilt: p.worldTilt[0], vib: p.vibrato[0] }
+    const smGlide = 1 - Math.exp(-1 / (0.035 * sr)), smDive = 1 - Math.exp(-1 / (0.008 * sr)), semiT = p.bassSemi[0]
+    const smA = 1 - Math.exp(-1 / (0.0015 * sr)), smR = 1 - Math.exp(-1 / (0.02 * sr)) // engaged FX: snap in, tight out
+    const relB = Math.exp(-1 / (0.15 * sr)) // the bass's peak, held ~150 ms (TEAROUT's level)
+    const rate = p.wobbleRate[0], gRate = p.gateRate[0], world = Math.round(p.world[0])
+    const v = this.v
+    // engaging from rest waits for the next 16th (the pad feel), with a hit there
+    const beatNow = (currentTime - this.anchor) / beatS, grid = this.anchor + (Math.ceil(beatNow * 4 - 1e-6) / 4) * beatS
+    for (const k of ENGAGE) {
+      const on = t[k] > (k === 'sub' ? 0.5 : 0.01)
+      if (on && !this.engOn[k]) { this.engAt[k] = grid; this.accent.trigger(grid, k === 'tea' ? 1 : 0.6) }
+      this.engOn[k] = on
+    }
+    if (t.sub >= 0.5 && !this.subOn) v.dipAt = grid // the brake dip, from the drop
+    this.subOn = t.sub >= 0.5
+    const ppN = this.pp[0].length, gbN = this.gb[0].length
+    for (let i = 0; i < n; i++) {
+      const now = currentTime + i / sr, beat = (now - this.anchor) / beatS, frac = beat - Math.floor(beat)
+      for (const k of ['dep', 'vow', 'pum', 'wet', 'tilt', 'vib']) v[k] += (t[k] - v[k]) * sm
+      for (const k of ENGAGE) { const want = now >= this.engAt[k] ? t[k] : 0; v[k] += (want - v[k]) * (want > v[k] ? smA : smR) }
+      const duck = 1 - 0.75 * v.pum * Math.exp(-frac * 5) * (1 - Math.exp(-frac * 300)) // down on the beat, back over it
+      // the rest (drums, vocals, other): under SUB DROP a brake dip (a low-pass falling to 250 Hz and back) and a duck
+      const dipK = v.sub > 0.01 ? Math.exp(-(now - v.dipAt) / 0.3) : 0
+      const dipA = 1 - Math.exp((-2 * Math.PI * 20000 * Math.pow(250 / 20000, dipK)) / sr)
+      const rest = 1 - 0.3 * v.sub
+      const d = [D ? D[0][i] : 0, D ? D[1][i] : 0], vo = [V ? V[0][i] * duck : 0, V ? V[1][i] * duck : 0], ot = [O ? O[0][i] * duck : 0, O ? O[1][i] * duck : 0]
+      let b = [0, 0]
+      if (B) {
+        // mono below 150 Hz: the side high-passed there (4th order); a mono bass passes untouched
+        const mid = 0.5 * (B[0][i] + B[1][i])
+        this.side[0].run(0.5 * (B[0][i] - B[1][i]), gSplit, 1.414)
+        this.side[1].run(this.side[0].hp, gSplit, 1.414)
+        b = [mid + this.side[1].hp, mid - this.side[1].hp]
+        // wobble: the cutoff swept between 45 Hz and 200 + 6000 x depth on the beat's LFO, eased in the log domain
+        const lfo = 0.5 - 0.5 * Math.cos(2 * Math.PI * beat * rate)
+        const lo = Math.log(45), hi = Math.log(200 + 6000 * v.dep)
+        v.lfc += (lo + (hi - lo) * lfo - v.lfc) * smFc
+        const gW = tg(Math.exp(v.lfc)), kW = 1 / (0.707 + 8 * v.dep) // Q at most 8.7
+        const x = v.vow * 2, j = Math.min(1, Math.floor(x)), u = x - j
+        const g1 = tg(VOWELS[j][0] + (VOWELS[j + 1][0] - VOWELS[j][0]) * u), g2 = tg(VOWELS[j][1] + (VOWELS[j + 1][1] - VOWELS[j][1]) * u)
+        v.gEnv += (((beat * gRate) % 1 < 0.5 ? 1 : 0) - v.gEnv) * smGate // RIDDIM: half open, hard edges
+        // TEAROUT (DeRez2's settings): the rate held down to ~1/11, the bits to ~3 (mu-law) at full
+        const rA = Math.min(1, Math.pow(1 - 0.55 * v.tea, 3) + 0.0005), soften = (1 + rA) / 2, tA = rA / (sr / 44100)
+        const tB = Math.pow(0.9 * v.tea, 3) / 3
+        // the bass's pitch: SUB DROP's octave dive, the 808 slide and the shake's vibrato, through one shifter
+        v.semi += (semiT - v.semi) * smGlide
+        v.dive += ((t.sub >= 0.5 && now >= this.engAt.sub ? 1 : 0) - v.dive) * smDive
+        const semis = v.semi + v.vib * Math.sin(2 * Math.PI * 6 * now) - 12 * v.dive
+        const bendT = Math.min(1, Math.abs(semis) / 0.3)
+        v.bend += (bendT - v.bend) * (bendT > v.bend ? smA : sm) // at 0 semitones the dry bass, not the shifter's
+        const ratio = Math.pow(2, semis / 12)
+        for (let c = 0; c < 2; c++) {
+          let s = b[c]
+          const shifted = this.down[c].run(s, ratio, 2048) // always fed, so it never starts stale
+          s += (shifted - s) * v.bend
+          this.wf[c].run(s, gW, kW)
+          s += (knee(this.wf[c].lp, 0.7) - s) * v.wob
+          this.f1[c].run(s, g1, 0.2); this.f2[c].run(s, g2, 0.2)
+          s += (2 * 0.2 * (this.f1[c].bp + 0.8 * this.f2[c].bp) - s) * v.gro
+          const pk = Math.abs(s)
+          this.envB[c] = pk > this.envB[c] ? pk : this.envB[c] * relB
+          if (v.tea > 0.001) this.post[c] += (this.derez[c].run(density(s * (1 + 8 * v.tea), 1.5 + 2.5 * v.tea), tA, soften, tB, 0.5) - this.post[c]) * gPost
+          // the driven bass (near full scale out of Density) brought to the dry bass's own peak and mostly in its place:
+          // denser, so louder, at the same peak (the mix's peaks and the limiter unmoved); some clean low end under it
+          s += (1.1 * this.envB[c] * this.post[c] - s) * 0.8 * v.tea
+          s *= 1 - v.gat * (1 - v.gEnv)
+          s += (knee(s, 0.7) - s) * Math.max(v.wob, v.gro, v.tea, v.bend)
+          b[c] = s * duck
+        }
+      }
+      const hit = this.accent.run(now)
+      const dry = [0, 0]
+      for (let c = 0; c < 2; c++) {
+        const r = d[c] + vo[c] + ot[c]
+        this.dip[c] += (r - this.dip[c]) * dipA
+        dry[c] = (v.sub > 0.01 ? r + (this.dip[c] * rest - r) * v.sub : r) + b[c]
+      }
+      let y = dry
+      if (world && v.wet > 0.001) {
+        let w = dry
+        if (world === 1) { // HEAT
+          const drive = 1.5 + 5 * v.tilt, a = 1 - Math.exp((-2 * Math.PI * 8000 * Math.pow(0.35, v.tilt)) / sr)
+          this.subLp.run(0.5 * (b[0] + b[1]), g90, 1.414)
+          w = dry.map((s, c) => { this.sum[c] += (Math.tanh(s * drive) / Math.tanh(drive) - this.sum[c]) * a; return this.sum[c] + (0.6 + 0.6 * v.tilt) * this.subLp.lp })
+        } else if (world === 2 || world === 5) { // SKELETON (the drums and the sub, dub echoes) / MIRROR (ping-pong)
+          let src = dry
+          if (world === 2) {
+            this.subLp.run(0.5 * (b[0] + b[1]), g120, 1.414)
+            src = [d[0] + this.subLp.lp, d[1] + this.subLp.lp]
+          }
+          const want = (world === 5 ? MIRROR_NOTES[Math.min(3, Math.floor(v.tilt * 4))] : 0.75) * beatS * sr
+          v.dly += (Math.min(ppN - 2, want) - v.dly) * smDly
+          let ri = this.ppW - v.dly
+          if (ri < 0) ri += ppN
+          const i0 = Math.floor(ri), f = ri - i0, rd = (buf) => buf[i0] + (buf[(i0 + 1) % ppN] - buf[i0]) * f
+          const eL = rd(this.pp[0]), eR = rd(this.pp[1])
+          const fb = world === 5 ? 0.55 : 0.35 + 0.5 * v.tilt
+          // the echoes high-passed at 150 Hz (the lows stay mono), each side feeding the other
+          this.echoHp[0].run(eL, gSplit, 1.414); this.echoHp[1].run(eR, gSplit, 1.414)
+          this.pp[0][this.ppW] = 0.5 * (src[0] + src[1]) * (world === 2 ? 0.6 : 0.8) + this.echoHp[1].hp * fb
+          this.pp[1][this.ppW] = this.echoHp[0].hp * fb
+          this.ppW = (this.ppW + 1) % ppN
+          w = [src[0] + 0.8 * this.echoHp[0].hp, src[1] + 0.8 * this.echoHp[1].hp]
+        } else if (world === 3) { // 8-BIT above 120 Hz
+          const levels = Math.pow(2, 8 - 5 * v.tilt), hold = 2 + Math.floor(10 * v.tilt)
+          if (++this.crushI >= hold) this.crushI = 0
+          w = dry.map((s, c) => {
+            this.lo[c].run(s, g120, 1.414)
+            const hiPart = s - this.lo[c].lp
+            if (this.crushI === 0) this.crushHeld[c] = Math.round(hiPart * levels) / levels
+            return this.lo[c].lp + this.crushHeld[c]
+          })
+        } else if (world === 4) { // SHIMMER: the synths and vocals an octave up, on top
+          const sh = this.up.run(0.5 * (vo[0] + vo[1] + ot[0] + ot[1]), 2, 1024) * (0.6 + 1.2 * v.tilt)
+          w = [dry[0] + sh, dry[1] + sh]
+        } else if (world === 6) { // GLITCH: some 16ths repeat their first 1/32, on the grid
+          this.gb[0][this.gbW] = dry[0]; this.gb[1][this.gbW] = dry[1]
+          const step = Math.floor(beat * 4)
+          if (step !== this.gStep) {
+            this.gStep = step
+            this.gOn = hash01(step) < 0.25 + 0.6 * v.tilt
+            this.gFrom = this.gbW
+          }
+          if (this.gOn) {
+            const slice = Math.max(64, Math.round(beatS * sr / 8))
+            let age = this.gbW - this.gFrom
+            if (age < 0) age += gbN
+            const ri = (this.gFrom + (age % slice)) % gbN, edge = Math.min(1, (age % slice) / 48, (slice - (age % slice)) / 48)
+            w = [this.gb[0][ri] * edge + dry[0] * (1 - edge), this.gb[1][ri] * edge + dry[1] * (1 - edge)]
+          }
+          this.gbW = (this.gbW + 1) % gbN
+        }
+        y = [dry[0] + (w[0] - dry[0]) * v.wet, dry[1] + (w[1] - dry[1]) * v.wet]
+      }
+      oL[i] = knee(y[0] + hit, 0.95)
+      if (oR !== oL) oR[i] = knee(y[1] + hit, 0.95)
+    }
+    return true
+  }
+}
+registerProcessor('fvwks-stemfx', StemFx)
+
+
+// ---------------------------------------------------------------------------------------------------------- moves
+// STRINGS' big moves on the whole song (before the song FX chain), slip: the song runs on underneath (a history of its
+// last 8 s) and letting go comes back in time. Locked to the beat ({bpm, anchor}). Each a straight pass at 0.
+//   halftime     the classic switch-up: each 2-beat window plays its first beat at half speed, pitch kept (granular)
+//   buildroll    a beat repeat from the next 16th, its slice halving each beat held (1/4 to 1/32), a high-pass rising
+//                and a noise riser on top; letting go slams straight back in
+//   octave       the whole song an octave down (granular)
+//   rewind       on the rise: a spin-back (the last moments backwards, fast and slowing), then back in
+//   reverse      on the rise: the next beat plays the one before it backwards
+//   brake        a vinyl stop: the song slowing from speed 1 to a standstill over 2 beats; letting go drops back in live
+// HALFTIME and BUILD ROLL start with a pad hit on their 16th.
+// The moves' own sound has its lows mono below 150 Hz; the sum soft-clips.
+class Moves extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return ['halftime', 'buildroll', 'octave', 'rewind', 'reverse', 'brake'].map((n) => param(n, 0, 0, 1))
+  }
+  constructor() {
+    super()
+    this.bpm = 120; this.anchor = 0
+    this.N = Math.ceil(8 * sampleRate)
+    this.h = [new Float32Array(this.N), new Float32Array(this.N)]; this.w = 0; this.abs = 0 // history; abs: samples written
+    this.on = { halftime: false, buildroll: false, rewind: false, reverse: false, brake: false }
+    this.htFrom = 0; this.rollFrom = 0; this.rwAt = -1; this.rwPos = 0; this.revFrom = -1; this.revAt = 0
+    this.mix = { ht: 0, roll: 0, oct: 0, br: 0 }; this.brAt = 0; this.brPos = 0
+    this.accent = new Accent()
+    this.oct = [new Shifter(8192), new Shifter(8192)]; this.hp = [new Svf(), new Svf()]; this.nz = new Svf(); this.side = [new Svf(), new Svf()]
+    this.seed = 1
+    this.port.onmessage = (e) => { if (e.data && e.data.bpm > 0) { this.bpm = e.data.bpm; this.anchor = e.data.anchor || 0 } }
+  }
+  at(c, absPos) { // the history at an absolute sample position (fractional), 0 outside it
+    const back = this.abs - absPos
+    if (back < 1 || back >= this.N - 2) return 0
+    let r = this.w - back
+    if (r < 0) r += this.N
+    const i0 = Math.floor(r), f = r - i0, b = this.h[c]
+    return b[i0] + (b[(i0 + 1) % this.N] - b[i0]) * f
+  }
+  nextGrid(div) { // the absolute sample of the next 1/div-of-a-beat step
+    const beatN = (60 / this.bpm) * sampleRate, now = currentTime
+    const beat = (now - this.anchor) * (this.bpm / 60), step = Math.ceil(beat * div - 1e-6) / div
+    return this.abs + Math.max(0, (step - beat) * beatN)
+  }
+  process(inputs, outputs, p) {
+    const inp = inputs[0], out = outputs[0], oL = out[0], oR = out[1] || out[0]
+    const L = inp && inp[0], R = inp && (inp[1] || inp[0])
+    const sr = sampleRate, n = oL.length, beatN = (60 / this.bpm) * sr
+    const sm = 1 - Math.exp(-1 / (0.006 * sr)), slam = 1 - Math.exp(-1 / (0.002 * sr))
+    const tg = (fc) => Math.tan((Math.PI * Math.min(fc, sr * 0.45)) / sr), gSplit = tg(150)
+    const rise = (k) => p[k][0] >= 0.5 && !this.on[k]
+    const at = (abs) => currentTime + (abs - this.abs) / sampleRate
+    if (rise('halftime')) { this.htFrom = this.nextGrid(4); this.accent.trigger(at(this.htFrom), 0.6) }
+    if (rise('buildroll')) { this.rollFrom = this.nextGrid(4); this.accent.trigger(at(this.rollFrom), 0.6) }
+    if (rise('rewind')) { this.rwAt = this.abs; this.rwPos = this.abs }
+    if (rise('reverse')) { this.revAt = this.nextGrid(1); this.revFrom = this.revAt }
+    if (rise('brake')) { this.brAt = this.abs; this.brPos = this.abs - 1 }
+    for (const k of Object.keys(this.on)) this.on[k] = p[k][0] >= 0.5
+    const want = { ht: this.on.halftime ? 1 : 0, roll: this.on.buildroll ? 1 : 0, oct: p.octave[0] >= 0.5 ? 1 : 0 }
+    const G = Math.round(0.06 * sr) // halftime's grains
+    for (let i = 0; i < n; i++) {
+      const x = [L ? L[i] : 0, R ? R[i] : 0]
+      this.h[0][this.w] = x[0]; this.h[1][this.w] = x[1]
+      this.w = (this.w + 1) % this.N; this.abs++
+      const t = this.abs
+      const m = this.mix
+      m.ht += (want.ht - m.ht) * sm
+      m.oct += (want.oct - m.oct) * sm
+      m.roll += (want.roll - m.roll) * (want.roll ? sm : slam) // letting go slams back
+      m.br += ((this.on.brake ? 1 : 0) - m.br) * (this.on.brake ? sm : slam)
+      let y = [x[0], x[1]], moved = 0
+      // HALFTIME: 2-beat windows from the grid; in each, the source runs at half speed, read in 60 ms grains at speed 1
+      if (m.ht > 0.0005 && t >= this.htFrom) {
+        const win = 2 * beatN, w0 = this.htFrom + Math.floor((t - this.htFrom) / win) * win
+        const ph = ((t - w0) / G) % 1
+        const ht = [0, 0]
+        for (let k = 0; k < 2; k++) {
+          const p0 = (ph + k * 0.5) % 1, grainAt = t - p0 * G, from = w0 + (grainAt - w0) / 2 - G, g = Math.sin(Math.PI * p0)
+          for (let c = 0; c < 2; c++) ht[c] += this.at(c, from + p0 * G) * g * g
+        }
+        y = y.map((v, c) => v + (ht[c] - v) * m.ht); moved = Math.max(moved, m.ht)
+      }
+      // BUILD ROLL: from rollFrom the first beat plays (recorded as it goes); each beat after repeats its start, the slice
+      // halving every beat (1/2, 1/4, 1/8 of a beat: to 1/32 notes)
+      if (m.roll > 0.0005 && t >= this.rollFrom) {
+        const held = (t - this.rollFrom) / beatN, seg = Math.floor(held)
+        const hpHz = 30 * Math.pow(40, Math.min(1, held / 4)) // a high-pass from 30 Hz to 1.2 kHz over 4 beats
+        this.seed = (this.seed * 1664525 + 1013904223) >>> 0
+        this.nz.run(this.seed / 2 ** 31 - 1, tg(500 * Math.pow(16, Math.min(1, held / 4))), 0.5) // the riser's noise, rising
+        const riser = 0.12 * Math.min(1, held / 4) * this.nz.bp
+        let rep = x
+        if (seg >= 1) {
+          const slice = Math.max(beatN / 8, beatN / Math.pow(2, seg)), a = (t - (this.rollFrom + seg * beatN)) % slice
+          const env = Math.min(1, a / (0.002 * sr), (slice - a) / (0.002 * sr))
+          rep = [this.at(0, this.rollFrom + a) * env, this.at(1, this.rollFrom + a) * env]
+        }
+        const gH = tg(hpHz)
+        const r = [0, 1].map((c) => { this.hp[c].run(rep[c], gH, 0.9); return this.hp[c].hp + riser })
+        y = y.map((v, c) => v + (r[c] - v) * m.roll); moved = Math.max(moved, m.roll)
+      }
+      // OCTAVE: the whole song an octave down
+      const od = [this.oct[0].run(y[0], 0.5, 2048), this.oct[1].run(y[1], 0.5, 2048)]
+      if (m.oct > 0.0005) { y = y.map((v, c) => v + (od[c] - v) * m.oct); moved = Math.max(moved, m.oct) }
+      // REWIND: the last moments backwards, 4x and slowing to a stop over 1 s, then back in
+      if (this.rwAt >= 0) {
+        const tau = (t - this.rwAt) / sr
+        if (tau < 1.05) {
+          const speed = 4 * Math.pow(Math.max(0, 1 - tau), 2)
+          this.rwPos -= speed
+          const env = Math.min(1, tau / 0.01, (1.05 - tau) / 0.05)
+          y = y.map((v, c) => v + (this.at(c, this.rwPos) - v) * env); moved = Math.max(moved, env)
+        } else this.rwAt = -1
+      }
+      // REVERSE: from the next beat, the beat before it backwards, for one beat
+      if (this.revFrom >= 0 && t >= this.revAt) {
+        const age = t - this.revAt
+        if (age < beatN) {
+          const env = Math.min(1, age / (0.003 * sr), (beatN - age) / (0.003 * sr))
+          y = y.map((v, c) => v + (this.at(c, this.revAt - age) - v) * env); moved = Math.max(moved, env)
+        } else this.revFrom = -1
+      }
+      // BRAKE: the read point slowing to a stop over 2 beats, fading as it stops
+      if (m.br > 0.0005) {
+        const speed = Math.max(0, 1 - (t - this.brAt) / (2 * beatN))
+        if (this.on.brake) this.brPos += speed
+        const env = Math.min(1, 4 * speed)
+        y = y.map((v, c) => v + (this.at(c, this.brPos) * env - v) * m.br); moved = Math.max(moved, m.br)
+      }
+      const hit = this.accent.run(currentTime + i / sr)
+      if (hit) { y = [y[0] + hit, y[1] + hit]; moved = Math.max(moved, 0.001) }
+      if (moved > 0.0005) { // the moves' lows mono below 150 Hz
+        this.side[0].run(0.5 * (y[0] - y[1]), gSplit, 1.414); this.side[1].run(this.side[0].hp, gSplit, 1.414)
+        const mid = 0.5 * (y[0] + y[1]), sideV = 0.5 * (y[0] - y[1]), keep = sideV + (this.side[1].hp - sideV) * moved
+        y = [mid + keep, mid - keep]
+      }
+      oL[i] = knee(y[0], 0.95)
+      if (oR !== oL) oR[i] = knee(y[1], 0.95)
+    }
+    return true
+  }
+}
+registerProcessor('fvwks-moves', Moves)
+
+// ------------------------------------------------------------------------------------------------------------ iso
+// STRINGS' FINGER FILTERS: a DJ isolator on the whole song, five bands (SUB < 60 Hz, LOW 60-250, MID 250-1k, HIGH-MID
+// 1-4k, HIGH > 4k), each cut by its finger's fold (cutSub … cutHigh: 0 open, 1 killed; settled in ~15 ms). 4th-order
+// Linkwitz-Riley crossovers, the lower bands through the higher splits' allpasses, so the five open sum flat: the
+// input's magnitude exactly, its phase turned at the crossovers (as any LR isolator). `iso` (on at 0.5) fades it in
+// from the plain input over 50 ms (STRINGS turns it on while it shows; off it's the input itself). A band closing rings
+// a little at its centre (a filter's sweep, not a fader's); one killed (past 0.85) for a moment (250 ms: not a finger
+// passing on its way into a shape) and raised (under 0.5) lands with a pad hit on the next 16th.
+const ISO_HZ = [60, 250, 1000, 4000], ISO_MID = [40, 122, 500, 2000, 8000], ISO_CUTS = ['cutSub', 'cutLow', 'cutMid', 'cutHiMid', 'cutHigh']
+class Iso extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return ['iso', ...ISO_CUTS].map((n) => param(n, 0, 0, 1))
+  }
+  constructor() {
+    super()
+    this.bpm = 120; this.anchor = 0
+    const svfs = (n) => Array.from({ length: n }, () => new Svf())
+    // per channel: each split's first stage (its lp and hp), its second lp and hp, the allpasses, the rings
+    this.ch = [0, 1].map(() => ({ a: svfs(4), lp: svfs(4), hp: svfs(4), ap: svfs(6), ring: svfs(5) }))
+    this.cut = [0, 0, 0, 0, 0]; this.on = 0; this.killedAt = [-1, -1, -1, -1, -1]; this.accent = new Accent()
+    this.port.onmessage = (e) => { if (e.data && e.data.bpm > 0) { this.bpm = e.data.bpm; this.anchor = e.data.anchor || 0 } }
+  }
+  process(inputs, outputs, p) {
+    const inp = inputs[0], out = outputs[0], oL = out[0], oR = out[1] || out[0]
+    const L = inp && inp[0], R = inp && (inp[1] || inp[0])
+    const sr = sampleRate, n = oL.length, K = Math.SQRT2
+    const onT = p.iso[0] >= 0.5 ? 1 : 0
+    if (!onT && this.on === 0) { // off: the input itself
+      for (let i = 0; i < n; i++) { oL[i] = L ? L[i] : 0; if (oR !== oL) oR[i] = R ? R[i] : 0 }
+      return true
+    }
+    const tg = (fc) => Math.tan((Math.PI * Math.min(fc, sr * 0.45)) / sr), gX = ISO_HZ.map(tg), gRing = ISO_MID.map(tg)
+    const smCut = 1 - Math.exp(-1 / (0.006 * sr)), smOn = 1 - Math.exp(-1 / (0.05 * sr))
+    const cutT = ISO_CUTS.map((k) => p[k][0])
+    const beatS = 60 / this.bpm, beatNow = (currentTime - this.anchor) / beatS, grid = this.anchor + (Math.ceil(beatNow * 4 - 1e-6) / 4) * beatS
+    for (let k = 0; k < 5; k++) {
+      if (cutT[k] > 0.85) { if (this.killedAt[k] < 0) this.killedAt[k] = currentTime }
+      else if (this.killedAt[k] >= 0 && cutT[k] < 0.5) {
+        if (currentTime - this.killedAt[k] >= 0.25) this.accent.trigger(grid, 0.6)
+        this.killedAt[k] = -1
+      }
+    }
+    const bands = [0, 0, 0, 0, 0]
+    for (let i = 0; i < n; i++) {
+      this.on += (onT - this.on) * smOn
+      if (!onT && this.on < 1e-5) this.on = 0
+      for (let k = 0; k < 5; k++) {
+        this.cut[k] += (cutT[k] - this.cut[k]) * smCut
+        if (cutT[k] === 0 && this.cut[k] < 1e-5) this.cut[k] = 0
+      }
+      const hit = this.accent.run(currentTime + i / sr)
+      for (let c = 0; c < 2; c++) {
+        const s = this.ch[c], x = c ? (R ? R[i] : 0) : (L ? L[i] : 0)
+        let rest = x
+        for (let k = 0; k < 4; k++) { // LR4: Butterworth twice, the low side and the high
+          s.a[k].run(rest, gX[k], K)
+          s.lp[k].run(s.a[k].lp, gX[k], K); s.hp[k].run(s.a[k].hp, gX[k], K)
+          bands[k] = s.lp[k].lp; rest = s.hp[k].hp
+        }
+        bands[4] = rest
+        // the lower bands through the higher splits' allpasses (LR4's sum: a 2nd-order allpass, x - 2k bp): flat summed
+        let j = 0
+        for (let b = 0; b < 3; b++) for (let k = b + 1; k < 4; k++) { const ap = s.ap[j++]; ap.run(bands[b], gX[k], K); bands[b] -= 2 * K * ap.bp }
+        let v = 0
+        for (let k = 0; k < 5; k++) {
+          v += bands[k] * (1 - this.cut[k])
+          s.ring[k].run(x, gRing[k], 0.5)
+          const r = 0.4 * this.cut[k] * (1 - this.cut[k]) // rings most half-closed, none open or killed
+          if (r > 0) v += r * s.ring[k].bp
+        }
+        const y = x + (v - x) * this.on + hit
+        if (c) { if (oR !== oL) oR[i] = y } else oL[i] = y
+      }
+    }
+    return true
+  }
+}
+registerProcessor('fvwks-iso', Iso)

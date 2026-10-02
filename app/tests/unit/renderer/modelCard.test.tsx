@@ -54,6 +54,18 @@ function renderCard(diskFree: number | null, props: { model?: ModelInfo; compact
   )
 }
 
+describe("Demucs' weights' terms (1.5.5)", () => {
+  it("say so before the download, on the card and on the tile, and the engine's plain MIT never shows for them", () => {
+    const stems = { ...model, id: 'stems-htdemucs', name: 'HT-Demucs stem splitter', license: 'MIT', size_bytes: 84_000_000 }
+    renderCard(50e9, { model: stems })
+    expect(screen.getByText(/Meta provides the trained weights for scientific purposes only/)).toBeInTheDocument()
+    expect(screen.queryByText(/ MIT\. Runs locally/)).toBeNull()
+    cleanup()
+    renderCard(50e9, { model: stems, compact: true })
+    expect(screen.getByText(/By downloading, you accept Meta's terms/)).toBeInTheDocument()
+  })
+})
+
 const aligner: ModelInfo = {
   id: WHISPER_ALIGNER,
   name: 'Recording transcription',

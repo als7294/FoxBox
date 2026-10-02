@@ -17,7 +17,7 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) (v3) | Denoising recorded takes (weights) | MIT / Apache-2.0 |
 | [Whisper](https://github.com/openai/whisper) large-v3-turbo (MLX build) | Transcribing recordings (weights) | MIT |
 | [Qwen3-ForcedAligner-0.6B](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) | Word timings for recordings (weights) | Apache-2.0 |
-| [Demucs](https://github.com/facebookresearch/demucs) HT-Demucs (Meta), MLX fp16 build [mlx-community/demucs-mlx-fp16](https://huggingface.co/mlx-community/demucs-mlx-fp16) | Optional stem separation for VISUALS (weights) | MIT |
+| [Demucs](https://github.com/facebookresearch/demucs) HT-Demucs (Meta), MLX fp16 build [mlx-community/demucs-mlx-fp16](https://huggingface.co/mlx-community/demucs-mlx-fp16) | Optional stem separation for VISUALS and STRINGS (weights) | **Weights: not MIT.** Meta provides the trained weights for scientific purposes only ([facebookresearch/demucs#327](https://github.com/facebookresearch/demucs/issues/327)); the MIT tag on the MLX conversion doesn't change that. FoxBox doesn't ship them: the user downloads them from Hugging Face, and the download says so. The Demucs code is MIT. |
 | [demucs-mlx](https://pypi.org/project/demucs-mlx/) model code · [mlx-spectro](https://pypi.org/project/mlx-spectro/), vendored in `fvwks_voice/stems` | Runs HT-Demucs on Apple Silicon | MIT |
 
 ## Sound
@@ -64,6 +64,7 @@ bundled: the app downloads them at first run or on request, under each model's o
 | Project | Use | License |
 |---|---|---|
 | [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (Geraint Luff / Signalsmith Audio) | LIVE: real-time pitch and formant shift (vendored in `audio/live/vendor`) | MIT |
+| [Airwindows](https://github.com/airwindows/airwindows) Density and DeRez2 (Chris Johnson) | STRINGS' TEAROUT: the drive and the rate and bit crush, ported to JavaScript in `audio/live/worklets/live-processors.js` | MIT |
 | [three.js](https://github.com/mrdoob/three.js) | FOXBOX visual styles (WebGL) | MIT |
 | [postprocessing](https://github.com/pmndrs/postprocessing) | The stage's bloom, grain and vignette | Zlib |
 | [troika-three-text](https://github.com/protectwise/troika) · troika-three-utils · troika-worker-utils · webgl-sdf-generator (Jason Johnston / ProtectWise) | TEXT family: sharp GPU text before the drop | MIT |

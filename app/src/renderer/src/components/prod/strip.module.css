@@ -34,6 +34,26 @@
 .play:hover {
   border-color: rgba(var(--vb-ink-rgb), 0.45);
 }
+.music[data-over] {
+  border-color: var(--vb-amber); /* 1.5.5: a song file dragged over: drop to load it */
+}
+.load {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: 3px;
+  background: var(--vb-well);
+  color: var(--vb-ink);
+  font: 700 11px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
+.load:hover:not(:disabled) {
+  border-color: var(--vb-amber);
+}
+.load:disabled {
+  opacity: 0.45;
+}
 .track {
   display: flex;
   flex-direction: column;
@@ -55,35 +75,50 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.section {
+.timeline {
+  /* 1.5.5, STRINGS' SECTION TIMELINE: the sections as chips over the mini waveform */
+  flex: 3 1 220px;
+  min-width: 140px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  flex: 1 1 140px;
-  min-width: 90px;
-  max-width: 260px;
+  gap: 4px;
 }
-.secLine {
+.secChips {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 15px;
-  font: 700 11px/1 var(--vb-font-mono);
-  letter-spacing: 0.1em;
+  gap: 2px;
+  min-height: 17px;
 }
-.secChip {
-  padding: 2px 5px;
+.secBtn {
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
   border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.06);
+  box-shadow: inset 0 -2px 0 var(--c);
+  color: var(--vb-dim);
+  font: 700 10px/1.2 var(--vb-font-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.secBtn:hover,
+.secBtn:focus-visible {
+  color: var(--vb-ink);
+}
+.secBtn[data-on] {
+  background: var(--c);
   color: var(--vb-well);
 }
-.next {
-  color: var(--vb-dim);
-  white-space: nowrap;
-}
-.map {
+.wave {
   display: block;
   width: 100%;
-  height: 8px;
+  height: 22px;
+  border-radius: 2px;
+  background: rgba(var(--vb-ink-rgb), 0.04);
+  cursor: pointer;
+  touch-action: none;
 }
 .meters {
   display: flex;

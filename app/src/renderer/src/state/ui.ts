@@ -3,19 +3,19 @@ import { reducedMotion } from '@/visuals/motion'
 
 export type Screen = 'studio' | 'vault' | 'prod' | 'voices' | 'settings' | 'live' | 'masks' | 'remix'
 
-/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes); `demo`: the ice DEMO badge
- *  (PROD: TouchDesigner's free licence). Numbered in rail order. */
-export const SCREENS: { id: Screen; label: string; code: string; wip?: string; demo?: boolean }[] = (
+/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes); `new`: the amber NEW badge.
+ *  Numbered in rail order. The 'prod' screen is STRINGS (1.5.5: the camera and the strings; 1.5.2–1.5.4 TouchDesigner). */
+export const SCREENS: { id: Screen; label: string; code: string; wip?: string; new?: boolean }[] = (
   [
     { id: 'studio', label: 'STUDIO' },
     { id: 'live', label: 'VISUALS' },
     { id: 'masks', label: 'MASKS' },
     { id: 'remix', label: 'REMIX', wip: 'Remix: in the works' },
     { id: 'vault', label: 'VAULT' },
-    { id: 'prod', label: 'PROD', demo: true },
+    { id: 'prod', label: 'STRINGS', new: true },
     { id: 'voices', label: 'VOICES' },
     { id: 'settings', label: 'SETTINGS' },
-  ] as { id: Screen; label: string; wip?: string; demo?: boolean }[]
+  ] as { id: Screen; label: string; wip?: string; new?: boolean }[]
 ).map((n, i) => ({ ...n, code: String(i + 1).padStart(2, '0') }))
 
 export interface Wipe {

@@ -14,6 +14,7 @@
  */
 import type { AudioFrame } from '@/visuals/live/registry'
 import { StrokeShapes, type Drawn } from './drawnShapes'
+import { FxShapes, type FxSignals } from './fxShapes'
 import { HandGestures, type HandGestureEvent, type Rect as PullRect } from './handGestures'
 import {
   autoFrame,
@@ -36,6 +37,7 @@ import {
   type HandShapes,
   type HandSignal,
   type HeadPose,
+  type BodyPt,
   type Pt,
 } from './camMath'
 import { coverCrop, mapBox, maskRegion, type FaceMask, type MaskReact, type Rect } from './compose'
@@ -87,6 +89,27 @@ export interface CameraSignals {
   gesture: HandGestureEvent | null
   /** The window being pulled open with both hands pinched (0-1 of the camera frame, y down, top-left), or null. */
   pull: PullRect | null
+  /** The hands' 21 points (shapes' left / right slots) and the pose in the drawn frame's 0-1 space (unclamped: off the
+   *  picture past 0 or 1), so a layer drawn over this camera lands on the fingers (PROD's STRINGS). */
+  stage: StageHands
+  /** STRINGS' BEAT FX: each hand's held shape (FIST, PEACE, PINCH, OPEN PALM, HORNS, POINT UP / DOWN), its height and
+   *  across (0-1 of the picture), and the spread between the hands (fxShapes.ts). null: no hands. */
+  fxShapes: FxSignals['hands']
+  spread: number
+  /** The strings the two hands hold (SPEC v1.1): their stretch 0-1, their angle -1..1 (±45°, clockwise +), a 3-7 Hz
+   *  tremble 0-1 (fxShapes.ts). */
+  tension: number
+  tilt: number
+  shake: number
+  /** FINGER FILTERS: each hand's fingers' curls [thumb … pinky] 0 straight … 1 folded, and STRINGS MODE (fxShapes.ts). */
+  fingers: FxSignals['fingers']
+  stringsMode: boolean
+}
+
+export interface StageHands {
+  left: Pt[] | null
+  right: Pt[] | null
+  body: BodyPt[] | null
 }
 
 export interface DrawOptions {
@@ -107,6 +130,10 @@ export interface DrawOptions {
   body?: boolean
   /** The person matte every Nth worker frame (default 2; TouchDesigner's presets are fine at 3, about 10 Hz). */
   matteEvery?: number
+  /** An instrument played with the hands (PROD's STRINGS): the hands every frame (the camera's rate), the body and the
+   *  matte one frame in four (the shoulders now and then); the face too, but only while no face is hidden (`body`, or
+   *  hideFaces off): a hidden face is tracked every frame. */
+  handsFirst?: boolean
   /**
    * 1.5.2, VISUALS' FACE ENCRYPTION switch: false shows the faces (tracking, nearMask and the signals still run).
    * Default true; only the VISUALS camera base passes it, from cameraStore's hideFaces (never saved: every launch
@@ -126,6 +153,9 @@ export interface SmartCamera {
   /** The models' latest results, raw (0-1 of the whole camera frame, whatever the draw showed): the faces' 478 points,
    *  the body's 13 keypoints, the person matte. For a consumer outside the draw (TouchDesigner's landmarks). */
   seen(): Seen
+  /** The tracker: each model's delegate (GPU, or CPU when the worker's WebGL2 failed) and its dark-room brightening
+   *  (1 none, up to 2.2). For STRINGS' diagnostics. */
+  tracker(): { delegates: Record<string, string>; gain: number }
   dispose(): void
 }
 
@@ -134,12 +164,14 @@ export const MASK_DOWN = 4
 const HIDE_AFTER_ERROR_MS = 600
 const MAX_ERRORS = 8
 
-const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false, shapes: handShapes([], 0), drawn: null, gesture: null, pull: null }
+const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false, shapes: handShapes([], 0), drawn: null, gesture: null, pull: null, stage: { left: null, right: null, body: null }, fxShapes: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false }
 let latest: CameraSignals = NO_SIGNALS
 const live = new Set<SmartCamera>()
 
 /** The latest signals from the camera that's running (for effects and the director), or all-quiet. */
 export const cameraSignals = (): CameraSignals => latest
+/** Dev only (the web mock's scripted hands, STRINGS' ?strings-hands=1): stand in for the camera's signals. */
+export const mockSignals = (s: Partial<CameraSignals>): void => void (import.meta.env.DEV && (latest = { ...latest, ...s }))
 let latestNear: NearMask | null = null
 /** The running camera's near mask, or null when there's no camera or nothing is near (S4's compositor pass-through). */
 export const currentNearMask = (): NearMask | null => (latestNear && latestNear.level >= 0.02 ? latestNear : null)
@@ -293,6 +325,8 @@ export function createSmartCamera(): SmartCamera {
   let shapedFrom: Seen['hands'] | null = null
   const strokes = new StrokeShapes()
   const gestures = new HandGestures()
+  const fx = new FxShapes()
+  let fxNow: FxSignals = { hands: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false }
 
   /** Each presented camera frame's capture time (the camera's clock where it gives one, else when it was shown). */
   const watch = (video: HTMLVideoElement) => {
@@ -346,7 +380,7 @@ export function createSmartCamera(): SmartCamera {
     const vh = video.videoHeight
     // A lost face is looked for round the body's head (0-1 of the frame).
     const hint = head && head.score >= 0.5 ? { x: head.box.x / vw, y: head.box.y / vh, w: head.box.w / vw, h: head.box.h / vh } : null
-    seen = vision.run(video, now, frameAt, hint, o.people, o.body, o.matteEvery)
+    seen = vision.run(video, now, frameAt, hint, o.people, o.body, o.matteEvery, o.handsFirst, !!o.handsFirst && (!!o.body || o.hideFaces === false))
     head = headFromPose(seen.body, vw, vh)
     smooth()
     followDetector(vw, vh)
@@ -678,12 +712,14 @@ export function createSmartCamera(): SmartCamera {
 
     if (seen.hands !== shapedFrom) {
       shapedFrom = seen.hands
-      shapes = handShapes(seen.hands, now, shapes, vw / vh)
+      shapes = handShapes(seen.hands, now, shapes, vw / vh, seen.body)
+      fxNow = fx.step(shapes, now, vw / vh)
       strokes.step(shapes, now, vw / vh)
       gestures.step(shapes, now)
     }
     // Signals, in the drawn frame's 0-1 space.
     const toFrame = (x: number, y: number) => ({ x: clamp01((x - crop.x) / crop.w), y: clamp01((y - crop.y) / crop.h) })
+    const toStage = (p: Pt) => ({ x: (p.x * vw - crop.x) / crop.w, y: (p.y * vh - crop.y) / crop.h }) // 0-1 of the camera frame
     latest = {
       at: now,
       calibrating: calib.calibrating,
@@ -706,6 +742,18 @@ export function createSmartCamera(): SmartCamera {
       drawn: strokes.last,
       gesture: gestures.last,
       pull: gestures.pull,
+      fxShapes: fxNow.hands,
+      spread: fxNow.spread,
+      tension: fxNow.tension,
+      tilt: fxNow.tilt,
+      shake: fxNow.shake,
+      fingers: fxNow.fingers,
+      stringsMode: fxNow.stringsMode,
+      stage: {
+        left: shapes.left?.points.map(toStage) ?? null,
+        right: shapes.right?.points.map(toStage) ?? null,
+        body: seen.body?.map((p) => ({ ...toStage(p), v: p.v })) ?? null,
+      },
     }
   }
 
@@ -792,6 +840,7 @@ export function createSmartCamera(): SmartCamera {
     recalibrate: () => calib.restart(),
     crop: () => lastCrop,
     seen: () => seen,
+    tracker: () => ({ delegates: vision.delegates, gain: vision.lightGain() }),
     dispose() {
       alive = false
       vision.dispose()

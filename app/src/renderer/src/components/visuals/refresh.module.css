@@ -1323,6 +1323,11 @@
 .tab:hover {
   color: var(--vb-ink);
 }
+.tab:disabled,
+.basePick > button:disabled {
+  opacity: 0.45; /* 1.5.5: TouchDesigner, paused (WIP); its title still says so */
+  cursor: default;
+}
 .tab[aria-selected='true'] {
   background: #18181b;
   color: var(--vb-ink);

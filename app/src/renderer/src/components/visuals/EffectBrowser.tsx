@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { TD_ENABLED } from '@shared/tdPresets'
 import { isTextLayer, useVisuals } from '@/state/visuals'
 import { useVisualsUi, visualsUi, type BrowserTab } from '@/state/visualsUi'
 import { loadTdPresets, useTdPresets } from '@/touchdesigner/presets'
@@ -56,7 +57,9 @@ function useTiles(): Record<BrowserTab, Tile[]> {
  * previews it on the stage, clicking adds it to the top of the stack. Tiles already on the stack read ON.
  */
 export function EffectBrowser() {
-  const tab = useVisualsUi((u) => u.browser.tab)
+  const picked = useVisualsUi((u) => u.browser.tab)
+  const tab = picked === 'td' && !TD_ENABLED ? 'gen' : picked // 1.5.5: TouchDesigner is paused (WIP)
+  const tabs = TD_ENABLED ? TABS : TABS.filter((t) => t.value !== 'td')
   const tiles = useTiles()
   const effects = useVisuals((v) => v.scene.effects)
   const addEffect = useVisuals((v) => v.addEffect)
@@ -99,7 +102,7 @@ export function EffectBrowser() {
     const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
     if (!d) return
     e.preventDefault()
-    const next = TABS[(TABS.findIndex((t) => t.value === tab) + d + TABS.length) % TABS.length]!.value
+    const next = tabs[(tabs.findIndex((t) => t.value === tab) + d + tabs.length) % tabs.length]!.value
     pickTab(next)
     e.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus()
   }
@@ -124,10 +127,12 @@ export function EffectBrowser() {
               aria-selected={tab === t.value}
               tabIndex={tab === t.value ? 0 : -1}
               className={css.tab}
+              disabled={!tabs.includes(t)}
+              title={tabs.includes(t) ? undefined : `${t.label}: paused for now (WIP)`}
               onClick={() => pickTab(t.value)}
             >
               {t.label}
-              <span>{tiles[t.value].length}</span>
+              <span>{tabs.includes(t) ? tiles[t.value].length : 'WIP'}</span>
             </button>
           ))}
         </div>

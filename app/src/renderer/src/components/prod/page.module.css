@@ -141,6 +141,9 @@
   gap: 10px;
   transition: grid-template-columns 0.38s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
+.grid.strings {
+  grid-template-columns: minmax(0, 1fr) var(--vb-td-controls-w); /* 1.5.5, STRINGS: the preview and its panel */
+}
 .grid[data-collapsed] {
   grid-template-columns: 46px minmax(0, 1fr) 46px;
 }
@@ -202,6 +205,9 @@
 .canvas {
   position: absolute;
   inset: 0;
+  /* a canvas keeps its own size (1920 x 1080) unless told: without these the frame showed only its top corner */
+  width: 100%;
+  height: 100%;
 }
 .frame[data-down] .canvas {
   filter: grayscale(1);

@@ -56,6 +56,9 @@ interface ProdState {
   /** The user's own gesture picks, per look (over the look's defaults, over GESTURE_DEFAULTS). */
   gestureByFx: Record<string, Partial<GestureMap>>
   showHands: boolean
+  /** 1.5.5, STRINGS: FoxBox's face hiding over the picture. Off by default (the user: visible by default on STRINGS);
+   *  its own flag, not VISUALS' hideFaces. */
+  faceHiding: boolean
   // ---- not saved
   confirm: ProdConfirm
   /** Which knob's REACTS TO menu is open. */
@@ -76,6 +79,7 @@ interface ProdState {
   setAspect(aspect: ClipAspect): void
   setGesture<K extends keyof GestureMap>(fx: string, g: K, action: GestureMap[K]): void
   setShowHands(on: boolean): void
+  setFaceHiding(on: boolean): void
   setConfirm(c: ProdConfirm): void
   setReactsOpen(k: KnobId | null): void
   setPanelsCollapsed(on: boolean): void
@@ -97,6 +101,7 @@ export const useProd = create<ProdState>()(
       aspect: '16:9',
       gestureByFx: {},
       showHands: false,
+      faceHiding: false,
       confirm: null,
       reactsOpen: null,
       panelsCollapsed: false,
@@ -130,6 +135,7 @@ export const useProd = create<ProdState>()(
       setAspect: (aspect) => set({ aspect }),
       setGesture: (fx, g, action) => set({ gestureByFx: { ...get().gestureByFx, [fx]: { ...get().gestureByFx[fx], [g]: action } } }),
       setShowHands: (showHands) => set({ showHands }),
+      setFaceHiding: (faceHiding) => set({ faceHiding }),
       setConfirm: (confirm) => set({ confirm }),
       setReactsOpen: (reactsOpen) => set({ reactsOpen }),
       setPanelsCollapsed: (panelsCollapsed) => set({ panelsCollapsed }),
@@ -138,6 +144,10 @@ export const useProd = create<ProdState>()(
     {
       name: 'foxbox-prod',
       storage: createJSONStorage(() => localStorage),
+      // 1.5.5, STRINGS: opens at 16:9 (the hands need the camera's full width); an aspect saved by PROD · TOUCHDESIGNER
+      // (version 0) doesn't carry over, the user's pick from now on does
+      version: 1,
+      migrate: (saved, version) => (version < 1 ? { ...(saved as object), aspect: '16:9' } : saved) as ProdState,
       partialize: (s) => ({
         setupDone: s.setupDone,
         lastFxByMode: s.lastFxByMode,
@@ -149,6 +159,7 @@ export const useProd = create<ProdState>()(
         aspect: s.aspect,
         gestureByFx: s.gestureByFx,
         showHands: s.showHands,
+        faceHiding: s.faceHiding,
       }),
     },
   ),

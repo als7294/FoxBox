@@ -29,6 +29,7 @@ let people = 1
 let far: FaceDetector | null = null
 let ts = 0
 let n = 0
+let lastFace: ReturnType<typeof runFace> | null = null
 let last: Seen = { faces: [], hands: [], person: null, body: null }
 
 /** Each model's delegate, for the main thread (Vision.delegates). */
@@ -156,18 +157,23 @@ function runFace(crop: ImageBitmap, frame: ImageBitmap): Pick<Seen, 'faces' | 'h
 /** The extras on the whole frame (640 px), alternating so a cycle stays under a camera frame: hands on even frames,
  *  the body and the person on odd ones (the rest keep their last). `body` (TouchDesigner: nothing to mask, the body and
  *  hands drive the picture): hands and the body every frame, the person on odd ones. Never throws. */
-function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
+function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst = false): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
   const out: Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> = { hands: last.hands, person: null, body: last.body, ms: { face: 0, hands: 0, seg: 0 } }
   const t0 = performance.now()
   const k = n++
   const even = k % 2 === 0
+  // handsFirst (PROD's STRINGS): the hands every frame; the matte and the body (and the face with faceLight, onmessage)
+  // each one frame in four, so a frame is the hands and one more model at most (all of them: ~15 hands a second).
+  const quarter = k % 4
+  if (handsFirst) body = true
   if (even || body) {
     try {
       if (hands) {
         const r = hands.recognizeForVideo(frame, ts)
         out.hands = r.landmarks.map((pts, i) => {
           const g = r.gestures[i]?.[0]
-          return { points: pts.map((p) => ({ x: p.x, y: p.y })), gesture: g && g.score >= 0.6 ? (GESTURES[g.categoryName] ?? null) : null }
+          const world = r.worldLandmarks[i]?.map((p) => ({ x: p.x, y: p.y, z: p.z }))
+          return { points: pts.map((p) => ({ x: p.x, y: p.y })), gesture: g && g.score >= 0.6 ? (GESTURES[g.categoryName] ?? null) : null, ...(world ? { world } : {}) }
         })
       }
     } catch {
@@ -177,14 +183,18 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2): Pick<Seen
     if (even && !body) return out
   }
   const t1 = performance.now()
-  try {
-    // BlazePose's 33 keypoints with their visibility (the head-first tracking reads the first 13).
-    out.body = pose ? (pose.detectForVideo(frame, ts).landmarks[0]?.map((p): BodyPoint => ({ x: p.x, y: p.y, v: p.visibility ?? 0 })) ?? null) : null
-  } catch {
-    out.body = null
+  if (handsFirst && quarter !== 1 && quarter !== 2) return out // the face's frame (0), the hands' alone (3)
+  if (!handsFirst || quarter === 2) {
+    try {
+      // BlazePose's 33 keypoints with their visibility (the head-first tracking reads the first 13).
+      out.body = pose ? (pose.detectForVideo(frame, ts).landmarks[0]?.map((p): BodyPoint => ({ x: p.x, y: p.y, v: p.visibility ?? 0 })) ?? null) : null
+    } catch {
+      out.body = null
+    }
   }
-  // The person matte: on the odd frames; in body mode every matteEvery-th (TouchDesigner's presets are fine at 3).
-  const matte = body ? k % Math.max(1, matteEvery) === Math.max(1, matteEvery) - 1 : !even
+  // The person matte: on the odd frames; in body mode every matteEvery-th (TouchDesigner's presets are fine at 3);
+  // handsFirst, one frame in four.
+  const matte = handsFirst ? quarter === 1 : body ? k % Math.max(1, matteEvery) === Math.max(1, matteEvery) - 1 : !even
   if (!matte) {
     out.ms!.seg = performance.now() - t1
     return out
@@ -204,7 +214,7 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2): Pick<Seen
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number }
+  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number; handsFirst?: boolean; faceLight?: boolean }
   if (m.type === 'init') {
     void load(m.urls).then(() =>
       (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates }),
@@ -219,10 +229,13 @@ self.onmessage = (e: MessageEvent) => {
   // A worker's postMessage (the DOM lib types `self` as a window). The face first, with its crop (the points are in
   // its frame) and the frame's capture time; then the extras.
   const post = (msg: object, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(msg, transfer)
-  const f = runFace(m.face, m.scene)
+  // faceLight (handsFirst, no face hidden): the face one frame in four (n % 4 === 0: runExtras counts n), its last
+  // result posted between. A hidden face is tracked every frame.
+  const f = !m.faceLight || n % 4 === 0 || !lastFace ? runFace(m.face, m.scene) : lastFace
+  lastFace = f
   last = { ...last, faces: f.faces }
   post({ type: 'face', seen: f, roi: m.roi, at: m.at })
-  const x = runExtras(m.scene, !!m.body, m.matteEvery ?? 2)
+  const x = runExtras(m.scene, !!m.body, m.matteEvery ?? 2, !!m.handsFirst)
   last = { ...last, hands: x.hands, body: x.body }
   m.face.close()
   m.scene.close()

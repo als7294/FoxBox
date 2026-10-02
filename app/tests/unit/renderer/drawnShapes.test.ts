@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { recognise, StrokeShapes, TEMPLATES, type DrawnShape } from '@/components/camera/drawnShapes'
-import type { HandShape, HandShapes, Pt } from '@/components/camera/camMath'
+import { NO_PAIRS, type HandShape, type HandShapes, type Pt } from '@/components/camera/camMath'
 
 let seed = 99
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
@@ -41,6 +41,7 @@ describe('AIR DRAW shapes ($Q)', () => {
       apart: 0,
       frame: { held: false, x0: 0, y0: 0, x1: 0, y1: 0, corners: [], size: 0, since: 0, seen: -1e9 },
       triangle: false,
+      pairs: NO_PAIRS,
     })
     const s = new StrokeShapes()
     const circle = TEMPLATES.circle.map(([x, y]) => ({ x: 0.6 + 0.1 * x, y: 0.5 + 0.18 * y })) // 0-1 of a 16:9 frame

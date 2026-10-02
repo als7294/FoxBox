@@ -29,7 +29,7 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
             type="button"
             className={styles.railItem}
             aria-current={screen === n.id ? 'page' : undefined}
-            aria-label={n.wip ? `${n.label}: ${n.wip}` : n.demo ? `${n.label}, demo` : n.label}
+            aria-label={n.wip ? `${n.label}: ${n.wip}` : n.new ? `${n.label}, new` : n.label}
             aria-disabled={n.wip ? true : undefined}
             data-wip={n.wip ? '' : undefined}
             title={n.wip}
@@ -44,9 +44,9 @@ export function AppShell({ children, overlays }: { children: ReactNode; overlays
                 WIP
               </span>
             )}
-            {n.demo && (
-              <span className={styles.railDemo} aria-hidden="true">
-                DEMO
+            {n.new && (
+              <span className={styles.railNew} aria-hidden="true">
+                NEW
               </span>
             )}
           </button>

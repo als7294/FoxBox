@@ -112,4 +112,20 @@ describe('hand shapes', () => {
     expect(handShapes(pair(0), 0, null, ASPECT).triangle).toBe(true)
     expect(handShapes(pair(0.05), 0, null, ASPECT).triangle).toBe(false)
   })
+
+  it("STRING HANDS' finger pairs: the same fingertips apart over the shoulders, 0 without both hands", () => {
+    const l = hand(0.35, 0.7, ALL)
+    const r = hand(0.65, 0.7, ALL, { mirror: true })
+    const shoulders = (w: number) => Array.from({ length: 33 }, (_, i) => ({ x: i === 11 ? 0.5 + w / 2 : i === 12 ? 0.5 - w / 2 : 0.5, y: 0.4, v: 1 }))
+    const index = (w: number) => Math.hypot((r[8]!.x - l[8]!.x) * ASPECT, r[8]!.y - l[8]!.y) / (w * ASPECT)
+    const wide = handShapes([H(l), H(r)], 0, null, ASPECT, shoulders(0.6))
+    expect(wide.pairs.index).toBeCloseTo(index(0.6), 5) // the index tips' span over the shoulders' (aspect-corrected)
+    expect(wide.pairs.index).toBeGreaterThan(0.3)
+    expect(wide.pairs.index).toBeLessThan(1)
+    expect(handShapes([H(l), H(r)], 0, null, ASPECT, shoulders(0.1)).pairs.pinky).toBe(1) // apart past the shoulders: 1
+    expect(handShapes([H(l)], 0, null, ASPECT, shoulders(0.6)).pairs).toEqual({ thumb: 0, index: 0, middle: 0, ring: 0, pinky: 0 })
+    const noBody = handShapes([H(l), H(r)], 0, null, ASPECT).pairs // no shoulders seen: about four palms
+    expect(noBody.middle).toBeGreaterThan(0)
+    expect(noBody.middle).toBeLessThanOrEqual(1)
+  })
 })

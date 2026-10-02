@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { UpdateState } from '@shared/bridge'
+import { TD_ENABLED } from '@shared/tdPresets'
 import { CreditLink } from '@/components/common/CreditLink'
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
@@ -1157,7 +1158,7 @@ export function SettingsScreen() {
         <CameraClipsCard />
         <EngineCard />
         <UpdatesCard />
-        {bridge()?.touchdesigner && (
+        {TD_ENABLED && bridge()?.touchdesigner && (
           <Card title="TouchDesigner" area="td" caption={<span className={styles.caption}>OSC, this Mac or the network</span>}>
             <TouchDesignerFields />
           </Card>

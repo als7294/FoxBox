@@ -1,7 +1,6 @@
 // PROD's right column, PLAY (1.5.2, app/design/visuals-td README §B "Play controls"): the six knobs with REACTS TO,
 // the hands looks' gesture map, the palette, RANDOMIZE (key R) and AUDIO FX; collapsed, the 46px strip.
 import { useCallback, useEffect, useState } from 'react'
-import { useSongFx } from '@/audio/live/songFx'
 import { isTextTarget } from '@/lib/shortcuts'
 import { useUi } from '@/state/ui'
 import { tdCommand } from '@/touchdesigner/commands'
@@ -9,6 +8,7 @@ import { KNOBS, REACTS, TD_PALETTES } from '@/touchdesigner/knobs'
 import { useTdPresets } from '@/touchdesigner/presets'
 import { MacroKnob, MiniKnob, reactOf } from './MacroKnob'
 import { gesturesNone, gesturesOf, knobsOf, useProd } from './prodStore'
+import { AudioFxRow } from './StringsPanel'
 import shared from './prod.module.css'
 import s from './play.module.css'
 
@@ -26,7 +26,6 @@ export function PlayPanel({ collapsed, onExpand }: { collapsed: boolean; onExpan
   const prod = useProd()
   const map = gesturesOf(prod, look)
   const { values, reacts } = knobsOf(prod, active)
-  const fxOn = useSongFx((f) => f.enabled)
   const [spin, setSpin] = useState(0)
 
   const roll = useCallback(() => {
@@ -232,47 +231,8 @@ export function PlayPanel({ collapsed, onExpand }: { collapsed: boolean; onExpan
           RANDOMIZE
         </button>
 
-        <div className={`${shared.well} ${s.fxRow}`}>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={fxOn}
-            aria-label="AUDIO FX"
-            className={s.fxSwitch}
-            onClick={() => useSongFx.getState().setEnabled(!fxOn)}
-          >
-            <span className={shared.switch} aria-hidden="true" />
-            <span className={s.fxText}>
-              <span className={s.fxName}>AUDIO FX</span>
-              <span className={s.sub}>{fxOn ? "the looks' effects on the track" : 'off: the track plays untouched'}</span>
-            </span>
-          </button>
-          <GrMeter />
-        </div>
+        <AudioFxRow />
       </div>
     </section>
-  )
-}
-
-/** The song FX limiter's gain reduction, 0 to −12 dB on six LEDs (re-renders only when a LED changes). */
-function GrMeter() {
-  const lit = useSongFx((f) => (f.enabled ? Math.min(6, Math.round(Math.abs(f.grDb) / 2)) : 0))
-  return (
-    <span
-      className={s.gr}
-      role="meter"
-      aria-label="Limiter gain reduction"
-      aria-valuemin={0}
-      aria-valuemax={12}
-      aria-valuenow={lit * 2}
-      aria-valuetext={`−${lit * 2} dB`}
-    >
-      <span className={s.small} aria-hidden="true">
-        GR
-      </span>
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <span key={i} className={s.led} data-on={i < lit} />
-      ))}
-    </span>
   )
 }

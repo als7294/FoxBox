@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from 'react'
+import { TD_ENABLED } from '@shared/tdPresets'
 import { CameraControls } from '@/components/camera/CameraControls'
 import { camera, useCamera } from '@/components/camera/cameraStore'
 import { MASK_STYLES, type MaskStyle } from '@/components/camera/compose'
@@ -602,11 +603,22 @@ function BaseRow() {
           </span>
         </div>
         <div className={css.basePick} role="radiogroup" aria-label="Base picture">
-          {BASES.map((x) => (
-            <button key={x.kind} type="button" role="radio" aria-checked={base.kind === x.kind} title={x.label} onClick={() => pick(x.kind)}>
-              {x.short}
-            </button>
-          ))}
+          {BASES.map((x) => {
+            const wip = x.kind === 'touchdesigner' && !TD_ENABLED // 1.5.5: TouchDesigner is paused
+            return (
+              <button
+                key={x.kind}
+                type="button"
+                role="radio"
+                aria-checked={base.kind === x.kind}
+                disabled={wip}
+                title={wip ? `${x.label}: paused for now (WIP)` : x.label}
+                onClick={() => pick(x.kind)}
+              >
+                {wip ? `${x.short} · WIP` : x.short}
+              </button>
+            )
+          })}
         </div>
         {media && (
           <div className={css.baseExtra}>

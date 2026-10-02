@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { HandShape, HandShapes, Pt } from '@/components/camera/camMath'
+import { NO_PAIRS, type HandShape, type HandShapes, type Pt } from '@/components/camera/camMath'
 import { HandGestures, HOLD_MS } from '@/components/camera/handGestures'
 
 const hand = (at: Pt, { pinched = false, gesture = null as HandShape['gesture'] } = {}): HandShape => ({
@@ -19,6 +19,7 @@ const hands = (left: HandShape | null, right: HandShape | null): HandShapes => (
   apart: 0,
   frame: { held: false, x0: 0, y0: 0, x1: 0, y1: 0, corners: [], size: 0, since: 0, seen: -1e9 },
   triangle: false,
+  pairs: NO_PAIRS,
 })
 
 describe('HANDS gestures as edges', () => {

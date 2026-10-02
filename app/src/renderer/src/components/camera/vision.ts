@@ -16,7 +16,7 @@ import poseModel from '@/vendor/mediapipe/pose_landmarker_lite.task?url'
 import segModel from '@/vendor/mediapipe/selfie_segmenter.tflite?url'
 import loaderUrl from '@/vendor/mediapipe/vision_wasm_internal.js?url'
 import wasmUrl from '@/vendor/mediapipe/vision_wasm_internal.wasm?url'
-import type { BodyPt, Pt } from './camMath'
+import type { BodyPt, Pt, Pt3 } from './camMath'
 
 /** The expression, 0-1 (MediaPipe's blendshapes): what a mask's jaw, eyes and brows follow. */
 export interface FaceShapes {
@@ -45,6 +45,8 @@ export interface SeenHand {
   points: Pt[]
   /** The recognizer's gesture when it's fairly sure (score >= 0.6), else null. */
   gesture: HandGesture | null
+  /** The same 21 in metres about the hand's centre (MediaPipe's world landmarks): bends any way the hand faces. */
+  world?: Pt3[]
 }
 
 /** The person mask: 0-1 confidence per pixel, `width`×`height`, covering the whole camera frame. */
@@ -100,6 +102,19 @@ export interface Roi {
 
 /** The face crop's side in px (the landmarker works at 256, its detector at 128). */
 const FACE_PX = 384
+const STROBE_MS = 300 // a strobe's blackout is shorter: darker for longer is the room's new light
+
+/** A strobe's dark frame (under half the running light) isn't tracked and doesn't drag the light down; dark for
+ *  STROBE_MS is the room's new light (the lights went down, the crop is on a black booth), tracked from then on. */
+export function strobeGate(s: { light: number; darkSince: number }, lum: number, now: number): boolean {
+  if (s.light < 0) s.light = lum
+  const dark = lum < s.light * 0.5
+  if (dark && s.darkSince < 0) s.darkSince = now
+  if (dark && now - s.darkSince < STROBE_MS) return true
+  s.darkSince = -1
+  s.light = dark ? lum : s.light + (lum - s.light) * 0.1 // ~10 frames
+  return false
+}
 
 /**
  * Where the landmarker looks next: a square crop around the last face (2.4x its size, so a small, far face gets the
@@ -175,8 +190,8 @@ export class Vision {
   private crop: OffscreenCanvas | null = null
   private meter: OffscreenCanvas | null = null
   private gain = 1
-  /** The crop's running mean light (a strobe's dark frame is judged against it). */
-  private light = -1
+  /** The crop's running mean light (a strobe's dark frame is judged against it), and since when it's been dark. */
+  private level = { light: -1, darkSince: -1 }
 
   constructor() {
     try {
@@ -214,15 +229,17 @@ export class Vision {
    * the tracker when the room is dark: the mask still draws on the real frame) and the whole frame at 640 px for hands,
    * the body and the person. A strobe's dark frame isn't sent (the tracker coasts on its prediction). `head`: where
    * the body's head is (0-1), to look for a lost face; `people`: faces to track; `body`: the body and hands every frame
-   * (TouchDesigner); `matteEvery`: the person matte every Nth frame. Returns the latest results. Never throws.
+   * (TouchDesigner); `matteEvery`: the person matte every Nth frame; `handsFirst`: the hands every frame, the body and
+   * the matte one frame in four, and with `faceLight` the face too (DrawOptions.handsFirst). Returns the latest results.
+   * Never throws.
    */
-  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1, body = false, matteEvery = 2): Seen {
+  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1, body = false, matteEvery = 2, handsFirst = false, faceLight = false): Seen {
     const w = this.worker
     if (!w || this.busy) return this.last
     try {
       const vw = video.videoWidth
       const vh = video.videoHeight
-      if (this.strobed(video, this.roi, vw, vh)) return this.last
+      if (this.strobed(video, this.roi, vw, vh, now)) return this.last
       this.busy = true
       this.lost = this.last.faces.length ? 0 : this.lost + 1
       const r = (this.roi = nextRoi(this.last.faces[0]?.points ?? null, this.roi, vw, vh, this.lost, this.last.hint ?? null, head))
@@ -238,8 +255,13 @@ export class Vision {
       g.filter = this.gain > 1.05 ? `brightness(${this.gain.toFixed(2)}) contrast(1.1)` : 'none'
       g.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, cw, ch)
       const face = this.crop.transferToImageBitmap()
-      createImageBitmap(video, { resizeWidth: 640, resizeHeight: Math.round((640 * vh) / vw) }).then(
-        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people, body, matteEvery }, [face, scene]),
+      // The whole frame for the hands (the body, the matte): brightened as the face crop is in a dark room when the
+      // hands come first (STRINGS: a dim set's hands are what it plays with).
+      const sw = 640
+      const sh = Math.round((640 * vh) / vw)
+      const bright = handsFirst && this.gain > 1.05
+      ;(bright ? Promise.resolve(this.brightScene(video, sw, sh)) : createImageBitmap(video, { resizeWidth: sw, resizeHeight: sh })).then(
+        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people, body, matteEvery, handsFirst, faceLight }, [face, scene]),
         () => (this.busy = false),
       )
     } catch {
@@ -248,22 +270,35 @@ export class Vision {
     return this.last
   }
 
+  private scene: OffscreenCanvas | null = null
+  /** The whole frame at sw x sh, brightened by the crop's gain (the tracker's dark-room lift). */
+  private brightScene(video: HTMLVideoElement, sw: number, sh: number): ImageBitmap {
+    this.scene ??= new OffscreenCanvas(sw, sh)
+    if (this.scene.width !== sw || this.scene.height !== sh) Object.assign(this.scene, { width: sw, height: sh })
+    const g = this.scene.getContext('2d')!
+    g.filter = `brightness(${this.gain.toFixed(2)}) contrast(1.1)`
+    g.drawImage(video, 0, 0, sw, sh)
+    return this.scene.transferToImageBitmap()
+  }
+
+  /** The tracker's dark-room brightening now (1: none, up to 2.2): STRINGS' diagnostics. */
+  lightGain(): number {
+    return this.gain
+  }
+
   /**
    * The crop's light, every frame (8x8 samples): its running mean sets the tracker's brightening (none in a lit room,
    * up to 2.2x). True for a strobe's dark frame (half the running mean or less): not worth tracking.
    */
-  private strobed(video: HTMLVideoElement, r: Roi, vw: number, vh: number): boolean {
+  private strobed(video: HTMLVideoElement, r: Roi, vw: number, vh: number, now: number): boolean {
     this.meter ??= new OffscreenCanvas(8, 8)
     const m = this.meter.getContext('2d', { willReadFrequently: true })!
     m.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, 8, 8)
     const px = m.getImageData(0, 0, 8, 8).data
     let sum = 0
     for (let i = 0; i < px.length; i += 4) sum += (0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!) / 255
-    const lum = sum / 64
-    if (this.light < 0) this.light = lum
-    const dark = lum < this.light * 0.5
-    if (!dark) this.light += (lum - this.light) * 0.1 // ~10 frames: a strobe's blackout doesn't drag it down
-    this.gain = Math.min(2.2, Math.max(1, 0.42 / Math.max(0.05, this.light)))
+    const dark = strobeGate(this.level, sum / 64, now)
+    this.gain = Math.min(2.2, Math.max(1, 0.42 / Math.max(0.05, this.level.light)))
     return dark
   }
 

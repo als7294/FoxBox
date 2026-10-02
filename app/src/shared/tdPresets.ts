@@ -14,6 +14,11 @@ export interface TdSoundEntry {
   dead?: number
 }
 
+/** 1.5.5: TouchDesigner is paused (WIP): main answers no TD IPC (nothing builds its OSC bridge, session or Syphon
+ *  addon, nothing launches it), the app starts none of its feeds, and its VISUALS base and layer are greyed. The code
+ *  stays: true brings it back. */
+export const TD_ENABLED = false
+
 export interface TdPreset {
   id: string
   label: string

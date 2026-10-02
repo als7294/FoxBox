@@ -1,3 +1,4 @@
+import { TD_ENABLED } from '@shared/tdPresets'
 import { create } from 'zustand'
 import type { ClipAspect } from '@/components/clips/render'
 import { defaultStyleForMotion } from '@/visuals/live/families/s3'
@@ -112,13 +113,20 @@ function save(scene: Scene, aspect: ClipAspect): void {
   }
 }
 
+/** 1.5.5: TouchDesigner is paused (TD_ENABLED): no scene (saved, a pad's) keeps its base or a TD layer. */
+const withoutTd = (s: Scene): Scene =>
+  TD_ENABLED
+    ? s
+    : { ...s, base: s.base.kind === 'touchdesigner' ? { kind: 'none' } : s.base, effects: s.effects.filter((e) => e.styleId !== TD_STYLE) }
+
 let seq = 0
 const newId = (): string => `e${Date.now().toString(36)}${(seq++).toString(36)}`
 
 export const useVisuals = create<VisualsState>((set, get) => {
-  const initial = load()
+  const initial = withoutTd(load())
   const apply = (next: Scene) => {
-    const scene = { ...next, effects: textOnTop(next.effects) }
+    const clean = withoutTd(next)
+    const scene = { ...clean, effects: textOnTop(clean.effects) }
     set({ scene, styleId: leadStyle(scene), paletteId: scene.paletteId })
     save(scene, get().aspect)
   }

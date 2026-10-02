@@ -330,7 +330,7 @@ export function VisualsStage({
             onClick={onOutput}
           >
             <span aria-hidden="true" />
-            {stopping ? 'STOP?' : mine ? 'LIVE' : output.open ? 'FROM PROD' : 'OUTPUT'}
+            {stopping ? 'STOP?' : mine ? 'LIVE' : output.open ? 'FROM STRINGS' : 'OUTPUT'}
           </button>
         )}
         {output.unplugged && !output.open && (
@@ -363,7 +363,7 @@ export function VisualsStage({
           <div className={css.chips}>
             <span className={css.chip} data-tone={mine ? 'live' : undefined} role="status">
               <span aria-hidden="true" className={css.chipDot} />
-              {mine ? `LIVE ON OUTPUT · ${where} · ${aspect}` : output.open ? `OUTPUT SHOWS PROD · ${aspect}` : `OUTPUT OFF · ${aspect}`}
+              {mine ? `LIVE ON OUTPUT · ${where} · ${aspect}` : output.open ? `OUTPUT SHOWS STRINGS · ${aspect}` : `OUTPUT OFF · ${aspect}`}
             </span>
             {hover && <span className={css.chip} data-tone="preview">PREVIEW · {hover.label} · CLICK TO ADD</span>}
             {rec.t0 != null && (
@@ -443,8 +443,8 @@ export function CameraAlert({ state }: { state: CameraTrouble }) {
 const HIDE_SETTLE_MS = 400
 
 /**
- * The face question (OUTPUT, REC LIVE, SAVE CLIP): hide it first, go ahead with the face, or cancel. Anonymity is the
- * point, so it's asked every time a face would show.
+ * The face question (OUTPUT, REC LIVE, SAVE CLIP): HIDE MY FACE first (STRINGS' words too), go ahead with the face,
+ * or cancel. Anonymity is the point, so it's asked every time a face would show.
  */
 export function FaceConfirm({ ask, tdRaw, hideFace }: { ask: { kind: 'out' | 'rec' | 'clip'; go(): void }; tdRaw: boolean; hideFace(): void }) {
   const live = ask.kind === 'out'
@@ -462,7 +462,7 @@ export function FaceConfirm({ ask, tdRaw, hideFace }: { ask: { kind: 'out' | 're
         {live ? 'The projector will show your real face.' : 'This clip will show your real face.'}
       </p>
       <button type="button" data-tone="ok" onClick={() => run(true)}>
-        {live ? 'HIDE FACE, THEN GO LIVE' : 'HIDE FACE, THEN RECORD'}
+        {live ? 'HIDE MY FACE, THEN GO LIVE' : 'HIDE MY FACE, THEN RECORD'}
       </button>
       <button type="button" data-tone="ember" onClick={() => run(false)}>
         {live ? 'GO LIVE WITH MY FACE' : 'RECORD WITH MY FACE'}

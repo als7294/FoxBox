@@ -6,11 +6,21 @@ import { Button, IconButton } from '@/components/common/Button'
 import { formatBytes } from '@/lib/format'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
-import { useModelFocus } from './models'
+import { STEMS_MODEL, useModelFocus } from './models'
 import styles from './voices.module.css'
 
 /** Free space the engine keeps after a download (S3 answers `disk_full` otherwise). */
 export const DISK_RESERVE_BYTES = 5_000_000_000
+
+/**
+ * 1.5.5: a model whose weights come on other terms than its code's licence says so, plainly, wherever it's offered
+ * (no modal). Demucs: Meta provides the weights for scientific purposes only (facebookresearch/demucs#327).
+ */
+export const MODEL_TERMS: Record<string, string> = {
+  [STEMS_MODEL]:
+    "STEMS · Demucs by Meta. The code is MIT; Meta provides the trained weights for scientific purposes only. FoxBox downloads them from Hugging Face. By downloading, you accept Meta's terms.",
+}
+const termsOf = (model: ModelInfo): string => MODEL_TERMS[model.id] ?? `${model.license}.`
 
 const gb = (bytes: number) => (bytes / 1e9).toFixed(2)
 
@@ -111,7 +121,7 @@ function ModelPanel({ model, m, diskFree }: { model: ModelInfo; m: Install; disk
           {model.name} · {formatBytes(model.size_bytes)}
         </span>
         <span className={styles.modelText}>
-          {model.description} {model.license}.
+          {model.description} {termsOf(model)}
         </span>
       </div>
     )
@@ -157,7 +167,7 @@ function ModelPanel({ model, m, diskFree }: { model: ModelInfo; m: Install; disk
         </div>
       ) : (
         <span className={styles.modelText}>
-          {model.description} {model.license}. Runs locally; nothing leaves this machine.
+          {model.description} {termsOf(model)} Runs locally; nothing leaves this machine.
         </span>
       )}
       <div className={styles.modelActions}>
@@ -270,6 +280,7 @@ function ModelTile({ model, m, diskFree }: { model: ModelInfo; m: Install; diskF
       <span id={descId} className="sr-only">
         {model.description} {guard}
       </span>
+      {MODEL_TERMS[model.id] && !model.installed && <span className={styles.tileTerms}>{MODEL_TERMS[model.id]}</span>}
       <div className={styles.tileRow}>
         <span className={styles.tileMeta} title={guard ?? model.description}>
           {meta}

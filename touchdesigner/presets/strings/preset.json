@@ -1,7 +1,7 @@
 {
   "label": "STRING HANDS",
   "title": "Glowing strings between your fingertips, humming with the bass, plucked by the snare.",
-  "how": "Hold up both hands; make a fist to stop the tape",
+  "how": "Stretch strings to play the stems; pinch and twist for FX",
   "order": 100,
   "mode": "hands",
   "new": true,
@@ -42,15 +42,109 @@
     "changes_sound": true,
     "map": [
       {
-        "target": "fx.tape",
+        "target": "stem.drums",
+        "source": "gesture.pair_index",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.05,
+        "smooth_ms": 60
+      },
+      {
+        "target": "stem.bass",
+        "source": "gesture.pair_middle",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.05,
+        "smooth_ms": 60
+      },
+      {
+        "target": "stem.vocals",
+        "source": "gesture.pair_ring",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.05,
+        "smooth_ms": 60
+      },
+      {
+        "target": "stem.other",
+        "source": "gesture.pair_pinky",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.05,
+        "smooth_ms": 60
+      },
+      {
+        "target": "bass.wobble",
+        "source": "gesture.turn_l",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "smooth_ms": 40
+      },
+      {
+        "target": "bass.wobble_depth",
+        "source": "gesture.pinch_l",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.3,
+        "smooth_ms": 60
+      },
+      {
+        "target": "bass.growl",
+        "source": "gesture.turn_r",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.1,
+        "smooth_ms": 40
+      },
+      {
+        "target": "bass.vowel",
+        "source": "gesture.twist_r",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "smooth_ms": 40
+      },
+      {
+        "target": "bass.tear",
         "source": "gesture.fist",
         "min": 0,
-        "max": 0.85,
+        "max": 1,
+        "curve": "gate",
+        "smooth_ms": 30
+      },
+      {
+        "target": "bass.gate",
+        "source": "gesture.victory",
+        "min": 0,
+        "max": 1,
         "curve": "gate"
       },
       {
-        "target": "fx.stutter",
-        "source": "gesture.victory",
+        "target": "fx.pump",
+        "source": "gesture.squeeze",
+        "min": 0,
+        "max": 1,
+        "curve": "lin",
+        "dead": 0.3,
+        "smooth_ms": 60
+      },
+      {
+        "target": "fx.glass",
+        "source": "gesture.glass_on",
+        "min": 0,
+        "max": 1,
+        "curve": "gate"
+      },
+      {
+        "target": "fx.crack",
+        "source": "gesture.glass_crack",
         "min": 0,
         "max": 1,
         "curve": "gate"

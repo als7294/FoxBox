@@ -36,16 +36,41 @@ export type CameraBaseState = 'asking' | 'opening' | 'live' | 'denied' | 'missin
 let baseState: CameraBaseState = 'opening'
 const retries = new Set<() => void>()
 export const cameraBaseState = (): CameraBaseState => baseState
+/** The live camera, for STRINGS' diagnostics: which device, and the size and rate it actually runs at (macOS lowers a
+ *  built-in camera's rate in a dim room). Null while none is open. */
+export interface CameraTrack {
+  label: string
+  width: number
+  height: number
+  frameRate: number
+}
+let track: CameraTrack | null = null
+export const cameraTrack = (): CameraTrack | null => track
+let tracker: (() => { delegates: Record<string, string>; gain: number }) | null = null
+/** The camera base's tracker (its models' delegates and dark-room gain), for STRINGS' diagnostics. */
+export const cameraTracker = () => tracker?.() ?? null
+let delivered = 0
+/** Camera frames delivered so far (the rate it really runs at: a dim room's built-in camera drops toward 15). */
+export const cameraFrames = (): number => delivered
 /** TRY AGAIN: a CAMERA base that's off opens its camera again (after a tccutil reset, macOS asks once more). */
 export const retryCamera = (): void => retries.forEach((retry) => retry())
 
-export function smartCameraBase(palette: Palette): BaseInstance {
+/** A base for PROD's STRINGS rather than VISUALS: its own face hiding (off by default there, apart from VISUALS'
+ *  FACE ENCRYPTION), the hands first (handsFirst), and never AUTO-FRAME (a layer over it must land on the fingers). */
+export interface CameraBaseOptions {
+  hideFaces?: () => boolean
+  handsFirst?: boolean
+  autoFrame?: boolean
+}
+
+export function smartCameraBase(palette: Palette, o: CameraBaseOptions = {}): BaseInstance {
   const canvas = makeCanvas()
   const ctx = context2d(canvas)
   const video = document.createElement('video')
   video.muted = true
   video.playsInline = true
   const smart = createSmartCamera()
+  tracker = () => smart.tracker()
 
   let phase: 'opening' | 'live' | 'off' = 'opening'
   let alive = true
@@ -77,8 +102,17 @@ export function smartCameraBase(palette: Palette): BaseInstance {
       const got = await Promise.race([pending, noAnswer])
       if (!alive) return
       stream = got
+      const v = got.getVideoTracks()[0]
+      const st = v?.getSettings() ?? {}
+      track = { label: v?.label ?? '', width: st.width ?? 0, height: st.height ?? 0, frameRate: Math.round(st.frameRate ?? 0) }
       video.srcObject = got
       await video.play()
+      const count = () => {
+        if (!alive || video.srcObject !== got) return
+        delivered++
+        video.requestVideoFrameCallback(count)
+      }
+      video.requestVideoFrameCallback?.(count)
       if (alive) {
         phase = 'live'
         baseState = 'live'
@@ -135,13 +169,14 @@ export function smartCameraBase(palette: Palette): BaseInstance {
             mask: s.mask,
             coverage: s.coverage,
             wholeFrame: s.wholeFrame,
-            autoFrame: s.autoFrame,
+            autoFrame: o.autoFrame ?? s.autoFrame,
             pulse: qaBeat() ?? maskPulse(a, s.mask.react),
             // The drop (a TRACK's structure, LIVE INPUT's detector): a MASKS mask's burst and glitch land on it.
             drop: a.dropHit || (a.dropEnergy ?? 0) > 0 ? { hit: !!a.dropHit, energy: a.dropEnergy ?? 0 } : null,
             people: s.people,
             justMe: useCamera.getState().justMe,
-            hideFaces: useCamera.getState().hideFaces,
+            hideFaces: o.hideFaces ? o.hideFaces() : useCamera.getState().hideFaces,
+            handsFirst: o.handsFirst,
           },
         )
         camera.setTwoFaces(smart.signals().twoFaces)
@@ -156,6 +191,8 @@ export function smartCameraBase(palette: Palette): BaseInstance {
       retries.delete(retry)
       baseState = 'opening'
       smart.dispose()
+      tracker = null
+      track = null
       camera.setTwoFaces(false)
       stream?.getTracks().forEach((t) => t.stop())
       stream = null

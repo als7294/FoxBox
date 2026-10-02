@@ -256,26 +256,29 @@ and **TAKE → STUDIO** for a dry take to finish as a drop.
 - **Updates install before you start**, and never lock you out: offline or a slow server means you just CONTINUE.
 - **Easier to read:** no text under 11 px, bigger click targets, calmer headers.
 
-## 🖐 PROD · TouchDesigner <sup>new in 1.5.2</sup>
+## 🎸 STRINGS <sup>new in 1.5.5</sup>
 
-<img src="app/docs/screens/readme/20-prod.png" alt="PROD · TOUCHDESIGNER: the one-time setup checklist" width="100%"/>
+### [▶ Watch the one-minute STRINGS explainer](https://github.com/als7294/FoxBox/releases/download/v1.5.5/foxbox-strings-1.5.5.mp4)
 
-A playground for **TouchDesigner** effects driven by **your body and your hands**, reacting to the music. FoxBox runs **your own free
-copy of TouchDesigner** hidden in the background, sets it up for you, feeds it the music and the camera, and brings the picture back.
+A **bass-remix instrument you play with your hands** in front of the camera. Load any track (or press **▶ TEST BEAT**): FoxBox
+splits it into stems and starts two bars before the drop. Glowing strings stretch between your fingers, and every move remixes the song.
 
-- **12 looks** in **BODY** and **HANDS**: plexus lines across your joints, windows that pop along your arms, glow trails, slit-scan,
-  a point cloud, a mirror tunnel, ASCII, an energy ball between your hands, strings between your fingertips, a portal you frame
-  with your fingers, and drawing in the air. Several are full TouchDesigner networks, with more coming.
-- **Play them:** six knobs (INTENSITY, COLOUR, CHAOS, TRAILS, LINES, SIZE), each reacting to the kick, snare, bass, drop, section,
-  voice or your hands, five palettes, and **RANDOMIZE**.
-- **Changes the sound:** some looks filter, echo, stutter or tape-stop the playing track as you move. **AUDIO FX** turns them off,
-  and your mic and voice mask never go through them.
-- **Your face, your call:** this page uses the raw camera, so **▲ FACE VISIBLE** shows whenever your real face reaches TouchDesigner.
-  **MASK FIRST** hides it before TouchDesigner ever sees the camera, and RECORD and SEND TO OUTPUT ask first.
-- **SEND TO VISUALS** puts the look on the VISUALS stack; **SEND TO OUTPUT** sends it to the projector.
-- **Labelled:** TouchDesigner's free licence is non-commercial, so its picture carries a **DEMO · NON-COMMERCIAL** label, and so
-  do clips you save from it. FoxBox doesn't include TouchDesigner; get it free from [derivative.ca](https://derivative.ca).
-- Tracking runs on MediaPipe on your Mac; nothing is uploaded.
+- **Hand shapes fire beat FX** while you hold them, locked to the grid. Let go and the song snaps back in time.
+  ✊ **TEAROUT** · ✌️ **RIDDIM CHOPS** · 🤏 **WOBBLE** · 🖐 **GROWL** · 🤘 **HALFTIME** · 👇 **SUB DROP** · ☝️ **BUILD ROLL** (let go: the DROP).
+  Raise your hand for more; one effect per hand, two at once.
+- **Play the strings:** stretch them taut to open the song up (slack is a dark build), tilt them for an **808 slide** on the bass,
+  and shake them for **vibrato**.
+- **GLASS:** frame a window with your thumbs and index fingers and look into another world: **THERMAL, X-RAY, HALFTONE, PRISM,
+  KALEIDO** or **DATAMOSH**, each with its own sound. Let go and it shatters.
+- **The strings perform each effect:** they fray, gate, wobble, sag and snap, and the cheat sheet on the right lights up what you're doing.
+- **Scrub the track:** tap a section (INTRO · BUILD · DROP · BREAK …), drag the waveform, or press ←/→ to jump by section; every jump lands on the bar.
+- **Cleaner stems:** the splitter keeps 808 subs on the bass and stops synth leftovers from leaking into the vocals.
+- **Your face, your call:** the raw camera shows by default with **▲ FACE VISIBLE**. One click on **FACE HIDING** masks it, and
+  RECORD and SEND TO OUTPUT ask first.
+- **RECORD** films it; **SEND TO OUTPUT** puts it on the projector. Tracking runs on your Mac with MediaPipe; nothing is uploaded.
+- **Also in 1.5.5:** tracking no longer freezes when the room goes dark, so face hiding keeps following you when the club lights drop.
+
+> **TouchDesigner is paused for now.** STRINGS is all FoxBox, and the TouchDesigner looks are greyed out while we focus here.
 
 ## Tour
 
@@ -331,7 +334,7 @@ A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep nam
 Electron app (React · TypeScript)       IPC proxy · vbx:// audio · drag-out · camera · updater
    ├── VISUALS          compositor · AUTO-VJ director · three.js · Butterchurn (Milkdrop) · ISF shaders + filters · troika text · output window · WebCodecs clips
    ├── camera           MediaPipe (face, gestures, segmentation) in a worker · face styles · pass-through · AUTO-FRAME
-   ├── PROD             TouchDesigner bridge: OSC out · Syphon in/out (native addon) · hidden session · body + hand points
+   ├── STRINGS          hand shapes → beat FX · string tension, tilt + shake · GLASS worlds (WebGL2) · slip-FX worklet · live stems
    ├── live audio       AudioWorklet mask · Signalsmith Stretch · song deck · live input · stem estimation · MIDI
    └── link-helper      Ableton Link (tempo + beat sync)
         │  token-authenticated, loopback only
@@ -360,6 +363,7 @@ scripts/dev.sh                           # run the app against the local engine
 Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). **The drops you make are yours.**
 
 <sub>[GPL-3.0](LICENSE). FoxBox links GPL components (pedalboard, espeak-ng, mutagen), so the app is GPL-3.0 as a whole.
-Model weights download at runtime under their own licenses. TouchDesigner is Derivative's and isn't included.</sub>
+Model weights download at runtime under their own licenses; the stem splitter's weights (Demucs, by Meta) are provided for scientific
+use only, as Setup says before the download. TouchDesigner is Derivative's and isn't included.</sub>
 
 </div>

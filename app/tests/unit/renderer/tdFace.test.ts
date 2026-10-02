@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { useVisuals } from '@/state/visuals'
 import { useTdCamera } from '@/touchdesigner/camera'
 import { tdFaceVisible } from '@/touchdesigner/face'
 import { sceneHasTd, TD_STYLE } from '@/visuals/live/compositor'
+
+// The TD code stays while TouchDesigner is paused (1.5.5): these run it switched on
+vi.mock('@shared/tdPresets', async (orig) => ({ ...(await orig<typeof import('@shared/tdPresets')>()), TD_ENABLED: true }))
 
 describe('TouchDesigner and the face (1.5.2)', () => {
   it('SEND TO VISUALS keeps one TD layer, on top, with its look', () => {

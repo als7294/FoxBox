@@ -30,6 +30,10 @@
   align-items: center;
   gap: 24px;
 }
+/* 1.5.5's STRINGS guide: as wide as the window's height lets its 16:9 film be */
+.innerWide {
+  width: min(1400px, calc(100% - 64px), calc((100vh - 250px) * 16 / 9));
+}
 .head {
   display: flex;
   flex-direction: column;

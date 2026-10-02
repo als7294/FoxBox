@@ -1,29 +1,96 @@
-import { describe, expect, it } from 'vitest'
-import { answer, request } from '@/components/prod/prodActions'
+import { describe, expect, it, vi } from 'vitest'
+import type { SongDeck } from '@/audio/live'
+import { answer, playTrack, request } from '@/components/prod/prodActions'
 import { gestureCommand, startProdFeed } from '@/components/prod/prodFeed'
 import { silentFrame } from '@/visuals/live/registry'
 import { stageFrames } from '@/visuals/live/stage'
 import { gesturesOf, useProd } from '@/components/prod/prodStore'
+import { stemsNote } from '@/components/prod/StringsPanel'
 import { boxToPicture, cameraAlert } from '@/components/prod/TdPreview'
+import { useStrings } from '@/components/strings/stringsStore'
+import type { Song } from '@/api/types'
+import { useLiveAudio } from '@/state/liveAudio'
+import { useLiveDeck } from '@/state/liveDeck'
+import { useSong } from '@/state/song'
+import { useToasts } from '@/state/toasts'
 import { useVisuals } from '@/state/visuals'
-import { useTdCamera } from '@/touchdesigner/camera'
 import { useTdPresets } from '@/touchdesigner/presets'
 import { TD_STYLE } from '@/visuals/live/compositor'
 
 describe('PROD', () => {
-  it('asks before SEND TO VISUALS while the face is visible; MASK FIRST, THEN SEND hides it, then sends', () => {
-    useTdPresets.setState({ active: 'plexus' })
-    useTdCamera.setState({ state: 'live', maskFirst: false })
-    request('send')
-    expect(useProd.getState().confirm).toBe('send')
-    expect(useVisuals.getState().scene.effects.some((e) => e.styleId === TD_STYLE)).toBe(false)
+  it('STRINGS asks before SEND TO OUTPUT while the face shows; HIDE MY FACE, THEN SEND turns FACE HIDING on', () => {
+    useStrings.setState({ camera: 'live' })
+    useProd.setState({ faceHiding: false })
+    request('out')
+    expect(useProd.getState().confirm).toBe('out')
     answer('mask')
-    expect(useTdCamera.getState().maskFirst).toBe(true)
+    expect(useProd.getState().faceHiding).toBe(true)
     expect(useProd.getState().confirm).toBeNull()
-    expect(useVisuals.getState().scene.effects.at(-1)).toMatchObject({ styleId: TD_STYLE, td: { preset: 'plexus' } })
-    // face hidden now: straight through, no question
-    request('send')
+    request('out') // face hidden now: straight through, no question
     expect(useProd.getState().confirm).toBeNull()
+    useProd.setState({ faceHiding: false })
+    useStrings.setState({ camera: 'denied' }) // no camera, no face
+    request('out')
+    expect(useProd.getState().confirm).toBeNull()
+  })
+
+  it('TouchDesigner paused (1.5.5): no scene keeps a TD base or layer', () => {
+    const v = useVisuals.getState()
+    v.setBase({ kind: 'touchdesigner' })
+    v.addTdLayer('plexus')
+    expect(useVisuals.getState().scene.base.kind).toBe('none')
+    expect(useVisuals.getState().scene.effects.some((e) => e.styleId === TD_STYLE)).toBe(false)
+  })
+
+  it('HIDE MY FACE, THEN RECORD waits 400 ms for the masked picture before it records (no unmasked frame)', () => {
+    vi.useFakeTimers()
+    useStrings.setState({ camera: 'live' })
+    useProd.setState({ faceHiding: false })
+    useToasts.setState({ items: [] })
+    request('rec')
+    answer('mask')
+    expect(useProd.getState().faceHiding).toBe(true)
+    vi.advanceTimersByTime(399)
+    expect(useToasts.getState().items).toEqual([]) // not yet: RECORD hasn't run
+    vi.advanceTimersByTime(1)
+    expect(useToasts.getState().items.map((t) => t.message)).toEqual(['PLAY THE TRACK FIRST']) // it ran (no track here)
+    vi.useRealTimers()
+  })
+
+  it("STRINGS' ▶ plays any song in one press (a restored one, VISUALS on the mic): TRACK, its engine, then the deck from two bars before the drop", () => {
+    useSong.setState({ song: { id: 's1' } as Song })
+    useLiveAudio.setState({ source: 'mic' })
+    useLiveDeck.setState({ deck: null, startTrack: null })
+    playTrack()
+    expect(useLiveAudio.getState().source).toBe('track')
+    const startTrack = vi.fn()
+    useLiveDeck.setState({ startTrack }) // LiveScreen offers it once VISUALS is on TRACK
+    expect(startTrack).toHaveBeenCalledOnce()
+    const calls: string[] = []
+    const deck = {
+      isPlaying: false,
+      positionS: () => 0,
+      resume: () => calls.push('resume'),
+      cueBeforeDrop: (bars: number) => calls.push(`cue ${bars}`),
+      startQuantized: () => calls.push('play'),
+    }
+    useLiveDeck.setState({ deck: deck as unknown as SongDeck })
+    useLiveDeck.setState({ startTrack: null }) // later changes don't start it again
+    expect(calls).toEqual(['resume', 'cue 2', 'play'])
+    calls.length = 0
+    playTrack() // still at the top: before the drop again
+    expect(calls).toEqual(['resume', 'cue 2', 'play'])
+    deck.positionS = () => 42
+    calls.length = 0
+    playTrack() // stopped mid-song: it carries on from there
+    expect(calls).toEqual(['resume', 'play'])
+  })
+
+  it("STRINGS' stems note: the split's progress, then nothing once they're in", () => {
+    expect(stemsNote('splitting', 0.42)).toBe('SPLITTING STEMS… 42%')
+    expect(stemsNote('loading', null)).toBe('LOADING STEMS…')
+    expect(stemsNote('on', null)).toBeNull()
+    expect(stemsNote('mix', null)).toBeNull()
   })
 
   it("maps a point on the preview back to TouchDesigner's 16:9 picture (the COVER crop's inverse)", () => {

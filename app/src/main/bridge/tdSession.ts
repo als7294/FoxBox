@@ -76,7 +76,10 @@ export function findTouchDesigner(): string | null {
     if (existsSync(app)) return app
   }
   try {
-    const found = execFileSync('mdfind', ["kMDItemCFBundleIdentifier == 'ca.derivative.TouchDesigner'"], { encoding: 'utf8', timeout: 2000 })
+    const found = execFileSync('mdfind', ["kMDItemCFBundleIdentifier == 'ca.derivative.TouchDesigner'"], {
+      encoding: 'utf8',
+      timeout: 2000,
+    })
     return found.split('\n').find((p) => p.endsWith('.app')) ?? null
   } catch {
     return null
@@ -112,6 +115,11 @@ export interface TdPaths {
 
 const TODO: Steps = { installed: 'todo', activated: 'todo', patch: 'todo', connected: 'todo' }
 
+/** main.log's word on TouchDesigner's camera input, from TD's own side (1.5.2 shipped one that never bound): its size
+ *  once bound to FoxBox's camera, else NOT BOUND (an unbound Syphon In still has a default size), '?' with no report. */
+export const tdCameraText = (c: { bound: boolean; w: number; h: number } | null | undefined): string =>
+  `td camera ${!c ? '?' : c.bound ? `${c.w}x${c.h}` : 'NOT BOUND'}`
+
 export class TouchDesignerSession {
   private state: TdSessionStatus = { state: 'off', message: null, version: null, steps: TODO, fps: 0, cameraFps: 0 }
   private host: SyphonHost | null = null
@@ -138,7 +146,7 @@ export class TouchDesignerSession {
       settings(): TdSettings
       setSettings(p: Partial<TdSettings>): TdSettings
       quit(): void
-      diag?(): { tdFps: number | null; tracking: Record<string, number> }
+      diag?(): { tdFps: number | null; tdCamera?: { bound: boolean; w: number; h: number } | null; tracking: Record<string, number> }
     },
     private readonly targets: () => WebContents[],
     private readonly onStatus: (s: TdSessionStatus) => void,
@@ -173,7 +181,8 @@ export class TouchDesignerSession {
     } catch {
       return this.set({ state: 'error', message: "Syphon isn't part of this FoxBox build.", version, steps })
     }
-    if (!setup && !existsSync(join(this.dir, 'setup.json'))) return this.set({ state: 'needs_setup', message: null, version, steps, fps: 0 })
+    if (!setup && !existsSync(join(this.dir, 'setup.json')))
+      return this.set({ state: 'needs_setup', message: null, version, steps, fps: 0 })
     this.set({ state: 'starting', message: null, version, steps: { ...steps, patch: 'doing' }, fps: 0 })
     void this.launch(run, version, shared, steps).catch((e: unknown) => this.fail(run, e instanceof Error ? e.message : String(e)))
     return this.state
@@ -297,7 +306,8 @@ export class TouchDesignerSession {
       if (report?.pid && this.run === run) {
         this.ours = report.pid
         rememberOurs(this.dir, report.pid)
-        if (this.host?.hideApp) this.host.hideApp(report.pid) // again, once built: nothing of it on screen for anyone to close
+        if (this.host?.hideApp)
+          this.host.hideApp(report.pid) // again, once built: nothing of it on screen for anyone to close
         else hideApp(report.pid)
       }
       if (!report) return
@@ -416,6 +426,7 @@ export class TouchDesignerSession {
     this.diagAt = now
     this.log(
       `[TD] cook ${d?.tdFps != null ? Math.round(d.tdFps) : '?'} fps · in ${this.state.fps} fps · camera ${this.state.cameraFps} fps · ` +
+        `${tdCameraText(d?.tdCamera)} · ` +
         `tracking body ${rate('body')} hand ${rate('hand')} face ${rate('face')} /s`,
     )
   }
@@ -497,7 +508,11 @@ export function ourOrphan(dir: string): number | null {
  *  editor window on opening the project even from a hidden launch, and a user closing that stray window quit it. */
 export function hideApp(pid: number): void {
   if (!Number.isInteger(pid) || pid <= 1) return
-  execFile('osascript', ['-l', 'JavaScript', '-e', `ObjC.import('AppKit'); $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid}).hide`], () => {})
+  execFile(
+    'osascript',
+    ['-l', 'JavaScript', '-e', `ObjC.import('AppKit'); $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid}).hide`],
+    () => {},
+  )
 }
 
 /** Our TouchDesigner's pid from its boot file (written as the project opens, this launch's), hidden at once. */

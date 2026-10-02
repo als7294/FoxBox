@@ -50,6 +50,7 @@ import {
   type QuarantineResult,
 } from './engine/command'
 import { tdPaths, TouchDesignerSession } from './bridge/tdSession'
+import { TD_ENABLED } from '../shared/tdPresets'
 import { TouchDesignerBridge } from './bridge/touchdesigner'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
@@ -1046,32 +1047,34 @@ function registerIpc(): void {
   ipcMain.handle(IPC.shadersRemove, (event, file: unknown) => trusted(event) && removeShader(shadersDir(DATA_DIR), file))
 
   // TouchDesigner (1.3) ----------------------------------------------------------------------
-  ipcMain.handle(IPC.tdGet, (event) => (trusted(event) ? touchDesigner().settings() : null))
+  // 1.5.5: paused (TD_ENABLED): every handler answers null / [] and does nothing
+  const tdOk = (event: IpcMainEvent | IpcMainInvokeEvent) => TD_ENABLED && trusted(event)
+  ipcMain.handle(IPC.tdGet, (event) => (tdOk(event) ? touchDesigner().settings() : null))
   ipcMain.handle(IPC.tdSet, (event, patch: unknown) =>
-    trusted(event) && patch && typeof patch === 'object' ? touchDesigner().setSettings(patch as Partial<TdSettings>) : null,
+    tdOk(event) && patch && typeof patch === 'object' ? touchDesigner().setSettings(patch as Partial<TdSettings>) : null,
   )
-  ipcMain.handle(IPC.tdStatus, (event) => (trusted(event) ? touchDesigner().status() : null))
+  ipcMain.handle(IPC.tdStatus, (event) => (tdOk(event) ? touchDesigner().status() : null))
   ipcMain.on(IPC.tdSend, (event, messages: unknown) => {
-    if (event.sender === mainWindow?.webContents && trusted(event)) touchDesigner().send(messages as TdMessage[])
+    if (event.sender === mainWindow?.webContents && tdOk(event)) touchDesigner().send(messages as TdMessage[])
   })
   ipcMain.handle(IPC.tdSessionStart, (event, setup: unknown) =>
-    event.sender === mainWindow?.webContents && trusted(event) ? touchDesignerSession().start(setup === true) : null,
+    event.sender === mainWindow?.webContents && tdOk(event) ? touchDesignerSession().start(setup === true) : null,
   )
   ipcMain.handle(IPC.tdSessionStop, (event) =>
-    event.sender === mainWindow?.webContents && trusted(event) ? touchDesignerSession().stop() : null,
+    event.sender === mainWindow?.webContents && tdOk(event) ? touchDesignerSession().stop() : null,
   )
-  ipcMain.handle(IPC.tdSessionGet, (event) => (trusted(event) ? touchDesignerSession().status() : null))
+  ipcMain.handle(IPC.tdSessionGet, (event) => (tdOk(event) ? touchDesignerSession().status() : null))
   ipcMain.on(IPC.tdOpenDownload, (event) => {
-    if (trusted(event)) void shell.openExternal('https://derivative.ca/download')
+    if (tdOk(event)) void shell.openExternal('https://derivative.ca/download')
   })
   ipcMain.on(IPC.tdOpenApp, (event) => {
-    if (trusted(event)) touchDesignerSession().openApp()
+    if (tdOk(event)) touchDesignerSession().openApp()
   })
-  ipcMain.handle(IPC.tdPresets, (event) => (trusted(event) ? touchDesignerSession().presets() : []))
+  ipcMain.handle(IPC.tdPresets, (event) => (tdOk(event) ? touchDesignerSession().presets() : []))
   // The camera's frames to TouchDesigner on their own MessagePort, posted from a worker (renderer/touchdesigner/
   // camera.worker.ts): the page's main thread neither reads them back nor copies them into an IPC message.
   ipcMain.on(IPC.tdCameraPort, (event) => {
-    if (event.sender !== mainWindow?.webContents || !trusted(event)) return
+    if (event.sender !== mainWindow?.webContents || !tdOk(event)) return
     const { port1, port2 } = new MessageChannelMain()
     port1.on('message', ({ data }) => {
       const d = data as { rgba?: unknown; width?: unknown; height?: unknown } | null

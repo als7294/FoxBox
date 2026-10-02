@@ -55,7 +55,8 @@ export function cleanSettings(raw: Partial<TdSettings> | null | undefined, base:
 export function controlFrom(msg: TdMessage): TdMessage | null {
   if (!IN_ADDRESS.test(msg.address)) return null
   const [first] = msg.args
-  if (msg.address === '/foxbox/preset') return typeof first === 'string' && first.length <= 64 ? { address: msg.address, args: [first] } : null
+  if (msg.address === '/foxbox/preset')
+    return typeof first === 'string' && first.length <= 64 ? { address: msg.address, args: [first] } : null
   if (msg.address === '/foxbox/ptt' || msg.address.startsWith('/foxbox/macro/')) {
     const v = typeof first === 'boolean' ? Number(first) : first
     if (typeof v !== 'number' || !Number.isFinite(v)) return null
@@ -103,20 +104,29 @@ export class TouchDesignerBridge {
   }
 
   status(): TdStatus {
-    return { enabled: this.conf.enabled, listening: this.socket !== null && this.error === null, error: this.error,
-      sent: this.sent, lastIn: this.lastIn, lastOutAt: this.lastOutAt }
+    return {
+      enabled: this.conf.enabled,
+      listening: this.socket !== null && this.error === null,
+      error: this.error,
+      sent: this.sent,
+      lastIn: this.lastIn,
+      lastOutAt: this.lastOutAt,
+    }
   }
 
   /** One frame from the renderer, as one OSC bundle: only /foxbox/ addresses, at most MAX_MESSAGES. */
   private tdFps: { fps: number; at: number } | null = null
+  /** TouchDesigner's own word on its camera input (/foxbox/td_camera [bound, w, h], each second; 1.5.5). */
+  private tdCamera: { bound: boolean; w: number; h: number; at: number } | null = null
   private tracked: Record<string, number> = {}
 
   /** For main.log's [TD] line: TouchDesigner's own cook rate (its last report, if fresh) and the tracking messages sent
    *  since the last call (body / hand / face: one point each; sent on change, so updates). */
-  diag(): { tdFps: number | null; tracking: Record<string, number> } {
+  diag(): { tdFps: number | null; tdCamera: { bound: boolean; w: number; h: number } | null; tracking: Record<string, number> } {
     const tracking = this.tracked
     this.tracked = {}
-    return { tdFps: this.tdFps && Date.now() - this.tdFps.at < 3000 ? this.tdFps.fps : null, tracking }
+    const fresh = <T extends { at: number }>(v: T | null) => (v && Date.now() - v.at < 3000 ? v : null)
+    return { tdFps: fresh(this.tdFps)?.fps ?? null, tdCamera: fresh(this.tdCamera), tracking }
   }
 
   send(messages: TdMessage[]): void {
@@ -135,7 +145,10 @@ export class TouchDesignerBridge {
         continue
       }
     }
-    for (const [packets, port] of [[numbers, this.conf.outPort], [text, textPort(this.conf)]] as const) {
+    for (const [packets, port] of [
+      [numbers, this.conf.outPort],
+      [text, textPort(this.conf)],
+    ] as const) {
       for (const bundle of bundles(packets)) {
         socket.send(encodeBundle(bundle), port, this.conf.host, (err) => {
           if (err) this.error = `send: ${err.message}`
@@ -173,6 +186,11 @@ export class TouchDesignerBridge {
       for (const msg of messages) {
         if (msg.address === '/foxbox/td_fps' && typeof msg.args[0] === 'number') {
           this.tdFps = { fps: msg.args[0], at: Date.now() } // its own cook rate, each second (foxbox_setup.py)
+          continue
+        }
+        if (msg.address === '/foxbox/td_camera') {
+          const [bound, w, h] = msg.args.map(Number)
+          this.tdCamera = { bound: bound === 1, w: w || 0, h: h || 0, at: Date.now() }
           continue
         }
         const control = controlFrom(msg)

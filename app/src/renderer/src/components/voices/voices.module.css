@@ -570,6 +570,10 @@
   gap: 8px;
   min-height: 24px;
 }
+.tileTerms {
+  font: 400 var(--vb-text-min) / 1.4 var(--vb-font-mono);
+  color: var(--vb-dim); /* 1.5.5: a model's own terms (Demucs' weights), before its download */
+}
 .tileMeta {
   min-width: 0;
   font: 500 var(--vb-text-min) var(--vb-font-mono);

@@ -40,13 +40,13 @@ describe('a face asks first', () => {
     expect(faceShowsNow()).toBe(false)
   })
 
-  it('HIDE FACE, THEN RECORD hides it and records only once the picture has redrawn', () => {
+  it('HIDE MY FACE, THEN RECORD hides it and records only once the picture has redrawn', () => {
     vi.useFakeTimers()
     const go = vi.fn()
     const hide = vi.fn()
     visualsUi.askFace('rec', go)
     render(<FaceConfirm ask={{ kind: 'rec', go }} tdRaw={false} hideFace={hide} />)
-    fireEvent.click(screen.getByRole('button', { name: 'HIDE FACE, THEN RECORD' }))
+    fireEvent.click(screen.getByRole('button', { name: 'HIDE MY FACE, THEN RECORD' }))
     expect(hide).toHaveBeenCalledOnce()
     expect(go).not.toHaveBeenCalled()
     expect(useVisualsUi.getState().faceAsk).toBeNull()

@@ -11,6 +11,10 @@ export interface Pt {
   y: number
 }
 
+export interface Pt3 extends Pt {
+  z: number
+}
+
 export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
 export const smoothstep = (a: number, b: number, v: number): number => {
   const t = clamp01((v - a) / (b - a))
@@ -169,6 +173,8 @@ export interface HandShape {
   gesture: HandGesture | null
   /** MediaPipe's 21, as given (0-1 of the camera frame). */
   points: Pt[]
+  /** The same in metres, 3D, when the tracker gives them (SeenHand.world). */
+  world?: Pt3[]
   /** Pinching, with hysteresis: on above 0.7, off below 0.4. */
   pinched: boolean
   /** TWIST, a pinch dial: how far the hand has turned since the pinch began (the knuckle line, 5 to 17, unwrapped),
@@ -193,7 +199,14 @@ export interface HandShapes {
   frame: { held: boolean; x0: number; y0: number; x1: number; y1: number; corners: Pt[]; size: number; since: number; seen: number }
   /** TRIANGLE: the index tips touching above the thumb tips touching, an opening between them. */
   triangle: boolean
+  /** STRING HANDS' strings: each finger's two tips (left hand's to right hand's) apart over the shoulders' width, 0-1
+   *  (1 at a shoulder width or more); all 0 without both hands. S2's sound map reads them as gesture.pair_<finger>. */
+  pairs: FingerPairs
 }
+
+export type FingerPairs = Record<'thumb' | 'index' | 'middle' | 'ring' | 'pinky', number>
+export const NO_PAIRS: FingerPairs = { thumb: 0, index: 0, middle: 0, ring: 0, pinky: 0 }
+const PAIR_TIPS: [keyof FingerPairs, number][] = [['thumb', 4], ['index', 8], ['middle', 12], ['ring', 16], ['pinky', 20]]
 
 export const FRAME_HOLD_MS = 150
 const SIDE_MARGIN = 0.1
@@ -201,18 +214,20 @@ const NO_FRAME: HandShapes['frame'] = { held: false, x0: 0, y0: 0, x1: 0, y1: 0,
 
 /**
  * The hands' shapes from the recognizer's hands (0-1 of the camera frame, `aspect` its width over height), computed
- * once for the signals (S2's sound) and TouchDesigner (S3). `prev`: last time's, for the sides and FRAME's hold.
+ * once for the signals (S2's sound) and TouchDesigner (S3). `prev`: last time's, for the sides and FRAME's hold;
+ * `body`: the pose's keypoints, for the shoulders' width (the finger pairs' scale).
  */
 export function handShapes(
-  hands: readonly { points: readonly Pt[]; gesture: HandGesture | null }[],
+  hands: readonly { points: readonly Pt[]; gesture: HandGesture | null; world?: readonly Pt3[] }[],
   now: number,
   prev: HandShapes | null = null,
   aspect = 16 / 9,
+  body: readonly BodyPt[] | null | undefined = null,
 ): HandShapes {
   const sq = (h: readonly Pt[]) => h.map((p) => ({ x: p.x * aspect, y: p.y }))
   const shaped: HandShape[] = hands.slice(0, 2).map((h) => {
     const s = handSignal(sq(h.points), 0)
-    return { pinch: s.pinch, open: s.open, fingers: s.fingers, gesture: h.gesture, points: h.points.map((p) => ({ x: p.x, y: p.y })), pinched: false, twist: 0, angle: 0, turn: 0 }
+    return { pinch: s.pinch, open: s.open, fingers: s.fingers, gesture: h.gesture, points: h.points.map((p) => ({ x: p.x, y: p.y })), ...(h.world ? { world: [...h.world] } : {}), pinched: false, twist: 0, angle: 0, turn: 0 }
   })
   // Sides: last time's (the closer hand, all 21 points; for two, the closer pairing) unless its wrist crossed the
   // middle by the margin; else by where it is.
@@ -278,7 +293,21 @@ export function handShapes(
     const bottom = mid(l[4]!, r[4]!)
     triangle = dist(l[8]!, r[8]!) < p / 3 && dist(l[4]!, r[4]!) < p / 3 && bottom.y - top.y > p / 2
   }
-  return { left, right, apart, frame, triangle }
+  const pairs = left && right ? fingerPairs(left.points, right.points, body, aspect) : NO_PAIRS
+  return { left, right, apart, frame, triangle, pairs }
+}
+
+/**
+ * Each finger's two tips (left hand's to right hand's) apart over the shoulders' width, 0-1 (1 at a shoulder width or
+ * more). Points 0-1 of one frame (`aspect` its width over height); the shoulders from the pose (both seen), else
+ * about four palms. ponytail: four palms is a typical shoulder width, not measured per person.
+ */
+export function fingerPairs(left: readonly Pt[], right: readonly Pt[], body: readonly BodyPt[] | null | undefined, aspect: number): FingerPairs {
+  const sq = (h: readonly Pt[]) => h.map((p) => ({ x: p.x * aspect, y: p.y }))
+  const [l, r] = [sq(left), sq(right)]
+  const [s1, s2] = [body?.[11], body?.[12]]
+  const shoulders = s1 && s2 && s1.v >= 0.5 && s2.v >= 0.5 ? Math.hypot((s1.x - s2.x) * aspect, s1.y - s2.y) : 2 * (palm(l) + palm(r))
+  return Object.fromEntries(PAIR_TIPS.map(([k, i]) => [k, Math.min(1, dist(l[i]!, r[i]!) / Math.max(shoulders, 1e-6))])) as FingerPairs
 }
 
 // ------------------------------------------------------------------------------------------------ head

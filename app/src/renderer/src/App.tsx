@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WhatsNew } from '@/components/whatsnew/WhatsNew'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import type { MenuCommand } from '@shared/bridge'
+import { TD_ENABLED } from '@shared/tdPresets'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { usePresets, useSettings } from '@/api/queries'
 import type { BarsSetting, Preset } from '@/api/types'
@@ -193,10 +194,11 @@ function Screens() {
     }
   }, [])
   useEffect(() => watchCapabilities(), [])
-  useEffect(() => startTouchDesignerFeed(), [])
-  useEffect(() => startTdSoundMap(), []) // the TD presets' `sound` maps on the TRACK song's FX (S2)
-  useEffect(() => startTdSessionSync(), [])
-  useEffect(() => startProdFeed(), []) // PROD's six knobs (REACTS TO applied) and palette into TouchDesigner
+  // 1.5.5: TouchDesigner is paused (TD_ENABLED): neither its OSC feed nor its session starts
+  useEffect(() => (TD_ENABLED ? startTouchDesignerFeed() : undefined), [])
+  useEffect(() => startTdSoundMap(), []) // the TD presets' `sound` maps (and STRINGS', 1.5.5) on the TRACK song's FX (S2)
+  useEffect(() => (TD_ENABLED ? startTdSessionSync() : undefined), [])
+  useEffect(() => startProdFeed(), []) // PROD's six knobs (REACTS TO applied) and palette into TouchDesigner; the strip's meters
   return (
     <AppShell
       overlays={
@@ -223,7 +225,7 @@ function Screens() {
       </ErrorBoundary>
       {prodSeen && (
         <div style={{ display: screen === 'prod' ? 'contents' : 'none' }}>
-          <ErrorBoundary scope="PROD">
+          <ErrorBoundary scope="STRINGS">
             <ProdPage />
           </ErrorBoundary>
         </div>

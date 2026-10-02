@@ -73,11 +73,11 @@ describe('App', () => {
     const before = useUi.getState().screen
     fireEvent.click(remix)
     expect(useUi.getState().screen).toBe(before)
-    // PROD (06, 1.5.2): TouchDesigner, open, with the DEMO badge.
-    const prod = within(nav).getByRole('button', { name: 'PROD, demo' })
-    expect(prod).toHaveTextContent('DEMO')
-    fireEvent.click(prod)
-    expect(await screen.findByRole('heading', { level: 1, name: 'PROD · TOUCHDESIGNER' })).toBeInTheDocument()
+    // STRINGS (06, 1.5.5; PROD · TOUCHDESIGNER 1.5.2-1.5.4), with the NEW badge.
+    const strings = within(nav).getByRole('button', { name: 'STRINGS, new' })
+    expect(strings).toHaveTextContent('NEW')
+    fireEvent.click(strings)
+    expect(await screen.findByRole('heading', { level: 1, name: 'STRINGS' })).toBeInTheDocument()
     for (const name of ['VAULT', 'VOICES', 'SETTINGS', 'STUDIO']) {
       fireEvent.click(within(nav).getByRole('button', { name }))
       if (name !== 'STUDIO') expect(await screen.findByRole('heading', { level: 1, name })).toBeInTheDocument()

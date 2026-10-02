@@ -1,0 +1,225 @@
+/* WHAT'S NEW 1.5.5's STRINGS guide: inside WHAT'S NEW's screen. FoxBox's own: near-black, bone, ember, mono labels;
+   11 px floor, 24 px targets, focus always visible, still under reduced motion. */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.headKicker {
+  margin: 0;
+  font: 500 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  color: var(--vb-accent);
+}
+.headTitle {
+  margin: 0;
+  font: var(--vb-display-weight) clamp(32px, 3.6vw, 46px) / 0.95 var(--vb-font-display);
+  letter-spacing: 0.02em;
+  color: var(--vb-ink);
+}
+.headTitle > span {
+  color: var(--vb-accent);
+}
+
+.guide {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  background: rgba(16, 16, 18, 0.92);
+  box-shadow: var(--vb-rack-inset);
+  font: 500 12px/1.4 var(--vb-font-mono);
+  color: var(--vb-ink);
+}
+.guide :focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+.body {
+  display: grid;
+  gap: 18px;
+}
+/* the last step: the film beside the rest of the release */
+.body[data-last] {
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  align-items: center;
+}
+/* the film: WebGL under its type, 16:9 */
+.stageBox {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #050506;
+  box-shadow: 0 0 0 1px rgba(var(--vb-ink-rgb), 0.12);
+}
+.stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.also {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--vb-ink-rgb), 0.1);
+}
+.alsoHead {
+  margin: 0;
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.14em;
+  color: var(--vb-dim);
+}
+.also ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 500 var(--vb-text-min) / 1.5 var(--vb-font-mono);
+  color: #bdb8ac;
+}
+.also b {
+  color: var(--vb-ink);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dots {
+  display: flex;
+  gap: 2px;
+}
+/* a 24 px target around an 8 px dot */
+.dot {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.dot::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: rgba(var(--vb-ink-rgb), 0.25);
+  transition: background 0.2s, transform 0.2s;
+}
+.dot:hover::after {
+  background: rgba(var(--vb-ink-rgb), 0.5);
+}
+.dot[aria-current='step']::after {
+  background: var(--vb-accent);
+  transform: scale(1.35);
+}
+.flex {
+  flex: 1;
+}
+.back,
+.next,
+.open {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 3px;
+  font: 800 16px/1 var(--vb-font-display);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.back {
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  background: none;
+  color: var(--vb-ink);
+}
+.back:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.5);
+}
+.back:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.next {
+  border: 0;
+  background: var(--vb-ink);
+  color: var(--vb-well);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+}
+.open {
+  border: 0;
+  background: var(--vb-accent);
+  color: var(--vb-well);
+  box-shadow:
+    0 0 22px rgba(var(--vb-accent-rgb), 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+}
+.next:hover,
+.open:hover {
+  filter: brightness(1.08);
+}
+.next:active,
+.open:active {
+  transform: translateY(2px);
+}
+
+/* STRINGS' cheat sheet: GUIDE plays this again */
+.replay {
+  margin-left: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(var(--vb-amber-rgb), 0.6);
+  border-radius: 2px;
+  background: none;
+  color: var(--vb-amber);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.replay:hover {
+  background: rgba(var(--vb-amber-rgb), 0.12);
+}
+.replay:focus-visible {
+  outline: 2px solid var(--vb-amber);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot::after {
+    transition: none;
+  }
+  .next:active,
+  .open:active {
+    transform: none;
+  }
+}

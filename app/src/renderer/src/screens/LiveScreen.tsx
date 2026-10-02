@@ -175,11 +175,16 @@ export function LiveScreen() {
   }, [live, chain, macros, macroMap, rack, key])
   useEffect(() => live?.setTempo(bpm), [live, bpm])
 
+  // No song: STRINGS' TEST BEAT, if asked for (a song loading takes over).
+  const testBeat = useLiveDeck((d) => d.testBeat) && !song
   useEffect(() => {
-    if (!live || !song) return setDeck(null)
+    if (song) useLiveDeck.setState({ testBeat: false })
+  }, [song?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!live || (!song && !testBeat)) return setDeck(null)
     const d = new SongDeck(live)
     let alive = true
-    d.load(song).then(
+    ;(song ? d.load(song) : Promise.resolve(d.loadTestBeat())).then(
       () => alive && setDeck(d),
       (e: Error) => alive && toast.error('SONG NOT LOADED', { detail: e.message }),
     )
@@ -191,7 +196,7 @@ export function LiveScreen() {
     }
     // A new song (not a new analysis or override of the same one: refreshGrid below takes those).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, song?.id])
+  }, [live, song?.id, testBeat])
   useEffect(() => {
     if (deck && song) deck.refreshGrid(song)
   }, [deck, song])
@@ -264,7 +269,7 @@ export function LiveScreen() {
   // PROD's ▶ PLAY starts the TRACK engine (no mic) the way START TRACK does, when VISUALS is on TRACK and it's off.
   const startRef = useRef(start)
   startRef.current = start
-  const canStartTrack = source === 'track' && Boolean(song) && (status === 'off' || status === 'error')
+  const canStartTrack = source === 'track' && (Boolean(song) || testBeat) && (status === 'off' || status === 'error')
   useEffect(() => useLiveDeck.setState({ startTrack: canStartTrack ? () => void startRef.current() : null }), [canStartTrack])
   const stop = async () => {
     const l = liveRef.current
@@ -630,7 +635,7 @@ export function LiveScreen() {
             <button
               type="button"
               className={styles.talk}
-              data-talking={(on && talking) || undefined}
+              data-talking={(on && micOpen && talking) || undefined}
               disabled={!on && !learning}
               onClick={learning ? learnOr('ptt', () => {}) : undefined}
               onPointerDown={() => !learning && talk(true)}

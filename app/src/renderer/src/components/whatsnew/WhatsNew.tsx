@@ -3,13 +3,19 @@ import bootBgUrl from '../../../../../design/brand/foxbox-boot-bg.svg?url'
 import { AnimatedFoxMark } from '@/components/common/AnimatedFoxMark'
 import { bridge } from '@/env'
 import { useUi } from '@/state/ui'
-import { parseNotes, splitHighlights, versionsToShow, type Notes } from './notes'
+import { parseNotes, splitHighlights, toHighlight, versionsToShow, type Notes } from './notes'
+import { StringsGuide, useStringsGuide } from './StringsGuide'
+import guideCss from './guide.module.css'
 import styles from './WhatsNew.module.css'
 
 /** Every release's notes, bundled (so WHAT'S NEW works offline). */
 const BUNDLED: Notes[] = Object.entries(
   import.meta.glob('../../../../../release-notes/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>,
 ).map(([path, md]) => parseNotes(path.replace(/^.*\/|\.md$/g, ''), md))
+
+/** 1.5.5's STRINGS guide replaces its cards: its notes' first GUIDE_LINES lines are the guide's, the rest listed. */
+const GUIDE_VERSION = '1.5.5'
+const GUIDE_LINES = 5
 
 /** The last version whose WHAT'S NEW was seen (per Mac, in the app's own storage). */
 const SEEN_KEY = 'foxbox-whatsnew-seen'
@@ -44,6 +50,8 @@ const GLYPHS: { viewBox: string; d: string }[] = [
  */
 export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
   const booting = useUi((s) => s.booting)
+  // GUIDE on STRINGS' cheat sheet: the guide again, whatever was seen
+  const replay = useStringsGuide((g) => g.replay)
   const [since, setSince] = useState<string | null | undefined>(undefined)
   const [open, setOpen] = useState(true)
   const go = useRef<HTMLButtonElement>(null)
@@ -67,17 +75,57 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
     )
   }, [current])
 
-  const shown = useMemo(() => (since === undefined ? [] : versionsToShow(BUNDLED, current, since)), [since, current])
-  const visible = open && !booting && shown.length > 0
+  const shown = useMemo(
+    () => (replay ? BUNDLED.filter((n) => n.version === GUIDE_VERSION) : since === undefined ? [] : versionsToShow(BUNDLED, current, since)),
+    [replay, since, current],
+  )
+  const visible = (replay || (open && !booting)) && shown.length > 0
   useEffect(() => {
     if (visible) go.current?.focus()
   }, [visible])
   if (!visible) return null
 
   const done = () => {
+    if (replay) return useStringsGuide.setState({ replay: false })
     writeSeen(current)
     setOpen(false)
     void bridge()?.updates.dismissWhatsNew()
+  }
+  const guide = shown.some((n) => n.version === GUIDE_VERSION)
+  if (guide) {
+    const also = shown.flatMap((n) => (n.version === GUIDE_VERSION ? n.lines.slice(GUIDE_LINES) : n.lines).map((l) => toHighlight(n.version, l)))
+    return (
+      <section
+        className={styles.screen}
+        aria-label="What's new"
+        data-testid="whats-new"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') done()
+        }}
+      >
+        <img className={styles.bg} src={bootBgUrl} alt="" aria-hidden="true" draggable={false} />
+        <div className={`${styles.inner} ${styles.innerWide}`}>
+          <header className={guideCss.head}>
+            <AnimatedFoxMark size={56} className={styles.mark} />
+            <div className={guideCss.headText}>
+              <p className={guideCss.headKicker}>{replay ? 'THE STRINGS GUIDE' : `WHAT’S NEW${shown.length > 1 ? ` · ${shown[shown.length - 1]!.version} → ${shown[0]!.version}` : ''}`}</p>
+              <h1 className={guideCss.headTitle}>
+                FOXBOX {GUIDE_VERSION} · <span>STRINGS</span>
+              </h1>
+            </div>
+          </header>
+          <StringsGuide
+            also={replay ? [] : also}
+            onLater={done}
+            onOpen={() => {
+              done()
+              useUi.getState().navigate('prod')
+            }}
+          />
+          <p className={styles.signoff}>Stay stealthy.</p>
+        </div>
+      </section>
+    )
   }
   const { cards, more } = splitHighlights(shown)
   const newest = shown[0]!

@@ -362,16 +362,16 @@
   font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
-/* DEMO (PROD: TouchDesigner's free licence is non-commercial): sized like WIP, in ice. */
-.railDemo {
+/* NEW (1.5.5: STRINGS): sized like WIP, in amber. */
+.railNew {
   position: absolute;
   top: 3px;
   right: 3px;
   padding: 0 2px;
   line-height: 1.25;
-  border: 1px solid var(--vb-ice);
+  border: 1px solid var(--vb-amber);
   border-radius: 3px;
-  color: var(--vb-ice);
+  color: var(--vb-amber);
   font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
