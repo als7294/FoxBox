@@ -8,7 +8,7 @@ import { tdCommand } from '@/touchdesigner/commands'
 import { KNOBS, REACTS, TD_PALETTES } from '@/touchdesigner/knobs'
 import { useTdPresets } from '@/touchdesigner/presets'
 import { MacroKnob, MiniKnob, reactOf } from './MacroKnob'
-import { gesturesOf, knobsOf, useProd } from './prodStore'
+import { gesturesNone, gesturesOf, knobsOf, useProd } from './prodStore'
 import shared from './prod.module.css'
 import s from './play.module.css'
 
@@ -24,6 +24,7 @@ export function PlayPanel({ collapsed, onExpand }: { collapsed: boolean; onExpan
   const look = useTdPresets((t) => t.presets.find((p) => p.id === t.active))
   const hands = look?.mode === 'hands'
   const prod = useProd()
+  const map = gesturesOf(prod, look)
   const { values, reacts } = knobsOf(prod, active)
   const fxOn = useSongFx((f) => f.enabled)
   const [spin, setSpin] = useState(0)
@@ -158,36 +159,45 @@ export function PlayPanel({ collapsed, onExpand }: { collapsed: boolean; onExpan
                 SHOW HANDS
               </button>
             </span>
-            {GESTURES.map((g) => {
-              const cur = gesturesOf(prod, look)[g.id]
-              const acts: readonly string[] = g.acts
-              const next = acts[(acts.indexOf(cur) + 1) % acts.length] as (typeof g.acts)[number]
-              return (
-                <div key={g.id} className={s.gestRow}>
-                  <span className={s.gestName}>{g.label}</span>
-                  <span className={s.caret} aria-hidden="true">
-                    →
-                  </span>
-                  <button
-                    type="button"
-                    className={s.gestAct}
-                    title="Change what this gesture does"
-                    aria-label={`${g.label}: ${actLabel(cur)}`}
-                    onClick={() => active && prod.setGesture(active, g.id, next)}
-                  >
-                    {actLabel(cur)}
+            {/* S5: a look whose gestures all do NOTHING teaches nothing: no rows, no CLEAR */}
+            {!gesturesNone(map) &&
+              GESTURES.map((g) => {
+                const cur = map[g.id]
+                const acts: readonly string[] = g.acts
+                const next = acts[(acts.indexOf(cur) + 1) % acts.length] as (typeof g.acts)[number]
+                return (
+                  <div key={g.id} className={s.gestRow}>
+                    <span className={s.gestName}>{g.label}</span>
                     <span className={s.caret} aria-hidden="true">
-                      ⟳
+                      →
                     </span>
-                  </button>
-                </div>
-              )
-            })}
+                    <button
+                      type="button"
+                      className={s.gestAct}
+                      title="Change what this gesture does"
+                      aria-label={`${g.label}: ${actLabel(cur)}`}
+                      onClick={() => active && prod.setGesture(active, g.id, next)}
+                    >
+                      {actLabel(cur)}
+                      <span className={s.caret} aria-hidden="true">
+                        ⟳
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
             <span className={s.gestFoot}>
               <span className={s.note}>Tracking runs on your Mac. Set any knob to react to HANDS: how far apart your fingers are.</span>
-              <button type="button" className={shared.ctl} title="Removes the drawn windows and portals" onClick={() => tdCommand('clear')}>
-                CLEAR
-              </button>
+              {!gesturesNone(map) && (
+                <button
+                  type="button"
+                  className={shared.ctl}
+                  title="Removes the drawn windows and portals"
+                  onClick={() => tdCommand('clear')}
+                >
+                  CLEAR
+                </button>
+              )}
             </span>
           </div>
         )}

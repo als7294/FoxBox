@@ -14,7 +14,7 @@ import { sendFrame, useOutputOwner } from '@/visuals/live/output'
 import { silentFrame } from '@/visuals/live/registry'
 import { stageSource } from '@/visuals/live/stage'
 import { clock, prodCanvas, useOutputOpen, useProdRec } from './prodActions'
-import { gesturesOf, useProd } from './prodStore'
+import { gesturesNone, gesturesOf, useProd } from './prodStore'
 import shared from './prod.module.css'
 import styles from './page.module.css'
 
@@ -224,7 +224,7 @@ export function TdPreview({ onRest }: { onRest(resting: boolean): void }) {
               </span>
             )}
           </div>
-          {hands && (
+          {hands && !gesturesNone(gestures) && (
             <div className={styles.gestureKey} aria-label="Gestures">
               <span className={styles.gestureTitle}>GESTURES</span>
               <span className={styles.gestureRow}>

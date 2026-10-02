@@ -21,6 +21,8 @@
 //                            then launched() -> its pid, 0 while opening, -1 failed
 //   hideApp(pid) -> bool     hides that app if it shows (true when it did): a hidden-launched TouchDesigner still puts
 //                            its editor window up as the project opens
+//   guardHidden(pid, ms)     for `ms`, hides that app the moment macOS says it unhid (no poll's wait: the window shows
+//                            for a frame at most); a new call replaces the last, ms 0 stops it
 //   testServer(name) / testPublish(seconds, width, height) / testStop()
 //   testConvert(width, height) -> {srcFourcc, fourcc, pixel: [b, g, r, a]}: an untagged surface (TouchDesigner's kind)
 //            through the same copy
@@ -458,6 +460,28 @@ napi_value Launched(napi_env env, napi_callback_info) {
   return v;
 }
 
+id unhideGuard = nil;  // guardHidden's NSWorkspace observer
+
+napi_value GuardHidden(napi_env env, napi_callback_info info) {
+  ARGS(2);
+  int32_t pid = 0;
+  double ms = 0;
+  napi_get_value_int32(env, argv[0], &pid);
+  napi_get_value_double(env, argv[1], &ms);
+  NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+  if (unhideGuard) [nc removeObserver:unhideGuard];
+  unhideGuard = nil;
+  if (pid > 1 && ms > 0) {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:ms / 1000.0];
+    unhideGuard = [nc addObserverForName:NSWorkspaceDidUnhideApplicationNotification object:nil
+                                   queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n) {
+                                     NSRunningApplication *a = n.userInfo[NSWorkspaceApplicationKey];
+                                     if (a.processIdentifier == pid && until.timeIntervalSinceNow > 0) [a hide];
+                                   }];
+  }
+  return nullptr;
+}
+
 napi_value HideApp(napi_env env, napi_callback_info info) {
   ARGS(1);
   int32_t pid = 0;
@@ -481,6 +505,7 @@ napi_value Init(napi_env env, napi_value exports) {
       {"launch", nullptr, Launch, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"launched", nullptr, Launched, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"hideApp", nullptr, HideApp, nullptr, nullptr, nullptr, napi_default, nullptr},
+      {"guardHidden", nullptr, GuardHidden, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"serve", nullptr, Serve, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"publish", nullptr, Publish, nullptr, nullptr, nullptr, napi_default, nullptr},
       {"unserve", nullptr, Unserve, nullptr, nullptr, nullptr, napi_default, nullptr},

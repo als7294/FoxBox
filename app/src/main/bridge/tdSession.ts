@@ -50,6 +50,7 @@ interface SyphonHost {
   launched?(): number
   /** Hides the app if it shows; true when it did. */
   hideApp?(pid: number): boolean
+  guardHidden?(pid: number, ms: number): void
 }
 
 interface SharedTextureApi {
@@ -200,13 +201,22 @@ export class TouchDesignerSession {
   }
 
   /** Hidden from the start: even launched hidden, TouchDesigner puts its editor window up as the project opens (S1
-   *  saw it 6-9 s on screen), and anyone closing it quits it. Re-hidden every 250 ms for its first 20 s. */
+   *  saw it 6-9 s on screen; with the 250 ms re-hide alone, ~0.1 s), and anyone closing it quits it. For its first 20 s
+   *  (under REPORT_MS: OPEN TOUCHDESIGNER's sign-in window may show after): re-hidden the moment macOS says it unhid,
+   *  and polled, every frame for 10 s, then every 250 ms. */
   private keepHidden(run: number, pid: number): void {
-    const until = Date.now() + 20000
-    const tick = setInterval(() => {
-      if (this.run !== run || Date.now() > until || !alive(pid)) return clearInterval(tick)
-      this.host?.hideApp?.(pid)
-    }, 250)
+    const start = Date.now()
+    this.host?.guardHidden?.(pid, 20000)
+    const poll = (ms: number, until: number): ReturnType<typeof setInterval> =>
+      setInterval(() => {
+        if (this.run !== run || Date.now() - start > until || !alive(pid)) return clearInterval(tick)
+        this.host?.hideApp?.(pid)
+      }, ms)
+    let tick = poll(16, 10000)
+    setTimeout(() => {
+      clearInterval(tick)
+      if (this.run === run) tick = poll(250, 20000)
+    }, 10000)
   }
 
   /** The TouchDesigner that was still opening when FoxBox stopped: quit (by the pid it reports) once it has opened. */

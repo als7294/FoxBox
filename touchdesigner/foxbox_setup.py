@@ -1158,10 +1158,38 @@ if perf is not None:
     setp(perf, 'frameend', True)
 activate.module.show(-1)  # none until the first frame says which
 
+def full_speed():
+    """macOS throttles a hidden app that isn't the user's focus (App Nap, background QoS): TouchDesigner ran 6x slower a
+    few minutes into a hidden session (the perf DAT's own Python 0.37 -> 2.4 ms a frame). An activity held for the
+    session (user-initiated and latency-critical, idle sleep still allowed) keeps it at full speed: NSProcessInfo
+    through the Objective-C runtime, nothing written to the user's defaults. Returns 'on' or why not."""
+    try:
+        import ctypes
+        import ctypes.util
+        objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library('objc'))
+        objc.objc_getClass.restype = objc.sel_registerName.restype = ctypes.c_void_p
+        objc.objc_getClass.argtypes = objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        P = ctypes.c_void_p
+        send = lambda *types: ctypes.CFUNCTYPE(P, P, P, *types)(('objc_msgSend', objc))  # noqa: E731
+        info = send()(objc.objc_getClass(b'NSProcessInfo'), objc.sel_registerName(b'processInfo'))
+        reason = send(ctypes.c_char_p)(objc.objc_getClass(b'NSString'), objc.sel_registerName(b'stringWithUTF8String:'),
+                                       b'FoxBox visuals')
+        # NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical
+        token = send(ctypes.c_uint64, P)(info, objc.sel_registerName(b'beginActivityWithOptions:reason:'),
+                                        0x00EFFFFF | 0xFF00000000, reason)
+        if not token:
+            return 'no activity'
+        send()(token, objc.sel_registerName(b'retain'))  # held for the session (TouchDesigner quits with FoxBox)
+        return 'on'
+    except Exception as e:
+        return f'failed: {e}'
+
+
+FULL_SPEED = full_speed()
 look.cook(force=True)
 errors = BUILD_ERRORS + [f'{o.path}: {o.errors()}' for o in box.findChildren() if o.errors()]
 status = {'ok': True, 'version': app.version, 'build': app.build, 'product': str(app.product), 'syphon': SENDER,
-          'missing': MISSING, 'errors': errors, 'built_at': time.time(), 'pid': os.getpid()}  # FoxBox quits only this pid
+          'missing': MISSING, 'errors': errors, 'built_at': time.time(), 'pid': os.getpid(), 'full_speed': FULL_SPEED}  # FoxBox quits only this pid
 with open(STATUS_PATH, 'w') as f:
     json.dump(status, f)
 # Never perform mode: its window comes on screen even from a hidden launch, and a user closing that stray window

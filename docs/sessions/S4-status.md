@@ -34,6 +34,44 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART 
   - Waveform energy is checked on real audio, and it's fine.
 - **On the next merge of main or S2's branch:** re-export the REMIX openapi (contracts v0.14, `Chord` and `SongStructure.chords` / `RemixSection.chords`, main af33bdd) so the drift test stays green. No CHORDS row yet (no design).
 
+## 1.5.3 is live (hotfix, published 2026-10-02)
+
+- **Shas:** int/153 7ccb6e0, off the published 1.5.2 e0b72e9, merged to main as 9baa4c1c; snapshot f82230e0; v1.5.3 is Latest. session/s4-app is merged up to main (04a9709).
+- **What it fixes:** TouchDesigner binds FoxBox's camera again.
+  - In 1.5.2, camera_finder stopped on an unconnected Syphon In's default size, so the looks had no camera.
+  - Also S1's in_text clamp (TD keeps at most ~20 rows of FoxBox's text OSC), `camera` in status.json once bound, and /foxbox/td_camera [bound, w, h].
+  - It's S1's 7c3a9797 on b8ae89e1, taken whole for foxbox_setup.py. The presets are unchanged.
+- **Update:** about 30 MB (app 22.2 + engine-code 7.8). engine-code's hash moves every release even when the engine is unchanged. electron is reused from v1.5.2 and engine-runtime from v1.2.1.
+- **Checks:**
+  - rc-smoke PASS 11/11 on its second run: PROD live in 21 s, OUTPUT 257/257.
+  - Its first run caught one TD window on screen at one poll.
+  - S3's fake-camera check PASS: camera bound, in_text_rows 21, camera at 20 fps, TD quits cleanly. S3 reproduced the window: the editor window shows for ~0.1 s as the project opens, before keepHidden's 250 ms re-hide.
+- **For 1.5.4:**
+  - S3 fixes that editor-window flash: help/s3-hide-guard 1de1c348 changes syphon_host.mm (a new `guardHidden` export), so **rebuild the addon** for the RC. build.sh now prints the bundled addon's exports by name, and `guardHidden yes` must show: tdSession only uses it if present, so an old addon degrades silently to 16 ms polling;
+  - S4 reads /foxbox/td_camera into the `[TD]` line (gate on bound, since an unbound Syphon In has a default size);
+  - once the all-v3 set lands: PROD's v2 knob bridge goes and tests/unit/main/tdPresetsSet.test.ts moves to the new counts.
+- **rc-smoke** (`.claude/s4-keep`) reads the version from the app, logs any TD window's bounds, and checks WHAT'S NEW as if updated from 1.5.1.
+
+## 1.5.2 is live (published 2026-10-02)
+
+- **Shas:** built from int/rc 12400df, merged to main as 6b26681e. main is 1c239945 (plus the 1.5.2 README and a dev-tool path fix); GitHub snapshot 538c5a73; v1.5.2 is marked Latest. session/s4-app is merged up to main (e0b72e9).
+- **What shipped:**
+  - PROD · TOUCHDESIGNER with 12 looks: BODY 8 / HANDS 4, of which v3 networks are PLEXUS, WINDOW MOSAIC, GLOW TRAILS and SLIT SCAN, and the rest v2 shaders through PROD's knob bridge;
+  - the new VISUALS (S5);
+  - FACE CHECK, MASK FIRST and CAMERA BLOCKED with OPEN CAMERA SETTINGS;
+  - TouchDesigner hidden (0 windows on screen);
+  - REMIX WIP.
+  - FINGER WINDOWS, LINE SCAN and DOT SCREEN: 1.5.3.
+- **Update size:** about 158 MB for 1.5.x users (app 22.2 + electron 127.6, new for 44.5.1, + engine-code 7.8). engine-runtime is reused from v1.2.1's asset. DMG 420.5 MB, full zip 453.1 MB.
+- **RC smoke:**
+  - PROD setup → live in 24 s with 0 TouchDesigner windows on screen;
+  - OUTPUT 96/96 frames per 5 s;
+  - no page errors.
+  - A first install shows no WHAT'S NEW, by design; rc-smoke checks it as if updated from 1.5.1. Quit takes ~10 s with TD live.
+- **For 1.5.3:**
+  - the remaining v3 looks; then PROD's v2 knob bridge goes (prodFeed, marked `ponytail:`) and the set test (tests/unit/main/tdPresetsSet.test.ts) moves to the new counts;
+  - the authors fill each look's `gestures` / `new` in preset.json.
+
 ## 1.5.2 now: PROD + VISUALS refresh, td5, then the RC
 
 - **PROD · TOUCHDESIGNER** is on help/s4-prod (74d5d27; S5's review passed). Its checkout is `.claude/s4-prod` inside the S4 worktree, and the release kit (build.sh, boot-check.mjs, surgepy's .so) is in `.claude/s4-keep`. Nothing lives in /tmp any more: a reboot wiped it once, and PROD was rebuilt from the session transcripts.

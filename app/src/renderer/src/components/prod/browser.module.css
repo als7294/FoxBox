@@ -159,7 +159,9 @@
 }
 .blank {
   display: grid;
-  place-items: center;
+  /* low in the frame: the NEW / ♪ SOUND tags sit top-left (S5's review) */
+  place-items: end center;
+  padding-bottom: 14%;
   background: var(--vb-rack);
   color: var(--vb-dim);
   font: 800 28px/1 var(--vb-font-display);

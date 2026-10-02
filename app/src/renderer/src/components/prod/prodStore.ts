@@ -24,6 +24,9 @@ export type GestureMap = { pinch: PinchAction; palm: PalmAction; fist: FistActio
 /** The design's gesture map, where a look says nothing. */
 export const GESTURE_DEFAULTS: GestureMap = { pinch: 'new_window', palm: 'clear', fist: 'freeze' }
 
+/** No gesture does anything here (a look whose network takes no commands): the gesture cards hide. */
+export const gesturesNone = (m: GestureMap): boolean => m.pinch === 'nothing' && m.palm === 'nothing' && m.fist === 'nothing'
+
 /** A look's gesture map: the design's defaults, then the look's own (preset.json `gestures`), then the user's picks for it. */
 export function gesturesOf(s: Pick<ProdState, 'gestureByFx'>, look: Pick<TdPreset, 'id' | 'gestures'> | undefined): GestureMap {
   const own = look?.gestures ?? {}

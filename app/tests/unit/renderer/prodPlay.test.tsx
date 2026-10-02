@@ -53,4 +53,14 @@ describe('PROD PLAY', () => {
     act(() => useTdPresets.setState({ active: 'fwindows' }))
     expect(screen.getByText('HAND GESTURES')).toBeInTheDocument()
   })
+
+  it("hides the gesture rows on a look whose gestures all do NOTHING (S5's review)", () => {
+    const quiet = { ...look('energyball', 'hands'), gestures: { pinch_pull: 'nothing', open_palm: 'nothing', fist: 'nothing' } as const }
+    useTdPresets.setState({ presets: [quiet], active: 'energyball' })
+    useProd.setState({ gestureByFx: {} })
+    render(<PlayPanel collapsed={false} onExpand={() => {}} />)
+    expect(screen.getByText('HAND GESTURES')).toBeInTheDocument()
+    expect(screen.queryByText('PINCH + PULL')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'CLEAR' })).toBeNull()
+  })
 })

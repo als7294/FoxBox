@@ -218,9 +218,9 @@
 }
 .toastClose {
   flex: none;
-  width: 20px;
-  height: 20px;
-  margin: -4px -6px 0 0;
+  width: 24px;
+  height: 24px;
+  margin: -6px -8px 0 0;
   border: 0;
   background: none;
   color: var(--vb-dim);
