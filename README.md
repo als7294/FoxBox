@@ -167,6 +167,8 @@ underneath, and stack effects on top. Every layer can react to its own **stem**.
 
 ### 🎚 The new VISUALS console <sup>new in 1.5.2</sup>
 
+<img src="app/docs/screens/readme/19-visuals-152.png" alt="The new VISUALS console: LAYERS beside the stage, AUTO-VJ counting down to the build, the VOICE strip under the stage" width="100%"/>
+
 - **The stage is the hero.** A header strip holds the audio source, latency and a live level meter; the layers sit beside the stage as a visible stack.
 - **LAYERS:** drag to reorder, an opacity knob, mute and solo, what each layer **reacts to**, and **LOCK** for AUTO-VJ. Face hiding is always the top layer, and turning it off takes two clicks.
 - **Effect browser:** hover a tile to preview it on the stage, click to add.
@@ -255,6 +257,8 @@ and **TAKE → STUDIO** for a dry take to finish as a drop.
 - **Easier to read:** no text under 11 px, bigger click targets, calmer headers.
 
 ## 🖐 PROD · TouchDesigner <sup>new in 1.5.2</sup>
+
+<img src="app/docs/screens/readme/20-prod.png" alt="PROD · TOUCHDESIGNER: the one-time setup checklist" width="100%"/>
 
 A playground for **TouchDesigner** effects driven by **your body and your hands**, reacting to the music. FoxBox runs **your own free
 copy of TouchDesigner** hidden in the background, sets it up for you, feeds it the music and the camera, and brings the picture back.
