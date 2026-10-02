@@ -1,0 +1,352 @@
+/* PROD first run (README §B "First run: setup"): the hero + TdSetupChecklist, two equal columns. */
+
+.setup {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+/* ---- hero */
+.hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 18px;
+  min-height: 0;
+  padding: clamp(22px, 3cqw, 40px);
+  background: var(--vb-stage-bg);
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: 4px;
+  box-shadow: var(--vb-rack-inset);
+}
+.plexus {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.34;
+}
+.fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 8, 10, 0.1) 0%, rgba(8, 8, 10, 0.6) 50%, #08080a 92%);
+}
+.copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+}
+.headline {
+  margin: 0;
+  font: 800 clamp(64px, 10cqh, 108px) / 0.84 var(--vb-font-display);
+  letter-spacing: -0.005em;
+}
+.body {
+  margin: 0;
+  font: 400 13px/1.6 var(--vb-font-mono);
+  color: #bdb8ac;
+  text-wrap: pretty;
+}
+.foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.foot > button {
+  flex: none;
+  height: 56px;
+  padding: 0 26px;
+  border-radius: 4px;
+  font-size: 24px;
+  letter-spacing: 0.12em;
+}
+.foot > button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+/* SETTING UP…: amber, text kept at full contrast */
+.foot > button:disabled {
+  opacity: 1;
+  background: var(--vb-amber);
+}
+.why {
+  margin: 0;
+  font: 700 11px/1.5 var(--vb-font-mono);
+  color: var(--vb-amber);
+}
+.note {
+  max-width: 260px;
+  font: 500 11px/1.5 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+
+/* ---- checklist head: SETUP · N / 4, then the 16-segment LED bar */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: none;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
+}
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font: 800 18px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
+}
+.n {
+  margin-left: auto;
+  font-size: 40px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.of {
+  font-size: 24px;
+  letter-spacing: 0;
+  color: var(--vb-dim);
+}
+.leds {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 2px;
+  background: var(--vb-well);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.leds > span {
+  flex: 1;
+  height: 7px;
+  border-radius: 1px;
+  background: rgba(var(--vb-ink-rgb), 0.08);
+}
+.leds > [data-state='done'] {
+  background: var(--vb-ok);
+  box-shadow: 0 0 6px rgba(127, 208, 138, 0.5);
+}
+.leds > [data-state='failed'] {
+  background: var(--vb-accent);
+  box-shadow: 0 0 6px rgba(var(--vb-accent-rgb), 0.5);
+}
+/* working: an amber chase across the step's four segments (1, 2, 3, 4 lit, every 250ms) */
+.leds > [data-state='doing'] {
+  background: rgba(var(--vb-amber-rgb), 0.18);
+  animation: 1s step-end infinite;
+}
+.leds > [data-state='doing']:nth-child(4n + 1) {
+  background: var(--vb-amber);
+}
+.leds > [data-state='doing']:nth-child(4n + 2) {
+  animation-name: chase1;
+}
+.leds > [data-state='doing']:nth-child(4n + 3) {
+  animation-name: chase2;
+}
+.leds > [data-state='doing']:nth-child(4n) {
+  animation-name: chase3;
+}
+@keyframes chase1 {
+  25% {
+    background: var(--vb-amber);
+  }
+}
+@keyframes chase2 {
+  50% {
+    background: var(--vb-amber);
+  }
+}
+@keyframes chase3 {
+  75% {
+    background: var(--vb-amber);
+  }
+}
+
+/* ---- the timeline */
+.steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 18px 14px;
+  list-style: none;
+}
+.step {
+  --c: var(--vb-dim);
+  --tint: rgba(var(--vb-ink-rgb), 0.06);
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 16px;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.step[data-state='done'] {
+  --c: var(--vb-ok);
+  --tint: rgba(127, 208, 138, 0.12);
+}
+.step[data-state='doing'] {
+  --c: var(--vb-amber);
+  --tint: rgba(var(--vb-amber-rgb), 0.13);
+}
+.step[data-state='failed'] {
+  --c: var(--vb-well);
+  --tint: var(--vb-accent);
+}
+.step[aria-current] {
+  flex: 1.6 1 0;
+}
+
+.rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.node {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-top: 10px;
+  border: 2px solid var(--vb-accent);
+  border-radius: 50%;
+  background: var(--tint);
+  color: var(--c);
+  font: 800 28px/1 var(--vb-font-display);
+  transition: all 0.3s;
+}
+.step[data-state='done'] .node,
+.step[data-state='doing'] .node {
+  border-color: var(--c);
+}
+.step[data-state='doing'] .node {
+  box-shadow: 0 0 18px rgba(var(--vb-amber-rgb), 0.4);
+}
+.step[data-state='doing'] .node > span {
+  display: inline-block;
+  animation: breathe 1s ease-in-out infinite;
+}
+.step[data-state='failed'] .node {
+  box-shadow: 0 0 22px rgba(var(--vb-accent-rgb), 0.45);
+}
+.step[data-state='todo'] .node {
+  border-color: rgba(var(--vb-ink-rgb), 0.18);
+  background: var(--vb-well);
+}
+/* Steps not reached yet: only the node dims (the UX audit: their text stays at full contrast) */
+.step[data-state='todo']:not([aria-current]) .node {
+  opacity: 0.6;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+.line {
+  flex: 1;
+  width: 2px;
+  min-height: 12px;
+  margin: 4px 0 -10px;
+  background: rgba(var(--vb-ink-rgb), 0.1);
+  transition: background 0.3s;
+}
+.step[data-state='done'] .line {
+  background: rgba(127, 208, 138, 0.55);
+}
+
+/* the step's text; the current step sits in a card */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  margin: 4px 0;
+  padding: 14px 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition:
+    background 0.25s,
+    border-color 0.25s;
+}
+.step[aria-current] .card {
+  background: var(--vb-well);
+  border-color: rgba(var(--vb-ink-rgb), 0.14);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.step[aria-current][data-state='doing'] .card {
+  background: rgba(var(--vb-amber-rgb), 0.05);
+  border-color: rgba(var(--vb-amber-rgb), 0.4);
+}
+.step[aria-current][data-state='failed'] .card {
+  background: rgba(var(--vb-accent-rgb), 0.06);
+  border-color: rgba(var(--vb-accent-rgb), 0.5);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.num {
+  font: 700 13px var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.name {
+  min-width: 0;
+  font: 800 26px/1 var(--vb-font-display);
+  letter-spacing: 0.08em;
+}
+.step[aria-current] .name {
+  font-size: 36px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0 9px;
+  border-radius: 2px;
+  background: var(--tint);
+  color: var(--c);
+  font: 700 13px var(--vb-font-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.detail {
+  font: 400 15px/1.5 var(--vb-font-mono);
+  color: #cfcabd;
+  text-wrap: pretty;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.acts > button {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 3px;
+  font: 800 19px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+}
+.acts > button:hover {
+  filter: brightness(1.15);
+}
+.acts > .ghost {
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.18);
+}

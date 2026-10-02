@@ -146,6 +146,8 @@ A **mask-strength badge** (SYNTHETIC · WEAK · MEDIUM · STRONG) tells you plai
 
 ## 🎛 REMIX <sup>new in 1.5</sup>
 
+> **1.5.2:** REMIX is back in the workshop (greyed out) while its sound is rebuilt. Your saved remixes are kept.
+
 Remix your own tracks into bass-music edits, on your Mac. Pick a recipe, press **BUILD**, and **ROLL** for as many takes as you like.
 
 - **VIP / DROP SWAP:** keep the track and rebuild its drops. **HYBRID** keeps the held 808 and answers it with designed growls, **RESAMPLE** re-sequences the track's own bass, and **ONE PATCH** puts the drops on a single sound.
@@ -162,6 +164,16 @@ Make visuals and **promo videos for your music**, or run them live behind your s
 underneath, and stack effects on top. Every layer can react to its own **stem**.
 
 <img src="app/docs/screens/readme/11-visuals.png" alt="VISUALS: the voice core with the feedback tunnel reacting to the bass and an RGB split reacting to the drums" width="100%"/>
+
+### 🎚 The new VISUALS console <sup>new in 1.5.2</sup>
+
+- **The stage is the hero.** A header strip holds the audio source, latency and a live level meter; the layers sit beside the stage as a visible stack.
+- **LAYERS:** drag to reorder, an opacity knob, mute and solo, what each layer **reacts to**, and **LOCK** for AUTO-VJ. Face hiding is always the top layer, and turning it off takes two clicks.
+- **Effect browser:** hover a tile to preview it on the stage, click to add.
+- **PERFORM** (press **P**): the stage full screen with 8 scene pads, AUTO-VJ, BLACKOUT, FREEZE, DROP FX and a hold-to-talk **VOICE** pad.
+- **AUTO-VJ new looks:** at each new part of the track the unlocked layers change, with a countdown to the next one.
+- **FACE CHECK:** OUTPUT, REC LIVE and SAVE CLIP ask first whenever your real face could show.
+- **VOICE strip:** the live voice mask folds into one row under the stage, with PUSH always in reach.
 
 ### 🧠 Smart visuals <sup>new in 1.5</sup>
 
@@ -242,6 +254,25 @@ and **TAKE → STUDIO** for a dry take to finish as a drop.
 - **Updates install before you start**, and never lock you out: offline or a slow server means you just CONTINUE.
 - **Easier to read:** no text under 11 px, bigger click targets, calmer headers.
 
+## 🖐 PROD · TouchDesigner <sup>new in 1.5.2</sup>
+
+A playground for **TouchDesigner** effects driven by **your body and your hands**, reacting to the music. FoxBox runs **your own free
+copy of TouchDesigner** hidden in the background, sets it up for you, feeds it the music and the camera, and brings the picture back.
+
+- **12 looks** in **BODY** and **HANDS**: plexus lines across your joints, windows that pop along your arms, glow trails, slit-scan,
+  a point cloud, a mirror tunnel, ASCII, an energy ball between your hands, strings between your fingertips, a portal you frame
+  with your fingers, and drawing in the air. Several are full TouchDesigner networks, with more coming.
+- **Play them:** six knobs (INTENSITY, COLOUR, CHAOS, TRAILS, LINES, SIZE), each reacting to the kick, snare, bass, drop, section,
+  voice or your hands, five palettes, and **RANDOMIZE**.
+- **Changes the sound:** some looks filter, echo, stutter or tape-stop the playing track as you move. **AUDIO FX** turns them off,
+  and your mic and voice mask never go through them.
+- **Your face, your call:** this page uses the raw camera, so **▲ FACE VISIBLE** shows whenever your real face reaches TouchDesigner.
+  **MASK FIRST** hides it before TouchDesigner ever sees the camera, and RECORD and SEND TO OUTPUT ask first.
+- **SEND TO VISUALS** puts the look on the VISUALS stack; **SEND TO OUTPUT** sends it to the projector.
+- **Labelled:** TouchDesigner's free licence is non-commercial, so its picture carries a **DEMO · NON-COMMERCIAL** label, and so
+  do clips you save from it. FoxBox doesn't include TouchDesigner; get it free from [derivative.ca](https://derivative.ca).
+- Tracking runs on MediaPipe on your Mac; nothing is uploaded.
+
 ## Tour
 
 <table>
@@ -296,6 +327,7 @@ A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep nam
 Electron app (React · TypeScript)       IPC proxy · vbx:// audio · drag-out · camera · updater
    ├── VISUALS          compositor · AUTO-VJ director · three.js · Butterchurn (Milkdrop) · ISF shaders + filters · troika text · output window · WebCodecs clips
    ├── camera           MediaPipe (face, gestures, segmentation) in a worker · face styles · pass-through · AUTO-FRAME
+   ├── PROD             TouchDesigner bridge: OSC out · Syphon in/out (native addon) · hidden session · body + hand points
    ├── live audio       AudioWorklet mask · Signalsmith Stretch · song deck · live input · stem estimation · MIDI
    └── link-helper      Ableton Link (tempo + beat sync)
         │  token-authenticated, loopback only
@@ -324,6 +356,6 @@ scripts/dev.sh                           # run the app against the local engine
 Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). **The drops you make are yours.**
 
 <sub>[GPL-3.0](LICENSE). FoxBox links GPL components (pedalboard, espeak-ng, mutagen), so the app is GPL-3.0 as a whole.
-Model weights download at runtime under their own licenses.</sub>
+Model weights download at runtime under their own licenses. TouchDesigner is Derivative's and isn't included.</sub>
 
 </div>

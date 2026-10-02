@@ -148,7 +148,13 @@ function trak(id: number, t: TrackIn, offsets: number[]): Uint8Array {
   )
 }
 
-function moov(tracks: TrackIn[], offsets: number[][]): Uint8Array {
+/** QuickTime user data with a ©cmt comment (QuickTime and Finder show it; ffprobe reads it as `comment`). */
+function udta(comment: string): Uint8Array {
+  const text = new TextEncoder().encode(comment)
+  return box('udta', box('\xa9cmt', u16(text.length), u16(0x55c4), text)) // 0x55c4: language 'und'
+}
+
+function moov(tracks: TrackIn[], offsets: number[][], comment?: string): Uint8Array {
   const shown = (t: TrackIn) => Math.min(t.samples.reduce((n, x) => n + x.duration, 0) - (t.skip ?? 0), t.length ?? Infinity)
   const duration = Math.max(...tracks.map((t) => Math.round((shown(t) * MOVIE_SCALE) / t.timescale)))
   const mvhd = fullBox(
@@ -166,11 +172,11 @@ function moov(tracks: TrackIn[], offsets: number[][]): Uint8Array {
     zeros(24),
     u32(tracks.length + 1),
   )
-  return box('moov', mvhd, ...tracks.map((t, i) => trak(i + 1, t, offsets[i]!)))
+  return box('moov', mvhd, ...tracks.map((t, i) => trak(i + 1, t, offsets[i]!)), ...(comment ? [udta(comment)] : []))
 }
 
-/** The whole file. Samples are interleaved by their start time. */
-export function writeMp4(tracks: TrackIn[]): Uint8Array<ArrayBuffer> {
+/** The whole file. Samples are interleaved by their start time. `comment`: the file's ©cmt (1.6: the TD label). */
+export function writeMp4(tracks: TrackIn[], comment?: string): Uint8Array<ArrayBuffer> {
   const ftyp = box('ftyp', ascii('isom'), u32(0x200), ascii('isom'), ascii('iso2'), ascii('avc1'), ascii('mp41'))
   const order: { track: number; index: number; at: number }[] = []
   tracks.forEach((t, track) => {
@@ -183,7 +189,7 @@ export function writeMp4(tracks: TrackIn[]): Uint8Array<ArrayBuffer> {
   order.sort((a, b) => a.at - b.at || a.track - b.track)
   // The moov's size doesn't depend on the offsets' values: size it once, then write it with the real ones.
   const empty = tracks.map((t) => t.samples.map(() => 0))
-  const head = ftyp.length + moov(tracks, empty).length + 8
+  const head = ftyp.length + moov(tracks, empty, comment).length + 8
   const offsets = tracks.map(() => [] as number[])
   let at = head
   for (const o of order) {
@@ -191,5 +197,5 @@ export function writeMp4(tracks: TrackIn[]): Uint8Array<ArrayBuffer> {
     at += tracks[o.track]!.samples[o.index]!.data.length
   }
   const mdat = concat([u32(at - head + 8), ascii('mdat'), ...order.map((o) => tracks[o.track]!.samples[o.index]!.data)])
-  return concat([ftyp, moov(tracks, offsets), mdat])
+  return concat([ftyp, moov(tracks, offsets, comment), mdat])
 }

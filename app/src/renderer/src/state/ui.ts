@@ -1,21 +1,21 @@
 import { create } from 'zustand'
 import { reducedMotion } from '@/visuals/motion'
 
-export type Screen = 'studio' | 'vault' | 'setlist' | 'voices' | 'settings' | 'live' | 'masks' | 'remix'
+export type Screen = 'studio' | 'vault' | 'prod' | 'voices' | 'settings' | 'live' | 'masks' | 'remix'
 
-/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes); `beta`: a BETA badge (REMIX in
- *  1.5.1, the user's call). Numbered in rail order. */
-export const SCREENS: { id: Screen; label: string; code: string; wip?: string; beta?: boolean }[] = (
+/** `wip`: shown greyed with a WIP badge and not reachable (its tooltip says when it comes); `demo`: the ice DEMO badge
+ *  (PROD: TouchDesigner's free licence). Numbered in rail order. */
+export const SCREENS: { id: Screen; label: string; code: string; wip?: string; demo?: boolean }[] = (
   [
     { id: 'studio', label: 'STUDIO' },
     { id: 'live', label: 'VISUALS' },
     { id: 'masks', label: 'MASKS' },
-    { id: 'remix', label: 'REMIX', beta: true },
+    { id: 'remix', label: 'REMIX', wip: 'Remix: in the works' },
     { id: 'vault', label: 'VAULT' },
-    { id: 'setlist', label: 'PROD', wip: 'Production: next update' },
+    { id: 'prod', label: 'PROD', demo: true },
     { id: 'voices', label: 'VOICES' },
     { id: 'settings', label: 'SETTINGS' },
-  ] as { id: Screen; label: string; wip?: string; beta?: boolean }[]
+  ] as { id: Screen; label: string; wip?: string; demo?: boolean }[]
 ).map((n, i) => ({ ...n, code: String(i + 1).padStart(2, '0') }))
 
 export interface Wipe {

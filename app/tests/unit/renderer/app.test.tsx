@@ -55,23 +55,32 @@ describe('App', () => {
     // The Studio's own keys do nothing here (⌘S would open the Studio's save form).
     fireEvent.keyDown(window, { key: 's', metaKey: true })
     expect(useUi.getState().screen).toBe('live')
-    // Away and back: VISUALS stayed mounted, and its live strip finds the top bar's new slot (LS15).
+    // Away and back: VISUALS stayed mounted, with its own header (1.5.2: a bare page, no top bar).
     fireEvent.click(within(nav).getByRole('button', { name: 'STUDIO' }))
     fireEvent.click(within(nav).getByRole('button', { name: 'VISUALS' }))
-    await waitFor(() => expect(document.getElementById(TOP_SLOT_ID)?.childElementCount).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getByTestId('visuals-source')).toBeInTheDocument())
+    expect(document.getElementById(TOP_SLOT_ID)).toBeNull()
   })
 
   it('navigates every screen', async () => {
     render(<App />)
     expect(await screen.findByTestId('engine-status')).toHaveAttribute('data-state', 'mock')
     const nav = screen.getByRole('navigation', { name: 'Screens' })
-    // PROD (05) is WIP: greyed out and not reachable.
-    expect(within(nav).getByRole('button', { name: /^PROD/ })).toHaveAttribute('aria-disabled', 'true')
-    for (const name of ['REMIX', 'VAULT', 'VOICES', 'SETTINGS', 'STUDIO']) {
-      // REMIX is BETA in 1.5.1: its badge is in its name.
-      fireEvent.click(within(nav).getByRole('button', { name: name === 'REMIX' ? 'REMIX, beta' : name }))
-      // REMIX is lazy-loaded (its own chunk): give the import time.
-      if (name !== 'STUDIO') expect(await screen.findByRole('heading', { level: 1, name }, { timeout: 10_000 })).toBeInTheDocument()
+    // REMIX (04, 1.5.2) is WIP: greyed out with the badge, and not reachable.
+    const remix = within(nav).getByRole('button', { name: /^REMIX/ })
+    expect(remix).toHaveAttribute('aria-disabled', 'true')
+    expect(remix).toHaveTextContent('WIP')
+    const before = useUi.getState().screen
+    fireEvent.click(remix)
+    expect(useUi.getState().screen).toBe(before)
+    // PROD (06, 1.5.2): TouchDesigner, open, with the DEMO badge.
+    const prod = within(nav).getByRole('button', { name: 'PROD, demo' })
+    expect(prod).toHaveTextContent('DEMO')
+    fireEvent.click(prod)
+    expect(await screen.findByRole('heading', { level: 1, name: 'PROD · TOUCHDESIGNER' })).toBeInTheDocument()
+    for (const name of ['VAULT', 'VOICES', 'SETTINGS', 'STUDIO']) {
+      fireEvent.click(within(nav).getByRole('button', { name }))
+      if (name !== 'STUDIO') expect(await screen.findByRole('heading', { level: 1, name })).toBeInTheDocument()
     }
   })
 })

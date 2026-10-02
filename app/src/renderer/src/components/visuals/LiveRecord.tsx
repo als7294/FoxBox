@@ -8,6 +8,8 @@ import type { SongDeck } from '@/audio/live/songDeck'
 import { toast } from '@/state/toasts'
 import { useViewPrefs } from '@/state/viewPrefs'
 import { useVisuals } from '@/state/visuals'
+import { recLive, useVisualsUi, visualsUi } from '@/state/visualsUi'
+import { faceShowsNow } from './LayerStack'
 import { getClipAudio } from './page'
 import styles from './visuals.module.css'
 
@@ -84,6 +86,8 @@ export function LiveRecord({
       toast.error('NOT RECORDING', { detail: (e as Error).message })
     }
   }
+  // A face on the stage asks first (the stage's confirm strip), from the panel and from the bar's REC LIVE alike.
+  const ask = () => (faceShowsNow() ? visualsUi.askFace('rec', start) : start())
   const stop = async () => {
     if (timer.current != null) window.clearTimeout(timer.current)
     timer.current = null
@@ -94,6 +98,8 @@ export function LiveRecord({
     try {
       const out = await c.stop()
       setClip({ blob: out.blob, name: out.name, seconds: out.seconds })
+      // The take's SAVE is in the CLIPS drawer: show it.
+      visualsUi.openClips(true)
     } catch (e) {
       toast.error('CLIP NOT SAVED', { detail: (e as Error).message })
     }
@@ -107,8 +113,22 @@ export function LiveRecord({
   }
 
   const recording = t0 != null
+  // The stage bar's REC LIVE button and the stage's REC chip follow this take.
+  useEffect(() => {
+    useVisualsUi.setState({ rec: { t0, ready: audioReady } })
+  }, [t0, audioReady])
+  useEffect(() => {
+    recLive.toggle = () => (cap.current ? void stop() : ask())
+  })
+  useEffect(
+    () => () => {
+      recLive.toggle = () => {}
+      useVisualsUi.setState({ rec: { t0: null, ready: false } })
+    },
+    [],
+  )
   return (
-    <section className={`${clips.saveClip} ${styles.divided}`} aria-label="Record live" data-testid="visuals-live-rec">
+    <section className={clips.saveClip} aria-label="Record live" data-testid="visuals-live-rec">
       <h3 className={clips.heading}>REC LIVE</h3>
       {deck?.song && (
         <Segmented<'free' | 'drop'>
@@ -143,7 +163,7 @@ export function LiveRecord({
             size="sm"
             variant={audioReady ? 'danger' : 'secondary'}
             disabled={!audioReady}
-            onClick={start}
+            onClick={ask}
             title={
               audioReady
                 ? `Film the stage as it plays (${aspect}), with the sound`

@@ -11,12 +11,15 @@
  *              delay times follow it (engine.followClock).
  *   transport  load / play / stop (keeps the playhead) / cueBar(n) / cueDrop() / startQuantized() (next bar of the
  *              live grid). While playing, a cue jumps on the song's next bar, so the groove never skips.
+ *   fx         the song's live FX (songFx.ts, 1.5.2: TouchDesigner presets' `sound` maps), after the duck: the tap and
+ *              the master hear them, the voice never passes through them.
  */
 import type { Song } from '@/api/types'
 import { barTime, decodeSong, findBeatDrop, lowEnd, songGrid, type SongGrid } from '@/state/song'
 import { loadAudioBytes } from '../cache'
 import { AudioTapImpl, type AudioTap } from './bus'
-import type { LiveEngine } from './engine'
+import { impulse, type LiveEngine } from './engine'
+import { SongFx } from './songFx'
 
 export interface BeatClock {
   bpm: number
@@ -90,6 +93,7 @@ interface Segment {
 
 export class SongDeck {
   readonly tap: AudioTap
+  readonly fx: SongFx
   song: Song | null = null
   grid: SongGrid | null = null
   /** The song's first big beat drop, song time (findBeatDrop on the decoded audio); null when there's none. */
@@ -112,10 +116,12 @@ export class SongDeck {
     this.gain = new GainNode(ctx, { gain: 1, channelCount: 2, channelCountMode: 'explicit' })
     this.duck = new AudioWorkletNode(ctx, 'fvwks-duck', { numberOfInputs: 2, numberOfOutputs: 1, outputChannelCount: [2] })
     const analyser = new AnalyserNode(ctx, { fftSize: 2048 })
+    this.fx = new SongFx(ctx, () => this.clock(), impulse(ctx, 3.5, 0.4))
     this.gain.connect(this.duck, 0, 0)
     engine.duckKey.connect(this.duck, 0, 1)
-    this.duck.connect(analyser)
-    this.duck.connect(engine.songInput)
+    this.duck.connect(this.fx.input)
+    this.fx.output.connect(analyser)
+    this.fx.output.connect(engine.songInput)
     this.tapImpl = new AudioTapImpl(ctx, analyser)
     this.tap = this.tapImpl
   }
@@ -232,6 +238,7 @@ export class SongDeck {
     this.tapImpl.dispose()
     this.engine.duckKey.disconnect(this.duck)
     this.duck.disconnect()
+    this.fx.dispose()
     this.gain.disconnect()
   }
 

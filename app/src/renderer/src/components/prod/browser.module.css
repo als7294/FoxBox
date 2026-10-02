@@ -1,0 +1,270 @@
+/* TdEffectBrowser (app/design/visuals-td README §B): the left column. The rack, head and tag come from prod.module.css. */
+
+.browser {
+  overflow: hidden;
+}
+.body {
+  --c: var(--vb-accent);
+}
+.hands {
+  --c: var(--vb-hands);
+}
+
+.favs {
+  margin-left: auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--vb-dim);
+  font: 700 11px/1 var(--vb-font-mono);
+}
+.favs:hover {
+  color: var(--vb-ink);
+}
+.favs[aria-pressed='true'] {
+  background: var(--vb-amber);
+  color: var(--vb-well);
+}
+
+/* TdModeToggle: the big two-way switch in a well */
+.modes {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 8px 8px 0;
+  padding: 3px;
+  border-radius: 4px;
+  background: var(--vb-well);
+  box-shadow: var(--vb-well-inset);
+}
+.mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  height: 58px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vb-dim);
+  text-align: left;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.mode[aria-checked='false']:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.4);
+}
+.mode:active {
+  transform: translateY(1px);
+}
+.mode[aria-checked='true'] {
+  background: #18181b;
+  border-color: var(--c);
+  color: var(--vb-ink);
+  box-shadow: inset 0 -2px 0 var(--c);
+}
+.modeLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 800 clamp(20px, 1.7cqw, 26px) / 1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.modeSub {
+  font: 700 11px/1 var(--vb-font-mono);
+  white-space: nowrap;
+}
+.mode[aria-checked='true'] .modeSub {
+  color: #bdb8ac;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(var(--vb-ink-rgb), 0.15);
+}
+.mode[aria-checked='true'] .dot {
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+
+/* Tile grid: 2 columns, scrolls inside the panel */
+.grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 8px;
+}
+.empty {
+  margin: 0;
+  padding: 14px;
+  color: var(--vb-dim);
+  font: 500 11px/1.5 var(--vb-font-mono);
+}
+
+/* TdEffectTile */
+.tile {
+  position: relative;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.08);
+  border-radius: 3px;
+  background: var(--vb-well);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.2s;
+}
+.tile:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.tile.on {
+  border-color: rgba(var(--vb-ink-rgb), 0.7);
+  box-shadow:
+    0 0 0 1px rgba(var(--vb-ink-rgb), 0.25),
+    0 0 18px rgba(var(--vb-accent-rgb), 0.18);
+}
+.pick {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: #bdb8ac;
+  text-align: left;
+  cursor: pointer;
+}
+.on .pick {
+  color: var(--vb-ink);
+}
+.thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 2px 2px 0 0;
+  background: #050506;
+}
+.blank {
+  display: grid;
+  place-items: center;
+  background: var(--vb-rack);
+  color: var(--vb-dim);
+  font: 800 28px/1 var(--vb-font-display);
+  letter-spacing: 0.1em;
+}
+.name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 8px;
+  font: 800 14px/1.05 var(--vb-font-display);
+  letter-spacing: 0.06em;
+}
+.led {
+  width: 3px;
+  align-self: stretch;
+  flex: none;
+  border-radius: 1px;
+  background: var(--vb-led-off);
+}
+.on .led {
+  background: var(--vb-accent);
+  box-shadow: 0 0 8px var(--vb-accent);
+}
+.tags {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.fav {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(11, 11, 12, 0.8);
+  color: var(--vb-dim);
+  font: 700 13px/1 var(--vb-font-mono);
+}
+.fav:hover,
+.fav[aria-pressed='true'] {
+  color: var(--vb-amber);
+}
+
+/* Collapsed: the 46px strip */
+.strip {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border: 0;
+  background: var(--vb-rack);
+  color: var(--vb-ink);
+  animation: vbRise 0.25s ease-out;
+}
+.browser .strip:focus-visible {
+  outline-offset: -2px;
+}
+.chev {
+  color: var(--vb-dim);
+  font: 700 13px/1 var(--vb-font-mono);
+}
+.vert,
+.vertName {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+.vert {
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.24em;
+}
+.vertName {
+  color: #bdb8ac;
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.12em;
+}
+.stripDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+
+@keyframes vbRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

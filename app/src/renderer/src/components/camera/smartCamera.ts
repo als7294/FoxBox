@@ -13,6 +13,8 @@
  * - signals(): the hands (x/y, pinch, open, near) and the head (x/y, yaw, roll, lean) for effects and the director.
  */
 import type { AudioFrame } from '@/visuals/live/registry'
+import { StrokeShapes, type Drawn } from './drawnShapes'
+import { HandGestures, type HandGestureEvent, type Rect as PullRect } from './handGestures'
 import {
   autoFrame,
   Calibration,
@@ -20,6 +22,7 @@ import {
   faceNear,
   follow,
   handNear,
+  handShapes,
   handSignal,
   headFromPose,
   headPose,
@@ -30,6 +33,7 @@ import {
   poseFromMatrix,
   type Crop,
   type FaceMeasure,
+  type HandShapes,
   type HandSignal,
   type HeadPose,
   type Pt,
@@ -56,6 +60,8 @@ export interface HeadSignal {
   roll: number
   /** 0-1: leaning in (the same measure as the pass-through). */
   lean: number
+  /** 0-1: the mouth open (the landmarker's jawOpen); 0 without a face mesh. */
+  jaw: number
 }
 
 export interface CameraSignals {
@@ -70,6 +76,17 @@ export interface CameraSignals {
   hands: (HandSignal & { gesture: HandGesture | null })[]
   /** A second person has been in frame a moment (FacePicker): the panel asks. */
   twoFaces: boolean
+  /** The hands' shapes in stable left / right slots, FRAME and TRIANGLE (handShapes; points 0-1 of the whole camera
+   *  frame, as seen()). */
+  shapes: HandShapes
+  /** The last shape drawn in the air with a pinch (circle, triangle, star, zigzag; drawnShapes), or null: a new `at` is
+   *  one event. */
+  drawn: Drawn | null
+  /** The last HANDS gesture edge (PINCH + PULL with its rect, OPEN PALM, FIST; handGestures), or null: a new `at` is one
+   *  event. */
+  gesture: HandGestureEvent | null
+  /** The window being pulled open with both hands pinched (0-1 of the camera frame, y down, top-left), or null. */
+  pull: PullRect | null
 }
 
 export interface DrawOptions {
@@ -86,6 +103,16 @@ export interface DrawOptions {
   /** One person (the main face only) or two; JUST ME: no second mask. */
   people: People
   justMe: boolean
+  /** TouchDesigner (nothing masked, the body and hands drive the picture): track them every frame. */
+  body?: boolean
+  /** The person matte every Nth worker frame (default 2; TouchDesigner's presets are fine at 3, about 10 Hz). */
+  matteEvery?: number
+  /**
+   * 1.5.2, VISUALS' FACE ENCRYPTION switch: false shows the faces (tracking, nearMask and the signals still run).
+   * Default true; only the VISUALS camera base passes it, from cameraStore's hideFaces (never saved: every launch
+   * starts hidden).
+   */
+  hideFaces?: boolean
 }
 
 export interface SmartCamera {
@@ -96,6 +123,9 @@ export interface SmartCamera {
   recalibrate(): void
   /** The part of the camera frame the last draw showed (camera px). */
   crop(): Crop | null
+  /** The models' latest results, raw (0-1 of the whole camera frame, whatever the draw showed): the faces' 478 points,
+   *  the body's 13 keypoints, the person matte. For a consumer outside the draw (TouchDesigner's landmarks). */
+  seen(): Seen
   dispose(): void
 }
 
@@ -104,7 +134,7 @@ export const MASK_DOWN = 4
 const HIDE_AFTER_ERROR_MS = 600
 const MAX_ERRORS = 8
 
-const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false }
+const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false, shapes: handShapes([], 0), drawn: null, gesture: null, pull: null }
 let latest: CameraSignals = NO_SIGNALS
 const live = new Set<SmartCamera>()
 
@@ -258,6 +288,11 @@ export function createSmartCamera(): SmartCamera {
   /** The body's head (pose keypoints), and the pitch it reads off the landmarker's (zeroed while both see the head). */
   let head: ReturnType<typeof headFromPose> = null
   let pitchZero = 0
+  /** The hands' shapes, from each new hands result. */
+  let shapes = NO_SIGNALS.shapes
+  let shapedFrom: Seen['hands'] | null = null
+  const strokes = new StrokeShapes()
+  const gestures = new HandGestures()
 
   /** Each presented camera frame's capture time (the camera's clock where it gives one, else when it was shown). */
   const watch = (video: HTMLVideoElement) => {
@@ -295,7 +330,9 @@ export function createSmartCamera(): SmartCamera {
     // This frame's capture time: every result is stamped by the frame it came from, not when it arrived.
     frameAt = Math.max(frameAt + 0.001, lastCapture > now - 200 ? lastCapture : now)
     try {
-      detected = detectFacesDetailed(detector, video, now)
+      // TouchDesigner's loop with nothing to hide face by face (the whole frame is covered): the main-thread detector
+      // only finds faces to mask, so it's skipped (its CPU is the tracking's). MASK FIRST draws faces: it runs.
+      detected = o.body && o.wholeFrame ? [] : detectFacesDetailed(detector, video, now)
       errors = 0
     } catch {
       detected = []
@@ -309,7 +346,7 @@ export function createSmartCamera(): SmartCamera {
     const vh = video.videoHeight
     // A lost face is looked for round the body's head (0-1 of the frame).
     const hint = head && head.score >= 0.5 ? { x: head.box.x / vw, y: head.box.y / vh, w: head.box.w / vw, h: head.box.h / vh } : null
-    seen = vision.run(video, now, frameAt, hint, o.people)
+    seen = vision.run(video, now, frameAt, hint, o.people, o.body, o.matteEvery)
     head = headFromPose(seen.body, vw, vh)
     smooth()
     followDetector(vw, vh)
@@ -447,12 +484,12 @@ export function createSmartCamera(): SmartCamera {
     ctx.restore()
   }
 
-  type Face = { width: number; box: Box; pose: HeadPose | null; distance: number | null }
+  type Face = { width: number; box: Box; pose: HeadPose | null; distance: number | null; jaw?: number }
   const largestFace = (vw: number, vh: number): Face | null => {
     let best: Face | null = null
     for (const f of seen.faces) {
       const box = bboxOf(f.points, vw, vh)
-      if (!best || box.w / vw > best.width) best = { width: box.w / vw, box, pose: f.matrix ? poseFromMatrix(f.matrix) : poseFromMesh(f.points, vw, vh), distance: f.distance }
+      if (!best || box.w / vw > best.width) best = { width: box.w / vw, box, pose: f.matrix ? poseFromMatrix(f.matrix) : poseFromMesh(f.points, vw, vh), distance: f.distance, jaw: f.shapes?.jaw }
     }
     if (best) return best
     for (const d of detected) {
@@ -494,9 +531,11 @@ export function createSmartCamera(): SmartCamera {
     // stock footage for a demo of the tracking, never a live camera.
     if (TRACE && (window as unknown as { __foxboxCameraOverlay?: boolean }).__foxboxCameraOverlay) return drawOverlay(ctx, crop, dst, vw, vh)
 
-    // Hide faces (fail closed).
+    // Hide faces (fail closed), unless VISUALS' FACE ENCRYPTION is switched off (two clicks, never saved).
     const t = now / 1000
-    if (o.wholeFrame || !detector || now < hideUntil) {
+    if (o.hideFaces === false) {
+      twoFaces = false
+    } else if (o.wholeFrame || !detector || now < hideUntil) {
       twoFaces = false
       if (TRACE) trace.whole++ // QA: frames hidden whole
       if (TRACE && trace.frames.length < FRAMES_MAX) trace.frames.push([now, NaN, NaN, NaN, NaN, 3, NaN, NaN, NaN, NaN, 0, 0])
@@ -637,6 +676,12 @@ export function createSmartCamera(): SmartCamera {
     near = drawNear(dst, crop, face, hands)
     latestNear = near
 
+    if (seen.hands !== shapedFrom) {
+      shapedFrom = seen.hands
+      shapes = handShapes(seen.hands, now, shapes, vw / vh)
+      strokes.step(shapes, now, vw / vh)
+      gestures.step(shapes, now)
+    }
     // Signals, in the drawn frame's 0-1 space.
     const toFrame = (x: number, y: number) => ({ x: clamp01((x - crop.x) / crop.w), y: clamp01((y - crop.y) / crop.h) })
     latest = {
@@ -649,6 +694,7 @@ export function createSmartCamera(): SmartCamera {
             yaw: face.pose?.yaw ?? 0,
             roll: face.pose?.roll ?? 0,
             lean: faceLevel,
+            jaw: face.jaw ?? 0,
           }
         : null,
       hands: hands.slice(0, 2).map(({ h, near: n }) => {
@@ -656,6 +702,10 @@ export function createSmartCamera(): SmartCamera {
         return { ...s, ...toFrame(s.x, s.y), gesture: h.gesture }
       }),
       twoFaces,
+      shapes,
+      drawn: strokes.last,
+      gesture: gestures.last,
+      pull: gestures.pull,
     }
   }
 
@@ -741,6 +791,7 @@ export function createSmartCamera(): SmartCamera {
     signals: () => latest,
     recalibrate: () => calib.restart(),
     crop: () => lastCrop,
+    seen: () => seen,
     dispose() {
       alive = false
       vision.dispose()

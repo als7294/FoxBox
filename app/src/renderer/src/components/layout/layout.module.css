@@ -343,7 +343,7 @@
 .railItem:hover {
   background: var(--vb-fill-1);
 }
-/* A screen that isn't here yet (PROD): greyed, not clickable, a small WIP badge. */
+/* A screen that isn't here yet (REMIX, PROD): greyed, not clickable, a small WIP badge. */
 .railItem[data-wip] {
   opacity: 0.38;
   cursor: default;
@@ -362,17 +362,17 @@
   font: 600 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
-/* BETA (REMIX in 1.5.1): sized like WIP, in the ice of VISUALS' DEPTH GLITCH BETA chip. */
-.railBeta {
+/* DEMO (PROD: TouchDesigner's free licence is non-commercial): sized like WIP, in ice. */
+.railDemo {
   position: absolute;
   top: 3px;
   right: 3px;
   padding: 0 2px;
   line-height: 1.25;
-  border: 1px solid rgba(124, 200, 255, 0.55);
+  border: 1px solid var(--vb-ice);
   border-radius: 3px;
   color: var(--vb-ice);
-  font: 600 var(--vb-text-min) var(--vb-font-mono);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
   letter-spacing: 0.12em;
 }
 .railItem[aria-current='page'] {
@@ -651,10 +651,10 @@
   border-right: 1px solid var(--vb-line);
   -webkit-app-region: drag;
 }
-.shell:is([data-screen='remix'], [data-screen='masks']) > .main {
+.shell:is([data-screen='remix'], [data-screen='masks'], [data-screen='prod'], [data-screen='live']) > .main {
   grid-row: 1 / -1;
 }
-.shell:is([data-screen='remix'], [data-screen='masks']):has(> [data-update-bar]) > .main {
+.shell:is([data-screen='remix'], [data-screen='masks'], [data-screen='prod'], [data-screen='live']):has(> [data-update-bar]) > .main {
   grid-row: 3;
 }
 .railStatus {

@@ -34,8 +34,26 @@ export function backingSize(cssW: number, cssH: number, dpr: number): { width: n
   return { width, height }
 }
 
-const reducedQuery = (): MediaQueryList | null =>
-  typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+const reducedQuery = (): MediaQueryList | null => (typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null)
+
+/** Every stage frame's AudioFrame, for listeners outside the style (the TouchDesigner feed, 1.6). */
+export const stageFrames = new Set<(a: AudioFrame, dt: number) => void>()
+
+/** The VISUALS stage's sound (VisualsStage registers it), so another page's stage hears the same (PROD, 1.5.2). */
+export const stageSource: { current: (() => AudioFrame) | null } = { current: null }
+
+let feeder: object | null = null
+let fedAt = -Infinity
+/**
+ * One stage feeds `stageFrames` at a time (VISUALS behind PROD keeps drawing for a projector): the one that fed last
+ * keeps it, and another takes over once it has been quiet for 100 ms.
+ */
+export function feedStageFrames(owner: object, a: AudioFrame, dt: number, now = performance.now()): void {
+  if (feeder !== owner && now - fedAt < 100) return
+  feeder = owner
+  fedAt = now
+  for (const listen of stageFrames) listen(a, dt)
+}
 
 export class StyleStage {
   private cv: HTMLCanvasElement
@@ -132,9 +150,11 @@ export class StyleStage {
       this.smoothedFps = this.smoothedFps ? this.smoothedFps + (f - this.smoothedFps) * Math.min(1, dt / 500) : f
     }
     const inst = this.instance
+    const a = this.source()
+    if (this.output === 'stage') feedStageFrames(this, a, dt, now)
     if (inst) {
       try {
-        inst.frame(this.source(), dt)
+        inst.frame(a, dt)
       } catch (e) {
         console.warn(`[visuals] ${this.style?.id ?? 'style'} failed to draw; showing black`, e)
         this.dropInstance()

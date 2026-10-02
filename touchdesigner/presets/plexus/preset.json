@@ -1,0 +1,12 @@
+{
+  "label": "THRESHOLD + PLEXUS",
+  "title": "The person posterized black, red and white; their face, arms and fingertips joined by glowing numbered lines; bursts on the drop",
+  "how": "Raise your arms and pinch: the lines follow you",
+  "order": 10,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "sound": null
+}

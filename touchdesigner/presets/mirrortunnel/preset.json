@@ -1,0 +1,62 @@
+{
+  "label": "MIRROR TUNNEL",
+  "title": "A kaleidoscope tunnel behind you, opening between your hands; tilt your head to pan.",
+  "how": "Raise both hands to open the tunnel; spread them for mirrors",
+  "order": 70,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "segments",
+      "label": "MIRRORS",
+      "default": 0.4
+    },
+    {
+      "id": "speed",
+      "label": "SPEED",
+      "default": 0.35
+    },
+    {
+      "id": "twist",
+      "label": "TWIST",
+      "default": 0.3
+    },
+    {
+      "id": "depth",
+      "label": "DEPTH",
+      "default": 0.4
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#d90510",
+    "#ffffff",
+    "#ff8a00"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.pan",
+        "source": "gesture.head_tilt",
+        "min": -0.6,
+        "max": 0.6,
+        "curve": "lin",
+        "dead": 0.15,
+        "smooth_ms": 150
+      },
+      {
+        "target": "fx.wash",
+        "source": "macro.depth",
+        "min": 0,
+        "max": 0.7,
+        "curve": "lin",
+        "dead": 0.5
+      }
+    ]
+  }
+}

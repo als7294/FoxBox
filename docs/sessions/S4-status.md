@@ -34,7 +34,28 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART 
   - Waveform energy is checked on real audio, and it's fine.
 - **On the next merge of main or S2's branch:** re-export the REMIX openapi (contracts v0.14, `Chord` and `SongStructure.chords` / `RemixSection.chords`, main af33bdd) so the drift test stays green. No CHORDS row yet (no design).
 
-## 1.5.1 RC (73eb4a0), handed to the PM to publish
+## 1.5.2 now: PROD + VISUALS refresh, td5, then the RC
+
+- **PROD · TOUCHDESIGNER** is on help/s4-prod (74d5d27; S5's review passed). Its checkout is `.claude/s4-prod` inside the S4 worktree, and the release kit (build.sh, boot-check.mjs, surgepy's .so) is in `.claude/s4-keep`. Nothing lives in /tmp any more: a reboot wiped it once, and PROD was rebuilt from the session transcripts.
+- **Shared on session/s4-app** (S5 builds the VISUALS refresh on it): tokens (+ --vb-hands, --vb-knob-size), stageSource / feedStageFrames, useLiveDeck (deck, startTrack), useOutputOwner, the TD layer (TD_STYLE, sceneHasTd, addTdLayer), the face selectors (tdFaceVisible; MASK FIRST is useTdCamera.maskFirst), the six knobs (tdKnobs for S2).
+- **td5 / RC merge order (the PM's checklist):** S3's tip (flicker fix, OUTPUT-black fix if on S3's side, PLEXUS/MOSAIC v3, FINGER WINDOWS + gesture commands) → S1's help/s1-td-presets (7f339b1+) → S2's help/s2-td-sound (the 4 hand presets with mode "hands") → help/s4-prod → help/s5-visuals (RC only). Then typecheck, vitest --maxWorkers=4, and PROD shows BODY 10 / HANDS 4+.
+- **Closed:** the "black perform pop-out" was TouchDesigner's own Perform window (S3's e721b3f hides TD entirely); FoxBox's OUTPUT measured fine in every arrangement. Kept as insurance: the occluded-window switches, OUTPUT's 50 ms show timer, and main.log's `[OUTPUT] N frames received, M shown` line.
+- **Heavy work** (builds, packaged runs) only in the slot the PM assigns; vitest at --maxWorkers=4.
+
+## 1.5.2 plan: TouchDesigner (S3's free TD + OSC + Syphon route)
+
+- **Electron 44.4.5 → 44.5.1:** needed for IOSurface → `sharedTexture` → VideoFrame, and it's on npm. The `^44.4.5` range already allows it, so `npm i electron@44.5.1` only moves the lockfile.
+  - The electron component (~128 MB) changes, so the 1.5.2 update is ~160 MB, not ~30. Say so in its notes.
+- **Syphon.framework (BSD):** at packaging it must be signed with the app's identity. electron-builder signs Contents/Frameworks with the app (ad-hoc `-`), and the release recipe's `codesign --verify --deep` checks it.
+  - **Placement:** components.ts puts every `Contents/Frameworks/*.framework` in the electron component, so a later Syphon change would re-download 128 MB. Decided (the PM, (a)): when S3's branch integrates, components.ts classifies Syphon.framework as `app` (one line; the afterPack hash follows), so a Syphon change never re-downloads Electron.
+- **TouchEngine.framework:** parked (the paid-key path).
+- **1.5.2 is held (the user's call) for more TD effects:** S1's camera presets, S2's live audio-FX chain on VISUALS' TRACK playback, and S3's camera into TD plus the preset contract. When they land, S4 merges them, adds a "CHANGES THE SOUND" chip on such presets and one AUDIO FX on/off in the TD panel, plus WHAT'S NEW lines, then the test copy and the RC.
+  - Done in S4: the AUDIO FX switch, the CHANGES THE SOUND chip, each preset's `how` under its name, and WHAT'S NEW lines (to recheck). Merged up to d263b76: S3 a09127e, S1's 10 presets 543b67a via S2 7b1316f.
+  - Next: td4 (the pipeline test) once S3's stuck-frame fix lands, then rerun the addon build. The RC waits for the v3 presets (real TD networks, build.py per preset; Resources/touchdesigner/presets already ships the whole folder).
+- **REMIX is WIP in 1.5.2 (the user's call):** greyed in the rail like PROD, with the WIP badge, and not reachable; it replaces the BETA badge, and the REMIX code stays. TD stays a VISUALS base; the TD page becomes PROD once its Claude Design lands.
+- **From S3 later:** the VISUALS pieces (the TD source row, the DEMO · NON-COMMERCIAL label, the inline "Get TouchDesigner" panel).
+
+## 1.5.1 is live (73eb4a0; v1.5.1 on GitHub, snapshot b83b035)
 
 - **Scope:**
   - the new REMIX engine (S2's help/s2-151-wip e60ffec, with S3's M2.5, v0.15.2/.3, sample packs and notices);
@@ -44,9 +65,7 @@ Branch `session/s4-app` · owns `app/` · last update 2026-09-29 (1.5.0 = SMART 
   - SAMPLE LAYERS; TOP and the macros on (ENGINE_V01112); the client at v0.15.3.
 - **Build:** app part 22.0 MB and engine-code 7.8 MB are new (~30 MB update). Electron and engine-runtime are reused from v1.2.1. DMG 420.5 MB, zip 453.1 MB.
 - **Checked:** 597 unit tests; contract tests; a boot check on a .test clone (3/3). The earlier RC smoke passed boot, rail, STUDIO, VISUALS output and REMIX's ALL TRACKS ▾. The user asked to ship sooner, so the rest (BUILD, export/REVEAL, SAMPLE LAYERS on the real routes, MASKS) wasn't finished.
-- **For 1.5.2:**
-  - On a fresh install, a track added via ALL TRACKS ▾ → ADD A FILE… imported and analysed but didn't show in DECK A within 4 minutes in the smoke. Check it on a fresh install.
-  - Then run the rest of the RC smoke (scratchpad rc-smoke.mjs).
+- **For 1.5.2:** finish the rest of the RC smoke (scratchpad rc-smoke.mjs; scope its BPM wait to REMIX's deck). The first-run deck question was a smoke artefact (S5 checked all three load paths on a fresh install).
 
 ## MASKS page, Phase 2 (the user's Claude Design, app/design/masks)
 

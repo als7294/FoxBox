@@ -1,0 +1,38 @@
+{
+  "label": "AIR DRAW",
+  "title": "Pinch to draw in the air with your fingertip; an open palm wipes it away.",
+  "how": "Pinch to draw; show an open palm to wipe",
+  "order": 120,
+  "mode": "hands",
+  "new": true,
+  "gestures": {
+    "pinch_pull": "nothing",
+    "open_palm": "nothing",
+    "fist": "nothing"
+  },
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "feedback": true,
+  "macros": [
+    {
+      "id": "brush",
+      "label": "BRUSH",
+      "default": 0.5
+    },
+    {
+      "id": "stay",
+      "label": "STAY",
+      "default": 0.6
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#ff2a2a",
+    "#4de1ff",
+    "#3a3a3a"
+  ],
+  "sound": null
+}

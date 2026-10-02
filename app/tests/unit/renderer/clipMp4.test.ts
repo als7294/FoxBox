@@ -55,6 +55,17 @@ describe('clip MP4', () => {
       [0xb0, 0xb1, 0xb2, 0xb3],
     ])
   })
+
+  it("carries a comment in udta/©cmt when there is one (1.6: the TouchDesigner label), its offsets still right", () => {
+    const tracks = [{ kind: 'audio' as const, timescale: 48_000, entry: mp4aEntry(2, 48_000, Uint8Array.of(0x11, 0x90), 192_000), samples: sound }]
+    const labelled = writeMp4(tracks, 'TOUCHDESIGNER · DEMO')
+    const cmt = find(labelled, ['moov', 'udta', '\xa9cmt'])
+    const len = (labelled[cmt + 8]! << 8) | labelled[cmt + 9]!
+    expect(new TextDecoder().decode(labelled.subarray(cmt + 12, cmt + 12 + len))).toBe('TOUCHDESIGNER · DEMO')
+    const stco = find(labelled, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'stco'])
+    expect(labelled[u32(labelled, stco + 16)]).toBe(0xb0)
+    expect(writeMp4(tracks).length).toBeLessThan(labelled.length)
+  })
 })
 
 describe('stem features', () => {

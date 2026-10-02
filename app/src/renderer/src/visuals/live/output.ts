@@ -6,6 +6,14 @@
  * frames drawn meanwhile are dropped (a slow or hidden output window never queues them up).
  */
 
+import { create } from 'zustand'
+
+/**
+ * 1.5.2: which page's stage the output window shows. VISUALS by default; PROD while its SEND TO OUTPUT is on (it puts
+ * 'visuals' back when it stops, and so does the window closing). Only the owner's stage calls sendFrame.
+ */
+export const useOutputOwner = create<{ owner: 'visuals' | 'prod' }>(() => ({ owner: 'visuals' }))
+
 export type OutputMessage = { type: 'frame'; bitmap: ImageBitmap } | { type: 'shown' }
 
 /** A frame not acknowledged after this long is taken as lost (the window reloaded, or was hidden), and sending resumes. */

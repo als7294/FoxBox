@@ -1,5 +1,6 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Type-only: nothing here may import from electron or node.
+import type { TdPreset } from './tdPresets'
 
 export type EngineState = 'idle' | 'starting' | 'ready' | 'unresponsive' | 'restarting' | 'offline' | 'stopped' | 'mock'
 
@@ -221,6 +222,8 @@ export interface FvwksBridge {
   startDrag(path: string | string[], options?: StartDragOptions): void
   /** Writes a renderer error (an error boundary caught it) to main.log. */
   logError(scope: string, message: string, stack?: string): void
+  /** A diagnostic line into main.log (not an error), e.g. the output window's frame counts. */
+  log(scope: string, message: string): void
   /** Show a file or folder in Finder. Resolves false when the path is not allowed. */
   reveal(path: string): Promise<boolean>
   /**
@@ -267,6 +270,8 @@ export interface FvwksBridge {
   readonly visuals: VisualsBridge
   /** Ableton Link, "Sync to Rekordbox" (1.4): the visuals' tempo and beat from the DJ's Link session. */
   readonly link: LinkBridge
+  /** TouchDesigner over OSC (1.3; the free route, 1.6). */
+  readonly touchdesigner: TouchDesignerBridge
 }
 
 export interface DisplayInfo {
@@ -305,6 +310,83 @@ export interface VisualsBridge {
   removeShader(file: string): Promise<boolean>
 }
 
+// ------------------------------------------------------------------------------------------------ TouchDesigner (1.3)
+
+export interface TdSettings {
+  enabled: boolean
+  /** Where TouchDesigner runs: this Mac (127.0.0.1) or another machine on the network. */
+  host: string
+  /** FoxBox → TouchDesigner (its OSC In CHOP). */
+  outPort: number
+  /** TouchDesigner → FoxBox (its OSC Out). */
+  inPort: number
+}
+
+/** An OSC argument: numbers go out as float32, {type:'i'} as int32. */
+export type TdArg = number | string | boolean | { type: 'i'; value: number }
+
+export interface TdMessage {
+  address: string
+  args: TdArg[]
+}
+
+export interface TdStatus {
+  enabled: boolean
+  listening: boolean
+  error: string | null
+  /** Messages sent since launch. */
+  sent: number
+  /** The last control TouchDesigner sent us. */
+  lastIn: { address: string; at: number } | null
+  lastOutAt: number | null
+}
+
+export interface TouchDesignerBridge {
+  getSettings(): Promise<TdSettings>
+  setSettings(patch: Partial<TdSettings>): Promise<TdSettings>
+  getStatus(): Promise<TdStatus>
+  /** One frame of /foxbox/... messages (fire and forget). */
+  send(messages: TdMessage[]): void
+  /** Controls from TouchDesigner: /foxbox/preset <id>, /foxbox/macro/<name> <0..1>, /foxbox/fx/<name>, /foxbox/ptt <0|1>. */
+  onControl(listener: (msg: TdMessage) => void): () => void
+  /**
+   * 1.6, TouchDesigner as a VISUALS base: open the user's TouchDesigner in the background and take its picture.
+   * `setup` (SET UP TOUCHDESIGNER): run the steps the first time; afterwards picking the base is enough.
+   */
+  startSession(setup?: boolean): Promise<TdSessionStatus>
+  /** Stops taking its picture, and quits TouchDesigner if FoxBox opened it. */
+  stopSession(): Promise<TdSessionStatus>
+  getSession(): Promise<TdSessionStatus>
+  onSession(listener: (status: TdSessionStatus) => void): () => void
+  /** derivative.ca's download page, in the browser. */
+  openDownload(): void
+  /** TouchDesigner in front, as the user opens it (its first launch: their sign-in and free key). */
+  openTouchDesigner(): void
+  /** The presets (touchdesigner/presets), in TouchDesigner's order: /foxbox/td_preset is the index. */
+  presets(): Promise<TdPreset[]>
+  /** One camera frame for TouchDesigner (RGBA8, rows top first): FoxBox's Syphon server "FoxBox Camera". */
+  /** Asks main for the camera's MessagePort to TouchDesigner: it arrives as a window message {fvwks: 'td-camera-port'}
+   *  (renderer/touchdesigner/camera.ts hands it to its worker, which posts {rgba, width, height} frames on it). */
+  cameraPort(): void
+}
+
+export type TdStep = 'todo' | 'doing' | 'done' | 'failed'
+
+/** 1.6: where TouchDesigner as a base stands (main/bridge/tdSession.ts), as the BASE panel's checklist shows it. */
+export interface TdSessionStatus {
+  state: 'off' | 'not_installed' | 'needs_setup' | 'needs_activation' | 'starting' | 'live' | 'error'
+  /** What to tell the user (an error, a slow start). */
+  message: string | null
+  /** TouchDesigner's version once found, e.g. 2025.33230. */
+  version: string | null
+  /** SET UP TOUCHDESIGNER's steps: installed, activated (its free key), the FoxBox patch built, connected (the picture). */
+  steps: { installed: TdStep; activated: TdStep; patch: TdStep; connected: TdStep }
+  /** Frames a second coming in (live). */
+  fps: number
+  /** FoxBox's camera frames sent to TouchDesigner in the last second (0 when its camera stalls or is off). */
+  cameraFps: number
+}
+
 export const IPC = {
   bootInfo: 'fvwks:boot-info',
   engineRequest: 'fvwks:engine-request',
@@ -317,6 +399,7 @@ export const IPC = {
   saveClip: 'fvwks:save-clip',
   diskFree: 'fvwks:disk-free',
   logError: 'fvwks:log-error',
+  log: 'fvwks:log',
   chooseFolder: 'fvwks:choose-folder',
   samplePackAdd: 'fvwks:sample-pack-add',
   samplePackDrop: 'fvwks:sample-pack-drop',
@@ -355,6 +438,19 @@ export const IPC = {
   linkSet: 'fvwks:link-set',
   linkTempo: 'fvwks:link-tempo',
   linkState: 'fvwks:link-state',
+  tdGet: 'fvwks:td-get',
+  tdSet: 'fvwks:td-set',
+  tdStatus: 'fvwks:td-status',
+  tdSend: 'fvwks:td-send',
+  tdControl: 'fvwks:td-control',
+  tdSessionStart: 'fvwks:td-session-start',
+  tdSessionStop: 'fvwks:td-session-stop',
+  tdSessionGet: 'fvwks:td-session-get',
+  tdSessionState: 'fvwks:td-session-state',
+  tdOpenDownload: 'fvwks:td-open-download',
+  tdOpenApp: 'fvwks:td-open-app',
+  tdCameraPort: 'fvwks:td-camera-port',
+  tdPresets: 'fvwks:td-presets',
 } as const
 
 // ------------------------------------------------------------------------------------------------ Ableton Link (1.4)

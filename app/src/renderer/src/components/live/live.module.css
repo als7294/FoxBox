@@ -1,9 +1,8 @@
 /*
- * VISUALS (1.4, LIVE until 1.3): stage first. AUDIO SOURCE / BASE / EXPORT / clips in the left column, the STAGE in
- * the middle, EFFECTS on the right, VOICE (the performance: talk, presets, FX, macros) under the stage and EFFECTS,
- * collapsible. At 9:16 (1.5) the stage is a tall column the grid's full height, as wide as its picture needs, and
- * VOICE moves under EFFECTS. Cards are S2's 1.2.3 glass (--vb-glass-*, with their values as fallbacks). Inside the stage is
- * components/visuals (VisualsStage).
+ * VISUALS (1.5.2, app/design/visuals-td §A): the AudioSourceStrip header (components/visuals), the SOURCE row under it
+ * when open, then LAYERS on the left and the stage over VOICE (the performance: mode, PUSH, presets, FX, macros;
+ * collapsible) on the right. The stack, the stage and the drawers are components/visuals (refresh.module.css); the
+ * cards left here keep S2's 1.2.3 glass (--vb-glass-*, with their values as fallbacks).
  */
 .screen {
   --glass-fill: var(--vb-glass-fill, linear-gradient(180deg, rgba(var(--vb-ink-rgb), 0.075), rgba(var(--vb-ink-rgb), 0.025)));
@@ -14,43 +13,6 @@
     var(--vb-glass-inner, inset 0 1px 0 rgba(255, 255, 255, 0.08)), var(--vb-glass-shadow, 0 4px 14px rgba(var(--vb-shadow-rgb), 0.35));
 }
 
-/* header */
-.headBar {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.status {
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--glass-edge);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
-  color: var(--vb-dim);
-}
-.status[data-status='on'] {
-  color: var(--vb-accent);
-  border-color: rgba(var(--vb-accent-rgb), 0.6);
-  box-shadow: 0 0 calc(14px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.35);
-}
-.status[data-status='starting'],
-.status[data-status='error'] {
-  color: var(--vb-amber);
-}
-.readout {
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
-  color: var(--vb-dim);
-  white-space: nowrap;
-}
-.readout b {
-  font: 700 17px/1 var(--vb-font-display);
-  letter-spacing: 0.04em;
-  color: var(--vb-ink);
-  font-variant-numeric: tabular-nums;
-  margin-right: 3px;
-}
 .toggle {
   height: 32px;
   padding: 0 var(--space-3);
@@ -95,77 +57,60 @@
   text-decoration: none;
 }
 
-/* the layout: the stage takes what the columns and VOICE leave */
+/* the layout (app/design/visuals-td §A): the header, the SOURCE row when open, then LAYERS | the stage over VOICE */
 .grid {
   flex: 1;
   min-height: 0;
-  /* Its own height for the tall stage below (cqh). */
+  /* Its own size for the stage's drawers (cqh). */
   container-type: size;
   display: grid;
-  grid-template-columns: clamp(272px, 20cqw, 308px) minmax(0, 1fr) clamp(260px, 19cqw, 300px);
+  grid-template-columns: clamp(336px, 24.5cqw, 364px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    'side stage fx'
-    'side voice voice';
-  gap: var(--space-3);
+    'side stage'
+    'side voice';
+  gap: 10px;
 }
-.grid[data-aspect='9:16'] {
-  grid-template-columns: clamp(272px, 20cqw, 308px) auto minmax(0, 1fr);
-  grid-template-areas:
-    'side stage fx'
-    'side stage voice';
-}
-/*
- * The picture's height is the grid's less the stage's own chrome (padding, a bar of up to two rows, borders: 98px),
- * and its width 9/16 of that; the column adds the padding and borders back.
- */
-.grid[data-aspect='9:16'] .stage {
-  width: max(300px, calc((100cqh - 98px) * 9 / 16 + 18px));
-}
-/* VOICE in the narrower column: talk and presets, then macros and FX. */
-.grid[data-aspect='9:16'] .voiceBody {
-  grid-template-columns: 200px minmax(0, 1fr);
-}
-.grid[data-aspect='9:16'] .voiceBody > :nth-child(3) {
-  grid-area: 2 / 2;
-}
-.grid[data-aspect='9:16'] .voiceBody > :nth-child(4) {
-  grid-area: 2 / 1;
+/* PERFORM puts the stage over the whole window (position: fixed): the grid stops being its containing block. */
+.grid:has([data-perform]) {
+  container-type: normal;
 }
 .side {
   grid-area: side;
   min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  /* room for the scrollbar without clipping the cards' edges */
-  padding-right: 2px;
 }
 .stage {
   grid-area: stage;
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--vb-line);
-  border-radius: var(--vb-glass-radius-lg, 12px);
-  overflow: hidden;
-  background: #050506;
 }
-.fxCol {
-  grid-area: fx;
-  min-height: 0;
+/* The source's own controls (SOURCE ▾): the song deck and its stems, LIVE INPUT's, or the mic's devices. */
+.sourceRow {
+  flex: none;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  background: var(--vb-rack);
+  box-shadow: var(--vb-rack-inset);
+}
+.sourceRow[hidden] {
+  display: none;
+}
+.sourceRow > .songStrip {
+  flex: 1 1 520px;
+}
+.sourceRow > .field {
+  flex: 0 1 260px;
 }
 
 /* cards */
-.side > .card[aria-label='Export'] {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  background: var(--glass-fill), var(--vb-panel);
-}
 .card {
   display: flex;
   flex-direction: column;
@@ -360,20 +305,29 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--glass-fill);
-  border: 1px solid var(--glass-edge);
-  border-top-color: var(--glass-top);
-  border-radius: var(--vb-glass-radius-lg, 12px);
-  corner-shape: var(--vb-glass-corner, squircle);
-  box-shadow: var(--glass-shadow);
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: var(--vb-rack-radius);
+  background: var(--vb-rack);
+  box-shadow: var(--vb-rack-inset);
 }
 .voiceHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 28px;
+  gap: 8px;
+  min-height: 40px;
+}
+/* The mode and PUSH never shrink; the preset name gives way first. */
+.talkMode,
+.voiceHead > .talk {
+  flex: none;
+}
+/* Each mode as wide as its word (the shared control splits its width evenly, which cut LATCH). */
+.talkMode button {
+  flex: none;
+  padding: 0 7px;
 }
 .voiceHead .toggle {
   height: 26px;
@@ -382,13 +336,13 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 26px;
+  height: 30px;
   padding: 0 var(--space-2) 0 0;
   border: 0;
   background: none;
   color: var(--vb-ink);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
+  font: 800 14px/1 var(--vb-font-display);
+  letter-spacing: 0.2em;
 }
 .caret {
   display: inline-block;
@@ -399,20 +353,23 @@
   transform: rotate(90deg);
 }
 .voiceSummary {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
-  color: var(--vb-dim);
+  font: 700 var(--vb-text-min) var(--vb-font-mono);
+  letter-spacing: 0.1em;
+  color: #bdb8ac;
 }
 .voiceBody {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1.25fr) minmax(0, 1fr) auto;
-  gap: var(--space-4, 16px);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto 150px;
+  gap: 16px;
   align-items: start;
-  padding-bottom: var(--space-1);
+  padding: 8px 0 10px;
+  border-top: 1px solid rgba(var(--vb-ink-rgb), 0.06);
 }
 .voiceGroup {
   min-width: 0;
@@ -424,15 +381,11 @@
   margin: 0;
   min-height: 26px;
 }
-.talkModes {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
 .mute {
-  height: 26px;
-  border: 1px solid var(--glass-edge);
-  border-radius: var(--vb-r1);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: 3px;
   background: none;
   color: var(--vb-dim);
   font: 700 var(--vb-text-min) var(--vb-font-mono);
@@ -448,18 +401,18 @@
 }
 .talk {
   position: relative;
-  height: 52px;
+  height: 30px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  border: 1px solid var(--glass-edge);
-  border-top-color: var(--glass-top);
-  border-radius: 999px;
-  background: var(--glass-fill);
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.2);
+  border-radius: 3px;
+  background: #18181b;
   color: var(--vb-ink);
-  font: var(--vb-display-weight) 18px/1 var(--vb-font-display);
-  letter-spacing: 0.14em;
+  font: 800 15px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
   user-select: none;
   touch-action: none;
 }
@@ -469,8 +422,8 @@
 .talk[data-talking] {
   background: var(--vb-accent);
   border-color: var(--vb-accent);
-  color: var(--vb-bg);
-  box-shadow: 0 0 calc(28px * var(--vb-glow)) rgba(var(--vb-accent-rgb), 0.55);
+  color: var(--vb-well);
+  box-shadow: 0 0 18px rgba(var(--vb-accent-rgb), 0.45);
 }
 
 /* MIDI learn */

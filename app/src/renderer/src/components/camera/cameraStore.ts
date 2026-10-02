@@ -31,6 +31,11 @@ interface CameraState {
   twoFaces: boolean
   /** The user said JUST ME (or picked 1 PERSON): no second mask and no asking, this session. */
   justMe: boolean
+  /**
+   * 1.5.2, VISUALS' FACE ENCRYPTION: false shows the real face on the CAMERA base (two clicks to turn off). In memory
+   * only: every launch starts hidden (a DJ restarting mid-gig never goes live unmasked).
+   */
+  hideFaces: boolean
 }
 
 export const useCamera = create<CameraState>(() => ({
@@ -49,11 +54,13 @@ export const useCamera = create<CameraState>(() => ({
   takeVideos: {},
   twoFaces: false,
   justMe: false,
+  hideFaces: true,
 }))
 
 export const camera = {
   setOn: (on: boolean) => useCamera.setState({ on }),
   setLiveMode: (liveMode: 'live' | 'drop') => useCamera.setState({ liveMode }),
+  setHideFaces: (hideFaces: boolean) => useCamera.setState({ hideFaces }),
   set: (patch: Partial<CameraSettings>) => useCamera.setState((s) => ({ settings: { ...s.settings, ...patch } })),
   keepTakeVideo: (id: string, video: Blob) => useCamera.setState((s) => ({ takeVideos: { ...s.takeVideos, [id]: video } })),
   /** From the draw loops: only a change re-renders. */

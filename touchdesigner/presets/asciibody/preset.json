@@ -1,0 +1,49 @@
+{
+  "label": "ASCII BODY",
+  "title": "The camera as glyphs, your skeleton written in; your hands scramble it like static.",
+  "how": "Wave your hands to scramble; open your mouth to bit-crush",
+  "order": 80,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "size",
+      "label": "SIZE",
+      "default": 0.4
+    },
+    {
+      "id": "gain",
+      "label": "GAIN",
+      "default": 0.5
+    },
+    {
+      "id": "rain",
+      "label": "RAIN",
+      "default": 0.7
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#ffffff",
+    "#ff2a2a",
+    "#4a4a4a"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.crush",
+        "source": "gesture.jaw_open",
+        "min": 0,
+        "max": 0.55,
+        "curve": "gate",
+        "dead": 0,
+        "smooth_ms": 60
+      }
+    ]
+  }
+}

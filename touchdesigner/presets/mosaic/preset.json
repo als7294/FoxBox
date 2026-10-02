@@ -1,0 +1,12 @@
+{
+  "label": "WINDOW MOSAIC",
+  "title": "The camera cut into small windows that pop along your arms on the beat; your hands push them away; a drop doubles them",
+  "how": "Move your arms; push the windows with your hands",
+  "order": 20,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "sound": null
+}

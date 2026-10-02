@@ -1,0 +1,60 @@
+{
+  "label": "STRING HANDS",
+  "title": "Glowing strings between your fingertips, humming with the bass, plucked by the snare.",
+  "how": "Hold up both hands; make a fist to stop the tape",
+  "order": 100,
+  "mode": "hands",
+  "new": true,
+  "gestures": {
+    "pinch_pull": "nothing",
+    "open_palm": "nothing",
+    "fist": "nothing"
+  },
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "swing",
+      "label": "SWING",
+      "default": 0.6
+    },
+    {
+      "id": "glow",
+      "label": "GLOW",
+      "default": 0.6
+    },
+    {
+      "id": "crossing",
+      "label": "CROSSING",
+      "default": 0.5
+    }
+  ],
+  "reacts_to": "low",
+  "palette": [
+    "#000000",
+    "#ff2a2a",
+    "#ffd34d",
+    "#ff8a00"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.tape",
+        "source": "gesture.fist",
+        "min": 0,
+        "max": 0.85,
+        "curve": "gate"
+      },
+      {
+        "target": "fx.stutter",
+        "source": "gesture.victory",
+        "min": 0,
+        "max": 1,
+        "curve": "gate"
+      }
+    ]
+  }
+}

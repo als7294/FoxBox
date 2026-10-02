@@ -20,6 +20,10 @@ describe('the face crop', () => {
     // A face whose crop would be ~77 % of the height: whole while it was whole, a crop coming from a crop.
     expect(nextRoi(face(0.5, 0.5, 0.09), big, 1280, 720, 0)).toBe(big)
     expect(nextRoi(face(0.5, 0.5, 0.09), { x: 0.3, y: 0.2, w: 0.4, h: 0.71 }, 1280, 720, 0).w).toBeLessThan(1)
+    // Lost from the whole frame: looked for there (not in the head's crop, which would bounce back), then round the head.
+    const head = { x: 0.45, y: 0.3, w: 0.15, h: 0.35 }
+    expect(nextRoi(null, big, 1280, 720, 1, null, head)).toBe(big)
+    expect(nextRoi(null, big, 1280, 720, 4, null, head).w).toBeLessThan(1)
   })
   it('a lost face: looked for where it was (widening), then a scan of tiles', () => {
     const a = nextRoi(face(0.6, 0.3, 0.03), FULL, 1280, 720, 0)

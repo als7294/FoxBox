@@ -6,6 +6,9 @@
 import { coverCrop, drawWatermark, type Layout } from '@/components/camera/compose'
 import { pickMimeType } from '@/components/camera/recording'
 import { defragment } from '@/components/camera/remux'
+import { useVisuals } from '@/state/visuals'
+import { TD_LABEL } from '@/visuals/live/bases/touchdesigner'
+import { sceneHasTd } from '@/visuals/live/compositor'
 import { CLIP_SIZE, clipFileName, type ClipAspect } from './render'
 
 export interface LiveCapture {
@@ -30,6 +33,7 @@ export function startLiveCapture(
   const L: Layout = { w, h, cam: { x: 0, y: 0, w, h }, wave: { x: 0, y: h, w, h: 0 } }
   const t0 = performance.now()
   let raf = 0
+  let touchDesigner = false // the base was TOUCHDESIGNER at some point while it filmed
   const draw = () => {
     raf = requestAnimationFrame(draw)
     ctx.fillStyle = '#000'
@@ -39,6 +43,7 @@ export function startLiveCapture(
       ctx.drawImage(stage, c.x, c.y, c.w, c.h, 0, 0, w, h)
     }
     if (o.watermark) drawWatermark(ctx, L, (performance.now() - t0) / 1000, stamp)
+    if (sceneHasTd(useVisuals.getState().scene)) touchDesigner = true // labels the file's metadata
   }
   draw()
   const dest = sound.ctx.createMediaStreamDestination()
@@ -67,7 +72,7 @@ export function startLiveCapture(
       release()
       const seconds = (performance.now() - t0) / 1000
       let blob = new Blob(chunks, { type: mime })
-      const plain = mime.startsWith('video/mp4') ? defragment(await blob.arrayBuffer()) : null
+      const plain = mime.startsWith('video/mp4') ? defragment(await blob.arrayBuffer(), touchDesigner ? TD_LABEL : undefined) : null
       if (plain) blob = new Blob([plain], { type: mime })
       const name = clipFileName(o.aspect).replace(/\.mp4$/, mime.startsWith('video/mp4') ? '.mp4' : '.webm')
       return { blob, name, seconds }

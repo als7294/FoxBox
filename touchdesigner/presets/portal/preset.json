@@ -1,0 +1,50 @@
+{
+  "label": "PINCH PORTAL",
+  "title": "Frame another world with your thumbs and index fingers.",
+  "how": "Make a frame with your thumbs and index fingers",
+  "order": 110,
+  "mode": "hands",
+  "new": true,
+  "gestures": {
+    "pinch_pull": "nothing",
+    "open_palm": "nothing",
+    "fist": "nothing"
+  },
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "world",
+      "label": "WORLD",
+      "default": 0.4
+    },
+    {
+      "id": "rim",
+      "label": "RIM",
+      "default": 0.5
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#d90510",
+    "#ffffff",
+    "#2b2b2b"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.wash",
+        "source": "gesture.frame_size",
+        "min": 0,
+        "max": 0.7,
+        "curve": "lin",
+        "dead": 0.1,
+        "smooth_ms": 150
+      }
+    ]
+  }
+}

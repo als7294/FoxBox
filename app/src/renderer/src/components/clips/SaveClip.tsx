@@ -29,7 +29,11 @@ const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60))
  * CLIP THE DROP), the whole song, or a range of bars, in the stage's format (its ASPECT), watermark optional. With
  * the song's stems split, each visual layer follows its own stem.
  */
-export function SaveClip() {
+/**
+ * `confirm` (1.5.2, VISUALS): asked before a render starts, with the render to run once it's answered (VISUALS asks
+ * while a face would show in the clip).
+ */
+export function SaveClip({ confirm }: { confirm?(render: () => void): void }) {
   const { song, buffer, beatDrop, placement } = useSong()
   const render = useStudio((s) => s.render)
   const bpm = useStudio((s) => s.bpm)
@@ -232,7 +236,7 @@ export function SaveClip() {
             size="sm"
             variant="ink"
             disabled={!stretch}
-            onClick={() => void start()}
+            onClick={() => (confirm ? confirm(() => void start()) : void start())}
             title={`In the stage's format (${aspect}); renders faster than real time, the app stays usable`}
           >
             ● RENDER {stretch ? clock(stretch.length) : ''}

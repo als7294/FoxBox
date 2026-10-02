@@ -290,6 +290,17 @@ describe('clip file', () => {
       [10, 11],
       [20, 21],
     ])
+    // 1.6: with a comment (SAVE CLIP LIVE over a TOUCHDESIGNER base), a ©cmt in the moov, the samples still in place.
+    const labelled = defragment(input.slice().buffer, 'TOUCHDESIGNER · DEMO')!
+    const lv = new DataView(labelled.buffer)
+    const at = (type: string, from = 0): number => {
+      for (let i = from; i < labelled.length - 4; i++) if (String.fromCharCode(...labelled.subarray(i, i + 4)) === type) return i + 4
+      return -1
+    }
+    const cmt = at('\xa9cmt')
+    expect(new TextDecoder().decode(labelled.subarray(cmt + 4, cmt + 4 + lv.getUint16(cmt)))).toBe('TOUCHDESIGNER · DEMO')
+    const lvideo = at('trak', at('trak') + 8)
+    expect([0, 1].map((k) => labelled[lv.getUint32(at('stco', lvideo) + 8 + 4 * k)])).toEqual([10, 20])
     // Not a fragmented MP4: left alone.
     expect(defragment(concat([box('ftyp', u32(0)), moov]).slice().buffer)).toBeNull()
   })

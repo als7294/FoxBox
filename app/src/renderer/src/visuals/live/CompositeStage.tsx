@@ -4,7 +4,7 @@ import { reportError } from '@/components/common/ErrorBoundary'
 import type { Scene } from './compositor'
 import { Compositor } from './compositorEngine'
 import type { AudioFrame, FrameExtras } from './registry'
-import { backingSize } from './stage'
+import { backingSize, feedStageFrames } from './stage'
 
 /** 60 fps, less a little for rAF jitter (a 120 Hz display's every other frame, a 60 Hz display's every frame). */
 const MIN_FRAME_MS = 1000 / 60 - 2
@@ -96,7 +96,10 @@ export function CompositeStage({
       last = now
       // Outside React's render, so no boundary sees it: a bad frame is logged once and the loop carries on.
       try {
-        c.frame(sourceRef.current(), dt, extrasRef.current?.())
+        const a = sourceRef.current()
+        // the main stage's frames for listeners outside it (the TouchDesigner feed: its channels, preset and tracking)
+        if (output === 'stage') feedStageFrames(c, a, dt, now)
+        c.frame(a, dt, extrasRef.current?.())
         frameRef.current?.(canvas)
       } catch (err) {
         reportError('STAGE frame', err)

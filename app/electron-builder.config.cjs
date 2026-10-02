@@ -22,6 +22,13 @@ module.exports = {
   files: ['out/**', 'package.json', '!out/**/*.map', '!**/node_modules/**'],
   asar: true,
   npmRebuild: false,
+  // TouchDesigner (1.5.2, S3's free route): the Syphon host addon (native/syphon/build.sh, git-ignored, built before
+  // packaging) and the TD setup script, both in Resources: the app part (components.ts), signed with the app.
+  extraResources: [
+    { from: 'native/syphon/build/syphon_host.node', to: 'syphon_host.node' },
+    { from: '../touchdesigner/foxbox_setup.py', to: 'touchdesigner/foxbox_setup.py' },
+    { from: '../touchdesigner/presets', to: 'touchdesigner/presets' },
+  ],
   electronFuses,
   // Component updates (1.2): record each part's hash in Contents/Resources/components.json before signing
   // (src/main/components.ts). The fuses are applied after this hook, so they go into the electron part's hash.

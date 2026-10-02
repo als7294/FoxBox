@@ -14,11 +14,18 @@
  *   phrases    every 8 bars (in verses and drops) the featured layer moves on
  *   bass       a held sub stretches the zoom for exactly its length; stabs hit short and sharp; a wobble modulates
  *              intensity at its own rate; an 808 glide bends the hue; half-time halves the motion
+ *   new looks  at each section boundary (into an INTRO, BUILD, DROP or BREAK) every unlocked effect layer is swapped
+ *              for another of its kind (GENERATOR, FILTER, MILKDROP): none already in the scene, none it had in its
+ *              last three looks (a kind too small for that: never the one it just had); TOUCHDESIGNER and TEXT layers
+ *              never swap. The saved scene changes (opts.applySwaps: the
+ *              visuals store's updateEffect), and onSwap tells the UI ({section, changed, kept}: kept = locked layers).
+ *              Flashes stay under the compositor's limiter whatever plays.
  * Reduced motion: no punches or beat pulses, speed kept near 1, hue changes glide instead of cutting. Locked layers
  * (layer.locked, or opts.isLocked) are never touched. S1's hand signals (opts.handSignal) can call the moves.
  */
+import { useVisuals } from '@/state/visuals'
 import type { Director, EffectLayer, Scene, ScenePatch } from './compositor'
-import type { AudioFrame } from './registry'
+import { listFamilies, onFamiliesChange, type AudioFrame, type SongSection } from './registry'
 
 export type HandSignal = 'build' | 'drop' | 'hold' | 'blackout' | 'hype' | null
 
@@ -29,6 +36,45 @@ export interface DirectorOptions {
   isLocked?: (layer: EffectLayer) => boolean
   /** The hand signal showing now, if S1's camera sees one. */
   handSignal?: () => HandSignal
+  /** The styles a layer may swap to, by kind (default: the registry's families). */
+  catalog?: () => Catalog
+  /** Puts a section's new looks in the saved scene: layer id → its new style (default: the visuals store). */
+  applySwaps?: (swaps: Record<string, string>) => void
+  /** 0..1 (default Math.random). */
+  random?: () => number
+}
+
+export type LayerKind = 'gen' | 'fil' | 'milk'
+export type Catalog = Record<LayerKind, string[]>
+/** A section's new looks, for the UI's toast: `changed` layers swapped, `kept` locked ones left as they were. */
+export interface SwapEvent {
+  section: SongSection
+  changed: number
+  kept: number
+}
+
+const SWAP_AT = new Set<SongSection>(['intro', 'build', 'drop', 'breakdown'])
+const HISTORY = 3 // a layer never goes back to one of its last three looks
+
+let cached: Catalog | null = null
+let watching = false
+/** The registry's styles by kind (MILKDROP's family, else a filter or a generator; TEXT and TOUCHDESIGNER left out). */
+export function registryCatalog(): Catalog {
+  if (!watching) {
+    watching = true
+    onFamiliesChange(() => (cached = null))
+  }
+  if (!cached) {
+    const c: Catalog = { gen: [], fil: [], milk: [] }
+    cached = c
+    for (const f of listFamilies()) {
+      if (f.id === 'text' || f.id === 'touchdesigner') continue
+      void Promise.resolve(f.styles()).then((styles) => {
+        for (const st of styles) (f.id === 'milkdrop' ? c.milk : st.kind === 'filter' ? c.fil : c.gen).push(st.id)
+      })
+    }
+  }
+  return cached
 }
 
 interface LayerMove {
@@ -58,8 +104,17 @@ export class AutoDirector implements Director {
   private glideHue = 0
   private sat = 1
   private lastTime: number | null = null
+  private prevSection: SongSection | null = null
+  private readonly history = new Map<string, string[]>()
+  private readonly swapListeners = new Set<(e: SwapEvent) => void>()
 
   constructor(private readonly opts: DirectorOptions = {}) {}
+
+  /** Each section's new looks (the toast). */
+  onSwap(cb: (e: SwapEvent) => void): () => void {
+    this.swapListeners.add(cb)
+    return () => this.swapListeners.delete(cb)
+  }
 
   /** The AUTO toggle. Off: the scene plays as the user built it. */
   setEnabled(on: boolean): void {
@@ -76,6 +131,39 @@ export class AutoDirector implements Director {
     this.sat = 1
     this.featured = 0
     this.lastTime = null
+    this.prevSection = null
+  }
+
+  /** Every unlocked GEN / FX / MD layer to another look of its kind (see the module doc). */
+  private newLooks(section: SongSection, scene: Scene, locked: (l: EffectLayer) => boolean): void {
+    const cat = (this.opts.catalog ?? registryCatalog)()
+    const kindOf = (styleId: string): LayerKind | null => (['gen', 'fil', 'milk'] as const).find((k) => cat[k].includes(styleId)) ?? null
+    const random = this.opts.random ?? Math.random
+    const inScene = new Set(scene.effects.map((l) => l.styleId))
+    const swaps: Record<string, string> = {}
+    let changed = 0
+    let kept = 0
+    for (const l of scene.effects) {
+      const kind = l.td ? null : kindOf(l.styleId)
+      if (!kind) continue // TOUCHDESIGNER, TEXT, a style the catalog doesn't know
+      if (locked(l)) {
+        kept++
+        continue
+      }
+      const recent = this.history.get(l.id) ?? []
+      const free = cat[kind].filter((id) => !inScene.has(id))
+      const strict = free.filter((id) => !recent.includes(id))
+      const pool = strict.length ? strict : free.filter((id) => id !== recent[0]) // a small kind: never just back
+      if (!pool.length) continue
+      const pick = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]!
+      swaps[l.id] = pick
+      inScene.add(pick)
+      this.history.set(l.id, [l.styleId, ...recent].slice(0, HISTORY))
+      changed++
+    }
+    if (!changed) return
+    ;(this.opts.applySwaps ?? applyToStore)(swaps)
+    for (const cb of this.swapListeners) cb({ section, changed, kept })
   }
 
   frame(a: AudioFrame, scene: Scene): ScenePatch | null {
@@ -92,6 +180,8 @@ export class AutoDirector implements Director {
     const signal = this.opts.handSignal?.() ?? null
 
     const section = a.section ?? (a.drop ? 'drop' : 'verse')
+    if (this.prevSection != null && section !== this.prevSection && SWAP_AT.has(section)) this.newLooks(section, scene, locked)
+    this.prevSection = section
     const p = a.buildProgress ?? 0
     const dropE = a.dropEnergy ?? 0
     const dropIdx = Math.max(1, a.dropIndex ?? 1)
@@ -194,6 +284,11 @@ export class AutoDirector implements Director {
     })
     return { layers: moves, punch: clamp(punch), hueShift: (this.hue + this.glideHue) % 360, speed, saturation: clamp(this.sat, 0, 2) }
   }
+}
+
+function applyToStore(swaps: Record<string, string>): void {
+  const { updateEffect } = useVisuals.getState()
+  for (const [id, styleId] of Object.entries(swaps)) updateEffect(id, { styleId })
 }
 
 /** The app's director (families/index.ts registers it; the AUTO toggle calls setEnabled). */

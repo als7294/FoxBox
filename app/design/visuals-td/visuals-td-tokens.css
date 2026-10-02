@@ -1,0 +1,57 @@
+/* VISUALS refresh + PROD (TouchDesigner) 1.5.x — new tokens. Builds on tokens.css (TRANSMISSION + REMIX HARDWARE). */
+:root {
+  /* layout (1512×982; floor 1280×800; main is a size container) */
+  --vb-vs-stack-w: clamp(318px, 24.5cqw, 364px);     /* LayerStack column */
+  --vb-vs-head-h: 48px;                              /* page title + AudioSourceStrip */
+  --vb-vs-bar-h: 44px;                               /* StageView bar */
+  --vb-vs-browser-h: clamp(232px, 29cqh, 280px);     /* EffectBrowser drawer */
+  --vb-vs-tile-w: clamp(118px, 9.6cqw, 140px);       /* EffectTile column (2 rows, scrolls sideways) */
+  --vb-vs-row-h: 56px;                               /* LayerRow min height */
+  --vb-vs-perf-h: clamp(108px, 14cqh, 132px);        /* PerformanceStrip */
+  --vb-td-browser-w: clamp(236px, 19.5cqw, 290px);   /* TdEffectBrowser */
+  --vb-td-controls-w: clamp(276px, 22cqw, 320px);    /* MacroKnob panel */
+  --vb-td-strip-h: 70px;                             /* bottom music + commit strip */
+  --vb-knob: 64px;                                   /* MacroKnob (ring canvas 72px, 4px outside) */
+  --vb-knob-sm: 30px;                                /* LayerRow opacity knob */
+
+  /* stage */
+  --vb-stage-bg: #08080a;
+  --vb-stage-perf-bg: #000;
+  --vb-stage-ring: 0 0 0 1px rgba(var(--vb-ink-rgb), 0.12);
+  --vb-stage-live-ring: 0 0 0 2px var(--vb-accent);  /* + vbLive pulse 2.4s */
+  --vb-stage-tag: rgba(11, 11, 12, 0.88);            /* chips burned over the stage */
+
+  /* reacts-to sources (always with a label; dot + meter colour) */
+  --vb-react-kick: var(--vb-accent);
+  --vb-react-snare: var(--vb-amber);
+  --vb-react-bass: var(--vb-ice);
+  --vb-react-drop: var(--vb-accent);
+  --vb-react-section: var(--vb-ink);
+  --vb-react-voice: var(--vb-ok);
+  --vb-react-off: rgba(var(--vb-ink-rgb), 0.2);
+  --vb-react-mod: 0.45;                              /* max push a source adds to a knob */
+
+  /* layer kinds (tag outline + text) */
+  --vb-kind-gen: var(--vb-ice);
+  --vb-kind-filter: var(--vb-amber);
+  --vb-kind-milkdrop: #e79bd0;
+  --vb-kind-td: var(--vb-accent);
+
+  /* face state (never colour alone: ● / ▲ / ○ + words) */
+  --vb-face-hidden: var(--vb-ok);
+  --vb-face-hidden-bg: rgba(127, 208, 138, 0.06);
+  --vb-face-hidden-edge: rgba(127, 208, 138, 0.45);
+  --vb-face-visible: var(--vb-amber);                /* PROD raw camera: user's choice */
+  --vb-face-off: var(--vb-accent);                   /* VISUALS face hiding off: a warning */
+
+  /* TD palettes (PaletteRow; canvas reads bg / fg / accent) */
+  --vb-td-ember: #050506, #f2efe6, #ff4b2b;
+  --vb-td-ice: #03060a, #e8f4ff, #29a8ff;
+  --vb-td-toxic: #040602, #f1ffe0, #b6ff2e;
+  --vb-td-bone: #0d0b08, #efe6d2, #c9b48a;
+  --vb-td-void: #000000, #ffffff, #8a5cff;
+
+  /* safety */
+  --vb-flash-max: 3;                                 /* flashes / s, hard cap (DROP FLASH, BEAT STROBE, DROP FX) */
+  --vb-two-step-ms: 3000;                            /* confirm window for REMOVE? / OFF? / STOP? */
+}

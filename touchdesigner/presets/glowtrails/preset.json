@@ -1,0 +1,32 @@
+{
+  "label": "GLOW TRAILS",
+  "title": "Your arms and fingertips burn like sparklers and leave smoke trails behind you.",
+  "how": "Wave your hands to paint trails; a big move throws an echo",
+  "order": 40,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.echo",
+        "source": "gesture.motion",
+        "min": 0,
+        "max": 0.8,
+        "curve": "gate",
+        "dead": 0.2,
+        "smooth_ms": 120
+      },
+      {
+        "target": "fx.echo_beats",
+        "source": "knob.trails",
+        "min": 0.25,
+        "max": 1,
+        "curve": "lin"
+      }
+    ]
+  }
+}

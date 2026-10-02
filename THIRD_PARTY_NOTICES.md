@@ -58,6 +58,7 @@ bundled: the app downloads them at first run or on request, under each model's o
 |---|---|---|
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe) 1.0.1 (vendored in `vendor/mediapipe`) | On-device face detection, face and hand landmarks, person segmentation | Apache-2.0 |
 | MediaPipe models: BlazeFace full-range (`blaze_face_full_range.tflite`, the face detector: small and far faces; pinned by sha256), Face Landmarker, Gesture Recognizer (hand landmarks + named gestures), Selfie Segmenter, Pose Landmarker lite (BlazePose GHUM, `pose_landmarker_lite.task`) (float16, pinned by sha256) | Hiding faces (the pose's head keeps a face covered when the face finders lose it), depth pass-through, hand signals, auto-framing | Apache-2.0 |
+| [$Q Super-Quick Recognizer](https://depts.washington.edu/acelab/proj/dollar/qdollar.html) (JavaScript version by Nathan Magrofuoco; $Q by Radu-Daniel Vatavu, Lisa Anthony and Jacob O. Wobbrock), vendored in `vendor/qdollar` with an ES module export added | AIR DRAW's shapes: a circle, triangle, star or zigzag drawn with a pinch | BSD-3-Clause |
 
 ## LIVE and visuals (1.3–1.5)
 | Project | Use | License |
@@ -94,6 +95,22 @@ file's source, author and licence are in its `manifest.json`).
 | [VSCO-2 Community Edition](https://github.com/sgossner/VSCO-2-CE) by Versilian Studios: anvil, brake-drum and metal hits (7 files) | REMIX drum layers (metal percussion) | CC0-1.0 |
 | [Impact Sounds 1.0](https://kenney.nl/assets/impact-sounds) by Kenney (5 files) | REMIX drum layers (metal percussion, impacts) | CC0-1.0 |
 | [Gogodze Phu Vol II](https://github.com/sfzinstruments/karoryfer.gogodze-phu-vol-ii) by Karoryfer Samples, via sfzinstruments: acoustic snare hits, the close mic mixed with the overheads and the room as recorded (16 files) | REMIX drum layers (the snare's transient and room) | CC0-1.0 |
+
+## VISUALS ⇄ TouchDesigner (1.6)
+| Project | Use | License |
+|---|---|---|
+| [Syphon](https://github.com/Syphon/Syphon-Framework) by Tom Butterworth (bangnoise) and Anton Marini (vade), with Maxime Touroute and Philippe Chaurand (Millumin) for its Metal support. Built into FoxBox's Syphon addon (`app/native/syphon`) from a pinned commit. | Receiving TouchDesigner's picture (its Syphon Spout Out TOP) for the TOUCHDESIGNER base | BSD-3-Clause |
+
+TouchDesigner itself is the user's own install and is never bundled.
+
+### TouchDesigner recipes and inspiration (re-implemented in `touchdesigner/presets/*/build.py`, not vendored)
+| Source | Idea used | License |
+|---|---|---|
+| [DBraun/TouchDesigner_Shared](https://github.com/DBraun/TouchDesigner_Shared): SlitScanSimplest, and the feedback_TOP blur / over / cross examples | SLIT SCAN's Texture 3D TOP + Time Machine TOP; GLOW TRAILS' feedback loop | GPL-3.0 |
+| [Simonalexanderadams/TD-Tutorials](https://github.com/Simonalexanderadams/TD-Tutorials): the infinite tunnel zoom | MIRROR TUNNEL's feedback tunnel (scale and turn each frame) | MIT |
+| [exsstas/TD-tutorials](https://github.com/exsstas/TD-tutorials): point clouds | POINT CLOUD's dots instanced from a TOP | MIT |
+| [mir-lab/touchdesigner-instancing-examples](https://github.com/mir-lab/touchdesigner-instancing-examples) | TOP-driven instancing (POINT CLOUD, DOT SCREEN, LINE SCAN's fills) | MIT |
+| Derivative's documentation: [Time Machine TOP](https://docs.derivative.ca/Time_Machine_TOP), [Feedback TOP](https://docs.derivative.ca/Feedback_TOP) | The slit-scan and feedback techniques | Documentation |
 
 The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
 Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that

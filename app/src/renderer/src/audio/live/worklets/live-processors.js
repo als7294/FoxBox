@@ -11,6 +11,8 @@
  *   fvwks-perform   master: stutter (buffer repeat), tape-stop, drop-out, and a soft safety clip at -1 dBFS
  *   fvwks-tap       SetRecorder capture: planar float batches from `startAt` (context time) until 'stop'
  *   fvwks-duck      SongDeck: the song (input 0) ducked under the voice (input 1, the key): 10 ms attack
+ *   fvwks-songfx    TRACK song FX (1.5.2): tape stop / spin-up, beat repeat, bitcrush (stereo; never the voice)
+ *   fvwks-limit     TRACK song FX: the true-peak look-ahead limiter at the end of that chain (stereo)
  *   fvwks-stems     LIVE INPUT stem approximator: drums / bass / vocals / other levels and onsets at 60 fps
  *                   (+ the bass line's raw sub, growl, 30-600 Hz level and sub f0)
  */
@@ -584,3 +586,164 @@ class Stems extends AudioWorkletProcessor {
   }
 }
 registerProcessor('fvwks-stems', Stems)
+
+// ---------------------------------------------------------------------------------------------------------- songfx
+// The TRACK song's live FX (1.5.2, TouchDesigner presets / gestures; the song only, never the voice): tape stop and
+// spin-up (`tape` 0-1 slows the playback rate to 1 - tape, following over `tapeS`; back at 0 it catches up to live
+// through a 30 ms crossfade), a bar-quantized beat repeat (port: {kind: 'stutter', at, slice} / {kind: 'stutter-off',
+// at}, context times; the slice just before `at` loops with 4 ms edges) and a bitcrush (`crush` 0-1: 16 -> 4 bits,
+// the rate down to 8 %). Every parameter follows by a one-pole (no clicks); {kind: 'reset'} returns to live at once.
+const SONGFX_RING_S = 8
+class SongFx extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [param('tape', 0, 0, 1), param('tapeS', 0.25, 0.01, 4), param('crush', 0, 0, 1)]
+  }
+  constructor() {
+    super()
+    this.n = Math.ceil(SONGFX_RING_S * sampleRate)
+    this.ring = [new Float32Array(this.n), new Float32Array(this.n)]
+    this.w = 0
+    this.reset()
+    this.queue = []
+    this.port.onmessage = (e) => {
+      const m = e.data
+      if (!m || !m.kind) return
+      if (m.kind === 'reset') { this.queue = []; this.reset(); return }
+      this.queue.push(m)
+      this.queue.sort((a, b) => a.at - b.at)
+    }
+  }
+  reset() {
+    this.lag = 0 // samples the tape read point is behind live
+    this.rate = 1
+    this.xf = 0 // the catch-up crossfade to live, 0-1
+    this.loop = null // {buf: [L, R], k, out} while repeating; out: fading back
+    this.loopGain = 0
+    this.crush = 0; this.ph = 1; this.hl = 0; this.hr = 0
+  }
+  read(ch, back) { // `back` samples (fractional) behind the write point
+    const n = this.n, p = this.w - back, i = Math.floor(p), f = p - i, r = this.ring[ch]
+    const a = r[((i % n) + n) % n], b = r[(((i + 1) % n) + n) % n]
+    return a + (b - a) * f
+  }
+  process(inputs, outputs, p) {
+    const inp = inputs[0], out = outputs[0]
+    const L = inp[0], R = inp[1] || inp[0], oL = out[0], oR = out[1] || out[0]
+    if (!L) { oL.fill(0); if (oR !== oL) oR.fill(0); return true }
+    const t0 = currentTime, edge = Math.max(1, Math.round(0.004 * sampleRate))
+    const kRate = coef(p.tapeS[0] / 3), kCrush = coef(0.02), kLoop = coef(0.0015), kXf = 1 / (0.03 * sampleRate)
+    const tapeTarget = 1 - p.tape[0], crushTarget = p.crush[0], maxLag = (SONGFX_RING_S - 1) * sampleRate
+    for (let i = 0; i < L.length; i++) {
+      const t = t0 + i / sampleRate
+      this.ring[0][this.w] = L[i]; this.ring[1][this.w] = R[i]
+      while (this.queue.length && this.queue[0].at <= t) {
+        const ev = this.queue.shift()
+        if (ev.kind === 'stutter') {
+          const len = Math.max(edge * 4, Math.min(Math.round(ev.slice * sampleRate), this.n >> 2))
+          const buf = [new Float32Array(len), new Float32Array(len)]
+          for (let j = 0; j < len; j++) { buf[0][j] = this.read(0, len - j); buf[1][j] = this.read(1, len - j) }
+          this.loop = { buf, k: 0, out: false }
+        } else if (ev.kind === 'stutter-off' && this.loop) this.loop.out = true
+      }
+      // tape: the rate follows 1 - tape; the read point falls behind live while it's under 1
+      this.rate = kRate * this.rate + (1 - kRate) * tapeTarget
+      this.lag = Math.min(maxLag, this.lag + 1 - this.rate)
+      let l = L[i], r = R[i]
+      if (this.lag > 0.5) {
+        const g = Math.min(1, this.rate * 4) // a stopped tape is silent, not a held sample
+        let tl = this.read(0, this.lag) * g, tr = this.read(1, this.lag) * g
+        if (tapeTarget > 0.98 && this.rate > 0.98) { // back up to speed: crossfade to live, then drop the lag
+          this.xf = Math.min(1, this.xf + kXf)
+          tl += (l - tl) * this.xf; tr += (r - tr) * this.xf
+          if (this.xf >= 1) { this.lag = 0; this.xf = 0 }
+        } else this.xf = 0
+        l = tl; r = tr
+      } else { this.lag = 0; this.xf = 0 }
+      // the beat repeat, over whatever the tape gives
+      const lp = this.loop
+      this.loopGain = kLoop * this.loopGain + (1 - kLoop) * (lp && !lp.out ? 1 : 0)
+      if (lp) {
+        const len = lp.buf[0].length, j = lp.k % len, w = Math.min(1, j / edge, (len - j) / edge)
+        l += (lp.buf[0][j] * w - l) * this.loopGain; r += (lp.buf[1][j] * w - r) * this.loopGain
+        lp.k++
+        if (lp.out && this.loopGain < 1e-4) this.loop = null
+      }
+      // bitcrush: bits and rate fall with `crush`, its wet share eases in
+      this.crush = kCrush * this.crush + (1 - kCrush) * crushTarget
+      const c = this.crush
+      if (c > 1e-4) {
+        this.ph += 1 - 0.92 * c
+        if (this.ph >= 1) { this.ph -= 1; this.hl = l; this.hr = r }
+        const step = 2 / Math.pow(2, 16 - 12 * c), mix = Math.min(1, c * 3)
+        l += (Math.round(this.hl / step) * step - l) * mix; r += (Math.round(this.hr / step) * step - r) * mix
+      }
+      oL[i] = l; oR[i] = r
+      this.w = (this.w + 1) % this.n
+    }
+    return true
+  }
+}
+registerProcessor('fvwks-songfx', SongFx)
+
+// ---------------------------------------------------------------------------------------------------------- limit
+// The song FX's last stage: a 1.5 ms look-ahead peak limiter on a true-peak estimate (each sample and the three
+// points between it and the one before, by a 12-tap windowed-sinc 4x interpolator as a BS.1770 meter reads them, on
+// both channels), the gain falling ahead of a peak and recovering over `releaseMs`, then a hard stop at the ceiling
+// for whatever slips by. Posts {gr} (dB of gain reduction, the deepest in the last 50 ms) for the UI's indicator.
+const TP_TAPS = 12
+const TP_PHASES = [1, 2, 3].map((k) => { // phase k/4 past tap 5: windowed sinc, unity at DC
+  const h = Array.from({ length: TP_TAPS }, (_, j) => {
+    const t = j - 5 - k / 4
+    return (t === 0 ? 1 : Math.sin(Math.PI * t) / (Math.PI * t)) * (0.5 + 0.5 * Math.cos((Math.PI * t) / 6.5))
+  })
+  const sum = h.reduce((a, b) => a + b, 0)
+  return h.map((v) => v / sum)
+})
+class Limit extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [param('ceilingDb', -1, -12, 0), param('releaseMs', 80, 10, 1000)]
+  }
+  constructor() {
+    super()
+    this.la = Math.max(4, Math.round(0.0015 * sampleRate))
+    this.dl = [new Float32Array(this.la + 1), new Float32Array(this.la + 1)] // the delay line
+    this.req = new Float32Array(this.la + 1).fill(1) // each pending sample's required gain
+    this.h = [new Float32Array(TP_TAPS), new Float32Array(TP_TAPS)] // the last 12 inputs per channel, oldest first
+    this.i = 0; this.g = 1; this.minG = 1; this.sent = 0
+  }
+  peak(h) { // |h[6]| and the inter-sample peaks between h[5] and h[6]
+    let m = Math.abs(h[6])
+    for (const c of TP_PHASES) {
+      let v = 0
+      for (let j = 0; j < TP_TAPS; j++) v += h[j] * c[j]
+      m = Math.max(m, Math.abs(v))
+    }
+    return m
+  }
+  process(inputs, outputs, p) {
+    const inp = inputs[0], out = outputs[0]
+    const L = inp[0], R = inp[1] || inp[0], oL = out[0], oR = out[1] || out[0]
+    if (!L) { oL.fill(0); if (oR !== oL) oR.fill(0); return true }
+    const ceil = dbToLin(p.ceilingDb[0]), target = ceil * 0.97, rel = coef(p.releaseMs[0] / 1000)
+    const la = this.la, size = la + 1, att = 1 - coef(la / 4 / sampleRate)
+    for (let n = 0; n < L.length; n++) {
+      for (const [ch, v] of [[0, L[n]], [1, R[n]]]) { const h = this.h[ch]; h.copyWithin(0, 1); h[TP_TAPS - 1] = v }
+      const pk = Math.max(this.peak(this.h[0]), this.peak(this.h[1]))
+      const k = this.i
+      this.req[k] = pk > target ? target / pk : 1
+      this.dl[0][k] = this.h[0][6]; this.dl[1][k] = this.h[1][6] // the sample that peak belongs to (5 behind the input)
+      let want = 1
+      for (let j = 0; j < size; j++) if (this.req[j] < want) want = this.req[j]
+      this.g = want < this.g ? this.g + (want - this.g) * att : rel * this.g + (1 - rel) * want
+      const o = (k + 1) % size // the oldest sample, out now
+      const g = Math.min(this.g, this.req[o])
+      oL[n] = Math.max(-ceil, Math.min(ceil, this.dl[0][o] * g))
+      oR[n] = Math.max(-ceil, Math.min(ceil, this.dl[1][o] * g))
+      if (g < this.minG) this.minG = g
+      this.i = o
+    }
+    if (currentTime - this.sent >= 0.05) { this.port.postMessage({ gr: -linToDb(this.minG) }); this.minG = 1; this.sent = currentTime }
+    return true
+  }
+}
+registerProcessor('fvwks-limit', Limit)

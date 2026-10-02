@@ -1,0 +1,50 @@
+{
+  "label": "DATA BODY",
+  "title": "A monitor feed: your skeleton, hands and face bracketed, numbered and read out.",
+  "how": "Move your arms and hands; raise a hand to sweep the filter",
+  "order": 30,
+  "mode": "body",
+  "new": true,
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "grid",
+      "label": "GRID",
+      "default": 0.5
+    },
+    {
+      "id": "labels",
+      "label": "LABELS",
+      "default": 0.5
+    },
+    {
+      "id": "mono",
+      "label": "MONO",
+      "default": 0.7
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#ff2a2a",
+    "#ffffff",
+    "#1a1a1a"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.filter",
+        "source": "gesture.hand_height",
+        "min": 0,
+        "max": 0.8,
+        "curve": "exp",
+        "dead": 0.25,
+        "smooth_ms": 80
+      }
+    ]
+  }
+}

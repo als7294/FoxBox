@@ -272,6 +272,10 @@
 .card[data-area='updates'] {
   grid-column: 1 / -1;
 }
+/* TouchDesigner (1.3, desktop app only): a full-width row under UPDATES. */
+.card[data-area='td'] {
+  grid-column: 1 / -1;
+}
 .updGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

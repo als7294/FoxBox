@@ -141,6 +141,7 @@ export function smartCameraBase(palette: Palette): BaseInstance {
             drop: a.dropHit || (a.dropEnergy ?? 0) > 0 ? { hit: !!a.dropHit, energy: a.dropEnergy ?? 0 } : null,
             people: s.people,
             justMe: useCamera.getState().justMe,
+            hideFaces: useCamera.getState().hideFaces,
           },
         )
         camera.setTwoFaces(smart.signals().twoFaces)

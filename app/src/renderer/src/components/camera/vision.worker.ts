@@ -31,11 +31,18 @@ let ts = 0
 let n = 0
 let last: Seen = { faces: [], hands: [], person: null, body: null }
 
-async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>): Promise<T | null> {
+/** Each model's delegate, for the main thread (Vision.delegates). */
+const delegates: Record<string, string> = {}
+
+async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>, name = ''): Promise<T | null> {
   try {
-    return await make('GPU')
+    const m = await make('GPU')
+    delegates[name] = 'GPU'
+    return m
   } catch {
-    return make('CPU').catch(() => null)
+    const m = await make('CPU').catch(() => null)
+    if (m) delegates[name] = 'CPU'
+    return m
   }
 }
 
@@ -62,6 +69,7 @@ async function load(u: Urls): Promise<void> {
         outputFacialTransformationMatrixes: true,
         outputFaceBlendshapes: true,
       }),
+      'face',
     ),
     gpuThenCpu((delegate) =>
       GestureRecognizer.createFromOptions(files, {
@@ -72,6 +80,7 @@ async function load(u: Urls): Promise<void> {
         minHandPresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,
       }),
+      'hands',
     ),
     gpuThenCpu((delegate) =>
       ImageSegmenter.createFromOptions(files, {
@@ -80,6 +89,7 @@ async function load(u: Urls): Promise<void> {
         outputConfidenceMasks: true,
         outputCategoryMask: false,
       }),
+      'seg',
     ),
     gpuThenCpu((delegate) =>
       PoseLandmarker.createFromOptions(files, {
@@ -87,6 +97,7 @@ async function load(u: Urls): Promise<void> {
         runningMode: 'VIDEO',
         numPoses: 1,
       }),
+      'pose',
     ),
   ])
 }
@@ -143,11 +154,14 @@ function runFace(crop: ImageBitmap, frame: ImageBitmap): Pick<Seen, 'faces' | 'h
 }
 
 /** The extras on the whole frame (640 px), alternating so a cycle stays under a camera frame: hands on even frames,
- *  the body's head and the person on odd ones (the rest keep their last). Never throws. */
-function runExtras(frame: ImageBitmap): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
+ *  the body and the person on odd ones (the rest keep their last). `body` (TouchDesigner: nothing to mask, the body and
+ *  hands drive the picture): hands and the body every frame, the person on odd ones. Never throws. */
+function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
   const out: Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> = { hands: last.hands, person: null, body: last.body, ms: { face: 0, hands: 0, seg: 0 } }
   const t0 = performance.now()
-  if (n++ % 2 === 0) {
+  const k = n++
+  const even = k % 2 === 0
+  if (even || body) {
     try {
       if (hands) {
         const r = hands.recognizeForVideo(frame, ts)
@@ -160,13 +174,20 @@ function runExtras(frame: ImageBitmap): Pick<Seen, 'hands' | 'person' | 'body' |
       out.hands = []
     }
     out.ms!.hands = performance.now() - t0
-    return out
+    if (even && !body) return out
   }
+  const t1 = performance.now()
   try {
-    // The head's 13 keypoints (nose, eyes, ears, mouth, shoulders) with their visibility.
-    out.body = pose ? (pose.detectForVideo(frame, ts).landmarks[0]?.slice(0, 13).map((p): BodyPoint => ({ x: p.x, y: p.y, v: p.visibility ?? 0 })) ?? null) : null
+    // BlazePose's 33 keypoints with their visibility (the head-first tracking reads the first 13).
+    out.body = pose ? (pose.detectForVideo(frame, ts).landmarks[0]?.map((p): BodyPoint => ({ x: p.x, y: p.y, v: p.visibility ?? 0 })) ?? null) : null
   } catch {
     out.body = null
+  }
+  // The person matte: on the odd frames; in body mode every matteEvery-th (TouchDesigner's presets are fine at 3).
+  const matte = body ? k % Math.max(1, matteEvery) === Math.max(1, matteEvery) - 1 : !even
+  if (!matte) {
+    out.ms!.seg = performance.now() - t1
+    return out
   }
   try {
     if (seg) {
@@ -178,15 +199,15 @@ function runExtras(frame: ImageBitmap): Pick<Seen, 'hands' | 'person' | 'body' |
   } catch {
     out.person = null
   }
-  out.ms!.seg = performance.now() - t0
+  out.ms!.seg = performance.now() - t1
   return out
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number }
+  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number }
   if (m.type === 'init') {
     void load(m.urls).then(() =>
-      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose } }),
+      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates }),
     )
     return
   }
@@ -201,7 +222,7 @@ self.onmessage = (e: MessageEvent) => {
   const f = runFace(m.face, m.scene)
   last = { ...last, faces: f.faces }
   post({ type: 'face', seen: f, roi: m.roi, at: m.at })
-  const x = runExtras(m.scene)
+  const x = runExtras(m.scene, !!m.body, m.matteEvery ?? 2)
   last = { ...last, hands: x.hands, body: x.body }
   m.face.close()
   m.scene.close()

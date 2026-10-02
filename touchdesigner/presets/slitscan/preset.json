@@ -1,0 +1,33 @@
+{
+  "label": "SLIT SCAN",
+  "title": "The picture in bands at their own delays; your hand is the slit that runs live.",
+  "how": "Sweep a hand up and down to scrub time; reach out to smear",
+  "order": 50,
+  "mode": "body",
+  "new": true,
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.tape",
+        "source": "knob.chaos",
+        "min": 0,
+        "max": 0.85,
+        "curve": "lin",
+        "dead": 0.5
+      },
+      {
+        "target": "fx.stutter",
+        "source": "gesture.motion",
+        "min": 0,
+        "max": 1,
+        "curve": "gate",
+        "dead": 0.5
+      }
+    ]
+  }
+}

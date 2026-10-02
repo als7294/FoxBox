@@ -1,6 +1,7 @@
 // Sandboxed preload (contextIsolation + sandbox): only `electron`'s renderer modules are available.
 // Everything the renderer may do natively goes through this narrow, typed bridge. The renderer never
 // sees the engine's port or token: requests are proxied by main, audio streams via vbx://audio/<id>.
+import * as electron from 'electron'
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import {
   audioUrlFor,
@@ -22,11 +23,17 @@ import {
   type SetupCompleteResult,
   type SetupInfo,
   type StartDragOptions,
+  type TdMessage,
+  type TdSessionStatus,
+  type TdSettings,
+  type TdStatus,
+  type TouchDesignerBridge,
   type UpdatesBridge,
   type UpdateState,
   type VisualsBridge,
   type VisualsOutputState,
 } from '../shared/bridge'
+import type { TdPreset } from '../shared/tdPresets'
 
 const boot = ipcRenderer.sendSync(IPC.bootInfo) as BootInfo
 
@@ -83,6 +90,40 @@ const link: LinkBridge = {
 // A MessagePort can't cross contextBridge: it goes to the page as a window message (visuals/live/output.ts).
 const page = globalThis as unknown as { postMessage(message: unknown, origin: string, transfer?: unknown[]): void }
 ipcRenderer.on(IPC.visualsPort, (event) => page.postMessage({ fvwks: 'visuals-port' }, '*', event.ports))
+ipcRenderer.on(IPC.tdCameraPort, (event) => page.postMessage({ fvwks: 'td-camera-port' }, '*', event.ports))
+
+const touchdesigner: TouchDesignerBridge = {
+  getSettings: () => ipcRenderer.invoke(IPC.tdGet) as Promise<TdSettings>,
+  setSettings: (patch) => ipcRenderer.invoke(IPC.tdSet, patch) as Promise<TdSettings>,
+  getStatus: () => ipcRenderer.invoke(IPC.tdStatus) as Promise<TdStatus>,
+  send: (messages) => ipcRenderer.send(IPC.tdSend, messages),
+  onControl: (listener) => subscribe<TdMessage>(IPC.tdControl, listener),
+  startSession: (setup) => ipcRenderer.invoke(IPC.tdSessionStart, setup === true) as Promise<TdSessionStatus>,
+  stopSession: () => ipcRenderer.invoke(IPC.tdSessionStop) as Promise<TdSessionStatus>,
+  getSession: () => ipcRenderer.invoke(IPC.tdSessionGet) as Promise<TdSessionStatus>,
+  onSession: (listener) => subscribe<TdSessionStatus>(IPC.tdSessionState, listener),
+  openDownload: () => ipcRenderer.send(IPC.tdOpenDownload),
+  openTouchDesigner: () => ipcRenderer.send(IPC.tdOpenApp),
+  cameraPort: () => ipcRenderer.send(IPC.tdCameraPort),
+  presets: () => ipcRenderer.invoke(IPC.tdPresets) as Promise<TdPreset[]>,
+}
+
+// 1.6: TouchDesigner's picture. Main sends each Syphon frame as a shared texture (Electron 44.5.1+); it goes to the
+// page as a VideoFrame, transferred: visuals/live/bases/touchdesigner.ts draws it and closes it.
+interface ImportedTexture {
+  getVideoFrame(): { close(): void }
+  release(): void
+}
+const sharedTexture = (
+  electron as unknown as {
+    sharedTexture?: { setSharedTextureReceiver(cb: (data: { importedSharedTexture: ImportedTexture }) => Promise<void>): void }
+  }
+).sharedTexture
+sharedTexture?.setSharedTextureReceiver(async ({ importedSharedTexture }) => {
+  const frame = importedSharedTexture.getVideoFrame()
+  page.postMessage({ fvwks: 'td-frame', frame }, '*', [frame])
+  importedSharedTexture.release()
+})
 
 const bridge: FvwksBridge = {
   isElectron: true,
@@ -98,13 +139,15 @@ const bridge: FvwksBridge = {
   },
   reveal: (path: string) => ipcRenderer.invoke(IPC.reveal, path) as Promise<boolean>,
   logError: (scope: string, message: string, stack?: string) => ipcRenderer.send(IPC.logError, scope, message, stack),
+  log: (scope: string, message: string) => ipcRenderer.send(IPC.log, scope, message),
   saveClip: (name: string, data: ArrayBuffer) => ipcRenderer.invoke(IPC.saveClip, name, data) as Promise<string>,
   diskFree: () => ipcRenderer.invoke(IPC.diskFree) as Promise<number | null>,
   chooseFolder: (options) => ipcRenderer.invoke(IPC.chooseFolder, options ?? {}) as Promise<string | null>,
   samplePacks: {
     addFromDialog: () => ipcRenderer.invoke(IPC.samplePackAdd) as Promise<SamplePackAddResult | null>,
     // The dropped folder's path goes straight to main (the page never sees it).
-    addFromDrop: (file: File) => ipcRenderer.invoke(IPC.samplePackDrop, webUtils.getPathForFile(file)) as Promise<SamplePackAddResult | null>,
+    addFromDrop: (file: File) =>
+      ipcRenderer.invoke(IPC.samplePackDrop, webUtils.getPathForFile(file)) as Promise<SamplePackAddResult | null>,
   },
   askMicAccess: () => ipcRenderer.invoke(IPC.askMic) as Promise<boolean>,
   askCameraAccess: () => ipcRenderer.invoke(IPC.askCamera) as Promise<boolean>,
@@ -122,6 +165,7 @@ const bridge: FvwksBridge = {
   setup,
   visuals,
   link,
+  touchdesigner,
 }
 
 contextBridge.exposeInMainWorld('fvwks', bridge)

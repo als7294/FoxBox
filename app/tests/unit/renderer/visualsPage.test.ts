@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clipAudioFor, effectRows, fallbackStyleLabel, voiceOpen, type PagePrefs } from '@/components/visuals/page'
-import type { EffectLayer } from '@/visuals/live/compositor'
-
-const fx = (id: string): EffectLayer => ({ id, styleId: `foxbox.${id}`, opacity: 1, blend: 'screen', reactTo: 'mix', enabled: true })
+import { clipAudioFor, fallbackStyleLabel, voiceOpen, type PagePrefs } from '@/components/visuals/page'
 
 describe('VISUALS page helpers', () => {
   it('opens VOICE on MIC by default, and remembers the choice per source', () => {
@@ -13,18 +10,6 @@ describe('VISUALS page helpers', () => {
     const chosen: PagePrefs = { source: 'mic', voice: { mic: false, track: true } }
     expect(voiceOpen(chosen)).toBe(false)
     expect(voiceOpen(chosen, 'track')).toBe(true)
-  })
-
-  it('lists the effects top layer first, with the moves each one can make', () => {
-    const rows = effectRows([fx('a'), fx('b'), fx('c')])
-    expect(rows.map((r) => r.layer.id)).toEqual(['c', 'b', 'a'])
-    expect(rows.map((r) => [r.up, r.down])).toEqual([
-      [false, true],
-      [true, true],
-      [true, false],
-    ])
-    expect(effectRows([fx('solo')])[0]).toMatchObject({ up: false, down: false })
-    expect(effectRows([])).toEqual([])
   })
 
   it('names a style no family lists from its id', () => {

@@ -5,8 +5,11 @@ import type { MenuCommand } from '@shared/bridge'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { usePresets, useSettings } from '@/api/queries'
 import type { BarsSetting, Preset } from '@/api/types'
+import { startTdSoundMap } from '@/audio/live/soundMap'
 import { player } from '@/audio/playerInstance'
 import { BootScreen } from '@/components/feedback/BootScreen'
+import { startProdFeed } from '@/components/prod/prodFeed'
+import { ProdPage } from '@/components/prod/ProdPage'
 import { ShortcutOverlay } from '@/components/feedback/ShortcutOverlay'
 import { Toast } from '@/components/feedback/Toast'
 import { AppShell } from '@/components/layout/AppShell'
@@ -18,7 +21,6 @@ import { bridge } from '@/env'
 import { isTextTarget, matchShortcut, type ShortcutAction } from '@/lib/shortcuts'
 import { LiveScreen } from '@/screens/LiveScreen'
 import { MasksScreen } from '@/screens/MasksScreen'
-import { SetlistScreen } from '@/screens/SetlistScreen'
 import { SettingsScreen } from '@/screens/SettingsScreen'
 import { StudioScreen } from '@/screens/StudioScreen'
 import { VaultScreen } from '@/screens/VaultScreen'
@@ -30,6 +32,8 @@ import { exportNow, renderFinal } from '@/state/renderController'
 import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
+import { startTouchDesignerFeed } from '@/touchdesigner/feed'
+import { startTdSessionSync } from '@/touchdesigner/session'
 import { startStudioFrame } from '@/visuals/studioFrame'
 
 /** Keys that only mean something on the Studio (the native menu still reaches them from any page). */
@@ -165,10 +169,13 @@ function Screens() {
   useEffect(() => connectEngineStatus(), [])
   useEffect(() => watchEngineRestarts(() => useUi.getState().booting, toast), [])
   useEffect(() => startStudioFrame(), [])
-  // VISUALS stays mounted once opened: leaving it mid-set must not stop its audio or freeze the projector output.
+  // VISUALS stays mounted once opened: leaving it mid-set must not stop its audio or freeze the projector output. PROD
+  // too (its SEND TO OUTPUT), and PROD mounts VISUALS for its TRACK (one song deck, one sound).
   const [liveSeen, setLiveSeen] = useState(false)
+  const [prodSeen, setProdSeen] = useState(false)
   useEffect(() => {
-    if (screen === 'live') setLiveSeen(true)
+    if (screen === 'live' || screen === 'prod') setLiveSeen(true)
+    if (screen === 'prod') setProdSeen(true)
   }, [screen])
   // A file dragged over anything that isn't a drop target: "no drop" cursor and nothing happens (real targets call
   // preventDefault first; main's navigation lock is the backstop, so a stray drop never opens the file).
@@ -186,6 +193,10 @@ function Screens() {
     }
   }, [])
   useEffect(() => watchCapabilities(), [])
+  useEffect(() => startTouchDesignerFeed(), [])
+  useEffect(() => startTdSoundMap(), []) // the TD presets' `sound` maps on the TRACK song's FX (S2)
+  useEffect(() => startTdSessionSync(), [])
+  useEffect(() => startProdFeed(), []) // PROD's six knobs (REACTS TO applied) and palette into TouchDesigner
   return (
     <AppShell
       overlays={
@@ -201,7 +212,6 @@ function Screens() {
       <ErrorBoundary key={screen} scope={screen === 'live' ? 'VISUALS' : screen.toUpperCase()}>
         {screen === 'studio' && <StudioScreen />}
         {screen === 'vault' && <VaultScreen />}
-        {screen === 'setlist' && <SetlistScreen />}
         {screen === 'voices' && <VoicesScreen />}
         {screen === 'settings' && <SettingsScreen />}
         {screen === 'masks' && <MasksScreen />}
@@ -211,6 +221,13 @@ function Screens() {
           </Suspense>
         )}
       </ErrorBoundary>
+      {prodSeen && (
+        <div style={{ display: screen === 'prod' ? 'contents' : 'none' }}>
+          <ErrorBoundary scope="PROD">
+            <ProdPage />
+          </ErrorBoundary>
+        </div>
+      )}
       {liveSeen && (
         <div style={{ display: screen === 'live' ? 'contents' : 'none' }}>
           <ErrorBoundary scope="VISUALS">

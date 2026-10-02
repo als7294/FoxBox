@@ -4,6 +4,8 @@
  * normalized to the camera frame (0-1) unless a function says otherwise.
  */
 
+import type { HandGesture } from './vision'
+
 export interface Pt {
   x: number
   y: number
@@ -129,7 +131,7 @@ const KNUCKLES = [5, 9, 13, 17] as const
 export const palm = (h: readonly Pt[]): number => dist(h[0]!, h[9]!)
 
 export interface HandSignal {
-  /** The palm's centre, 0-1 across and down the camera frame. */
+  /** The palm's centre, in the points' units (cameraSignals: 0-1 across and down the drawn frame). */
   x: number
   y: number
   /** 1 with thumb and index tips together, 0 once they're apart. */
@@ -138,6 +140,16 @@ export interface HandSignal {
   open: number
   /** 0-1: pushed toward the camera (see handNear). */
   near: number
+  /** Fingers held out, 0-5. */
+  fingers: number
+}
+
+/** Fingers held out, 0-5 (square-pixel points): a finger's tip well past its knuckle from the wrist; the thumb's tip
+ *  well off the index knuckle. 2D: a finger pointed at the camera reads as folded. */
+export function fingersUp(h: readonly Pt[]): number {
+  let n = dist(h[4]!, h[5]!) > 0.6 * palm(h) ? 1 : 0
+  for (let i = 0; i < 4; i++) if (dist(h[TIPS[i]!]!, h[WRIST]!) > 1.45 * dist(h[KNUCKLES[i]!]!, h[WRIST]!)) n++
+  return n
 }
 
 export function handSignal(h: readonly Pt[], near: number): HandSignal {
@@ -147,7 +159,126 @@ export function handSignal(h: readonly Pt[], near: number): HandSignal {
   for (let i = 0; i < 4; i++) ext += dist(h[TIPS[i]!]!, h[WRIST]!) / (dist(h[KNUCKLES[i]!]!, h[WRIST]!) || 1e-6)
   const open = smoothstep(1.15, 1.75, ext / 4)
   const c = [0, 5, 9, 13, 17].reduce((a, i) => ({ x: a.x + h[i]!.x / 5, y: a.y + h[i]!.y / 5 }), { x: 0, y: 0 })
-  return { x: clamp01(c.x), y: clamp01(c.y), pinch, open, near }
+  return { x: c.x, y: c.y, pinch, open, near, fingers: fingersUp(h) }
+}
+
+export interface HandShape {
+  pinch: number
+  open: number
+  fingers: number
+  gesture: HandGesture | null
+  /** MediaPipe's 21, as given (0-1 of the camera frame). */
+  points: Pt[]
+  /** Pinching, with hysteresis: on above 0.7, off below 0.4. */
+  pinched: boolean
+  /** TWIST, a pinch dial: how far the hand has turned since the pinch began (the knuckle line, 5 to 17, unwrapped),
+   *  -1..1 over -90..90 degrees, clockwise on screen positive; 0 when not pinched. */
+  twist: number
+  /** The knuckle line's angle now and the turn so far (radians): TWIST's state. */
+  angle: number
+  turn: number
+}
+
+export interface HandShapes {
+  /** The hand on the frame's left and on its right (unmirrored), null when unseen. A hand keeps its side until its
+   *  wrist crosses the middle by a margin, so two crossing hands don't swap. */
+  left: HandShape | null
+  right: HandShape | null
+  /** Wrist to wrist over the frame's width; 0 with fewer than two hands. */
+  apart: number
+  /** FRAME: both hands an L (thumb and index out, the rest folded, the two near square) with a real opening between
+   *  them. The rect spanned by the four tips (camera frame) and its corners (clockwise from the top-left), its size
+   *  (the diagonal over the frame's width); held once made for FRAME_HOLD_MS, and kept that long after it's lost (no
+   *  flicker). `since` / `seen`: when it was first made / last seen (ms). */
+  frame: { held: boolean; x0: number; y0: number; x1: number; y1: number; corners: Pt[]; size: number; since: number; seen: number }
+  /** TRIANGLE: the index tips touching above the thumb tips touching, an opening between them. */
+  triangle: boolean
+}
+
+export const FRAME_HOLD_MS = 150
+const SIDE_MARGIN = 0.1
+const NO_FRAME: HandShapes['frame'] = { held: false, x0: 0, y0: 0, x1: 0, y1: 0, corners: [], size: 0, since: 0, seen: -1e9 }
+
+/**
+ * The hands' shapes from the recognizer's hands (0-1 of the camera frame, `aspect` its width over height), computed
+ * once for the signals (S2's sound) and TouchDesigner (S3). `prev`: last time's, for the sides and FRAME's hold.
+ */
+export function handShapes(
+  hands: readonly { points: readonly Pt[]; gesture: HandGesture | null }[],
+  now: number,
+  prev: HandShapes | null = null,
+  aspect = 16 / 9,
+): HandShapes {
+  const sq = (h: readonly Pt[]) => h.map((p) => ({ x: p.x * aspect, y: p.y }))
+  const shaped: HandShape[] = hands.slice(0, 2).map((h) => {
+    const s = handSignal(sq(h.points), 0)
+    return { pinch: s.pinch, open: s.open, fingers: s.fingers, gesture: h.gesture, points: h.points.map((p) => ({ x: p.x, y: p.y })), pinched: false, twist: 0, angle: 0, turn: 0 }
+  })
+  // Sides: last time's (the closer hand, all 21 points; for two, the closer pairing) unless its wrist crossed the
+  // middle by the margin; else by where it is.
+  const near = (h: HandShape, p: HandShape | null | undefined) =>
+    p ? h.points.reduce((a, q, i) => a + Math.hypot(q.x - p.points[i]!.x, q.y - p.points[i]!.y), 0) / 21 : 1e9
+  const kept = (h: HandShape, s: 0 | 1) => (s === 0 ? h.points[WRIST]!.x < 0.5 + SIDE_MARGIN : h.points[WRIST]!.x > 0.5 - SIDE_MARGIN)
+  const where = (h: HandShape): 0 | 1 => (h.points[WRIST]!.x < 0.5 ? 0 : 1)
+  let left: HandShape | null = null
+  let right: HandShape | null = null
+  if (shaped.length === 2) {
+    const [a, b] = shaped as [HandShape, HandShape]
+    const swap = near(a, prev?.right) + near(b, prev?.left) < near(a, prev?.left) + near(b, prev?.right)
+    const [l, r] = prev?.left && prev?.right ? (swap ? [b, a] : [a, b]) : a.points[WRIST]!.x <= b.points[WRIST]!.x ? [a, b] : [b, a]
+    ;[left, right] = kept(l, 0) && kept(r, 1) ? [l, r] : a.points[WRIST]!.x <= b.points[WRIST]!.x ? [a, b] : [b, a]
+  } else if (shaped.length === 1) {
+    const h = shaped[0]!
+    const was = prev?.left || prev?.right ? (near(h, prev.left) <= near(h, prev.right) ? 0 : 1) : where(h)
+    if (was === 0 ? kept(h, 0) : !kept(h, 1)) left = h
+    else right = h
+  }
+  // TWIST: each hand against its own side's last shape.
+  const wrap = (d: number) => ((((d + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI
+  const twisted = (h: HandShape | null, was: HandShape | null | undefined): HandShape | null => {
+    if (!h) return null
+    const q = sq(h.points)
+    const angle = Math.atan2(q[17]!.y - q[5]!.y, q[17]!.x - q[5]!.x)
+    const pinched = was?.pinched ? h.pinch > 0.4 : h.pinch > 0.7
+    const turn = pinched && was?.pinched ? was.turn + wrap(angle - was.angle) : 0
+    return { ...h, pinched, angle, turn, twist: pinched ? Math.max(-1, Math.min(1, turn / (Math.PI / 2))) : 0 }
+  }
+  left = twisted(left, prev?.left)
+  right = twisted(right, prev?.right)
+  const apart = left && right ? Math.hypot((right.points[WRIST]!.x - left.points[WRIST]!.x) * aspect, right.points[WRIST]!.y - left.points[WRIST]!.y) / aspect : 0
+
+  // FRAME: an L each, and the tips' rect open at least half a palm each way.
+  const isL = (h: HandShape) => {
+    const q = sq(h.points)
+    const u = { x: q[4]!.x - q[2]!.x, y: q[4]!.y - q[2]!.y }
+    const v = { x: q[8]!.x - q[5]!.x, y: q[8]!.y - q[5]!.y }
+    const cos = (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y) || 1)
+    const out = (i: number) => dist(q[TIPS[i]!]!, q[WRIST]!) > 1.45 * dist(q[KNUCKLES[i]!]!, q[WRIST]!)
+    return dist(q[4]!, q[5]!) > 0.6 * palm(q) && out(0) && !out(1) && !out(2) && !out(3) && Math.abs(cos) < 0.65
+  }
+  let frame = prev && now - prev.frame.seen <= FRAME_HOLD_MS ? prev.frame : NO_FRAME
+  if (left && right && isL(left) && isL(right)) {
+    const tips = [left.points[4]!, left.points[8]!, right.points[4]!, right.points[8]!]
+    const r = { x0: Math.min(...tips.map((p) => p.x)), y0: Math.min(...tips.map((p) => p.y)), x1: Math.max(...tips.map((p) => p.x)), y1: Math.max(...tips.map((p) => p.y)) }
+    const span = 0.5 * Math.min(palm(sq(left.points)), palm(sq(right.points)))
+    if ((r.x1 - r.x0) * aspect > span && r.y1 - r.y0 > span) {
+      const since = frame !== NO_FRAME ? frame.since : now
+      const corners = [{ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y0 }, { x: r.x1, y: r.y1 }, { x: r.x0, y: r.y1 }]
+      const size = Math.hypot((r.x1 - r.x0) * aspect, r.y1 - r.y0) / aspect
+      frame = { ...r, corners, size, since, seen: now, held: now - since >= FRAME_HOLD_MS }
+    }
+  }
+  // TRIANGLE: the two contacts (within a third of a palm), the index pair above the thumbs by over half a palm.
+  let triangle = false
+  if (left && right) {
+    const [l, r] = [sq(left.points), sq(right.points)]
+    const p = (palm(l) + palm(r)) / 2
+    const mid = (a: Pt, b: Pt) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+    const top = mid(l[8]!, r[8]!)
+    const bottom = mid(l[4]!, r[4]!)
+    triangle = dist(l[8]!, r[8]!) < p / 3 && dist(l[4]!, r[4]!) < p / 3 && bottom.y - top.y > p / 2
+  }
+  return { left, right, apart, frame, triangle }
 }
 
 // ------------------------------------------------------------------------------------------------ head

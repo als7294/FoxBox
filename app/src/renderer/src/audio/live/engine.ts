@@ -78,7 +78,7 @@ function shaperCurve(mode: string): Float32Array<ArrayBuffer> {
   return c
 }
 
-function impulse(ctx: BaseAudioContext, decayS: number, dark: number): AudioBuffer {
+export function impulse(ctx: BaseAudioContext, decayS: number, dark: number): AudioBuffer {
   const sr = ctx.sampleRate
   const len = Math.max(1, Math.round(Math.min(6, decayS * 1.4 + 0.1) * sr))
   const buf = ctx.createBuffer(2, len, sr)

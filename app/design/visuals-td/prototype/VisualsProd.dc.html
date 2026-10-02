@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<script src="fx-engine.js"></script>
+<style>
+@font-face{font-family:'Big Shoulders Display';font-weight:700;font-display:swap;src:url('fonts/big-shoulders-display-latin-700-normal.woff2') format('woff2')}
+@font-face{font-family:'Big Shoulders Display';font-weight:800;font-display:swap;src:url('fonts/big-shoulders-display-latin-800-normal.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:400;font-display:swap;src:url('fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:500;font-display:swap;src:url('fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:700;font-display:swap;src:url('fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2')}
+html,body{height:100%;margin:0;background:#050506}
+*,*::before,*::after{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:2px solid #ffb23e;outline-offset:2px}
+a{color:#ffb23e}a:hover{color:#e9e5da}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:rgba(233,229,218,.14);border-radius:3px}::-webkit-scrollbar-track{background:transparent}
+@keyframes vbBreathe{50%{opacity:.45}}
+@keyframes vbBlink{50%{opacity:.25}}
+@keyframes vbRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes vbPop{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes vbToast{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes vbSpin{to{transform:rotate(360deg)}}
+@keyframes vbSlideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes vbLive{0%,100%{box-shadow:0 0 0 2px #ff4b2b,0 0 24px rgba(255,75,43,.35)}50%{box-shadow:0 0 0 2px #ff4b2b,0 0 44px rgba(255,75,43,.6)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div ref="{{ outerRef }}" style="position:fixed;inset:0;background:#050506;overflow:hidden">
+<div data-screen-label="{{ screenLabel }}" style="position:absolute;left:{{ fr.x }}px;top:{{ fr.y }}px;width:{{ fr.w }}px;height:{{ fr.h }}px;transform:scale({{ fr.s }});transform-origin:0 0;overflow:hidden;background:#0a0a0b;color:#e9e5da;font:500 12px/1.4 'JetBrains Mono',ui-monospace,monospace;-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:{{ fr.cols }};container-type:size;user-select:none">
+
+<sc-if value="{{ showRail }}" hint-placeholder-val="{{ true }}">
+<nav aria-label="Screens" style="position:relative;display:flex;flex-direction:column;border-right:1px solid rgba(233,229,218,.08);background:#0d0d0f;min-height:0;z-index:40">
+  <sc-for list="{{ rail }}" as="r" hint-placeholder-count="8"><button aria-current="{{ r.cur }}" aria-disabled="{{ r.dis }}" title="{{ r.title }}" onClick="{{ r.onClick }}" style="position:relative;height:clamp(60px,7.3cqh,72px);flex:none;background:none;border:0;border-bottom:1px solid rgba(233,229,218,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:{{ r.fg }};font:500 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;opacity:{{ r.op }};cursor:{{ r.cursor }};padding:0" style-hover="background:rgba(233,229,218,.03)"><sc-if value="{{ r.isCur }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:0;top:16px;bottom:16px;width:2px;background:#ff4b2b;box-shadow:0 0 10px #ff4b2b"></span></sc-if><span style="font:700 19px/1 'Big Shoulders Display',sans-serif">{{ r.code }}</span><span>{{ r.label }}</span><sc-if value="{{ r.wip }}" hint-placeholder-val="{{ false }}"><span style="margin-top:1px;padding:1px 3px;border:1px solid rgba(255,178,62,.6);border-radius:2px;font:700 11px/1 'JetBrains Mono',monospace;color:#ffb23e">WIP</span></sc-if><sc-if value="{{ r.demo }}" hint-placeholder-val="{{ false }}"><span style="margin-top:1px;padding:1px 3px;border:1px solid rgba(124,200,255,.6);border-radius:2px;font:700 11px/1 'JetBrains Mono',monospace;color:#7cc8ff">DEMO</span></sc-if></button></sc-for>
+  <div style="flex:1"></div>
+  <button onClick="{{ toggleStates }}" aria-expanded="{{ statesOpenS }}" title="Design review only: jump to any state" style="height:32px;margin:0 10px 8px;border:1px dashed rgba(255,178,62,.5);border-radius:3px;background:none;color:#ffb23e;font:700 11px 'JetBrains Mono',monospace" style-hover="background:rgba(255,178,62,.08)">STATES</button>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 0 14px;border-top:1px solid rgba(233,229,218,.06)">
+    <svg width="28" height="28" viewBox="0 0 512 512" aria-label="FoxBox"><path fill="#ff4b2b" d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z"></path><path d="M112 104 L196 190 L130 222 Z M400 104 L316 190 L382 222 Z M140 250 L248 290 L226 330 L176 306 Z M372 250 L264 290 L286 330 L336 306 Z" fill="#0d0d0f"></path><path d="M56 298 L256 410 L456 298" fill="none" stroke="#0d0d0f" stroke-width="28"></path></svg>
+    <span role="status" style="display:flex;align-items:center;gap:5px;font:500 11px/1 'JetBrains Mono',monospace;letter-spacing:.04em;color:#7fd08a"><span style="width:7px;height:7px;border-radius:50%;background:#7fd08a;box-shadow:0 0 8px #7fd08a"></span>READY</span>
+  </div>
+  <sc-if value="{{ statesOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="menu" aria-label="Jump to state" style="position:absolute;left:84px;bottom:8px;width:318px;max-height:calc(100% - 16px);overflow:auto;padding:6px;display:flex;flex-direction:column;gap:1px;background:#18181b;border:1px solid rgba(255,178,62,.35);border-radius:3px;box-shadow:0 20px 50px rgba(0,0,0,.7);animation:vbPop .18s cubic-bezier(.2,.8,.2,1)">
+      <span style="padding:6px 8px;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82">FRAME</span>
+      <div style="display:flex;gap:4px;padding:0 6px 6px"><sc-for list="{{ frameOpts }}" as="fo" hint-placeholder-count="3"><button role="menuitemradio" aria-checked="{{ fo.on }}" onClick="{{ fo.onClick }}" style="flex:1;height:26px;border:0;border-radius:2px;background:{{ fo.bg }};color:{{ fo.fg }};font:700 11px 'JetBrains Mono',monospace">{{ fo.label }}</button></sc-for></div>
+      <sc-for list="{{ stateGroups }}" as="sg" hint-placeholder-count="2"><span style="padding:8px 8px 4px;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.2em;color:#8d8a82">{{ sg.title }}</span><sc-for list="{{ sg.items }}" as="si" hint-placeholder-count="6"><button role="menuitem" onClick="{{ si.onClick }}" style="display:flex;gap:10px;align-items:center;min-height:26px;padding:0 8px;border:0;border-radius:2px;background:none;font:500 11px 'JetBrains Mono',monospace;text-align:left" style-hover="background:rgba(255,178,62,.1)"><span style="width:20px;color:#8d8a82">{{ si.n }}</span>{{ si.label }}</button></sc-for></sc-for>
+    </div>
+  </sc-if>
+</nav>
+</sc-if>
+
+<main style="position:relative;min-width:0;min-height:0">
+
+<!-- ======================= PROD · TOUCHDESIGNER ======================= -->
+<sc-if value="{{ isProd }}" hint-placeholder-val="{{ true }}">
+<div data-component="ProdPage" style="position:absolute;inset:12px;display:flex;flex-direction:column;gap:10px;min-height:0">
+
+  <header style="display:flex;align-items:center;gap:12px;height:48px;flex:none;min-width:0">
+    <span style="font:800 34px/1 'Big Shoulders Display',sans-serif;letter-spacing:.04em;white-space:nowrap">PROD · TOUCHDESIGNER</span>
+    <span data-component="DemoBadge" style="flex:none;padding:4px 6px;border:1px solid #7cc8ff;border-radius:2px;color:#7cc8ff;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.16em">DEMO</span>
+    <span role="status" style="flex:none;display:flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:3px;background:#0e0e10;box-shadow:inset 0 2px 6px rgba(0,0,0,.6);font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em;color:{{ tdS.fg }};white-space:nowrap"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:{{ tdS.dot }};box-shadow:0 0 8px {{ tdS.dot }};animation:{{ tdS.anim }}"></span>{{ tdS.label }}</span>
+    <div style="flex:1"></div>
+    <sc-if value="{{ isLive }}" hint-placeholder-val="{{ true }}">
+      <span data-component="CameraChip" role="status" style="flex:none;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid {{ camChip.edge }};border-radius:3px;background:{{ camChip.bg }};color:{{ camChip.fg }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em;white-space:nowrap"><span aria-hidden="true">{{ camChip.glyph }}</span>{{ camChip.label }}</span>
+      <button data-component="MaskFirstToggle" role="switch" aria-checked="{{ maskS }}" onClick="{{ toggleMask }}" disabled="{{ maskDis }}" title="Run FoxBox face hiding before TouchDesigner" style="flex:none;display:flex;align-items:center;gap:10px;height:34px;padding:0 12px 0 8px;border:1px solid {{ maskT.edge }};border-radius:3px;background:#111113;opacity:{{ maskT.op }}" style-hover="border-color:rgba(233,229,218,.45)"><span aria-hidden="true" style="position:relative;width:34px;height:20px;border-radius:10px;background:{{ maskT.trk }};border:1px solid {{ maskT.trkEdge }};transition:background .2s"><span style="position:absolute;top:2px;left:{{ maskT.knobX }}px;width:14px;height:14px;border-radius:50%;background:{{ maskT.knob }};transition:left .2s cubic-bezier(.2,1.3,.3,1)"></span></span><span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em">MASK FIRST</span><span style="font:500 11px/1 'JetBrains Mono',monospace;color:#8d8a82">{{ maskT.sub }}</span></span></button>
+    </sc-if>
+  </header>
+
+  <!-- setup -->
+  <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px">
+    <section style="position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:18px;padding:clamp(22px,3cqw,40px);background:#08080a;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+      <canvas ref="{{ cvSetup }}" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;opacity:.34"></canvas>
+      <div aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,8,10,.1) 0%,rgba(8,8,10,.6) 50%,#08080a 92%)"></div>
+      <div style="position:relative;display:flex;flex-direction:column;gap:14px;max-width:560px">
+        <span style="font:800 clamp(64px,10cqh,108px)/.84 'Big Shoulders Display',sans-serif;letter-spacing:-.005em">SET UP<br>TOUCHDESIGNER</span>
+        <span style="font:400 13px/1.6 'JetBrains Mono',monospace;color:#bdb8ac;text-wrap:pretty">FoxBox drives your own free copy of TouchDesigner, hidden in the background. You set it up once. After that this page opens straight into the camera.</span>
+      </div>
+      <div style="position:relative;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button onClick="{{ setupPrimary.onClick }}" disabled="{{ setupPrimary.dis }}" style="position:relative;overflow:hidden;flex:none;height:56px;padding:0 26px;border:0;border-radius:4px;background:{{ setupPrimary.bg }};color:#0b0b0c;font:800 24px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;white-space:nowrap;box-shadow:0 0 0 1px rgba(0,0,0,.65),0 0 22px rgba(255,75,43,.28),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.28);opacity:{{ setupPrimary.op }}" style-hover="filter:brightness(1.08)" style-active="transform:translateY(2px)">{{ setupPrimary.label }}</button>
+        <span style="font:500 11px/1.5 'JetBrains Mono',monospace;color:#8d8a82;max-width:260px">TouchDesigner's free licence is non-commercial. Effects made here are a demo.</span>
+      </div>
+    </section>
+    <section data-component="TdSetupChecklist" aria-label="Setup checklist" style="display:flex;flex-direction:column;min-height:0;background:#101012;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+      <div style="display:flex;flex-direction:column;gap:12px;flex:none;padding:16px 18px 14px;border-bottom:1px solid rgba(233,229,218,.06)">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.2em">SETUP</span><div style="flex:1"></div><span style="font:800 40px/1 'Big Shoulders Display',sans-serif;font-variant-numeric:tabular-nums">{{ setupDoneN }}</span><span style="font:800 24px/1 'Big Shoulders Display',sans-serif;color:#8d8a82">/ 4</span></div>
+        <div aria-hidden="true" style="display:flex;gap:3px;padding:3px;border-radius:2px;background:#0b0b0c;box-shadow:inset 0 1px 3px rgba(0,0,0,.7)"><sc-for list="{{ setupLeds }}" as="sl" hint-placeholder-count="16"><span style="flex:1;height:7px;border-radius:1px;background:{{ sl.c }};box-shadow:{{ sl.g }};animation:{{ sl.a }}"></span></sc-for></div>
+      </div>
+      <ol style="position:relative;list-style:none;margin:0;padding:6px 18px 14px;display:flex;flex-direction:column;flex:1;min-height:0">
+        <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4"><li style="position:relative;display:grid;grid-template-columns:56px minmax(0,1fr);gap:16px;flex:{{ st.flex }};min-height:0">
+          <div aria-hidden="true" style="position:relative;display:flex;flex-direction:column;align-items:center">
+            <span style="position:relative;z-index:1;width:56px;height:56px;margin-top:10px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:{{ st.nodeBg }};border:2px solid {{ st.c }};color:{{ st.nodeFg }};font:800 28px/1 'Big Shoulders Display',sans-serif;box-shadow:{{ st.glow }};transition:all .3s"><span style="display:inline-block;animation:{{ st.anim }}">{{ st.glyph }}</span></span>
+            <sc-if value="{{ st.notLast }}" hint-placeholder-val="{{ true }}"><span style="flex:1;width:2px;min-height:12px;margin:4px 0 -10px;background:{{ st.lineC }};transition:background .3s"></span></sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px;min-width:0;padding:14px 14px 16px;margin:4px 0;border-radius:3px;background:{{ st.bg }};border:1px solid {{ st.edge }};box-shadow:{{ st.inset }};opacity:{{ st.op }};transition:background .25s,border-color .25s,opacity .25s">
+            <span style="display:flex;align-items:center;gap:10px"><span style="font:700 13px 'JetBrains Mono',monospace;color:#8d8a82">{{ st.num }}</span><span style="font:800 {{ st.titleSz }}/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em">{{ st.name }}</span><div style="flex:1"></div><span style="display:flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:2px;background:{{ st.chipBg }};color:{{ st.chipFg }};font:700 13px 'JetBrains Mono',monospace;letter-spacing:.12em;white-space:nowrap">{{ st.glyph }} {{ st.stateL }}</span></span>
+            <span style="font:400 15px/1.5 'JetBrains Mono',monospace;color:#cfcabd;text-wrap:pretty">{{ st.detail }}</span>
+            <sc-if value="{{ st.hasActs }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><sc-for list="{{ st.acts }}" as="ac" hint-placeholder-count="1"><button onClick="{{ ac.onClick }}" style="height:42px;padding:0 18px;border:{{ ac.border }};border-radius:3px;background:{{ ac.bg }};color:{{ ac.fg }};font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;box-shadow:{{ ac.shadow }}" style-hover="filter:brightness(1.15)" style-active="transform:translateY(1px)">{{ ac.label }}</button></sc-for></div></sc-if>
+          </div>
+        </li></sc-for>
+      </ol>
+    </section>
+  </div>
+  </sc-if>
+
+  <!-- live -->
+  <sc-if value="{{ isLive }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:{{ tdCols }};gap:10px;transition:grid-template-columns .38s cubic-bezier(.2,.9,.2,1)">
+
+    <section data-component="TdEffectBrowser" aria-label="TouchDesigner effects" style="position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:#101012;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+<sc-if value="{{ tdCollapsed }}" hint-placeholder-val="{{ false }}"><button onClick="{{ expandPanels }}" onMouseEnter="{{ expandPanels }}" aria-label="Show effects" style="position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0;border:0;background:#101012;animation:vbRise .25s ease-out"><span aria-hidden="true" style="font:700 13px 'JetBrains Mono',monospace;color:#8d8a82">›</span><span style="writing-mode:vertical-rl;transform:rotate(180deg);font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.24em">EFFECTS</span><span style="width:6px;height:6px;border-radius:50%;background:{{ collapsedDot }};box-shadow:0 0 8px {{ collapsedDot }}"></span><span style="writing-mode:vertical-rl;transform:rotate(180deg);font:700 11px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#bdb8ac;white-space:nowrap">{{ fxName }}</span></button></sc-if>
+      <div style="display:flex;align-items:center;gap:8px;height:40px;flex:none;padding:0 8px 0 14px;border-bottom:1px solid rgba(233,229,218,.06)"><span style="font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.2em">EFFECTS</span><span style="font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">{{ tdCount }}</span><div style="flex:1"></div><button onClick="{{ favT.onClick }}" aria-pressed="{{ favT.on }}" title="Show favourites only" style="height:24px;padding:0 8px;border:0;border-radius:2px;background:{{ favT.bg }};color:{{ favT.fg }};font:700 11px 'JetBrains Mono',monospace">★ FAVS</button></div>
+      <div data-component="TdModeToggle" role="radiogroup" aria-label="What drives the effect" style="flex:none;display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:8px 8px 0;padding:3px;border-radius:4px;background:#0b0b0c;box-shadow:inset 0 2px 6px rgba(0,0,0,.6)"><sc-for list="{{ modeSeg }}" as="ms" hint-placeholder-count="2"><button role="radio" aria-checked="{{ ms.on }}" onClick="{{ ms.onClick }}" style="position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;min-width:0;height:58px;padding:0 10px;border:1px solid {{ ms.edge }};border-radius:3px;background:{{ ms.bg }};color:{{ ms.fg }};box-shadow:{{ ms.shadow }};text-align:left;transition:background .2s,color .2s" style-hover="border-color:rgba(233,229,218,.4)" style-active="transform:translateY(1px)"><span style="display:flex;align-items:center;gap:7px;font:800 clamp(20px,1.7cqw,26px)/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:{{ ms.dot }};box-shadow:{{ ms.glow }}"></span>{{ ms.label }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ ms.subC }};white-space:nowrap">{{ ms.sub }}</span></button></sc-for></div>
+      <div role="listbox" aria-label="Effect" style="flex:1;min-height:0;overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:min-content;gap:8px">
+        <sc-for list="{{ tdTiles }}" as="t" hint-placeholder-count="10"><div data-component="TdEffectTile" role="option" aria-selected="{{ t.onS }}" tabindex="0" onClick="{{ t.onClick }}" onKeyDown="{{ t.onKey }}" style="position:relative;display:flex;flex-direction:column;border-radius:3px;border:1px solid {{ t.edge }};background:#0b0b0c;box-shadow:{{ t.glow }};cursor:pointer;overflow:hidden;transition:border-color .15s,box-shadow .2s" style-hover="border-color:rgba(233,229,218,.45)">
+          <canvas ref="{{ t.ref }}" aria-hidden="true" style="display:block;width:100%;aspect-ratio:4/3;background:#050506"></canvas>
+          <sc-if value="{{ t.isNew }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:6px;left:6px;padding:2px 4px;border-radius:2px;background:#ffb23e;color:#0b0b0c;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em">NEW</span></sc-if><sc-if value="{{ t.hands }}" hint-placeholder-val="{{ false }}"></sc-if>
+          <button onClick="{{ t.onFav }}" aria-pressed="{{ t.favS }}" aria-label="{{ t.favAria }}" style="position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;border:0;border-radius:2px;background:rgba(11,11,12,.8);color:{{ t.favC }};font:700 13px/1 'JetBrains Mono',monospace" style-hover="color:#ffb23e">{{ t.favG }}</button>
+          <span style="display:flex;align-items:center;gap:6px;min-height:34px;padding:6px 8px;font:800 14px/1.05 'Big Shoulders Display',sans-serif;letter-spacing:.06em;color:{{ t.fg }}"><span aria-hidden="true" style="width:3px;align-self:stretch;flex:none;border-radius:1px;background:{{ t.led }};box-shadow:{{ t.ledGlow }}"></span>{{ t.name }}</span>
+        </div></sc-for>
+      </div>
+    </section>
+
+    <section data-component="TdPreview" aria-label="Preview" onMouseEnter="{{ previewEnter }}" onMouseLeave="{{ previewLeave }}" style="position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:#08080a;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+      <div style="display:flex;align-items:center;gap:10px;height:40px;flex:none;padding:0 8px 0 14px;border-bottom:1px solid rgba(233,229,218,.06);min-width:0">
+        <span style="flex:none;font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;white-space:nowrap">{{ fxName }}</span>
+        <span style="flex:1 1 0;font:500 11px 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ fxNote }}</span>
+        <div style="flex:1"></div>
+        <sc-if value="{{ camDenied }}" hint-placeholder-val="{{ false }}"><div role="radiogroup" aria-label="Fallback" style="display:flex;gap:2px;flex:none"><span style="display:flex;align-items:center;padding:0 6px;font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">FEED</span><sc-for list="{{ fbSeg }}" as="fb" hint-placeholder-count="2"><button role="radio" aria-checked="{{ fb.on }}" onClick="{{ fb.onClick }}" style="height:24px;padding:0 8px;border:0;border-radius:2px;background:{{ fb.bg }};color:{{ fb.fg }};font:700 11px 'JetBrains Mono',monospace">{{ fb.label }}</button></sc-for></div></sc-if>
+        <div role="radiogroup" aria-label="Aspect" style="display:flex;gap:2px;flex:none;padding:2px;border-radius:3px;background:#0b0b0c;box-shadow:inset 0 2px 6px rgba(0,0,0,.6)"><sc-for list="{{ tdAspSeg }}" as="as" hint-placeholder-count="3"><button role="radio" aria-checked="{{ as.on }}" onClick="{{ as.onClick }}" style="height:24px;min-width:44px;padding:0 6px;border:0;border-radius:2px;background:{{ as.bg }};color:{{ as.fg }};font:700 11px 'JetBrains Mono',monospace">{{ as.label }}</button></sc-for></div>
+      </div>
+      <div ref="{{ boxTd }}" style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:14px">
+        <div style="position:relative;width:{{ tdFit.w }}px;height:{{ tdFit.h }}px;border-radius:2px;overflow:hidden;background:#050506;box-shadow:{{ tdFit.ring }};animation:{{ tdFit.anim }};transition:width .35s cubic-bezier(.2,.9,.2,1),height .35s cubic-bezier(.2,.9,.2,1)">
+          <canvas ref="{{ cvTd }}" data-td-canvas="1" aria-label="{{ tdAria }}" role="img" onPointerDown="{{ tdPtr.down }}" onPointerMove="{{ tdPtr.move }}" onPointerUp="{{ tdPtr.up }}" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:{{ tdPtr.cursor }};opacity:{{ tdFit.op }};filter:{{ tdFit.filter }};transition:opacity .3s"></canvas>
+          <sc-if value="{{ isHands }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:10px;top:42px;display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:2px;background:rgba(0,0,0,.78);border:1px solid rgba(231,155,208,.35);pointer-events:none"><span style="font:700 11px/1.2 'JetBrains Mono',monospace;letter-spacing:.12em;color:#e79bd0">GESTURES</span><sc-for list="{{ gLegend }}" as="gl" hint-placeholder-count="3"><span style="display:flex;justify-content:space-between;gap:14px;font:700 11px/1.35 'JetBrains Mono',monospace"><span style="color:#bdb8ac">{{ gl.label }}</span><span>{{ gl.act }}</span></span></sc-for><span style="font:500 11px/1.35 'JetBrains Mono',monospace;color:#bdb8ac">or drag on the picture</span></div></sc-if>
+          <span data-component="DemoLabel" style="position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);padding:4px 7px;border-radius:2px;background:rgba(0,0,0,.78);color:#e9e5da;font:700 11px/1.3 'JetBrains Mono',monospace;letter-spacing:.08em">TOUCHDESIGNER · DEMO · NON-COMMERCIAL, NOT COPYRIGHT-SAFE</span>
+          <div style="position:absolute;top:10px;left:10px;right:10px;display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;pointer-events:none">
+            <sc-if value="{{ recOn }}" hint-placeholder-val="{{ false }}"><span role="status" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:rgba(11,11,12,.88);border:1px solid #ff4b2b;color:#ff4b2b;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span style="width:8px;height:8px;border-radius:50%;background:#ff4b2b;animation:vbBlink 1s steps(2) infinite"></span>REC {{ recTime }} · {{ faceWord }}</span></sc-if>
+            <sc-if value="{{ outOn }}" hint-placeholder-val="{{ false }}"><span role="status" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:#ff4b2b;color:#0b0b0c;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span style="width:7px;height:7px;border-radius:50%;background:#0b0b0c"></span>ON OUTPUT · PROJECTOR · {{ tdAspect }}</span></sc-if>
+            <div style="flex:1"></div>
+            <sc-if value="{{ isHands }}" hint-placeholder-val="{{ false }}"><span role="status" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:rgba(11,11,12,.88);border:1px solid rgba(231,155,208,.6);color:#e79bd0;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:#e79bd0;animation:vbBreathe 1.4s ease-in-out infinite"></span>{{ handsChip }}</span></sc-if>
+          </div>
+          <sc-if value="{{ noMusic }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px 22px;border-radius:3px;background:rgba(11,11,12,.86);border:1px solid rgba(233,229,218,.14);animation:vbPop .3s ease-out"><span style="font:800 24px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">PLAY A TRACK TO MAKE IT REACT</span><span style="font:400 11px/1.5 'JetBrains Mono',monospace;color:#bdb8ac;text-align:center;max-width:320px">Nothing is playing, so the effect idles. Play the STUDIO track, or switch VISUALS to LIVE INPUT.</span><button onClick="{{ playMusic }}" style="height:32px;padding:0 16px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em" style-hover="background:#fff">▶ PLAY</button></div></sc-if>
+          <sc-if value="{{ tdDown }}" hint-placeholder-val="{{ false }}"><div role="alert" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,8,10,.6)"><div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;max-width:400px;padding:18px 20px;border:1px solid #ff4b2b;border-radius:3px;background:#141417;animation:vbPop .3s ease-out"><span style="display:flex;align-items:center;gap:10px;font:800 24px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;color:#ff4b2b"><span aria-hidden="true">▲</span>TOUCHDESIGNER STOPPED</span><span style="font:400 11px/1.55 'JetBrains Mono',monospace;color:#bdb8ac">It quit or crashed. Your effect, knobs and palette are kept. The picture is frozen on the last frame.</span><button onClick="{{ reconnect }}" disabled="{{ reconnDis }}" style="height:34px;padding:0 16px;border:0;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;opacity:{{ reconnOp }}" style-hover="background:#fff">{{ reconnL }}</button></div></div></sc-if>
+        </div>
+        <sc-if value="{{ camDenied }}" hint-placeholder-val="{{ false }}"><div role="alert" style="position:absolute;left:24px;right:24px;top:22px;display:flex;align-items:flex-start;gap:12px;padding:10px 10px 10px 14px;border:1px solid rgba(255,178,62,.55);border-radius:3px;background:#141417;animation:vbRise .3s ease-out"><span aria-hidden="true" style="color:#ffb23e;font:700 13px 'JetBrains Mono',monospace;line-height:1.4">▲</span><span style="flex:1;min-width:0;font:400 11px/1.55 'JetBrains Mono',monospace"><b style="color:#ffb23e;letter-spacing:.12em">CAMERA BLOCKED.</b> macOS isn't letting FoxBox use the camera. Open System Settings → Privacy &amp; Security → Camera and turn FoxBox on. Meanwhile the effect runs on {{ fbWord }}.</span><button onClick="{{ camRetry }}" style="flex:none;height:28px;padding:0 10px;border:1px solid rgba(255,178,62,.55);border-radius:2px;background:rgba(255,178,62,.08);color:#ffb23e;font:700 11px 'JetBrains Mono',monospace">TRY AGAIN</button></div></sc-if>
+      </div>
+    </section>
+
+    <section aria-label="Play controls" style="position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:#101012;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+<sc-if value="{{ tdCollapsed }}" hint-placeholder-val="{{ false }}"><button onClick="{{ expandPanels }}" onMouseEnter="{{ expandPanels }}" aria-label="Show play controls" style="position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;border:0;background:#101012;animation:vbRise .25s ease-out"><span aria-hidden="true" style="font:700 13px 'JetBrains Mono',monospace;color:#8d8a82">‹</span><span style="writing-mode:vertical-rl;transform:rotate(180deg);font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.24em">PLAY</span><sc-for list="{{ miniKnobs }}" as="mk" hint-placeholder-count="6"><span title="{{ mk.title }}" style="position:relative;width:30px;height:30px;flex:none"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="20" fill="#17171a"></circle><path d="M 12.91 51.09 A 27 27 0 1 1 51.09 51.09" fill="none" stroke="rgba(233,229,218,.12)" stroke-width="6" stroke-linecap="round"></path><path d="{{ mk.arc }}" fill="none" stroke="#e9e5da" stroke-width="6" stroke-linecap="round"></path></svg><span style="position:absolute;right:-1px;bottom:-1px;width:7px;height:7px;border-radius:50%;background:{{ mk.dot }}"></span></span></sc-for><span style="width:18px;height:18px;flex:none;border-radius:2px;background:{{ collapsedPal }};box-shadow:0 0 0 1px rgba(233,229,218,.2)"></span></button></sc-if>
+      <div style="display:flex;align-items:center;gap:8px;height:40px;flex:none;padding:0 8px 0 14px;border-bottom:1px solid rgba(233,229,218,.06)"><span style="font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.2em">PLAY</span><div style="flex:1"></div><button onClick="{{ resetMacros }}" title="Back to this effect's starting knobs" style="height:24px;padding:0 8px;border:0;border-radius:2px;background:rgba(233,229,218,.07);font:700 11px 'JetBrains Mono',monospace" style-hover="background:rgba(233,229,218,.14)">RESET</button></div>
+      <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:10px">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
+          <sc-for list="{{ knobs }}" as="k" hint-placeholder-count="6"><div data-component="MacroKnob" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 2px 8px;border-radius:3px;background:{{ k.cellBg }};border:1px solid {{ k.cellEdge }};transition:background .2s,border-color .2s">
+            <div role="slider" tabindex="0" aria-label="{{ k.label }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ k.pct }}" onPointerDown="{{ k.onDown }}" onKeyDown="{{ k.onKey }}" onDoubleClick="{{ k.onReset }}" title="Drag up/down · arrows · double-click resets" style="position:relative;width:64px;height:64px;cursor:ns-resize;touch-action:none;border-radius:50%">
+              <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" style="position:absolute;inset:0"><circle cx="32" cy="32" r="21" fill="#17171a" stroke="rgba(0,0,0,.75)" stroke-width="1"></circle><circle cx="32" cy="31" r="20" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"></circle><path d="M 12.91 51.09 A 27 27 0 1 1 51.09 51.09" fill="none" stroke="rgba(233,229,218,.1)" stroke-width="3" stroke-linecap="round"></path><path d="{{ k.arc }}" fill="none" stroke="#e9e5da" stroke-width="3" stroke-linecap="round"></path><line x1="32" y1="32" x2="{{ k.px }}" y2="{{ k.py }}" stroke="#e9e5da" stroke-width="2.5" stroke-linecap="round"></line></svg>
+              <canvas ref="{{ k.ringRef }}" aria-hidden="true" style="position:absolute;inset:-4px;width:72px;height:72px;pointer-events:none"></canvas>
+            </div>
+            <span style="font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">{{ k.label }}</span>
+            <span style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82;font-variant-numeric:tabular-nums">{{ k.pct }}</span>
+            <button data-component="ReactsTo" onClick="{{ k.onReacts }}" aria-expanded="{{ k.openS }}" aria-label="{{ k.reactsAria }}" style="display:flex;align-items:center;gap:5px;height:24px;max-width:100%;padding:0 7px;border:1px solid {{ k.rEdge }};border-radius:2px;background:{{ k.rBg }};color:{{ k.rFg }};font:700 11px 'JetBrains Mono',monospace;white-space:nowrap" style-hover="border-color:rgba(233,229,218,.45)"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:{{ k.rDot }}"></span>{{ k.reactsL }}<span aria-hidden="true" style="color:#8d8a82">▾</span></button>
+          </div></sc-for>
+        </div>
+        <sc-if value="{{ rMenu.show }}" hint-placeholder-val="{{ false }}"><div data-component="ReactsToMenu" role="radiogroup" aria-label="{{ rMenu.aria }}" style="display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:3px;background:#0b0b0c;border:1px solid rgba(255,178,62,.35);box-shadow:inset 0 2px 6px rgba(0,0,0,.6);animation:vbRise .18s ease-out"><span style="display:flex;align-items:center;justify-content:space-between;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.14em;color:#ffb23e"><span>{{ rMenu.title }}</span><button onClick="{{ rMenu.onClose }}" aria-label="Close" style="width:24px;height:24px;padding:0;border:0;background:none;color:#8d8a82;font:700 12px 'JetBrains Mono',monospace" style-hover="color:#e9e5da">✕</button></span><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px"><sc-for list="{{ rMenu.opts }}" as="ro" hint-placeholder-count="7"><button role="radio" aria-checked="{{ ro.on }}" onClick="{{ ro.onClick }}" style="display:flex;align-items:center;justify-content:center;gap:5px;height:28px;border:0;border-radius:2px;background:{{ ro.bg }};color:{{ ro.fg }};font:700 11px 'JetBrains Mono',monospace" style-hover="filter:brightness(1.3)"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:{{ ro.dot }}"></span>{{ ro.label }}</button></sc-for></div></div></sc-if>
+        <sc-if value="{{ isHands }}" hint-placeholder-val="{{ false }}"><div data-component="GestureMap" style="display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:3px;background:#0b0b0c;border:1px solid rgba(231,155,208,.3)">
+          <span style="display:flex;align-items:center;gap:8px"><span style="flex:1;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#e79bd0">HAND GESTURES</span><button role="switch" aria-checked="{{ showHandsS }}" onClick="{{ toggleShowHands }}" style="display:flex;align-items:center;gap:7px;height:24px;padding:0 6px 0 4px;border:0;border-radius:2px;background:none;font:700 11px 'JetBrains Mono',monospace;color:#bdb8ac"><span aria-hidden="true" style="position:relative;width:30px;height:18px;border-radius:9px;background:{{ handsT.trk }};border:1px solid {{ handsT.edge }}"><span style="position:absolute;top:2px;left:{{ handsT.x }}px;width:12px;height:12px;border-radius:50%;background:{{ handsT.knob }};transition:left .2s"></span></span>SHOW HANDS</button></span>
+          <sc-for list="{{ gestRows }}" as="gr" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">{{ gr.label }}</span><span aria-hidden="true" style="color:#8d8a82">→</span><button onClick="{{ gr.onClick }}" title="Change what this gesture does" style="min-width:112px;height:26px;padding:0 8px;border:1px solid rgba(233,229,218,.2);border-radius:2px;background:#111113;font:700 11px 'JetBrains Mono',monospace;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:6px" style-hover="border-color:rgba(233,229,218,.5)">{{ gr.act }}<span aria-hidden="true" style="color:#8d8a82">⟳</span></button></div></sc-for>
+          <span style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="flex:1;font:400 11px/1.45 'JetBrains Mono',monospace;color:#bdb8ac">Tracking runs on your Mac. Set any knob to react to HANDS: how far apart your fingers are.</span><button onClick="{{ clearWins }}" style="flex:none;height:26px;padding:0 8px;border:0;border-radius:2px;background:rgba(233,229,218,.07);font:700 11px 'JetBrains Mono',monospace" style-hover="background:rgba(233,229,218,.14)">CLEAR</button></span>
+        </div></sc-if>
+        <div data-component="PaletteRow" style="display:flex;flex-direction:column;gap:6px"><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#8d8a82">PALETTE</span><div role="radiogroup" aria-label="Palette" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px"><sc-for list="{{ pals }}" as="p" hint-placeholder-count="5"><button role="radio" aria-checked="{{ p.on }}" onClick="{{ p.onClick }}" style="display:flex;flex-direction:column;gap:5px;padding:5px;border:1px solid {{ p.edge }};border-radius:2px;background:{{ p.bg }}" style-hover="border-color:rgba(233,229,218,.45)"><span aria-hidden="true" style="display:flex;height:16px;border-radius:1px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(233,229,218,.12)"><span style="flex:1;background:{{ p.c0 }}"></span><span style="flex:1;background:{{ p.c1 }}"></span><span style="flex:1.4;background:{{ p.c2 }}"></span></span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ p.fg }}">{{ p.label }}</span></button></sc-for></div></div>
+        <button onClick="{{ randomize }}" aria-keyshortcuts="R" style="flex:none;display:flex;align-items:center;justify-content:center;gap:10px;height:44px;border:1px solid rgba(233,229,218,.24);border-radius:3px;background:#111113;font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.16em" style-hover="border-color:#e9e5da;background:#18181b" style-active="transform:translateY(1px)"><span aria-hidden="true" style="display:inline-block;transform:rotate({{ rollSpin }}deg);transition:transform .6s cubic-bezier(.2,1.3,.3,1);font:700 15px/1 'JetBrains Mono',monospace">⟳</span>RANDOMIZE</button>
+      </div>
+    </section>
+  </div>
+
+  <sc-if value="{{ confirm.show }}" hint-placeholder-val="{{ false }}"><div role="alert" style="flex:none;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 14px;border:1px solid rgba(255,178,62,.55);border-radius:3px;background:rgba(255,178,62,.06);animation:vbRise .25s ease-out"><span aria-hidden="true" style="color:#ffb23e;font:700 14px 'JetBrains Mono',monospace">▲</span><span style="flex:1;min-width:0;font:500 11px/1.45 'JetBrains Mono',monospace"><b style="color:#ffb23e;letter-spacing:.12em">FACE VISIBLE.</b> {{ confirm.text }}</span><button onClick="{{ confirm.onMask }}" style="flex:none;height:30px;padding:0 12px;border:0;border-radius:2px;background:#7fd08a;color:#0b0b0c;font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">MASK FIRST, THEN {{ confirm.verb }}</button><button onClick="{{ confirm.onGo }}" style="flex:none;height:30px;padding:0 12px;border:1px solid rgba(255,178,62,.55);border-radius:2px;background:none;color:#ffb23e;font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">{{ confirm.verb }} WITH MY FACE</button><button onClick="{{ confirm.onCancel }}" style="flex:none;height:30px;padding:0 10px;border:0;background:none;color:#8d8a82;font:700 11px 'JetBrains Mono',monospace">CANCEL</button></div></sc-if>
+
+  <footer style="flex:none;display:flex;gap:10px;height:70px;min-width:0">
+    <div aria-label="Music" style="flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:0 14px 0 10px;border:1px solid rgba(0,0,0,.7);border-radius:4px;background:#0e0e10;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)">
+      <button onClick="{{ togglePlay }}" aria-label="{{ playAria }}" style="width:40px;height:40px;flex:none;border:1px solid rgba(233,229,218,.24);border-radius:3px;background:#111113;font:700 14px 'JetBrains Mono',monospace;padding:0" style-hover="border-color:#e9e5da">{{ playG }}</button>
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:0 1 200px"><span style="font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ song.title }}</span><span style="font:500 11px/1 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap">{{ song.meta }}</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1 1 140px;min-width:90px;max-width:260px"><span style="display:flex;align-items:center;gap:8px;font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.1em"><span style="padding:2px 5px;border-radius:2px;background:{{ song.secBg }};color:#0b0b0c">{{ song.sec }}</span><span style="color:#8d8a82;white-space:nowrap">{{ song.next }}</span></span><canvas ref="{{ cvSecP }}" aria-hidden="true" style="width:100%;height:8px;display:block"></canvas></div>
+      <div aria-label="What the music is doing" style="display:flex;gap:10px;flex:none"><sc-for list="{{ meters }}" as="mt" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start"><span style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82">{{ mt.label }}</span><canvas ref="{{ mt.ref }}" aria-hidden="true" style="width:52px;height:8px;display:block"></canvas></div></sc-for></div>
+    </div>
+    <button data-component="RecordClip" onClick="{{ rec.onClick }}" disabled="{{ rec.dis }}" style="width:clamp(150px,12cqw,180px);flex:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:0 14px;border:1px solid {{ rec.edge }};border-radius:4px;background:{{ rec.bg }};color:{{ rec.fg }};opacity:{{ rec.op }};text-align:left" style-hover="filter:brightness(1.12)"><span style="display:flex;align-items:center;gap:8px;font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em"><span aria-hidden="true" style="width:10px;height:10px;border-radius:{{ rec.shape }};background:{{ rec.dot }};animation:{{ rec.anim }}"></span>{{ rec.label }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ rec.subC }};white-space:nowrap">{{ rec.sub }}</span></button>
+    <button data-component="SendToVisuals" onClick="{{ send.onClick }}" disabled="{{ send.dis }}" style="width:clamp(168px,13cqw,196px);flex:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:0 14px;border:1px solid {{ send.edge }};border-radius:4px;background:{{ send.bg }};color:{{ send.fg }};opacity:{{ send.op }};text-align:left" style-hover="filter:brightness(1.12)"><span style="font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;white-space:nowrap">{{ send.label }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ send.subC }};white-space:nowrap">{{ send.sub }}</span></button>
+    <button data-component="SendToOutput" onClick="{{ outB.onClick }}" disabled="{{ outB.dis }}" style="position:relative;overflow:hidden;width:clamp(168px,13cqw,196px);flex:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:0 14px;border:0;border-radius:4px;background:{{ outB.bg }};color:{{ outB.fg }};box-shadow:{{ outB.shadow }};opacity:{{ outB.op }};text-align:left" style-hover="filter:brightness(1.08)" style-active="transform:translateY(2px)"><span aria-hidden="true" style="position:absolute;left:0;right:0;top:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0));pointer-events:none"></span><span style="position:relative;font:800 19px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;white-space:nowrap">{{ outB.label }}</span><span style="position:relative;font:700 11px/1 'JetBrains Mono',monospace;white-space:nowrap;color:{{ outB.subC }}">{{ outB.sub }}</span></button>
+  </footer>
+  </sc-if>
+</div>
+</sc-if>
+
+<!-- ======================= VISUALS ======================= -->
+<sc-if value="{{ isVis }}" hint-placeholder-val="{{ false }}">
+<div data-component="VisualsPage" style="position:absolute;inset:{{ visInset }};display:flex;flex-direction:column;gap:10px;min-height:0">
+
+  <sc-if value="{{ notPerf }}" hint-placeholder-val="{{ true }}">
+  <header data-component="AudioSourceStrip" style="display:flex;align-items:center;gap:14px;height:48px;flex:none;min-width:0">
+    <span style="font:800 34px/1 'Big Shoulders Display',sans-serif;letter-spacing:.04em">VISUALS</span>
+    <div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;height:44px;padding:0 12px 0 6px;border:1px solid rgba(0,0,0,.7);border-radius:4px;background:#0e0e10;box-shadow:inset 0 2px 8px rgba(0,0,0,.6);overflow:hidden">
+      <div role="radiogroup" aria-label="Audio source" style="display:flex;gap:2px;flex:none"><sc-for list="{{ srcSeg }}" as="s" hint-placeholder-count="3"><button role="radio" aria-checked="{{ s.on }}" onClick="{{ s.onClick }}" style="height:30px;padding:0 10px;border:0;border-radius:2px;background:{{ s.bg }};color:{{ s.fg }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em;white-space:nowrap" style-hover="filter:brightness(1.3)">{{ s.label }}</button></sc-for></div>
+      <span style="width:1px;height:24px;background:rgba(233,229,218,.08);flex:none"></span>
+      <div role="radiogroup" aria-label="Latency" style="display:flex;align-items:center;gap:2px;flex:none"><span style="padding:0 6px 0 0;font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">LATENCY</span><sc-for list="{{ latSeg }}" as="l" hint-placeholder-count="2"><button role="radio" aria-checked="{{ l.on }}" onClick="{{ l.onClick }}" style="height:24px;padding:0 8px;border:0;border-radius:2px;background:{{ l.bg }};color:{{ l.fg }};font:700 11px 'JetBrains Mono',monospace">{{ l.label }}</button></sc-for></div>
+      <span style="display:flex;align-items:center;gap:6px;flex:none"><span style="font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">IN</span><canvas ref="{{ cvLevel }}" aria-label="Input level" role="img" style="width:84px;height:10px;display:block"></canvas></span>
+      <span style="width:1px;height:24px;background:rgba(233,229,218,.08);flex:none"></span>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:0 1 auto"><span style="font:800 16px/1 'Big Shoulders Display',sans-serif;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ srcTitle }}</span><span style="font:500 11px/1 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap">{{ song.meta }}</span></div>
+      <span style="flex:none;padding:2px 5px;border-radius:2px;background:{{ song.secBg }};color:#0b0b0c;font:700 11px/1.3 'JetBrains Mono',monospace;letter-spacing:.1em">{{ song.sec }}</span>
+      <canvas ref="{{ cvSecV }}" aria-hidden="true" style="flex:1 1 80px;min-width:60px;max-width:220px;height:8px;display:block"></canvas>
+    </div>
+  </header>
+  </sc-if>
+
+  <div style="flex:1;min-height:0;display:grid;grid-template-columns:{{ visCols }};gap:10px">
+    <sc-if value="{{ notPerf }}" hint-placeholder-val="{{ true }}">
+    <section data-component="LayerStack" aria-label="Layers" style="display:flex;flex-direction:column;min-height:0;background:#101012;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05)">
+      <div style="display:flex;align-items:center;gap:8px;height:40px;flex:none;padding:0 8px 0 14px;border-bottom:1px solid rgba(233,229,218,.06)"><span style="font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.2em">LAYERS</span><span style="font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">{{ layerCount }}</span><div style="flex:1"></div><button onClick="{{ toggleBrowser }}" aria-expanded="{{ browserS }}" style="height:28px;padding:0 10px;border:0;border-radius:2px;background:{{ addBtn.bg }};color:{{ addBtn.fg }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.06em" style-hover="filter:brightness(1.2)">{{ addBtn.label }}</button></div>
+      <div style="position:relative;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px">
+        <span aria-hidden="true" style="position:absolute;left:20px;top:24px;bottom:24px;width:1px;background:rgba(233,229,218,.12)"></span>
+        <div data-component="FaceHideControl" style="position:relative;flex:none;display:grid;grid-template-columns:18px minmax(0,1fr);gap:6px;padding:10px 10px 10px 4px;border-radius:3px;border:1px solid {{ faceC.edge }};background:{{ faceC.bg }};box-shadow:{{ faceC.shadow }};transition:background .2s,border-color .2s">
+          <span style="display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif;color:{{ faceC.fg }}">{{ faceN }}</span><span aria-hidden="true" title="Always on top" style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82">⊤</span></span>
+          <div style="display:flex;flex-direction:column;gap:9px;min-width:0">
+          <div style="display:flex;align-items:center;gap:10px">
+            <canvas ref="{{ cvFaceThumb }}" aria-hidden="true" style="width:46px;height:46px;flex:none;border-radius:2px;display:block;background:#050506;box-shadow:0 0 0 1px {{ faceC.edge }}"></canvas>
+            <span style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"><span style="font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:.14em;color:#8d8a82;white-space:nowrap">FACE ENCRYPTION</span><span role="status" style="display:flex;align-items:center;gap:6px;font:800 clamp(18px,1.45cqw,22px)/1 'Big Shoulders Display',sans-serif;letter-spacing:.04em;color:{{ faceC.fg }};white-space:nowrap"><span aria-hidden="true" style="font:700 13px 'JetBrains Mono',monospace">{{ faceC.glyph }}</span>{{ faceC.label }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ faceC.subC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ faceC.sub }}</span></span>
+            <button role="switch" aria-checked="{{ faceOnS }}" aria-label="Face hiding" onClick="{{ toggleFace }}" style="flex:none;height:34px;min-width:52px;padding:0 8px;border:1px solid {{ faceC.btnEdge }};border-radius:3px;background:{{ faceC.btnBg }};color:{{ faceC.btnFg }};font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em" style-hover="filter:brightness(1.15)">{{ faceC.btnL }}</button>
+          </div>
+          <sc-if value="{{ faceC.on }}" hint-placeholder-val="{{ true }}"><div role="radiogroup" aria-label="Face style" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;border-radius:3px;background:#0b0b0c;box-shadow:inset 0 2px 6px rgba(0,0,0,.6)"><sc-for list="{{ faceStyles }}" as="fsl" hint-placeholder-count="6"><button role="radio" aria-checked="{{ fsl.on }}" onClick="{{ fsl.onClick }}" style="height:26px;padding:0 4px;border:0;border-radius:2px;background:{{ fsl.bg }};color:{{ fsl.fg }};font:700 11px 'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" style-hover="color:#e9e5da;background:rgba(233,229,218,.1)">{{ fsl.label }}</button></sc-for></div></sc-if>
+          <sc-if value="{{ faceC.warn }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font:500 11px/1.45 'JetBrains Mono',monospace;color:#e9e5da">{{ faceC.warn }}</span></sc-if>
+          </div>
+        </div>
+        <div data-component="LayerRow" style="position:relative;flex:none;display:grid;grid-template-columns:18px 60px minmax(0,1fr) 32px;align-items:center;gap:6px;min-height:52px;padding:6px 6px 6px 4px;border-radius:3px;background:#0b0b0c;border:1px solid rgba(233,229,218,.06);opacity:{{ textRow.op }}">
+          <span style="display:flex;flex-direction:column;align-items:center;gap:3px"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif">{{ textN }}</span><span aria-hidden="true" title="Text stays above effects" style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82">T</span></span>
+          <canvas ref="{{ cvTextThumb }}" aria-hidden="true" style="width:60px;height:38px;border-radius:2px;display:block;background:#050506"></canvas>
+          <div style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap">TEXT · {{ textRow.mode }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">"{{ textRow.word }}"</span></span><span style="display:flex;align-items:center;gap:4px"><button onClick="{{ textRow.onMode }}" title="Next text move" style="height:24px;padding:0 6px;border:0;border-radius:2px;background:rgba(233,229,218,.07);font:700 11px 'JetBrains Mono',monospace">MOVE ⟳</button><button onClick="{{ textRow.onReacts }}" style="display:flex;align-items:center;gap:5px;height:24px;padding:0 6px;border:1px solid rgba(233,229,218,.14);border-radius:2px;background:none;font:700 11px 'JetBrains Mono',monospace"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:{{ textRow.rDot }}"></span>{{ textRow.reactsL }}</button><canvas ref="{{ cvTextMeter }}" aria-hidden="true" style="width:34px;height:6px;display:block"></canvas></span></div>
+          <button onClick="{{ textRow.onMute }}" aria-pressed="{{ textRow.muteS }}" aria-label="Mute text" style="width:28px;height:28px;padding:0;border:0;border-radius:2px;background:{{ textRow.mBg }};color:{{ textRow.mFg }};font:700 11px 'JetBrains Mono',monospace">M</button>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;gap:8px;padding:6px 2px 0 4px"><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#e9e5da">EFFECTS</span><span style="font:700 11px 'JetBrains Mono',monospace;color:#8d8a82">{{ fxCount }}</span><span style="flex:1;height:1px;background:rgba(233,229,218,.08)"></span><span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap">DRAG · ALT+↑↓</span></div>
+        <sc-for list="{{ rows }}" as="lr" hint-placeholder-count="4">
+          <div data-component="LayerRow" draggable="true" tabindex="0" aria-label="{{ lr.aria }}" onDragStart="{{ lr.onDragStart }}" onDragOver="{{ lr.onDragOver }}" onDrop="{{ lr.onDrop }}" onDragEnd="{{ lr.onDragEnd }}" onKeyDown="{{ lr.onKey }}" style="position:relative;flex:none;display:grid;grid-template-columns:18px 52px minmax(0,1fr) 30px 28px;align-items:center;gap:8px;min-height:56px;padding:6px 6px 6px 4px;border-radius:3px;background:{{ lr.bg }};border:1px solid {{ lr.edge }};box-shadow:{{ lr.dropLine }};opacity:{{ lr.op }};transition:background .15s,opacity .2s,box-shadow .12s;animation:vbRise .3s ease-out both;cursor:grab">
+            <span style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif;color:{{ lr.nC }}">{{ lr.n }}</span><span aria-hidden="true" style="color:#8d8a82;font:700 11px/1 'JetBrains Mono',monospace">⋮⋮</span></span>
+            <canvas ref="{{ lr.thumb }}" aria-hidden="true" style="width:52px;height:38px;border-radius:2px;display:block;background:#050506"></canvas>
+            <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+              <span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ lr.name }}</span><div style="flex:1"></div><button onClick="{{ lr.onDel }}" aria-label="{{ lr.delAria }}" style="flex:none;height:24px;min-width:24px;padding:0 4px;border:1px solid {{ lr.delEdge }};border-radius:2px;background:{{ lr.delBg }};color:{{ lr.delFg }};font:700 11px 'JetBrains Mono',monospace" style-hover="color:#ff4b2b">{{ lr.delL }}</button></span>
+              <span style="display:flex;align-items:center;gap:5px;min-width:0"><span title="{{ lr.kind }}" style="flex:none;padding:1px 3px;border:1px solid {{ lr.kindC }};border-radius:2px;color:{{ lr.kindC }};font:700 11px/1.2 'JetBrains Mono',monospace">{{ lr.kindS }}</span><button data-component="ReactsTo" onClick="{{ lr.onReacts }}" aria-expanded="{{ lr.rOpenS }}" style="display:flex;align-items:center;gap:5px;height:24px;padding:0 6px;border:1px solid {{ lr.rEdge }};border-radius:2px;background:none;color:#e9e5da;font:700 11px 'JetBrains Mono',monospace;white-space:nowrap" style-hover="border-color:rgba(233,229,218,.45)"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:{{ lr.rDot }}"></span>{{ lr.reactsL }}<span aria-hidden="true" style="color:#8d8a82">▾</span></button><canvas ref="{{ lr.meter }}" aria-hidden="true" style="flex:1;min-width:14px;max-width:70px;height:6px;display:block"></canvas><sc-if value="{{ lr.lockShow }}" hint-placeholder-val="{{ false }}"><button onClick="{{ lr.onLock }}" aria-pressed="{{ lr.lockS }}" title="AUTO-VJ keeps locked layers" style="flex:none;height:24px;padding:0 5px;border:0;border-radius:2px;background:{{ lr.lockBg }};color:{{ lr.lockFg }};font:700 11px 'JetBrains Mono',monospace">{{ lr.lockL }}</button></sc-if></span>
+            </div>
+            <div role="slider" tabindex="0" aria-label="{{ lr.opAria }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ lr.opPct }}" onPointerDown="{{ lr.onKnob }}" onKeyDown="{{ lr.onKnobKey }}" title="{{ lr.opTitle }}" style="width:30px;height:30px;cursor:ns-resize;touch-action:none;border-radius:50%"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="#17171a" stroke="rgba(0,0,0,.75)" stroke-width="2"></circle><path d="M 12.91 51.09 A 27 27 0 1 1 51.09 51.09" fill="none" stroke="rgba(233,229,218,.12)" stroke-width="6" stroke-linecap="round"></path><path d="{{ lr.arc }}" fill="none" stroke="#ffb23e" stroke-width="6" stroke-linecap="round"></path><line x1="32" y1="32" x2="{{ lr.px }}" y2="{{ lr.py }}" stroke="#e9e5da" stroke-width="5" stroke-linecap="round"></line></svg></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><button onClick="{{ lr.onM }}" aria-pressed="{{ lr.mS }}" aria-label="{{ lr.mAria }}" style="width:28px;height:24px;padding:0;border:0;border-radius:2px;background:{{ lr.mBg }};color:{{ lr.mFg }};font:700 11px 'JetBrains Mono',monospace">M</button><button onClick="{{ lr.onS }}" aria-pressed="{{ lr.sS }}" aria-label="{{ lr.sAria }}" style="width:28px;height:24px;padding:0;border:0;border-radius:2px;background:{{ lr.sBg }};color:{{ lr.sFg }};font:700 11px 'JetBrains Mono',monospace">S</button></div>
+          </div>
+          <sc-if value="{{ lr.rOpen }}" hint-placeholder-val="{{ false }}"><div data-component="ReactsToMenu" role="radiogroup" aria-label="{{ lr.rAria }}" style="flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:-2px 0 4px 24px;padding:8px;border-radius:3px;background:#0b0b0c;border:1px solid rgba(255,178,62,.35);animation:vbRise .18s ease-out"><sc-for list="{{ lr.rOpts }}" as="ro" hint-placeholder-count="6"><button role="radio" aria-checked="{{ ro.on }}" onClick="{{ ro.onClick }}" style="display:flex;align-items:center;justify-content:center;gap:5px;height:26px;border:0;border-radius:2px;background:{{ ro.bg }};color:{{ ro.fg }};font:700 11px 'JetBrains Mono',monospace"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:{{ ro.dot }}"></span>{{ ro.label }}</button></sc-for></div></sc-if>
+        </sc-for>
+        <sc-if value="{{ noLayers }}" hint-placeholder-val="{{ false }}"><button onClick="{{ openBrowser }}" style="flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border:1px dashed rgba(233,229,218,.18);border-radius:3px;background:none;color:#8d8a82;font:500 11px 'JetBrains Mono',monospace" style-hover="border-color:#ffb23e;color:#e9e5da"><span style="font:800 22px/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em;color:#e9e5da">+ ADD EFFECT</span>No effects yet. Shaders, filters, Milkdrop and TouchDesigner stack here.</button></sc-if>
+        <div style="position:relative;display:flex;align-items:center;gap:8px;padding:6px 2px 0 4px"><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#e9e5da">BASE</span><span style="flex:1;height:1px;background:rgba(233,229,218,.08)"></span><span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82">DRAWN FIRST</span></div>
+        <div data-component="LayerRow" style="position:relative;flex:none;display:grid;grid-template-columns:18px minmax(0,1fr);gap:6px;padding:8px 8px 8px 4px;border-radius:3px;background:#0b0b0c;border:1px solid rgba(233,229,218,.1)">
+          <span style="display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:2px"><span style="font:800 15px/1 'Big Shoulders Display',sans-serif">01</span><span aria-hidden="true" title="Always at the bottom" style="font:700 11px/1 'JetBrains Mono',monospace;color:#8d8a82">⊥</span></span>
+          <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+          <div style="display:flex;align-items:center;gap:10px"><canvas ref="{{ cvBaseThumb }}" aria-hidden="true" style="width:60px;height:38px;border-radius:2px;display:block;background:#050506;flex:none"></canvas><span style="display:flex;flex-direction:column;gap:4px;min-width:0"><span style="font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.08em">{{ baseName }}</span><span style="font:500 11px/1 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ baseSub }}</span></span></div>
+          <div role="radiogroup" aria-label="Base" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;border-radius:3px;background:#08080a;box-shadow:inset 0 2px 6px rgba(0,0,0,.6)"><sc-for list="{{ baseSeg }}" as="bs" hint-placeholder-count="7"><button role="radio" aria-checked="{{ bs.on }}" onClick="{{ bs.onClick }}" title="{{ bs.label }}" style="height:26px;padding:0 3px;border:0;border-radius:2px;background:{{ bs.bg }};color:{{ bs.fg }};font:700 11px 'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" style-hover="color:#e9e5da;background:rgba(233,229,218,.1)">{{ bs.short }}</button></sc-for></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <div style="position:relative;display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0">
+      <sc-if value="{{ notPerf }}" hint-placeholder-val="{{ true }}">
+      <div data-component="StageView" style="display:flex;align-items:center;gap:8px;height:44px;flex:none;min-width:0">
+        <div role="radiogroup" aria-label="Aspect" style="display:flex;gap:2px;flex:none;padding:2px;border-radius:3px;background:#0b0b0c;box-shadow:inset 0 2px 6px rgba(0,0,0,.6)"><sc-for list="{{ vAspSeg }}" as="as" hint-placeholder-count="3"><button role="radio" aria-checked="{{ as.on }}" onClick="{{ as.onClick }}" style="height:28px;min-width:46px;padding:0 6px;border:0;border-radius:2px;background:{{ as.bg }};color:{{ as.fg }};font:700 11px 'JetBrains Mono',monospace">{{ as.label }}</button></sc-for></div>
+        <div data-component="AutoVjControl" style="flex:1 1 auto;min-width:252px;max-width:380px;display:flex;align-items:center;gap:10px;height:40px;padding:0 10px 0 6px;border:1px solid {{ avj.edge }};border-radius:3px;background:#0e0e10;box-shadow:inset 0 2px 6px rgba(0,0,0,.6);overflow:hidden">
+          <button role="switch" aria-checked="{{ avj.onS }}" onClick="{{ toggleAvj }}" style="flex:none;display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border:0;border-radius:2px;background:{{ avj.bg }};color:{{ avj.fg }};font:800 15px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:{{ avj.dot }};box-shadow:{{ avj.glow }}"></span>AUTO-VJ</button>
+          <span style="font:700 11px/1.3 'JetBrains Mono',monospace;color:{{ avj.subC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ avj.sub }}</span>
+          <sc-if value="{{ avj.on }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="display:flex;gap:2px;flex:none"><sc-for list="{{ avj.bars }}" as="ab" hint-placeholder-count="4"><span style="width:8px;height:8px;border-radius:1px;background:{{ ab }}"></span></sc-for></span></sc-if>
+        </div>
+        <div style="flex:1"></div>
+        
+        <button style="flex:none;height:34px;padding:0 12px;border:1px solid rgba(233,229,218,.2);border-radius:3px;background:#111113;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.08em" style-hover="border-color:rgba(233,229,218,.5)">SAVE CLIP</button>
+        <button onClick="{{ toggleRecLive }}" aria-pressed="{{ recLiveS }}" style="flex:none;display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid {{ recLive.edge }};border-radius:3px;background:{{ recLive.bg }};color:{{ recLive.fg }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.08em"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#ff4b2b;animation:{{ recLive.anim }}"></span>{{ recLive.label }}</button>
+        <button onClick="{{ enterPerf }}" aria-keyshortcuts="P" style="flex:none;height:34px;padding:0 12px;border:1px solid rgba(233,229,218,.2);border-radius:3px;background:#111113;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.08em" style-hover="border-color:rgba(233,229,218,.5)">PERFORM <span style="color:#8d8a82">P</span></button>
+        <button data-component="OutputButton" onClick="{{ vOutB.onClick }}" aria-pressed="{{ vOutB.onS }}" style="position:relative;overflow:hidden;flex:none;display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:0;border-radius:3px;background:{{ vOutB.bg }};color:{{ vOutB.fg }};box-shadow:{{ vOutB.shadow }};font:800 17px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;white-space:nowrap" style-hover="filter:brightness(1.1)"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:{{ vOutB.dot }};animation:{{ vOutB.anim }}"></span>{{ vOutB.label }}</button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ vConfirm.show }}" hint-placeholder-val="{{ false }}"><div role="alert" style="flex:none;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 14px;border:1px solid {{ vConfirm.edge }};border-radius:3px;background:#141417;animation:vbRise .25s ease-out"><span aria-hidden="true" style="color:{{ vConfirm.c }};font:700 14px 'JetBrains Mono',monospace">▲</span><span style="flex:1;min-width:0;font:500 11px/1.45 'JetBrains Mono',monospace"><b style="color:{{ vConfirm.c }};letter-spacing:.12em">{{ vConfirm.head }}</b> {{ vConfirm.text }}</span><sc-for list="{{ vConfirm.acts }}" as="va" hint-placeholder-count="2"><button onClick="{{ va.onClick }}" style="flex:none;height:30px;padding:0 12px;border:{{ va.border }};border-radius:2px;background:{{ va.bg }};color:{{ va.fg }};font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em">{{ va.label }}</button></sc-for></div></sc-if>
+
+      <section ref="{{ boxStage }}" aria-label="Stage" style="position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;border-radius:4px;background:{{ stageBg }};border:1px solid rgba(0,0,0,.7);box-shadow:inset 0 2px 10px rgba(0,0,0,.55)">
+        <div style="position:relative;width:{{ vFit.w }}px;height:{{ vFit.h }}px;border-radius:2px;overflow:hidden;background:#000;box-shadow:{{ vFit.ring }};animation:{{ vFit.anim }};transition:width .35s cubic-bezier(.2,.9,.2,1),height .35s cubic-bezier(.2,.9,.2,1)">
+          <canvas ref="{{ cvStage }}" role="img" aria-label="Stage" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+          <div style="position:absolute;top:10px;left:10px;right:10px;display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;pointer-events:none">
+            <span role="status" style="display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:{{ liveTag.bg }};color:{{ liveTag.fg }};border:1px solid {{ liveTag.edge }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:{{ liveTag.dot }};animation:{{ liveTag.anim }}"></span>{{ liveTag.label }}</span>
+            <sc-if value="{{ previewTag }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;height:26px;padding:0 9px;border-radius:2px;background:rgba(11,11,12,.88);border:1px dashed #ffb23e;color:#ffb23e;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em;white-space:nowrap">PREVIEW · {{ previewTag }} · CLICK TO ADD</span></sc-if>
+            <sc-if value="{{ recLiveOn }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:rgba(11,11,12,.88);border:1px solid #ff4b2b;color:#ff4b2b;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span style="width:8px;height:8px;border-radius:50%;background:#ff4b2b;animation:vbBlink 1s steps(2) infinite"></span>REC LIVE {{ recLiveTime }}</span></sc-if>
+            <div style="flex:1"></div>
+            <sc-if value="{{ stageFlags }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;height:26px;padding:0 9px;border-radius:2px;background:#e9e5da;color:#0b0b0c;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em">{{ stageFlags }}</span></sc-if>
+          </div>
+          <span role="status" style="position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:7px;height:26px;padding:0 9px;border-radius:2px;background:{{ faceTag.bg }};color:{{ faceTag.fg }};border:1px solid {{ faceTag.edge }};font:700 11px 'JetBrains Mono',monospace;letter-spacing:.1em"><span aria-hidden="true">{{ faceTag.glyph }}</span>{{ faceTag.label }}</span>
+          <sc-if value="{{ stageEmpty }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center"><span style="font:800 clamp(34px,5cqh,54px)/.9 'Big Shoulders Display',sans-serif;letter-spacing:.04em">AN EMPTY STAGE</span><span style="font:400 11px/1.55 'JetBrains Mono',monospace;color:#bdb8ac;max-width:340px">Pick a BASE on the left, then add effects. Everything you add reacts to the track.</span><button onClick="{{ openBrowser }}" style="height:38px;padding:0 18px;border:0;border-radius:3px;background:#ff4b2b;color:#0b0b0c;font:800 18px/1 'Big Shoulders Display',sans-serif;letter-spacing:.14em;box-shadow:0 0 22px rgba(255,75,43,.28),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -3px 0 rgba(0,0,0,.28)" style-hover="filter:brightness(1.08)">+ ADD EFFECT</button></div></sc-if>
+        </div>
+        <sc-if value="{{ isPerf }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:10px;right:10px;display:flex;gap:6px"><button onClick="{{ exitPerf }}" aria-keyshortcuts="Escape P" style="height:28px;padding:0 10px;border:1px solid rgba(233,229,218,.2);border-radius:2px;background:rgba(11,11,12,.9);font:700 11px 'JetBrains Mono',monospace;letter-spacing:.08em" style-hover="border-color:#e9e5da">← EXIT · ESC</button><span style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:2px;background:rgba(11,11,12,.9);color:#8d8a82;font:700 11px 'JetBrains Mono',monospace;letter-spacing:.08em">{{ song.sec }} · {{ perfNext }}</span></div></sc-if>
+      </section>
+
+      <sc-if value="{{ browserOpen }}" hint-placeholder-val="{{ false }}">
+      <section data-component="EffectBrowser" aria-label="Effect browser" style="flex:none;height:clamp(232px,29cqh,280px);display:flex;flex-direction:column;background:#101012;border:1px solid rgba(0,0,0,.7);border-radius:4px;box-shadow:inset 0 2px 10px rgba(0,0,0,.55),0 1px 0 rgba(233,229,218,.05);animation:vbSlideUp .28s cubic-bezier(.2,.9,.2,1)">
+        <div style="display:flex;align-items:center;gap:4px;height:40px;flex:none;padding:0 8px 0 6px;border-bottom:1px solid rgba(233,229,218,.06)">
+          <div role="tablist" aria-label="Effect groups" style="display:flex;gap:2px;min-width:0;overflow:hidden"><sc-for list="{{ bTabs }}" as="bt" hint-placeholder-count="5"><button role="tab" aria-selected="{{ bt.on }}" onClick="{{ bt.onClick }}" style="position:relative;display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:0;border-radius:2px;background:{{ bt.bg }};color:{{ bt.fg }};font:800 14px/1 'Big Shoulders Display',sans-serif;letter-spacing:.12em;white-space:nowrap">{{ bt.label }}<span style="font:700 11px 'JetBrains Mono',monospace;color:#8d8a82;letter-spacing:0">{{ bt.n }}</span></button></sc-for></div>
+          <div style="flex:1"></div>
+          <span style="font:500 11px 'JetBrains Mono',monospace;color:#8d8a82;white-space:nowrap">HOVER TO PREVIEW · CLICK TO ADD</span>
+          <button onClick="{{ closeBrowser }}" aria-label="Close effect browser" style="width:28px;height:28px;padding:0;border:0;border-radius:2px;background:rgba(233,229,218,.07);font:700 12px 'JetBrains Mono',monospace" style-hover="background:rgba(233,229,218,.14)">✕</button>
+        </div>
+        <div role="list" onMouseLeave="{{ clearHover }}" style="flex:1;min-height:0;overflow-x:auto;overflow-y:hidden;padding:10px;display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,minmax(0,1fr));grid-auto-columns:clamp(118px,9.6cqw,140px);gap:8px">
+          <sc-for list="{{ bTiles }}" as="bt" hint-placeholder-count="12"><button data-component="EffectTile" role="listitem" onClick="{{ bt.onClick }}" onMouseEnter="{{ bt.onEnter }}" onFocus="{{ bt.onEnter }}" title="{{ bt.title }}" style="position:relative;display:flex;flex-direction:column;min-height:0;padding:0;border:1px solid {{ bt.edge }};border-radius:3px;background:#0b0b0c;overflow:hidden;text-align:left;transition:border-color .15s,transform .15s;animation:vbPop .3s ease-out both;animation-delay:{{ bt.delay }}" style-hover="border-color:#ffb23e;transform:translateY(-2px)"><canvas ref="{{ bt.ref }}" aria-hidden="true" style="flex:1;min-height:0;width:100%;display:block;background:#050506"></canvas><span style="display:flex;align-items:center;gap:5px;padding:5px 7px;font:800 13px/1.1 'Big Shoulders Display',sans-serif;letter-spacing:.06em;white-space:nowrap;overflow:hidden"><span style="overflow:hidden;text-overflow:ellipsis">{{ bt.name }}</span><sc-if value="{{ bt.badge }}" hint-placeholder-val="{{ false }}"><span style="flex:none;padding:0 3px;border:1px solid {{ bt.badgeC }};border-radius:2px;color:{{ bt.badgeC }};font:700 11px/1.2 'JetBrains Mono',monospace">{{ bt.badge }}</span></sc-if></span><sc-if value="{{ bt.added }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:5px;right:5px;padding:1px 4px;border-radius:2px;background:#7fd08a;color:#0b0b0c;font:700 11px/1.2 'JetBrains Mono',monospace">ON</span></sc-if></button></sc-for>
+          <sc-if value="{{ bMore }}" hint-placeholder-val="{{ false }}"><div style="grid-row:span 2;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px;border:1px dashed rgba(233,229,218,.14);border-radius:3px;color:#8d8a82;font:500 11px/1.5 'JetBrains Mono',monospace"><span style="font:800 26px/1 'Big Shoulders Display',sans-serif;color:#e9e5da">{{ bMore }}</span>more presets. Type to search when the browser is open.</div></sc-if>
+        </div>
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ isPerf }}" hint-placeholder-val="{{ false }}">
+      <section data-component="PerformanceStrip" aria-label="Performance pads" style="flex:none;height:clamp(108px,14cqh,132px);display:grid;grid-template-columns:repeat(8,minmax(0,1fr)) 8px repeat(4,minmax(0,1.05fr));gap:8px;animation:vbSlideUp .3s cubic-bezier(.2,.9,.2,1)">
+        <sc-for list="{{ pads }}" as="pd" hint-placeholder-count="8"><button data-component="ScenePad" onClick="{{ pd.onClick }}" aria-pressed="{{ pd.onS }}" aria-keyshortcuts="{{ pd.key }}" style="position:relative;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:10px;border:1px solid {{ pd.edge }};border-radius:4px;background:{{ pd.bg }};color:{{ pd.fg }};box-shadow:{{ pd.shadow }};text-align:left;transition:background .12s,box-shadow .2s" style-hover="border-color:rgba(233,229,218,.5)" style-active="transform:translateY(2px)"><span style="display:flex;width:100%;justify-content:space-between;font:700 11px/1 'JetBrains Mono',monospace;color:{{ pd.subC }}"><span>{{ pd.key }}</span><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:{{ pd.led }};box-shadow:{{ pd.ledGlow }}"></span></span><span style="font:800 clamp(17px,2.4cqh,22px)/1 'Big Shoulders Display',sans-serif;letter-spacing:.06em">{{ pd.name }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ pd.subC }}">{{ pd.sub }}</span></button></sc-for>
+        <span></span>
+        <sc-for list="{{ perfBtns }}" as="pb" hint-placeholder-count="4"><button onClick="{{ pb.onClick }}" onPointerDown="{{ pb.onDown }}" onPointerUp="{{ pb.onUp }}" onPointerLeave="{{ pb.onUp }}" aria-pressed="{{ pb.onS }}" aria-keyshortcuts="{{ pb.key }}" style="display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:10px;border:1px solid {{ pb.edge }};border-radius:4px;background:{{ pb.bg }};color:{{ pb.fg }};box-shadow:{{ pb.shadow }};text-align:left" style-active="transform:translateY(2px)"><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ pb.subC }}">{{ pb.key }}</span><span style="font:800 clamp(18px,2.6cqh,24px)/1 'Big Shoulders Display',sans-serif;letter-spacing:.1em">{{ pb.label }}</span><span style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ pb.subC }};white-space:nowrap">{{ pb.sub }}</span></button></sc-for>
+      </section>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+</main>
+
+<div aria-live="polite" style="position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;z-index:60"><sc-for list="{{ toasts }}" as="ts" hint-placeholder-count="0"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:3px;background:#18181b;border:1px solid {{ ts.edge }};box-shadow:0 20px 50px rgba(0,0,0,.7);font:500 11px 'JetBrains Mono',monospace;animation:vbToast .3s cubic-bezier(.2,.9,.2,1)"><b style="color:{{ ts.c }};letter-spacing:.12em">{{ ts.head }}</b>{{ ts.text }}</div></sc-for></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const cl = (x, a = 0, b = 1) => (x < a ? a : x > b ? b : x);
+const INK = '#e9e5da', DIM = '#8d8a82', EMB = '#ff4b2b', AMB = '#ffb23e', ICE = '#7cc8ff', OK = '#7fd08a';
+const TD_FX = [
+  { id: 'plexus', name: 'THRESHOLD + PLEXUS', note: 'Threshold body, tracked points joined by glowing lines' },
+  { id: 'mosaic', name: 'WINDOW MOSAIC', note: 'You, rebuilt from little windows that pop on the beat' },
+  { id: 'databody', name: 'DATA BODY', note: 'Your shape in falling characters', isNew: true },
+  { id: 'trails', name: 'GLOW TRAILS', note: 'Your outline, smeared through time' },
+  { id: 'slitscan', name: 'SLIT SCAN', note: 'Each band of the picture runs late', isNew: true },
+  { id: 'pointcloud', name: 'POINT CLOUD', note: 'You as dots, turning in space' },
+  { id: 'tunnel', name: 'MIRROR TUNNEL', note: 'Mirrored copies, falling inward' },
+  { id: 'ascii', name: 'ASCII BODY', note: 'Typed out in characters' },
+  { id: 'linescan', name: 'LINE SCAN', note: 'Scan lines that lift over your shape', isNew: true },
+  { id: 'halftone', name: 'DOT SCREEN', note: 'Print dots that swell on the kick' },
+  { id: 'fwindows', name: 'FINGER WINDOWS', note: 'Pinch both hands and pull apart to open a window', isNew: true, hands: true },
+  { id: 'strings', name: 'STRING HANDS', note: 'Glowing strings between your fingertips, plucked by the kick', isNew: true, hands: true },
+  { id: 'portal', name: 'PINCH PORTAL', note: 'Pinch and spread to open a portal', isNew: true, hands: true },
+];
+const GESTURES = [['pinch', 'PINCH + PULL', ['NEW WINDOW', 'PORTAL', 'PLUCK']], ['palm', 'OPEN PALM', ['CLEAR', 'RANDOMIZE', 'NOTHING']], ['fist', 'FIST', ['FREEZE', 'BLACKOUT', 'NOTHING']]];
+const MACROS = [['intensity', 'INTENSITY'], ['colour', 'COLOUR'], ['chaos', 'CHAOS'], ['trails', 'TRAILS'], ['lines', 'LINES'], ['size', 'SIZE']];
+const DEF_M = { intensity: 0.6, colour: 0.5, chaos: 0.25, trails: 0.15, lines: 0.45, size: 0.5 };
+const DEF_R = { intensity: 'drop', colour: 'section', chaos: 'snare', trails: 'none', lines: 'none', size: 'bass' };
+const REACT = [['kick', 'KICK', EMB], ['snare', 'SNARE', AMB], ['bass', 'BASS', ICE], ['drop', 'DROP', EMB], ['section', 'SECTION', INK], ['voice', 'VOICE', OK], ['hand', 'HANDS', '#e79bd0'], ['none', 'OFF', 'rgba(233,229,218,.2)']];
+const RL = Object.fromEntries(REACT.map((r) => [r[0], r]));
+const PALS = [['ember', 'EMBER', ['#050506', '#f2efe6', '#ff4b2b']], ['ice', 'ICE', ['#03060a', '#e8f4ff', '#29a8ff']], ['toxic', 'TOXIC', ['#040602', '#f1ffe0', '#b6ff2e']], ['bone', 'BONE', ['#0d0b08', '#efe6d2', '#c9b48a']], ['void', 'VOID', ['#000', '#fff', '#8a5cff']]];
+const GENS = [['beat-rings', 'BEAT RINGS'], ['drop-flash', 'DROP FLASH'], ['fog', 'FOG'], ['glitch-blocks', 'GLITCH BLOCKS'], ['hex-lattice', 'HEX LATTICE'], ['kaleido', 'KALEIDO'], ['metaballs', 'METABALLS'], ['plasma', 'PLASMA'], ['radial-ring', 'RADIAL RING'], ['scope', 'SCOPE'], ['spectrum-bars', 'SPECTRUM BARS'], ['starfield', 'STARFIELD'], ['synth-grid', 'SYNTH GRID'], ['tunnel', 'TUNNEL'], ['voice-core', 'VOICE CORE'], ['vortex', 'VORTEX']];
+const FILS = [['bass-wobble', 'BASS WOBBLE'], ['beat-strobe', 'BEAT STROBE'], ['datamosh', 'DATAMOSH'], ['depth-focus', 'DEPTH FOCUS'], ['edge-glow', 'EDGE GLOW'], ['feedback-trails', 'FEEDBACK TRAILS'], ['halftone', 'HALFTONE'], ['kaleido-mirror', 'KALEIDO MIRROR'], ['motion-trails', 'MOTION TRAILS'], ['palette-from-image', 'PALETTE FROM IMAGE'], ['pixel-sort', 'PIXEL SORT'], ['rgb-split', 'RGB SPLIT'], ['thermal', 'THERMAL'], ['vhs', 'VHS'], ['zoom-pulse', 'ZOOM PULSE']];
+const MILK = ['AURORA COIL', 'LIQUID SPINE', 'NEON SURGE', 'MOLTEN HALO', 'ORBIT DRIFT', 'VELVET STORM', 'PRISM WELL', 'ACID BLOOM', 'IRON TIDE', 'STATIC NAVE', 'GHOST LATTICE', 'SOLAR WAKE'];
+const TEXTS = [['decrypt', 'DECRYPT'], ['slam', 'SLAM'], ['countdown', 'COUNTDOWN'], ['shatter', 'SHATTER'], ['stencil', 'STENCIL']];
+const FACES = [['lowpoly', 'LOW-POLY'], ['depth', 'DEPTH GLITCH β'], ['popups', 'POP-UPS'], ['mosaic', 'MOSAIC'], ['glitch', 'GLITCH'], ['mask', 'MASK: VANTA']];
+const BASES = [['none', 'NONE'], ['waveform', 'WAVEFORM'], ['core', 'VOICE CORE'], ['camera', 'CAMERA'], ['photo', 'PHOTO'], ['video', 'VIDEO'], ['td', 'TOUCHDESIGNER']];
+const KIND = { gen: ['GEN', ICE], fil: ['FILTER', AMB], milk: ['MILKDROP', '#e79bd0'], td: ['TD', EMB] };
+const SEC_C = { INTRO: '#9aa3b5', BUILD: '#d9c46a', DROP: '#ff4b2b', BREAK: '#6fc2b0', 'NO TRACK': '#8d8a82' };
+const ASPECTS = { '9:16': 9 / 16, '16:9': 16 / 9, '1:1': 1 };
+let uid = 100;
+const L = (cat, fx, name, op, reacts, extra) => ({ id: 'l' + uid++, cat, fx, name, op, reacts, mute: false, solo: false, lock: false, ...extra });
+const BUSY = () => [L('fil', 'rgb-split', 'RGB SPLIT', 0.7, 'kick'), L('gen', 'beat-rings', 'BEAT RINGS', 0.8, 'kick'), L('milk', 'milk-1', 'AURORA COIL', 0.5, 'bass', { seed: 1 }), L('gen', 'synth-grid', 'SYNTH GRID', 0.65, 'section')];
+const tdLayer = (fx, td) => L('td', fx, 'TD · ' + TD_FX.find((f) => f.id === fx).name, 0.85, 'none', { td: { fx, macros: { ...DEF_M }, reacts: { ...DEF_R }, palette: 'ember', ...(td || {}) } });
+const SCENES = () => [
+  { name: 'HAZE', sub: 'FOG · EDGE', layers: [L('fil', 'edge-glow', 'EDGE GLOW', 0.8, 'bass'), L('gen', 'fog', 'FOG', 0.7, 'none')], text: false },
+  { name: 'RINGS', sub: 'RINGS · ZOOM', layers: [L('fil', 'zoom-pulse', 'ZOOM PULSE', 0.8, 'kick'), L('gen', 'beat-rings', 'BEAT RINGS', 0.9, 'kick')], text: false },
+  { name: 'DROP CHAOS', sub: '4 LAYERS + TEXT', layers: BUSY(), text: true },
+  { name: 'PLEXUS', sub: 'TD', layers: [tdLayer('plexus')], text: false },
+  { name: 'GRID RUN', sub: 'GRID · STARS · VHS', layers: [L('fil', 'vhs', 'VHS', 0.8, 'snare'), L('gen', 'starfield', 'STARFIELD', 0.8, 'none'), L('gen', 'synth-grid', 'SYNTH GRID', 0.8, 'section')], text: false },
+  { name: 'MOSAIC', sub: 'TD · RGB', layers: [L('fil', 'rgb-split', 'RGB SPLIT', 0.6, 'kick'), tdLayer('mosaic')], text: true },
+  null, null,
+];
+const arc = (v) => { if (v <= 0.004) return ''; const a0 = (135 * Math.PI) / 180, a1 = a0 + v * 1.5 * Math.PI, r = 27; return `M ${(32 + r * Math.cos(a0)).toFixed(2)} ${(32 + r * Math.sin(a0)).toFixed(2)} A ${r} ${r} 0 ${v * 270 > 180 ? 1 : 0} 1 ${(32 + r * Math.cos(a1)).toFixed(2)} ${(32 + r * Math.sin(a1)).toFixed(2)}`; };
+const ptr = (v, r = 16) => { const a = ((135 + v * 270) * Math.PI) / 180; return [(32 + r * Math.cos(a)).toFixed(2), (32 + r * Math.sin(a)).toFixed(2)]; };
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const STEP_TXT = [
+  { title: '1 · INSTALLED', todo: 'Looking for TouchDesigner on this Mac.', busy: 'Getting TouchDesigner…', ok: 'TouchDesigner 2025.3 found.', err: "TouchDesigner isn't on this Mac. It's free for non-commercial use." },
+  { title: '2 · FOXBOX PATCH BUILT', todo: 'FoxBox builds its own patch inside TouchDesigner.', busy: 'Building the FoxBox patch…', ok: 'Patch built: 10 effects ready.', err: "The patch didn't build." },
+  { title: '3 · ACTIVATED', todo: 'TouchDesigner needs one sign-in, once.', busy: 'Waiting for you to sign in…', ok: 'Signed in.', err: 'Open TouchDesigner once and sign in, then come back.' },
+  { title: '4 · CONNECTED', todo: 'FoxBox talks to TouchDesigner in the background.', busy: 'Connecting…', ok: 'Connected. Going live.', err: "FoxBox can't reach TouchDesigner." },
+];
+
+class Component extends DCLogic {
+  state = {
+    page: 'prod', frame: '1512', vp: { w: 1512, h: 982 }, statesOpen: false,
+    steps: ['ok', 'todo', 'todo', 'todo'], setupDone: false, tdConn: 'ok', cam: 'ok', camFb: 'demo', music: true,
+    fx: 'plexus', favs: { plexus: true, mosaic: true }, favOnly: 'all', macros: {}, reacts: {}, palette: 'ember', rOpen: null, roll: 0,
+    showHands: true, gest: { pinch: 0, palm: 0, fist: 0 }, maskFirst: false, rec: 'idle', recT0: 0, out: 'off', confirm: null, sent: null, tdAspect: '16:9',
+    src: 'track', latency: 'low', vAspect: '16:9', base: { kind: 'camera' }, layers: BUSY(),
+    text: { on: true, mode: 'slam', word: 'GHOSTWIRE', op: 1, reacts: 'drop', mute: false },
+    face: { on: true, style: 'lowpoly' }, faceConfirm: false, browser: false, bTab: 'gen', hover: null,
+    perf: false, autoVj: false, vOut: false, vConfirm: null, recLive: false, recLiveT0: 0,
+    blackout: false, freeze: false, dropFx: false, scene: null, scenes: SCENES(), vrOpen: null, delId: null, dragId: null, overId: null,
+    boxes: {}, toasts: [], tick: 0,
+  };
+  _t = [];
+  _cv = {};
+  _get = {};
+
+  componentDidMount() {
+    this._iv = setInterval(() => this.onTick(), 200);
+    this._onKey = (e) => this.onKey(e);
+    this._onKeyUp = (e) => { if (e.key === 'd' && this.state.perf) this.setState({ dropFx: false }); };
+    window.addEventListener('keydown', this._onKey); window.addEventListener('keyup', this._onKeyUp);
+    this._onResize = () => this.measure(); window.addEventListener('resize', this._onResize); this.measure();
+  }
+  componentWillUnmount() { clearInterval(this._iv); this._t.forEach(clearTimeout); window.removeEventListener('keydown', this._onKey); window.removeEventListener('keyup', this._onKeyUp); window.removeEventListener('resize', this._onResize); this._ro && this._ro.disconnect(); }
+  componentDidUpdate(pp, ps) { if (ps.music !== this.state.music && window.FXE) FXE.setPlaying(this.state.music); if (ps.frame !== this.state.frame) this.measure(); }
+  measure() { const el = this._outer; if (!el) return; this.setState({ vp: { w: el.clientWidth, h: el.clientHeight } }); }
+  later(fn, ms) { this._t.push(setTimeout(fn, ms)); }
+  clearTimers() { this._t.forEach(clearTimeout); this._t = []; }
+  toast(head, text, c = OK) { const id = Math.random(); this.setState((s) => ({ toasts: [...s.toasts.slice(-2), { id, head, text, c, edge: c === OK ? 'rgba(127,208,138,.4)' : 'rgba(255,178,62,.45)' }] })); this.later(() => this.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200); }
+
+  cv(key, get) {
+    this._get[key] = get;
+    if (!this._cv[key]) this._cv[key] = (el) => { if (!el) return; const go = () => (window.FXE ? FXE.attach(el, () => this._get[key] && this._get[key]()) : setTimeout(go, 80)); go(); };
+    return this._cv[key];
+  }
+  ro() {
+    if (!this._ro) this._ro = new ResizeObserver((ents) => { const b = { ...this.state.boxes }; let ch = false; for (const en of ents) { const k = en.target.dataset.box; if (!k) continue; const r = en.contentRect; if (!b[k] || b[k].w !== r.width || b[k].h !== r.height) { b[k] = { w: r.width, h: r.height }; ch = true; } } if (ch) this.setState({ boxes: b }); else this.forceUpdate(); });
+    return this._ro;
+  }
+  box(key) { if (!this._cv['box:' + key]) this._cv['box:' + key] = (el) => { if (el) { el.dataset.box = key; (this._boxEl = this._boxEl || {})[key] = el; this.ro().observe(el); requestAnimationFrame(() => this.forceUpdate()); } }; return this._cv['box:' + key]; }
+  fit(key, asp, pad = 28) { const el = this._boxEl && this._boxEl[key]; const b = el && el.isConnected && el.clientWidth ? { w: el.clientWidth - 28, h: el.clientHeight - 28 } : this.state.boxes[key]; if (!b) return { w: 640, h: 360 }; const W = b.w - pad, H = b.h - pad; const a = ASPECTS[asp]; return W / H > a ? { w: Math.round(H * a), h: Math.round(H) } : { w: Math.round(W), h: Math.round(W / a) }; }
+
+  onTick() {
+    if (!window.FXE) return;
+    const c = FXE.clock();
+    if (this._sec && c.sec !== this._sec && this.state.autoVj && this.state.page === 'visuals' && c.playing) this.autoChange(c.sec);
+    this._sec = c.sec;
+    this.setState((s) => ({ tick: s.tick + 1 }));
+  }
+  autoChange(sec) {
+    let n = 0;
+    const layers = this.state.layers.map((l) => {
+      if (l.lock) return l; n++;
+      if (l.cat === 'gen') { const g = GENS[Math.floor(Math.random() * GENS.length)]; return { ...l, fx: g[0], name: g[1] }; }
+      if (l.cat === 'fil') { const g = FILS[Math.floor(Math.random() * FILS.length)]; return { ...l, fx: g[0], name: g[1] }; }
+      if (l.cat === 'milk') { const k = Math.floor(Math.random() * 12); return { ...l, seed: k + 1, fx: 'milk-' + (k + 1), name: MILK[k] }; }
+      return l;
+    });
+    this.setState({ layers });
+    this.toast('AUTO-VJ', `New look for the ${sec}: ${n} layer${n === 1 ? '' : 's'} changed, locked ones kept.`, AMB);
+  }
+  onKey(e) {
+    const tag = (e.target && e.target.tagName) || ''; if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const s = this.state;
+    if (s.page === 'visuals') {
+      if (e.key === 'p' || e.key === 'P') return this.setState({ perf: !s.perf, browser: false });
+      if (e.key === 'Escape' && s.perf) return this.setState({ perf: false });
+      if (s.perf) {
+        if (/^[1-8]$/.test(e.key)) return this.firePad(+e.key - 1);
+        if (e.key === 'b') return this.setState({ blackout: !s.blackout });
+        if (e.key === 'f') return this.setState({ freeze: !s.freeze });
+        if (e.key === 'a') return this.setState({ autoVj: !s.autoVj });
+        if (e.key === 'd' && !e.repeat) return this.setState({ dropFx: true });
+      }
+    }
+    if (s.page === 'prod' && s.setupDone && (e.key === 'r' || e.key === 'R')) this.randomize();
+  }
+
+  /* ---- PROD ---- */
+  mac(fx = this.state.fx) { return { ...DEF_M, ...(this.state.macros[fx] || {}) }; }
+  rea(fx = this.state.fx) { return { ...DEF_R, ...(this.state.reacts[fx] || {}) }; }
+  setMac(k, v) { const fx = this.state.fx; this.setState((s) => ({ macros: { ...s.macros, [fx]: { ...DEF_M, ...(s.macros[fx] || {}), [k]: cl(v) } } })); }
+  setRea(k, v) { const fx = this.state.fx; this.setState((s) => ({ reacts: { ...s.reacts, [fx]: { ...DEF_R, ...(s.reacts[fx] || {}), [k]: v } }, rOpen: null })); }
+  randomize() { const fx = this.state.fx, m = {}; MACROS.forEach(([k]) => (m[k] = Math.round((0.15 + Math.random() * 0.8) * 100) / 100)); const p = PALS[Math.floor(Math.random() * PALS.length)][0]; this.setState((s) => ({ macros: { ...s.macros, [fx]: m }, palette: p, roll: s.roll + 360 })); }
+  tdOpts(thumbFx) {
+    const s = this.state;
+    if (thumbFx) return { kind: 'td', fx: thumbFx, macros: this.mac(thumbFx), reacts: this.rea(thumbFx), palette: s.palette, src: s.cam === 'denied' && s.camFb === 'stage' ? 'stage' : 'cam', maskFirst: s.maskFirst, fps: 20, dpr: 1 };
+    return { kind: 'td', fx: s.fx, macros: this.mac(), reacts: this.rea(), palette: s.palette, src: s.cam === 'denied' && s.camFb === 'stage' ? 'stage' : 'cam', maskFirst: s.maskFirst && !(s.cam === 'denied' && s.camFb === 'stage'), frozen: s.tdConn !== 'ok', idle: !s.music, showHands: s.showHands, dpr: 1.5 };
+  }
+  runSetup(from) {
+    this.clearTimers();
+    const set = (steps) => this.setState({ steps });
+    if (from === 'install') { set(['busy', 'todo', 'todo', 'todo']); this.later(() => set(['ok', 'todo', 'todo', 'todo']), 1600); return; }
+    if (from <= 1) { set(['ok', 'busy', 'todo', 'todo']); this.later(() => set(['ok', 'ok', 'busy', 'todo']), 1900); this.later(() => set(['ok', 'ok', 'err', 'todo']), 2900); return; }
+    if (from === 2) { set(['ok', 'ok', 'busy', 'todo']); this.later(() => set(['ok', 'ok', 'ok', 'busy']), 1700); this.later(() => set(['ok', 'ok', 'ok', 'ok']), 2700); this.later(() => { this.setState({ setupDone: true }); this.toast('TOUCHDESIGNER', 'Connected. Next time PROD opens straight into the camera.'); }, 3500); }
+  }
+  commit(kind, force) {
+    const s = this.state;
+    const faceShown = s.cam === 'ok' && !s.maskFirst;
+    if (kind === 'rec') { if (s.rec === 'rec') { this.setState({ rec: 'idle' }); this.toast('CLIP SAVED', `${mmss((Date.now() - s.recT0) / 1000)} · ${faceShown ? 'face visible' : 'face hidden'} · in VAULT`); return; } }
+    if (kind === 'out' && s.out === 'on') { if (s.confirm === 'stopOut') { this.setState({ out: 'off', confirm: null }); return; } this.setState({ confirm: 'stopOut' }); this.later(() => this.state.confirm === 'stopOut' && this.setState({ confirm: null }), 3000); return; }
+    if (faceShown && !force) return this.setState({ confirm: kind });
+    if (kind === 'rec') this.setState({ rec: 'rec', recT0: Date.now(), confirm: null });
+    if (kind === 'out') { this.setState({ out: 'on', confirm: null }); this.toast('ON OUTPUT', `Projector window · ${s.tdAspect} · ${faceShown ? 'face visible' : 'face hidden'}`); }
+  }
+  sendToVisuals() {
+    const s = this.state, f = TD_FX.find((x) => x.id === s.fx);
+    const layer = tdLayer(s.fx, { macros: this.mac(), reacts: this.rea(), palette: s.palette });
+    this.setState((st) => ({ layers: [layer, ...st.layers], sent: s.fx }));
+    this.toast('ON VISUALS', `${f.name} is on top of the VISUALS stack as a TOUCHDESIGNER layer.`);
+  }
+
+  /* ---- VISUALS ---- */
+  upd(id, patch) { this.setState((s) => ({ layers: s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) })); }
+  move(id, toId, after) { this.setState((s) => { const a = s.layers.slice(), i = a.findIndex((l) => l.id === id); if (i < 0) return null; const [it] = a.splice(i, 1); let j = a.findIndex((l) => l.id === toId); if (j < 0) j = a.length; else if (after) j++; a.splice(j, 0, it); return { layers: a, dragId: null, overId: null }; }); }
+  addTile(t) {
+    const s = this.state;
+    if (t.cat === 'text') { this.setState({ text: { ...s.text, on: true, mute: false, mode: t.fx } }); this.toast('TEXT', `TEXT layer now ${t.name}.`); return; }
+    const l = t.cat === 'td' ? tdLayer(t.fx) : L(t.cat, t.fx, t.name, t.cat === 'fil' ? 0.8 : 0.75, 'kick', t.seed ? { seed: t.seed } : {});
+    this.setState({ layers: [l, ...s.layers], hover: null });
+  }
+  tiles() {
+    const s = this.state;
+    if (s.bTab === 'gen') return GENS.map(([fx, n]) => ({ cat: 'gen', fx, name: n, badge: fx === 'drop-flash' ? '▲ FLASH' : '', badgeC: AMB }));
+    if (s.bTab === 'fil') return FILS.map(([fx, n]) => ({ cat: 'fil', fx, name: n, badge: fx === 'beat-strobe' ? '▲ FLASH' : '', badgeC: AMB }));
+    if (s.bTab === 'milk') return MILK.map((n, i) => ({ cat: 'milk', fx: 'milk-' + (i + 1), seed: i + 1, name: n }));
+    if (s.bTab === 'text') return TEXTS.map(([fx, n]) => ({ cat: 'text', fx, name: n, word: 'GHOSTWIRE', mode: fx }));
+    return TD_FX.map((f) => ({ cat: 'td', fx: f.id, name: f.name, badge: f.isNew ? 'NEW' : '', badgeC: AMB }));
+  }
+  firePad(i) {
+    const s = this.state, sc = s.scenes[i];
+    if (!sc) { const snap = { name: 'MY LOOK ' + (i + 1), sub: s.layers.length + ' LAYERS', layers: s.layers.map((l) => ({ ...l, id: 'l' + uid++ })), text: s.text.on }; const scenes = s.scenes.slice(); scenes[i] = snap; this.setState({ scenes, scene: i }); this.toast('SCENE SAVED', `Pad ${i + 1} holds this look.`); return; }
+    this.setState({ layers: sc.layers.map((l) => ({ ...l, id: 'l' + uid++ })), text: { ...s.text, on: sc.text }, scene: i, blackout: false });
+  }
+  stackOpts() {
+    const s = this.state;
+    const prev = s.browser && s.hover ? { ...s.hover, id: 'pv', op: 0.9, reacts: 'none', td: s.hover.cat === 'td' ? { fx: s.hover.fx, macros: DEF_M, reacts: DEF_R, palette: 'ember' } : undefined } : null;
+    return { kind: 'stack', palette: 'ember', base: s.base, layers: s.layers, text: s.text, face: s.face, preview: prev && prev.cat !== 'text' ? prev : null, blackout: s.blackout, frozen: s.freeze, dropFx: s.dropFx, dpr: 1.5 };
+  }
+  applyState(n) {
+    this.clearTimers();
+    const live = { page: 'prod', setupDone: true, steps: ['ok', 'ok', 'ok', 'ok'], tdConn: 'ok', cam: 'ok', music: true, maskFirst: false, rec: 'idle', out: 'off', confirm: null, statesOpen: false, perf: false };
+    const vis = { page: 'visuals', statesOpen: false, perf: false, browser: false, hover: null, autoVj: false, vOut: false, vConfirm: null, face: { on: true, style: 'lowpoly' }, faceConfirm: false, music: true, blackout: false, freeze: false, dropFx: false, base: { kind: 'camera' }, layers: BUSY(), text: { on: true, mode: 'slam', word: 'GHOSTWIRE', op: 1, reacts: 'drop', mute: false } };
+    const S = {
+      1: { ...live, setupDone: false, steps: ['err', 'todo', 'todo', 'todo'] },
+      2: { ...live, setupDone: false, steps: ['ok', 'todo', 'todo', 'todo'] },
+      3: { ...live, setupDone: false, steps: ['ok', 'busy', 'todo', 'todo'] },
+      4: { ...live, setupDone: false, steps: ['ok', 'ok', 'err', 'todo'] },
+      5: { ...live, fx: 'plexus' },
+      6: { ...live, fx: 'mosaic', maskFirst: true },
+      7: { ...live, cam: 'denied', camFb: 'demo' },
+      8: { ...live, music: false },
+      9: { ...live, tdConn: 'down' },
+      10: { ...live, maskFirst: true, rec: 'rec', recT0: Date.now() - 14000 },
+      11: { ...live, fx: 'mosaic', maskFirst: true, out: 'on' },
+      12: { ...vis, base: { kind: 'none' }, layers: [], text: { ...vis.text, on: false } },
+      13: { ...vis },
+      14: { ...vis, browser: true, bTab: 'gen', hover: { cat: 'gen', fx: 'hex-lattice', name: 'HEX LATTICE' } },
+      15: { ...vis, perf: true, scene: 2 },
+      16: { ...vis, autoVj: true, layers: vis.layers.map((l, i) => (i === 1 ? { ...l, lock: true } : l)) },
+      17: { ...vis, face: { on: false, style: 'lowpoly' } },
+      18: { ...vis, vOut: true },
+      19: { ...live, fx: 'fwindows', favOnly: 'hands' },
+      20: { ...live, fx: 'strings', favOnly: 'hands', reacts: { ...this.state.reacts, strings: { ...DEF_R, lines: 'hand' } } },
+    }[n];
+    if (S) this.setState(S);
+  }
+
+  renderVals() {
+    const s = this.state, c = window.FXE ? FXE.clock() : { sec: 'BUILD', next: 'DROP', toNext: 8, toNextBars: 4, playing: true, bpm: 140 };
+    const seg = (opts, cur, set, onBg = INK, onFg = '#0b0b0c') => opts.map(([v, label]) => ({ label, on: String(cur === v), bg: cur === v ? onBg : 'transparent', fg: cur === v ? onFg : DIM, onClick: () => set(v) }));
+    // frame
+    const FR = { 1512: [1512, 982], 1280: [1280, 800] }[s.frame] || [Math.max(1280, s.vp.w), Math.max(800, s.vp.h)];
+    const sc = Math.min(1, s.vp.w / FR[0], s.vp.h / FR[1]);
+    const fr = { w: FR[0], h: FR[1], s: sc.toFixed(4), x: Math.round((s.vp.w - FR[0] * sc) / 2), y: Math.max(0, Math.round((s.vp.h - FR[1] * sc) / 2)), cols: s.perf && s.page === 'visuals' ? 'minmax(0,1fr)' : '76px minmax(0,1fr)' };
+    const RAIL = [['01', 'STUDIO'], ['02', 'VISUALS', 'visuals'], ['03', 'MASKS'], ['04', 'REMIX', null, 'wip'], ['05', 'VAULT'], ['06', 'PROD', 'prod', 'demo'], ['07', 'VOICES'], ['08', 'SETTINGS']];
+    const rail = RAIL.map(([code, label, pg, tag]) => { const cur = pg && s.page === pg; return { code, label, cur: cur ? 'page' : undefined, isCur: cur, wip: tag === 'wip', demo: tag === 'demo', dis: String(tag === 'wip'), op: tag === 'wip' ? 0.45 : 1, cursor: tag === 'wip' ? 'not-allowed' : 'pointer', fg: cur ? INK : DIM, title: tag === 'wip' ? 'REMIX is a work in progress' : pg ? label : label + ' (not part of this prototype)', onClick: () => pg && this.setState({ page: pg, statesOpen: false }) }; });
+    const stateGroups = [
+      { title: 'PROD · TOUCHDESIGNER', items: ['Setup: not installed', 'Setup: installed, not set up', 'Setup: mid-setup', 'Setup: activate needed', 'Live with the camera (face visible)', 'MASK FIRST on', 'Camera permission denied', 'No music playing', 'TouchDesigner quit (RECONNECT)', 'Recording', 'Sent to OUTPUT'].map((label, i) => ({ n: i + 1, label, onClick: () => this.applyState(i + 1) })).concat([{ n: 19, label: 'Hand gestures: FINGER WINDOWS', onClick: () => this.applyState(19) }, { n: 20, label: 'Hand gestures: STRING HANDS', onClick: () => this.applyState(20) }]) },
+      { title: 'VISUALS', items: ['Empty (no layers)', 'Busy stack', 'Effect browser + hover preview', 'Performance mode', 'AUTO-VJ running', 'Face hiding off', 'OUTPUT live'].map((label, i) => ({ n: i + 12, label, onClick: () => this.applyState(i + 12) })) },
+    ];
+    const frameOpts = [['1512', '1512×982'], ['1280', '1280×800'], ['fit', 'FIT']].map(([v, label]) => ({ label, on: String(s.frame === v), bg: s.frame === v ? AMB : 'rgba(233,229,218,.07)', fg: s.frame === v ? '#0b0b0c' : INK, onClick: () => this.setState({ frame: v }) }));
+
+    // shared song
+    const secName = c.sec;
+    const song = { title: s.music ? 'GHOSTWIRE (VIP)' : 'NOTHING PLAYING', meta: s.music ? `STUDIO TRACK · ${c.bpm} BPM · F MINOR` : 'Play the STUDIO track to drive the effects', sec: secName, secBg: SEC_C[secName] || DIM, next: s.music ? `${c.next} IN ${mmss(c.toNext)}` : '' };
+    const faceShown = s.cam === 'ok' && !s.maskFirst;
+
+    // PROD values
+    const isLive = s.setupDone;
+    const tdS = !s.setupDone ? { label: 'NOT SET UP', dot: DIM, fg: DIM, anim: 'none' } : s.tdConn === 'ok' ? { label: 'TOUCHDESIGNER CONNECTED · 60 FPS', dot: OK, fg: OK, anim: 'none' } : s.tdConn === 'conn' ? { label: 'RECONNECTING…', dot: AMB, fg: AMB, anim: 'vbBlink .8s steps(2) infinite' } : { label: '▲ TOUCHDESIGNER STOPPED', dot: EMB, fg: EMB, anim: 'vbBlink 1s steps(2) infinite' };
+    const camChip = s.cam === 'denied' ? { glyph: '○', label: s.camFb === 'demo' ? 'CAMERA OFF: DEMO LOOP' : 'CAMERA OFF: FOXBOX STAGE', fg: DIM, edge: 'rgba(233,229,218,.2)', bg: '#111113' } : s.maskFirst ? { glyph: '●', label: 'MASK FIRST: FACE HIDDEN', fg: OK, edge: 'rgba(127,208,138,.55)', bg: 'rgba(127,208,138,.08)' } : { glyph: '▲', label: 'FACE VISIBLE: RAW CAMERA', fg: AMB, edge: AMB, bg: 'rgba(255,178,62,.1)' };
+    const mOn = s.maskFirst;
+    const maskT = { trk: mOn ? 'rgba(127,208,138,.18)' : '#0b0b0c', trkEdge: mOn ? 'rgba(127,208,138,.7)' : 'rgba(233,229,218,.2)', knob: mOn ? OK : DIM, knobX: mOn ? 16 : 2, edge: mOn ? 'rgba(127,208,138,.4)' : 'rgba(233,229,218,.14)', sub: mOn ? 'face hiding runs first' : 'off: raw camera', op: s.cam === 'denied' ? 0.45 : 1 };
+    const stepC = { ok: OK, busy: AMB, err: EMB, todo: DIM }, stepG = { ok: '✓', busy: '…', err: '!', todo: '○' }, stepL = { ok: 'DONE', busy: 'WORKING', err: 'NEEDS YOU', todo: 'WAITING' };
+    const curStep = Math.max(0, s.steps.findIndex((x) => x !== 'ok'));
+    const steps = s.steps.map((st, i) => {
+      const T = STEP_TXT[i], acts = [];
+      if (st === 'err' && i === 0) acts.push({ label: 'GET TOUCHDESIGNER (FREE)', onClick: () => this.runSetup('install'), bg: EMB, fg: '#0b0b0c', border: '0' });
+      if (st === 'err' && i === 2) acts.push({ label: 'OPEN TOUCHDESIGNER', onClick: () => this.runSetup(2), bg: EMB, fg: '#0b0b0c', border: '0' });
+      if (st === 'err') acts.push({ label: 'TRY AGAIN', onClick: () => this.runSetup(i === 0 ? 'install' : i), bg: 'rgba(233,229,218,.07)', fg: INK, border: '1px solid rgba(233,229,218,.18)' });
+      acts.forEach((a) => (a.shadow = a.bg === EMB ? '0 0 18px rgba(255,75,43,.3),inset 0 1px 0 rgba(255,255,255,.35),inset 0 -3px 0 rgba(0,0,0,.28)' : 'none'));
+      const cur = i === curStep, c0 = stepC[st];
+      return { num: '0' + (i + 1), name: T.title.split(' · ')[1], detail: T[st], stateL: stepL[st], c: st === 'todo' ? 'rgba(233,229,218,.18)' : c0, glyph: stepG[st], anim: st === 'busy' ? 'vbBreathe 1s ease-in-out infinite' : 'none',
+        nodeBg: st === 'ok' ? 'rgba(127,208,138,.12)' : st === 'err' ? EMB : st === 'busy' ? 'rgba(255,178,62,.12)' : '#0b0b0c', nodeFg: st === 'err' ? '#0b0b0c' : st === 'todo' ? DIM : c0,
+        glow: st === 'busy' ? '0 0 18px rgba(255,178,62,.4)' : st === 'err' ? '0 0 22px rgba(255,75,43,.45)' : 'none',
+        lineC: st === 'ok' ? 'rgba(127,208,138,.55)' : 'rgba(233,229,218,.1)', notLast: i < 3, flex: cur ? '1.6 1 0' : '1 1 0',
+        bg: cur ? (st === 'err' ? 'rgba(255,75,43,.06)' : st === 'busy' ? 'rgba(255,178,62,.05)' : '#0b0b0c') : 'transparent', edge: cur ? (st === 'err' ? 'rgba(255,75,43,.5)' : st === 'busy' ? 'rgba(255,178,62,.4)' : 'rgba(233,229,218,.14)') : 'transparent', inset: cur ? 'inset 0 2px 8px rgba(0,0,0,.55)' : 'none', op: st === 'todo' && !cur ? 0.6 : 1, titleSz: cur ? '36px' : '26px',
+        chipBg: st === 'todo' ? 'rgba(233,229,218,.06)' : st === 'err' ? EMB : st === 'busy' ? 'rgba(255,178,62,.14)' : 'rgba(127,208,138,.12)', chipFg: st === 'err' ? '#0b0b0c' : st === 'todo' ? DIM : c0,
+        hasActs: acts.length > 0, acts };
+    });
+    const doneN = s.steps.filter((x) => x === 'ok').length;
+    const setupLeds = Array.from({ length: 16 }, (_, i) => { const stp = Math.floor(i / 4), st = s.steps[stp]; return { c: st === 'ok' ? OK : st === 'busy' ? (i % 4 <= (Math.floor(Date.now() / 250) % 4) ? AMB : 'rgba(255,178,62,.18)') : st === 'err' ? EMB : 'rgba(233,229,218,.08)', g: st === 'ok' ? '0 0 6px rgba(127,208,138,.5)' : st === 'err' ? '0 0 6px rgba(255,75,43,.5)' : 'none', a: 'none' }; });
+    const busy = s.steps.includes('busy'), needInstall = s.steps[0] !== 'ok', needAct = s.steps[2] === 'err';
+    const setupPrimary = needInstall ? { label: 'GET TOUCHDESIGNER (FREE)', onClick: () => this.runSetup('install'), dis: busy, op: busy ? 0.5 : 1, bg: EMB } : needAct ? { label: 'OPEN TOUCHDESIGNER', onClick: () => this.runSetup(2), dis: false, op: 1, bg: EMB } : busy ? { label: 'SETTING UP…', onClick: null, dis: true, op: 0.6, bg: AMB } : { label: 'SET UP TOUCHDESIGNER', onClick: () => this.runSetup(1), dis: false, op: 1, bg: EMB };
+    const curFx = TD_FX.find((f) => f.id === s.fx);
+    const tdMode = TD_FX.find((f) => f.id === s.fx).hands ? 'hands' : 'body';
+    const list = TD_FX.filter((f) => (tdMode === 'hands' ? f.hands : !f.hands) && (s.favOnly !== 'fav' || s.favs[f.id]));
+    const tdTiles = list.map((f) => { const on = f.id === s.fx; return { name: f.name, isNew: !!f.isNew, hands: !!f.hands, onS: String(on), edge: on ? 'rgba(233,229,218,.7)' : 'rgba(233,229,218,.08)', glow: on ? '0 0 0 1px rgba(233,229,218,.25),0 0 18px rgba(255,75,43,.18)' : 'none', fg: on ? INK : '#bdb8ac', led: on ? EMB : 'rgba(233,229,218,.1)', ledGlow: on ? '0 0 8px #ff4b2b' : 'none', favG: s.favs[f.id] ? '★' : '☆', favC: s.favs[f.id] ? AMB : DIM, favS: String(!!s.favs[f.id]), favAria: (s.favs[f.id] ? 'Unfavourite ' : 'Favourite ') + f.name, onFav: (e) => { e.stopPropagation(); this.setState((st) => ({ favs: { ...st.favs, [f.id]: !st.favs[f.id] } })); }, onClick: () => this.setState({ fx: f.id, rOpen: null }), onKey: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ fx: f.id }); } }, ref: this.cv('tdt:' + f.id, () => this.tdOpts(f.id)) }; });
+    const m = this.mac(), r = this.rea();
+    const knobs = MACROS.map(([k, label]) => {
+      const v = m[k], rr = RL[r[k]], open = s.rOpen === k, [px, py] = ptr(v);
+      return { label, pct: Math.round(v * 100), arc: arc(v), px, py, cellBg: open ? '#18181b' : '#0b0b0c', cellEdge: open ? 'rgba(255,178,62,.5)' : 'rgba(233,229,218,.06)', reactsL: rr[1], reactsAria: `${label} reacts to ${rr[1]}`, rDot: rr[2], rEdge: r[k] === 'none' ? 'rgba(233,229,218,.14)' : 'rgba(233,229,218,.3)', rBg: r[k] === 'none' ? 'none' : 'rgba(233,229,218,.05)', rFg: r[k] === 'none' ? DIM : INK, openS: String(open),
+        onReacts: () => this.setState({ rOpen: open ? null : k }),
+        onDown: (e) => { e.preventDefault(); e.currentTarget.focus(); const y0 = e.clientY, v0 = this.mac()[k]; const mv = (ev) => this.setMac(k, v0 + (y0 - ev.clientY) / 160); const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); },
+        onKey: (e) => { const d = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05 }[e.key]; if (d) { e.preventDefault(); this.setMac(k, this.mac()[k] + d); } },
+        onReset: () => this.setMac(k, DEF_M[k]),
+        ringRef: this.cv('ring:' + k, () => ({ kind: 'modring', v: this.mac()[k], src: this.rea()[k], dpr: 2 })) };
+    });
+    const rMenu = s.rOpen ? { show: true, title: `${MACROS.find((x) => x[0] === s.rOpen)[1]} REACTS TO`, aria: `${s.rOpen} reacts to`, onClose: () => this.setState({ rOpen: null }), opts: REACT.map(([v, label, col]) => { const on = r[s.rOpen] === v; return { label, dot: col, on: String(on), bg: on ? INK : 'rgba(233,229,218,.07)', fg: on ? '#0b0b0c' : INK, onClick: () => this.setRea(s.rOpen, v) }; }) } : { show: false };
+    const pals = PALS.map(([v, label, cs]) => { const on = s.palette === v; return { label, on: String(on), c0: cs[0], c1: cs[1], c2: cs[2], edge: on ? 'rgba(233,229,218,.7)' : 'rgba(233,229,218,.08)', bg: on ? '#18181b' : '#0b0b0c', fg: on ? INK : DIM, onClick: () => this.setState({ palette: v }) }; });
+    const fit = this.fit('td', s.tdAspect);
+    const tdDown = s.setupDone && s.tdConn !== 'ok';
+    const tdFit = { ...fit, ring: s.out === 'on' ? '0 0 0 2px #ff4b2b,0 0 30px rgba(255,75,43,.4)' : s.rec === 'rec' ? '0 0 0 1px #ff4b2b' : '0 0 0 1px rgba(233,229,218,.1)', anim: s.out === 'on' ? 'vbLive 2.4s ease-in-out infinite' : 'none', op: tdDown ? 0.55 : 1, filter: tdDown ? 'grayscale(1)' : 'none' };
+    const recSecs = (Date.now() - s.recT0) / 1000;
+    const rec = s.rec === 'rec' ? { label: 'STOP · ' + mmss(recSecs), sub: faceShown ? '▲ FACE VISIBLE IN CLIP' : '● FACE HIDDEN IN CLIP', subC: faceShown ? AMB : OK, bg: 'rgba(255,75,43,.12)', edge: EMB, fg: EMB, dot: EMB, shape: '2px', anim: 'vbBlink 1s steps(2) infinite' } : { label: 'RECORD A CLIP', sub: faceShown ? '▲ FACE VISIBLE' : s.cam === 'denied' ? '○ NO CAMERA IN CLIP' : '● FACE HIDDEN', subC: faceShown ? AMB : s.cam === 'denied' ? DIM : OK, bg: '#111113', edge: 'rgba(233,229,218,.24)', fg: INK, dot: EMB, shape: '50%', anim: 'none' };
+    Object.assign(rec, { dis: tdDown, op: tdDown ? 0.45 : 1, onClick: () => this.commit('rec') });
+    const sentNow = s.sent === s.fx;
+    const send = { label: sentNow ? '✓ ON VISUALS' : 'SEND TO VISUALS', sub: sentNow ? 'OPEN VISUALS →' : 'adds a TOUCHDESIGNER layer', subC: sentNow ? OK : DIM, bg: sentNow ? 'rgba(127,208,138,.08)' : '#111113', edge: sentNow ? 'rgba(127,208,138,.55)' : 'rgba(233,229,218,.24)', fg: INK, dis: tdDown, op: tdDown ? 0.45 : 1, onClick: () => (sentNow ? this.setState({ page: 'visuals' }) : this.sendToVisuals()) };
+    const outOn = s.out === 'on';
+    const outB = outOn ? { label: s.confirm === 'stopOut' ? 'STOP OUTPUT?' : '● ON OUTPUT', sub: s.confirm === 'stopOut' ? 'CLICK AGAIN TO STOP' : faceShown ? '▲ FACE VISIBLE ON PROJECTOR' : '● FACE HIDDEN · CLICK TO STOP', subC: '#0b0b0c', bg: EMB, fg: '#0b0b0c', shadow: '0 0 0 1px rgba(0,0,0,.65),0 0 26px rgba(255,75,43,.45),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.28)' } : { label: 'SEND TO OUTPUT', sub: faceShown ? '▲ FACE VISIBLE' : s.cam === 'denied' ? '○ NO CAMERA' : '● FACE HIDDEN', subC: faceShown ? '#5a2a00' : '#0b0b0c', bg: faceShown ? AMB : '#e9e5da', fg: '#0b0b0c', shadow: '0 0 0 1px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.28)' };
+    Object.assign(outB, { dis: tdDown, op: tdDown ? 0.45 : 1, onClick: () => this.commit('out') });
+    const cf = s.confirm === 'rec' || s.confirm === 'out';
+    const confirm = cf ? { show: true, verb: s.confirm === 'rec' ? 'RECORD' : 'SEND', text: s.confirm === 'rec' ? 'This clip will show your real face from the raw camera.' : 'The projector will show your real face from the raw camera.', onMask: () => { this.setState({ maskFirst: true }); setTimeout(() => this.commit(this.state.confirm, true), 0); }, onGo: () => this.commit(s.confirm, true), onCancel: () => this.setState({ confirm: null }) } : { show: false };
+    const meters = [['K', 'kick'], ['S', 'snare'], ['B', 'bass'], ['D', 'drop']].map(([label, src]) => ({ label, ref: this.cv('m:' + src, () => ({ kind: 'meter', src, segs: 8, dpr: 2 })) }));
+
+    // VISUALS values
+    const isVis = s.page === 'visuals', perf = s.perf && isVis;
+    const solo = s.layers.some((l) => l.solo);
+    const rows = s.layers.map((l, i) => {
+      const k = KIND[l.cat] || KIND.gen, rr = RL[l.reacts] || RL.none, ro = s.vrOpen === l.id, del = s.delId === l.id, [px, py] = ptr(l.op, 15), over = s.overId === l.id && s.dragId && s.dragId !== l.id;
+      const dim = l.mute || (solo && !l.solo);
+      return { n: String(s.layers.length + 1 - i).padStart(2, '0'), nC: dim ? DIM : INK, name: l.name, kind: k[0], kindS: { GEN: 'GEN', FILTER: 'FX', MILKDROP: 'MD', TD: 'TD' }[k[0]], kindC: k[1], aria: `${l.name}, layer ${i + 1}. Alt+arrows to move.`, thumb: this.cv('lt:' + l.id + ':' + l.fx + ':' + (l.seed || ''), () => ({ kind: 'layer', layer: l, fps: 20, dpr: 1 })), meter: this.cv('lm:' + l.id, () => ({ kind: 'meter', src: (this.state.layers.find((x) => x.id === l.id) || {}).reacts || 'none', segs: 6, dpr: 2 })),
+        reactsL: rr[1] === 'OFF' ? 'STEADY' : rr[1], rDot: rr[2], rEdge: l.reacts === 'none' ? 'rgba(233,229,218,.14)' : 'rgba(233,229,218,.3)', rOpen: ro, rOpenS: String(ro), rAria: l.name + ' reacts to',
+        onReacts: () => this.setState({ vrOpen: ro ? null : l.id }),
+        rOpts: REACT.filter((x) => x[0] !== 'voice').map(([v, label, col]) => ({ label: label === 'OFF' ? 'STEADY' : label, dot: col, on: String(l.reacts === v), bg: l.reacts === v ? INK : 'rgba(233,229,218,.07)', fg: l.reacts === v ? '#0b0b0c' : INK, onClick: () => { this.upd(l.id, { reacts: v }); this.setState({ vrOpen: null }); } })),
+        arc: arc(l.op), px, py, opPct: Math.round(l.op * 100), opAria: l.name + ' opacity', opTitle: `OPACITY ${Math.round(l.op * 100)}% · drag up/down`,
+        onKnob: (e) => { e.preventDefault(); e.stopPropagation(); const y0 = e.clientY, v0 = l.op; const mv = (ev) => this.upd(l.id, { op: cl(v0 + (y0 - ev.clientY) / 140) }); const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); },
+        onKnobKey: (e) => { const d = { ArrowUp: 0.05, ArrowDown: -0.05 }[e.key]; if (d && !e.altKey) { e.preventDefault(); e.stopPropagation(); this.upd(l.id, { op: cl(l.op + d) }); } },
+        mS: String(l.mute), mAria: 'Mute ' + l.name, mBg: l.mute ? AMB : 'rgba(233,229,218,.07)', mFg: l.mute ? '#0b0b0c' : INK, onM: () => this.upd(l.id, { mute: !l.mute }),
+        sS: String(l.solo), sAria: 'Solo ' + l.name, sBg: l.solo ? ICE : 'rgba(233,229,218,.07)', sFg: l.solo ? '#0b0b0c' : INK, onS: () => this.upd(l.id, { solo: !l.solo }),
+        lockShow: s.autoVj, lockS: String(l.lock), lockL: l.lock ? '■ LOCKED' : '□ LOCK', lockBg: l.lock ? 'rgba(255,178,62,.16)' : 'rgba(233,229,218,.07)', lockFg: l.lock ? AMB : DIM, onLock: () => this.upd(l.id, { lock: !l.lock }),
+        delL: del ? 'REMOVE?' : '✕', delAria: del ? 'Click again to remove ' + l.name : 'Remove ' + l.name, delEdge: del ? EMB : 'rgba(233,229,218,.12)', delBg: del ? 'rgba(255,75,43,.12)' : 'none', delFg: del ? EMB : DIM,
+        onDel: () => { if (del) this.setState((st) => ({ layers: st.layers.filter((x) => x.id !== l.id), delId: null })); else { this.setState({ delId: l.id }); this.later(() => this.state.delId === l.id && this.setState({ delId: null }), 3000); } },
+        bg: ro ? '#18181b' : s.dragId === l.id ? '#18181b' : '#0b0b0c', edge: s.dragId === l.id ? 'rgba(255,178,62,.6)' : 'rgba(233,229,218,.08)', op: s.dragId === l.id ? 0.5 : dim ? 0.5 : 1,
+        dropLine: over ? (s.overAfter ? 'inset 0 -2px 0 #ffb23e' : 'inset 0 2px 0 #ffb23e') : 'none',
+        onDragStart: (e) => { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', l.id); } catch (_) {} this.setState({ dragId: l.id }); },
+        onDragOver: (e) => { e.preventDefault(); const rct = e.currentTarget.getBoundingClientRect(); const after = e.clientY > rct.top + rct.height / 2; if (this.state.overId !== l.id || this.state.overAfter !== after) this.setState({ overId: l.id, overAfter: after }); },
+        onDrop: (e) => { e.preventDefault(); if (this.state.dragId && this.state.dragId !== l.id) this.move(this.state.dragId, l.id, this.state.overAfter); else this.setState({ dragId: null, overId: null }); },
+        onDragEnd: () => this.setState({ dragId: null, overId: null }),
+        onKey: (e) => { if (!e.altKey) return; if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const a = this.state.layers, j = a.findIndex((x) => x.id === l.id), t = e.key === 'ArrowUp' ? j - 1 : j + 1; if (t < 0 || t >= a.length) return; const b = a.slice(); [b[j], b[t]] = [b[t], b[j]]; this.setState({ layers: b }); } },
+      };
+    });
+    const fOn = s.face.on, camBase0 = s.base.kind === 'camera' || s.base.kind === 'td';
+    const faceC = fOn ? { on: true, label: 'FACE HIDDEN', glyph: '●', fg: OK, bg: 'rgba(127,208,138,.06)', edge: 'rgba(127,208,138,.45)', btnL: 'ON', btnBg: 'rgba(127,208,138,.16)', btnFg: OK, btnEdge: 'rgba(127,208,138,.6)', warn: s.faceConfirm ? '▲ Click OFF again to show your real face on the stage.' : '' } : { on: false, label: 'FACE VISIBLE', glyph: '▲', fg: EMB, bg: 'rgba(255,75,43,.08)', edge: EMB, btnL: 'OFF', btnBg: EMB, btnFg: '#0b0b0c', btnEdge: EMB, warn: '▲ Face hiding is off. Your real face is on the stage' + (s.vOut ? ' and on the projector.' : '.') };
+    if (fOn && s.faceConfirm) Object.assign(faceC, { btnL: 'OFF?', btnBg: 'rgba(255,75,43,.12)', btnFg: EMB, btnEdge: EMB });
+    const faceStyles = FACES.map(([v, label]) => ({ label, on: String(s.face.style === v), bg: s.face.style === v ? INK : 'transparent', fg: s.face.style === v ? '#0b0b0c' : '#bdb8ac', onClick: () => this.setState({ face: { ...s.face, style: v } }) }));
+    Object.assign(faceC, fOn ? { sub: camBase0 ? 'COVERS EVERY FACE' : 'ARMED · NO CAMERA', subC: '#bdb8ac', shadow: 'inset 3px 0 0 #7fd08a' } : { sub: 'TOP LAYER · OFF', subC: EMB, shadow: 'inset 3px 0 0 #ff4b2b' });
+    const textRow = { mode: TEXTS.find((t) => t[0] === s.text.mode)[1], word: s.text.word, op: s.text.on && !s.text.mute ? 1 : 0.5, reactsL: RL[s.text.reacts][1], rDot: RL[s.text.reacts][2], muteS: String(s.text.mute || !s.text.on), mBg: s.text.mute || !s.text.on ? AMB : 'rgba(233,229,218,.07)', mFg: s.text.mute || !s.text.on ? '#0b0b0c' : INK,
+      onMute: () => this.setState({ text: { ...s.text, on: true, mute: s.text.on ? !s.text.mute : false } }), onMode: () => { const i = TEXTS.findIndex((t) => t[0] === s.text.mode); this.setState({ text: { ...s.text, on: true, mode: TEXTS[(i + 1) % TEXTS.length][0] } }); }, onReacts: () => { const o = ['drop', 'kick', 'section', 'none']; this.setState({ text: { ...s.text, reacts: o[(o.indexOf(s.text.reacts) + 1) % o.length] } }); } };
+    const bTabsDef = [['gen', 'GENERATORS', 16], ['fil', 'FILTERS', 15], ['milk', 'MILKDROP', '500+'], ['text', 'TEXT', 5], ['td', 'TOUCHDESIGNER', 10]];
+    const bTabs = bTabsDef.map(([v, label, n]) => ({ label, n, on: String(s.bTab === v), bg: s.bTab === v ? '#18181b' : 'transparent', fg: s.bTab === v ? INK : DIM, onClick: () => this.setState({ bTab: v, hover: null }) }));
+    const onStack = new Set(s.layers.map((l) => l.cat + ':' + l.fx));
+    const bTiles = isVis && s.browser ? this.tiles().map((t, i) => ({ name: t.name, badge: t.badge, badgeC: t.badgeC, title: `${t.name}: hover to preview, click to add`, added: t.cat === 'text' ? s.text.on && s.text.mode === t.fx : onStack.has(t.cat + ':' + t.fx), edge: s.hover && s.hover.fx === t.fx ? AMB : 'rgba(233,229,218,.08)', delay: i * 18 + 'ms', onEnter: () => this.setState({ hover: t }), onClick: () => this.addTile(t), ref: this.cv('bt:' + t.cat + ':' + t.fx, () => ({ kind: 'layer', layer: t.cat === 'td' ? { cat: 'td', td: { fx: t.fx, macros: DEF_M, reacts: DEF_R, palette: 'ember' } } : t.cat === 'text' ? { cat: 'text', mode: t.fx, word: 'GHOSTWIRE' } : t, fps: 15, dpr: 1 })) })) : [];
+    const avjOn = s.autoVj;
+    const nb = Math.max(0, Math.ceil(c.toNextBars || 0));
+    const avj = { on: avjOn, onS: String(avjOn), edge: avjOn ? 'rgba(255,178,62,.45)' : 'rgba(0,0,0,.7)', bg: avjOn ? AMB : 'rgba(233,229,218,.07)', fg: avjOn ? '#0b0b0c' : INK, dot: avjOn ? '#0b0b0c' : DIM, glow: 'none', subC: avjOn ? AMB : DIM,
+      sub: !s.music ? 'WAITS FOR A TRACK' : avjOn ? `${c.next} IN ${mmss(c.toNext)} · ${nb} BAR${nb === 1 ? '' : 'S'}` : 'OFF', bars: [0, 1, 2, 3].map((i) => (i < Math.min(4, nb) ? (nb <= 1 ? EMB : AMB) : 'rgba(233,229,218,.1)')) };
+    const vFit0 = this.fit('stage', s.vAspect, perf ? 20 : 24);
+    const vFit = { ...vFit0, ring: s.vOut ? '0 0 0 2px #ff4b2b' : '0 0 0 1px rgba(233,229,218,.12)', anim: s.vOut ? 'vbLive 2.4s ease-in-out infinite' : 'none' };
+    const liveTag = s.vOut ? { label: `LIVE ON OUTPUT · PROJECTOR · ${s.vAspect}`, bg: EMB, fg: '#0b0b0c', edge: EMB, dot: '#0b0b0c', anim: 'vbBlink 1.2s steps(2) infinite' } : { label: `OUTPUT OFF · ${s.vAspect}`, bg: 'rgba(11,11,12,.88)', fg: DIM, edge: 'rgba(233,229,218,.14)', dot: DIM, anim: 'none' };
+    const camBase = s.base.kind === 'camera' || s.base.kind === 'td';
+    const faceTag = !camBase ? { glyph: '○', label: 'NO CAMERA ON STAGE', bg: 'rgba(11,11,12,.88)', fg: DIM, edge: 'rgba(233,229,218,.14)' } : fOn ? { glyph: '●', label: 'FACE HIDDEN · ' + FACES.find((f) => f[0] === s.face.style)[1], bg: 'rgba(11,11,12,.88)', fg: OK, edge: 'rgba(127,208,138,.5)' } : { glyph: '▲', label: 'FACE VISIBLE: FACE HIDING OFF', bg: EMB, fg: '#0b0b0c', edge: EMB };
+    const vOutB = s.vOut ? { label: s.vConfirm === 'stop' ? 'STOP?' : 'LIVE', onS: 'true', bg: EMB, fg: '#0b0b0c', dot: '#0b0b0c', anim: 'vbBlink 1.2s steps(2) infinite', shadow: '0 0 0 1px rgba(0,0,0,.65),0 0 26px rgba(255,75,43,.45),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.28)' } : { label: 'OUTPUT', onS: 'false', bg: '#e9e5da', fg: '#0b0b0c', dot: '#8d8a82', anim: 'none', shadow: 'inset 0 1px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.28)' };
+    vOutB.onClick = () => {
+      if (this.state.vOut) { if (this.state.vConfirm === 'stop') return this.setState({ vOut: false, vConfirm: null }); this.setState({ vConfirm: 'stop' }); return this.later(() => this.state.vConfirm === 'stop' && this.setState({ vConfirm: null }), 3000); }
+      if (!this.state.face.on && camBase) return this.setState({ vConfirm: 'face' });
+      this.setState({ vOut: true, vConfirm: null });
+    };
+    const vConfirm = s.vConfirm === 'face' ? { show: true, head: 'FACE HIDING IS OFF.', text: 'The projector will show your real face.', c: EMB, edge: EMB, acts: [{ label: 'HIDE FACE, THEN GO LIVE', bg: OK, fg: '#0b0b0c', border: '0', onClick: () => this.setState({ face: { ...this.state.face, on: true }, vOut: true, vConfirm: null }) }, { label: 'GO LIVE WITH MY FACE', bg: 'none', fg: EMB, border: '1px solid ' + EMB, onClick: () => this.setState({ vOut: true, vConfirm: null }) }, { label: 'CANCEL', bg: 'none', fg: DIM, border: '0', onClick: () => this.setState({ vConfirm: null }) }] } : { show: false };
+    const pads = s.scenes.map((p, i) => { const on = s.scene === i; return p ? { key: String(i + 1), name: p.name, sub: p.sub, onS: String(on), bg: on ? '#e9e5da' : '#141417', fg: on ? '#0b0b0c' : INK, subC: on ? '#3a3936' : DIM, edge: on ? INK : 'rgba(233,229,218,.12)', led: on ? EMB : 'rgba(233,229,218,.15)', ledGlow: on ? '0 0 8px #ff4b2b' : 'none', shadow: on ? '0 0 24px rgba(233,229,218,.18)' : 'inset 0 -3px 0 rgba(0,0,0,.35)', onClick: () => this.firePad(i) } : { key: String(i + 1), name: 'EMPTY', sub: 'TAP TO SAVE THIS LOOK', onS: 'false', bg: '#0b0b0c', fg: DIM, subC: DIM, edge: 'rgba(233,229,218,.12)', led: 'rgba(233,229,218,.08)', ledGlow: 'none', shadow: 'none', onClick: () => this.firePad(i) }; });
+    const pb = (label, key, on, sub, onC, extra) => ({ label, key, onS: String(on), sub, bg: on ? onC : '#141417', fg: on ? '#0b0b0c' : INK, subC: on ? '#2a1a10' : DIM, edge: on ? onC : 'rgba(233,229,218,.12)', shadow: on ? `0 0 26px ${onC}55` : 'inset 0 -3px 0 rgba(0,0,0,.35)', onClick: null, onDown: null, onUp: null, ...extra });
+    const perfBtns = [
+      pb('AUTO-VJ', 'A', avjOn, avjOn ? `${c.next} IN ${mmss(c.toNext)}` : 'OFF', AMB, { onClick: () => this.setState({ autoVj: !s.autoVj }) }),
+      pb('BLACKOUT', 'B', s.blackout, s.blackout ? 'STAGE IS BLACK' : 'TAP: ALL BLACK', INK, { onClick: () => this.setState({ blackout: !s.blackout }) }),
+      pb('FREEZE', 'F', s.freeze, s.freeze ? 'HELD FRAME' : 'TAP: HOLD FRAME', ICE, { onClick: () => this.setState({ freeze: !s.freeze }) }),
+      pb('DROP FX', 'D', s.dropFx, 'HOLD · MAX 3 FLASH/S', EMB, { onDown: () => this.setState({ dropFx: true }), onUp: () => this.state.dropFx && this.setState({ dropFx: false }) }),
+    ];
+    const flags = [s.blackout && 'BLACKOUT', s.freeze && 'FROZEN', s.dropFx && 'DROP FX'].filter(Boolean).join(' · ');
+    const recLive = s.recLive ? { label: 'STOP ' + mmss((Date.now() - s.recLiveT0) / 1000), edge: EMB, bg: 'rgba(255,75,43,.12)', fg: EMB, anim: 'vbBlink 1s steps(2) infinite' } : { label: 'REC LIVE', edge: 'rgba(233,229,218,.2)', bg: '#111113', fg: INK, anim: 'none' };
+    const SHORT = { none: 'NONE', waveform: 'WAVE', core: 'CORE', camera: 'CAMERA', photo: 'PHOTO', video: 'VIDEO', td: 'TD' };
+    const baseSeg = BASES.map(([v, label]) => ({ label, short: SHORT[v], on: String(s.base.kind === v), bg: s.base.kind === v ? INK : 'transparent', fg: s.base.kind === v ? '#0b0b0c' : '#bdb8ac', onClick: () => this.setState({ base: v === 'td' ? { kind: 'td', td: { fx: 'plexus', macros: DEF_M, reacts: DEF_R, palette: 'ember' } } : { kind: v } }) }));
+
+    return {
+      outerRef: (el) => { if (el && this._outer !== el) { this._outer = el; this.measure(); } },
+      fr, screenLabel: isVis ? (perf ? 'VISUALS · PERFORM' : 'VISUALS') : 'PROD · TOUCHDESIGNER',
+      showRail: !perf, rail, toggleStates: () => this.setState({ statesOpen: !s.statesOpen }), statesOpen: s.statesOpen, statesOpenS: String(s.statesOpen), stateGroups, frameOpts,
+      isProd: s.page === 'prod', isVis, isSetup: !s.setupDone, isLive, tdS, camChip, maskS: String(s.maskFirst), maskT, maskDis: s.cam === 'denied', toggleMask: () => this.setState({ maskFirst: !s.maskFirst }),
+      cvSetup: this.cv('setup', () => ({ kind: 'td', fx: 'plexus', palette: 'ember', macros: { ...DEF_M, intensity: 0.8, lines: 0.6 }, reacts: DEF_R, src: 'cam', maskFirst: true, dpr: 1 })),
+      setupPrimary, steps, setupDoneN: doneN, setupLeds,
+      tdCount: list.length, favT: { on: String(s.favOnly === 'fav'), bg: s.favOnly === 'fav' ? AMB : 'transparent', fg: s.favOnly === 'fav' ? '#0b0b0c' : DIM, onClick: () => this.setState({ favOnly: s.favOnly === 'fav' ? 'all' : 'fav' }) },
+      modeSeg: [['body', 'BODY', `${TD_FX.filter((f) => !f.hands).length} LOOKS`, EMB], ['hands', 'HANDS', `${TD_FX.filter((f) => f.hands).length} LOOKS`, '#e79bd0']].map(([v, label, sub, col]) => { const on = tdMode === v; return { label, sub, on: String(on), bg: on ? '#18181b' : 'transparent', fg: on ? INK : DIM, subC: on ? '#bdb8ac' : DIM, edge: on ? col : 'transparent', dot: on ? col : 'rgba(233,229,218,.15)', glow: on ? `0 0 8px ${col}` : 'none', shadow: on ? `inset 0 -2px 0 ${col}` : 'none', onClick: () => { if (on) return; const last = this._lastFx && this._lastFx[v]; this._lastFx = { ...(this._lastFx || {}), [tdMode]: s.fx }; this.setState({ fx: last || (v === 'hands' ? 'fwindows' : 'plexus'), rOpen: null }); } }; }),
+      tdCollapsed: s.tdCollapsed, tdCols: s.tdCollapsed ? '46px minmax(0,1fr) 46px' : 'clamp(236px,19.5cqw,290px) minmax(0,1fr) clamp(276px,22cqw,320px)',
+      previewEnter: () => { clearTimeout(this._colT); this._colT = setTimeout(() => this.setState({ tdCollapsed: true, rOpen: null }), 450); },
+      previewLeave: () => { clearTimeout(this._colT); },
+      expandPanels: () => { clearTimeout(this._colT); if (this.state.tdCollapsed) this.setState({ tdCollapsed: false }); },
+      collapsedDot: curFx.hands ? '#e79bd0' : EMB, collapsedPal: PALS.find((p) => p[0] === s.palette)[2][2],
+      miniKnobs: knobs.map((k) => ({ arc: k.arc, dot: k.rDot, title: `${k.label} ${k.pct} · ${k.reactsL}` })),
+      isHands: !!curFx.hands, handsOk: !!curFx.hands && !(s.cam === 'denied' && s.camFb === 'stage') && s.tdConn === 'ok',
+      handsChip: s.cam === 'denied' && s.camFb === 'stage' ? 'NO HANDS: CAMERA OFF · DRAG WITH THE MOUSE' : s.cam === 'denied' ? '2 HANDS · DEMO LOOP' : '2 HANDS TRACKED',
+      gLegend: GESTURES.map(([k, label, acts]) => ({ label, act: acts[s.gest[k]] })),
+      gestRows: GESTURES.map(([k, label, acts]) => ({ label, act: acts[s.gest[k]], onClick: () => this.setState((st) => ({ gest: { ...st.gest, [k]: (st.gest[k] + 1) % acts.length } })) })),
+      showHandsS: String(s.showHands), handsT: { trk: s.showHands ? 'rgba(231,155,208,.18)' : '#0b0b0c', edge: s.showHands ? 'rgba(231,155,208,.7)' : 'rgba(233,229,218,.2)', knob: s.showHands ? '#e79bd0' : DIM, x: s.showHands ? 16 : 2 }, toggleShowHands: () => this.setState({ showHands: !s.showHands }),
+      tdPtr: { down: (e) => { if (!curFx.hands || !window.FXE) return; const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId); FXE.pointer(e.currentTarget, 'down', (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }, move: (e) => { if (!curFx.hands || !window.FXE) return; const r = e.currentTarget.getBoundingClientRect(); FXE.pointer(e.currentTarget, 'move', (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }, up: (e) => { if (!curFx.hands || !window.FXE) return; const r = e.currentTarget.getBoundingClientRect(); const res = FXE.pointer(e.currentTarget, 'up', (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); if (res === 'window' && s.fx === 'fwindows') this.toast('NEW WINDOW', 'Drawn with the mouse. A pinch does the same on camera.'); }, cursor: curFx.hands ? 'crosshair' : 'default' },
+      clearWins: () => { const el = document.querySelector('[data-td-canvas]'); if (el && window.FXE) FXE.clearUser(el); },
+      tdTiles, fxName: curFx.name, fxNote: curFx.note,
+      tdAspSeg: seg([['9:16', '9:16'], ['16:9', '16:9'], ['1:1', '1:1']], s.tdAspect, (v) => this.setState({ tdAspect: v })), tdAspect: s.tdAspect,
+      camDenied: s.setupDone && s.cam === 'denied', fbSeg: seg([['demo', 'DEMO LOOP'], ['stage', 'FOXBOX STAGE']], s.camFb, (v) => this.setState({ camFb: v })), fbWord: s.camFb === 'demo' ? 'a demo loop' : 'the FoxBox stage', camRetry: () => { this.setState({ cam: 'ok' }); this.toast('CAMERA', 'Camera is back. Your face is visible: turn on MASK FIRST to hide it.', AMB); },
+      boxTd: this.box('td'), tdFit, cvTd: this.cv('td', () => this.tdOpts()), tdAria: `${curFx.name} preview`,
+      recOn: s.rec === 'rec', recTime: mmss(recSecs), faceWord: faceShown ? '▲ FACE VISIBLE' : 'FACE HIDDEN', outOn,
+      noMusic: s.setupDone && !s.music && s.tdConn === 'ok', playMusic: () => this.setState({ music: true }),
+      tdDown, reconnL: s.tdConn === 'conn' ? 'RECONNECTING…' : 'RECONNECT', reconnDis: s.tdConn === 'conn', reconnOp: s.tdConn === 'conn' ? 0.6 : 1, reconnect: () => { this.setState({ tdConn: 'conn' }); this.later(() => { this.setState({ tdConn: 'ok' }); this.toast('TOUCHDESIGNER', 'Reconnected. Picking up where you left off.'); }, 1600); },
+      resetMacros: () => this.setState((st) => ({ macros: { ...st.macros, [st.fx]: { ...DEF_M } }, reacts: { ...st.reacts, [st.fx]: { ...DEF_R } } })),
+      knobs, rMenu, pals, randomize: () => this.randomize(), rollSpin: s.roll,
+      confirm, song, meters, cvSecP: this.cv('secP', () => ({ kind: 'sections', dpr: 2 })), cvSecV: this.cv('secV', () => ({ kind: 'sections', dpr: 2 })),
+      togglePlay: () => this.setState({ music: !s.music }), playG: s.music ? '❚❚' : '▶', playAria: s.music ? 'Pause the track' : 'Play the track',
+      rec, send, outB,
+      // visuals
+      notPerf: !perf, isPerf: perf, visInset: perf ? '10px' : '12px', visCols: perf ? 'minmax(0,1fr)' : 'clamp(336px,24.5cqw,364px) minmax(0,1fr)',
+      srcSeg: seg([['track', 'TRACK'], ['live', 'LIVE INPUT'], ['mic', 'MIC']], s.src, (v) => this.setState({ src: v })), latSeg: seg([['low', 'LOW'], ['safe', 'SAFE']], s.latency, (v) => this.setState({ latency: v })),
+      cvLevel: this.cv('lvl', () => ({ kind: 'meter', src: 'level', segs: 12, hot: true, dpr: 2 })), srcTitle: s.src === 'track' ? song.title : s.src === 'live' ? 'SYSTEM AUDIO · REKORDBOX' : 'MIC · VOICE MASK ON',
+      layerCount: `${s.layers.length + 2 + (s.text.on ? 1 : 0)} ON STAGE`, toggleBrowser: () => this.setState({ browser: !s.browser, hover: null }), openBrowser: () => this.setState({ browser: true }), closeBrowser: () => this.setState({ browser: false, hover: null }), clearHover: () => this.setState({ hover: null }),
+      browserS: String(s.browser), browserOpen: isVis && s.browser && !perf, addBtn: s.browser ? { label: '✕ CLOSE BROWSER', bg: '#18181b', fg: INK } : { label: '+ ADD EFFECT', bg: EMB, fg: '#0b0b0c' }, browseBtnBg: s.browser ? '#18181b' : '#111113',
+      faceC, faceOnS: String(fOn), faceStyles, faceN: String(s.layers.length + 3).padStart(2, '0'), textN: String(s.layers.length + 2).padStart(2, '0'), fxCount: s.layers.length ? `${s.layers.length} · TOP → BOTTOM` : 'NONE',
+      cvFaceThumb: this.cv('faceT', () => ({ kind: 'layer', layer: this.state.face.on ? { cat: 'face', style: this.state.face.style } : { cat: 'base', kind: 'camera' }, faceOn: false, fps: 20, dpr: 1 })),
+      baseSub: { none: 'Palette ground only', waveform: "The track's waveform", core: 'The voice core', camera: 'You on camera · face hidden above', photo: 'A photo, artwork or press shot', video: 'A video clip, looped', td: 'A TouchDesigner look as the ground' }[s.base.kind], toggleFace: () => { if (!fOn) return this.setState({ face: { ...s.face, on: true }, faceConfirm: false }); if (s.faceConfirm) return this.setState({ face: { ...s.face, on: false }, faceConfirm: false }); this.setState({ faceConfirm: true }); this.later(() => this.state.faceConfirm && this.setState({ faceConfirm: false }), 3000); },
+      textRow, cvTextThumb: this.cv('txtT', () => ({ kind: 'layer', layer: { cat: 'text', mode: this.state.text.mode, word: this.state.text.word }, fps: 20, dpr: 1 })), cvTextMeter: this.cv('txtM', () => ({ kind: 'meter', src: this.state.text.reacts, segs: 6, dpr: 2 })),
+      rows, noLayers: s.layers.length === 0, baseName: BASES.find((b) => b[0] === s.base.kind)[1], baseSeg, cvBaseThumb: this.cv('baseT', () => ({ kind: 'layer', layer: { cat: 'base', kind: this.state.base.kind, td: this.state.base.td }, faceOn: this.state.face.on, fps: 20, dpr: 1 })),
+      vAspSeg: seg([['9:16', '9:16'], ['16:9', '16:9'], ['1:1', '1:1']], s.vAspect, (v) => this.setState({ vAspect: v })), avj, toggleAvj: () => this.setState({ autoVj: !s.autoVj }),
+      recLive, recLiveS: String(s.recLive), recLiveOn: s.recLive, recLiveTime: mmss((Date.now() - s.recLiveT0) / 1000), toggleRecLive: () => this.setState({ recLive: !s.recLive, recLiveT0: Date.now() }),
+      enterPerf: () => this.setState({ perf: true, browser: false }), exitPerf: () => this.setState({ perf: false }), perfNext: avjOn ? `AUTO-VJ: ${c.next} IN ${mmss(c.toNext)}` : `${c.next} IN ${mmss(c.toNext)}`,
+      vOutB, vConfirm, boxStage: this.box('stage'), vFit, cvStage: this.cv('stage', () => this.stackOpts()), stageBg: perf ? '#000' : '#08080a',
+      liveTag, faceTag, previewTag: s.browser && s.hover ? s.hover.name : '', stageFlags: flags, stageEmpty: s.layers.length === 0 && s.base.kind === 'none' && !s.text.on,
+      bTabs, bTiles, bMore: s.bTab === 'milk' && s.browser ? '488' : '',
+      pads, perfBtns, toasts: s.toasts,
+    };
+  }
+}
+</script>
+</body>
+</html>

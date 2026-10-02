@@ -35,6 +35,8 @@ import {
   type SamplePackAddResult,
   type SetupCompleteResult,
   type SetupInfo,
+  type TdMessage,
+  type TdSettings,
   type UpdateState,
   type VisualsOutputState,
 } from '../shared/bridge'
@@ -47,6 +49,8 @@ import {
   resolveEngineLaunch,
   type QuarantineResult,
 } from './engine/command'
+import { tdPaths, TouchDesignerSession } from './bridge/tdSession'
+import { TouchDesignerBridge } from './bridge/touchdesigner'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
 import { bootSkipReason, BootUpdateGate } from './bootUpdate'
@@ -720,6 +724,34 @@ function linkSession(): LinkSession {
   return link
 }
 
+// TouchDesigner (1.3): OSC to and from a TouchDesigner project; controls go to the main window's renderer.
+
+let td: TouchDesignerBridge | null = null
+function touchDesigner(): TouchDesignerBridge {
+  td ??= new TouchDesignerBridge(USER_DATA, (msg) => mainWindow?.webContents.send(IPC.tdControl, msg))
+  return td
+}
+
+// TouchDesigner as a VISUALS base (1.6): its picture over Syphon to the stage and the output window.
+let tdSession: TouchDesignerSession | null = null
+let tdLogged = ''
+function touchDesignerSession(): TouchDesignerSession {
+  const windows = () => [mainWindow, outputWindow].filter((w): w is BrowserWindow => !!w && !w.isDestroyed())
+  tdSession ??= new TouchDesignerSession(
+    join(USER_DATA, 'touchdesigner'),
+    tdPaths(app.isPackaged, process.resourcesPath, app.getAppPath()),
+    touchDesigner(),
+    () => (mainWindow && !mainWindow.isDestroyed() ? [mainWindow.webContents] : []), // OUTPUT shows the stage's frames
+    (status) => {
+      for (const w of windows()) w.webContents.send(IPC.tdSessionState, status)
+      const line = `${status.state}${status.message ? `: ${status.message}` : ''}` // state changes only, not the fps
+      if (line !== tdLogged) log(`touchdesigner ${(tdLogged = line)}`)
+    },
+    log,
+  )
+  return tdSession
+}
+
 // ---------------------------------------------------------------------------------------------
 // IPC
 
@@ -824,6 +856,11 @@ function registerIpc(): void {
     if (++errorCount > 30) return
     const text = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '')
     log(`renderer error [${text(scope, 40)}]: ${text(message, 1000)}${typeof stack === 'string' ? `\n${text(stack, 4000)}` : ''}`)
+  })
+
+  ipcMain.on(IPC.log, (event, scope: unknown, message: unknown) => {
+    if (!trusted(event) || typeof scope !== 'string' || typeof message !== 'string') return
+    log(`[${scope.slice(0, 40)}] ${message.slice(0, 300)}`)
   })
 
   // REMIX's LOW DISK strip: free bytes on the export folder's volume (the folder may not exist yet: its parent then).
@@ -1008,6 +1045,45 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.shadersRemove, (event, file: unknown) => trusted(event) && removeShader(shadersDir(DATA_DIR), file))
 
+  // TouchDesigner (1.3) ----------------------------------------------------------------------
+  ipcMain.handle(IPC.tdGet, (event) => (trusted(event) ? touchDesigner().settings() : null))
+  ipcMain.handle(IPC.tdSet, (event, patch: unknown) =>
+    trusted(event) && patch && typeof patch === 'object' ? touchDesigner().setSettings(patch as Partial<TdSettings>) : null,
+  )
+  ipcMain.handle(IPC.tdStatus, (event) => (trusted(event) ? touchDesigner().status() : null))
+  ipcMain.on(IPC.tdSend, (event, messages: unknown) => {
+    if (event.sender === mainWindow?.webContents && trusted(event)) touchDesigner().send(messages as TdMessage[])
+  })
+  ipcMain.handle(IPC.tdSessionStart, (event, setup: unknown) =>
+    event.sender === mainWindow?.webContents && trusted(event) ? touchDesignerSession().start(setup === true) : null,
+  )
+  ipcMain.handle(IPC.tdSessionStop, (event) =>
+    event.sender === mainWindow?.webContents && trusted(event) ? touchDesignerSession().stop() : null,
+  )
+  ipcMain.handle(IPC.tdSessionGet, (event) => (trusted(event) ? touchDesignerSession().status() : null))
+  ipcMain.on(IPC.tdOpenDownload, (event) => {
+    if (trusted(event)) void shell.openExternal('https://derivative.ca/download')
+  })
+  ipcMain.on(IPC.tdOpenApp, (event) => {
+    if (trusted(event)) touchDesignerSession().openApp()
+  })
+  ipcMain.handle(IPC.tdPresets, (event) => (trusted(event) ? touchDesignerSession().presets() : []))
+  // The camera's frames to TouchDesigner on their own MessagePort, posted from a worker (renderer/touchdesigner/
+  // camera.worker.ts): the page's main thread neither reads them back nor copies them into an IPC message.
+  ipcMain.on(IPC.tdCameraPort, (event) => {
+    if (event.sender !== mainWindow?.webContents || !trusted(event)) return
+    const { port1, port2 } = new MessageChannelMain()
+    port1.on('message', ({ data }) => {
+      const d = data as { rgba?: unknown; width?: unknown; height?: unknown } | null
+      const rgba = d?.rgba
+      if ((rgba instanceof ArrayBuffer || ArrayBuffer.isView(rgba)) && typeof d?.width === 'number' && typeof d.height === 'number') {
+        tdSession?.publishCamera(rgba, d.width, d.height)
+      }
+    })
+    port1.start()
+    event.sender.postMessage(IPC.tdCameraPort, null, [port2])
+  })
+
   // First-run Setup -------------------------------------------------------------------------
   ipcMain.handle(IPC.setupInfo, async (event): Promise<SetupInfo | null> => {
     if (!trusted(event)) return null
@@ -1139,6 +1215,10 @@ async function startEngine(): Promise<void> {
 
 // macOS 14.2+ system-audio loopback (Core Audio taps) for VISUALS' LIVE INPUT "System audio" (1.4, S2).
 app.commandLine.appendSwitch('enable-features', 'MacCatapLoopbackAudioForScreenShare')
+// VISUALS' OUTPUT must keep drawing when a window covers it (or it covers FoxBox, one display): no occluded or background
+// renderer is paused (backgroundThrottling: false alone leaves macOS occlusion's paused frames).
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -1206,6 +1286,8 @@ if (!app.requestSingleInstanceLock()) {
     if (!confirmStopOutput(mainWindow)) return event.preventDefault()
     updater?.dispose()
     link?.stop()
+    tdSession?.stop(true) // its TouchDesigner quits now: the socket closes next and no timer outlives the app
+    td?.close()
     if (quitting || !supervisor) return
     event.preventDefault()
     quitting = true

@@ -1,0 +1,36 @@
+{
+  "label": "POINT CLOUD",
+  "title": "The picture as rows of dots: your body stands up out of them, your hands lift them.",
+  "how": "Hold your hands over the dots to lift them",
+  "order": 60,
+  "mode": "body",
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "density",
+      "label": "DENSITY",
+      "default": 0.5
+    },
+    {
+      "id": "lift",
+      "label": "LIFT",
+      "default": 0.6
+    },
+    {
+      "id": "size",
+      "label": "SIZE",
+      "default": 0.5
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#ffffff",
+    "#ff2a2a",
+    "#3a3a3a"
+  ],
+  "sound": null
+}

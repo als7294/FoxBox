@@ -4,7 +4,6 @@
  * shown (top of the list = top layer) and a readable name for a style that no family lists any more. The pure ones
  * are unit-tested.
  */
-import type { EffectLayer } from '@/visuals/live/compositor'
 
 export type AudioSource = 'track' | 'input' | 'mic'
 
@@ -12,6 +11,8 @@ export interface PagePrefs {
   source: AudioSource
   /** VOICE open or closed, per source, once the user has chosen (else: open on MIC only). */
   voice: Partial<Record<AudioSource, boolean>>
+  /** 1.5.2: the SOURCE row under the header (the source's own controls) open; open until the user closes it. */
+  sourceOpen?: boolean
 }
 
 const KEY = 'foxbox-visuals-page'
@@ -23,7 +24,7 @@ export function loadPrefs(): PagePrefs {
     const raw = JSON.parse(window.localStorage.getItem(KEY) ?? '{}') as Partial<PagePrefs>
     const source = SOURCES.includes(raw.source as AudioSource) ? (raw.source as AudioSource) : DEFAULT_PREFS.source
     const voice = raw.voice && typeof raw.voice === 'object' ? raw.voice : {}
-    return { source, voice }
+    return { source, voice, sourceOpen: raw.sourceOpen !== false }
   } catch {
     return DEFAULT_PREFS
   }
@@ -39,24 +40,6 @@ export function savePrefs(p: PagePrefs): void {
 
 /** VOICE is open where the user left it for this source; by default only on MIC. */
 export const voiceOpen = (p: PagePrefs, source: AudioSource = p.source): boolean => p.voice[source] ?? source === 'mic'
-
-export interface EffectRow {
-  layer: EffectLayer
-  /** Can go one layer up (towards the top of the list) / down. */
-  up: boolean
-  down: boolean
-}
-
-/**
- * The scene's effects as listed: top layer first (the scene keeps them bottom first). "Up" in the list is a step
- * towards the end of the scene's array: moveEffect(id, 1); "down" is moveEffect(id, -1).
- */
-export function effectRows(effects: readonly EffectLayer[]): EffectRow[] {
-  const n = effects.length
-  return effects
-    .map((layer, i) => ({ layer, up: i < n - 1, down: i > 0 }))
-    .reverse()
-}
 
 /** A style's name when no family lists it (a removed shader, a family still loading): 'shaders.acid-rain' → ACID RAIN. */
 export function fallbackStyleLabel(styleId: string): string {

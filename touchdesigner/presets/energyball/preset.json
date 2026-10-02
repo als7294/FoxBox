@@ -1,0 +1,55 @@
+{
+  "label": "ENERGY BALL",
+  "title": "A plasma orb held between your hands, lightning to your fingertips on the beat.",
+  "how": "Hold your hands apart; pinch both to squeeze the ball",
+  "order": 90,
+  "mode": "hands",
+  "new": true,
+  "gestures": {
+    "pinch_pull": "nothing",
+    "open_palm": "nothing",
+    "fist": "nothing"
+  },
+  "tracks": [
+    "body",
+    "hands"
+  ],
+  "macros": [
+    {
+      "id": "size",
+      "label": "SIZE",
+      "default": 0.5
+    },
+    {
+      "id": "swirl",
+      "label": "SWIRL",
+      "default": 0.5
+    },
+    {
+      "id": "bolts",
+      "label": "BOLTS",
+      "default": 0.7
+    }
+  ],
+  "reacts_to": "kick",
+  "palette": [
+    "#000000",
+    "#5a0cff",
+    "#4de1ff",
+    "#ffffff"
+  ],
+  "sound": {
+    "changes_sound": true,
+    "map": [
+      {
+        "target": "fx.filter",
+        "source": "gesture.squeeze",
+        "min": 0,
+        "max": 0.8,
+        "curve": "exp",
+        "dead": 0.2,
+        "smooth_ms": 80
+      }
+    ]
+  }
+}

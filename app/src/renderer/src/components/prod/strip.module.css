@@ -1,0 +1,240 @@
+/* PROD's bottom strip (70px): the music block and the three commit buttons (app/design/visuals-td, footer). */
+.strip {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  height: var(--vb-td-strip-h);
+  min-width: 0;
+}
+
+/* Music block (well) */
+.music {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px 0 10px;
+  border: 1px solid var(--vb-rack-edge);
+  border-radius: 4px;
+  background: #0e0e10;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.play {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 0;
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.24);
+  border-radius: 3px;
+  background: #111113;
+  color: var(--vb-ink);
+  font: 700 14px var(--vb-font-mono);
+}
+.play:hover {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.track {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 0 1 200px;
+}
+.title {
+  font: 800 19px/1 var(--vb-font-display);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meta {
+  font: 500 11px/1 var(--vb-font-mono);
+  color: var(--vb-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 140px;
+  min-width: 90px;
+  max-width: 260px;
+}
+.secLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 15px;
+  font: 700 11px/1 var(--vb-font-mono);
+  letter-spacing: 0.1em;
+}
+.secChip {
+  padding: 2px 5px;
+  border-radius: 2px;
+  color: var(--vb-well);
+}
+.next {
+  color: var(--vb-dim);
+  white-space: nowrap;
+}
+.map {
+  display: block;
+  width: 100%;
+  height: 8px;
+}
+.meters {
+  display: flex;
+  gap: 10px;
+  flex: none;
+}
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-start;
+}
+.meterLabel {
+  font: 700 11px/1 var(--vb-font-mono);
+  color: var(--vb-dim);
+}
+.meterCanvas {
+  display: block;
+  width: 52px;
+  height: 8px;
+}
+
+/* The three commits */
+.rec,
+.send,
+.out {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 4px;
+  text-align: left;
+  color: var(--vb-ink);
+}
+.rec:disabled,
+.send:disabled,
+.out:disabled {
+  opacity: 0.45;
+}
+.big {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 800 19px/1 var(--vb-font-display);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.sub {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 700 11px/1.2 var(--vb-font-mono);
+  white-space: nowrap;
+  color: var(--vb-dim);
+}
+.sub[data-face='visible'] {
+  color: var(--vb-amber);
+}
+.sub[data-face='hidden'] {
+  color: var(--vb-ok);
+}
+
+.rec {
+  width: clamp(150px, 12cqw, 180px);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.24);
+  background: #111113;
+}
+.rec:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.recDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vb-accent);
+}
+.rec[data-on] {
+  border-color: var(--vb-accent);
+  background: rgba(255, 75, 43, 0.12);
+  color: var(--vb-accent);
+}
+.rec[data-on] .recDot {
+  border-radius: 1px;
+  animation: blink 1s steps(2) infinite;
+}
+
+.send {
+  width: clamp(168px, 13cqw, 196px);
+  border: 1px solid rgba(var(--vb-ink-rgb), 0.24);
+  background: #111113;
+}
+.send:hover:not(:disabled) {
+  border-color: rgba(var(--vb-ink-rgb), 0.45);
+}
+.send[data-done] {
+  border-color: var(--vb-face-hidden-edge);
+}
+.send[data-done] .big {
+  color: var(--vb-ok);
+}
+
+/* SEND TO OUTPUT: hardware; ink with the face hidden, amber with it visible, ember when live */
+.out {
+  width: clamp(168px, 13cqw, 196px);
+  border: 0;
+  background: var(--vb-ink);
+  color: var(--vb-well);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+}
+.out::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent);
+  pointer-events: none;
+}
+.out:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.out .sub {
+  color: rgba(11, 11, 12, 0.72);
+}
+.out[data-face='visible'] {
+  background: var(--vb-amber);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.65),
+    0 0 22px rgba(255, 178, 62, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+}
+.out[data-live] {
+  background: var(--vb-accent);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.65),
+    0 0 22px rgba(255, 75, 43, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.28);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}

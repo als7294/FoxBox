@@ -5,6 +5,7 @@
  *   buildProgress  0..1, eased (slow, then faster): the tension through a build; 0 outside builds
  *   preDrop        the held breath before a drop: its pre-drop gap (the low end / energy cut) or at least its last beat
  *   dropIn         beats to the next drop hit, when predictable
+ *   nextSection    the section after this one, and nextIn the beats to it (TRACK: the song's sections; LIVE INPUT: none)
  *   dropHit        true on the one frame a drop lands
  *   dropEnergy     1 at the hit, falling to 0 over one bar (eased)
  *   dropIndex      1 for the first drop, 2 for the second… (0 before the first)
@@ -20,6 +21,8 @@ export interface StructureFrame {
   buildProgress: number
   preDrop: boolean
   dropIn: number | null
+  nextSection?: SectionKind | null
+  nextIn?: number | null
   dropHit: boolean
   dropEnergy: number
   dropIndex: number
@@ -95,6 +98,7 @@ export class StructureTrack {
     const bar = 4 * beat
     const secs = this.json.sections
     const sec = secs.find((s) => t >= s.start_s && t < s.end_s) ?? (t < 0 ? secs[0] : secs[secs.length - 1])
+    const after = secs.find((s) => s.start_s > t && s.kind !== sec?.kind)
     const build = this.json.builds.find(([a, d]) => t >= a && t < d)
     const drops = this.json.drops_s
     const next = drops.findIndex((d) => d > t)
@@ -105,6 +109,8 @@ export class StructureTrack {
       buildProgress: build ? easeBuild((t - build[0]) / (build[1] - build[0])) : 0,
       preDrop: next >= 0 && t >= this.preDropFrom[next]! && t < drops[next]!,
       dropIn: next >= 0 ? ((drops[next]! - t) / beat) : null,
+      nextSection: after?.kind ?? null,
+      nextIn: after ? (after.start_s - t) / beat : null,
       dropEnergy: last != null ? dropDecay((t - last) / bar) : 0,
       dropIndex: lastIdx + 1,
       drop: last != null && t - last < bar,

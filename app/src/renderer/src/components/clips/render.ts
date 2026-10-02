@@ -5,13 +5,14 @@
  * the song's stem features, each frame is encoded (H.264, WebCodecs), the sound is mixed offline and encoded (AAC,
  * else Opus), and both go into a plain MP4 (mp4.ts). Frame n is song time from + n/fps, whatever the machine's speed.
  */
-import type { Scene } from '@/visuals/live/compositor'
+import { sceneHasTd, type Scene } from '@/visuals/live/compositor'
 import { Compositor } from '@/visuals/live/compositorEngine'
 import { clipFrames } from '@/visuals/live/clipSource'
 import { drawWatermark, type Layout } from '@/components/camera/compose'
 import type { SongGrid } from '@/state/song'
 import { stemsAt, type Features } from './features'
 import { markClipRendering } from './rendering'
+import { TD_LABEL } from '@/visuals/live/bases/touchdesigner'
 import { avc1Entry, mp4aEntry, opusEntry, writeMp4, type Sample } from './mp4'
 
 export type ClipAspect = '9:16' | '16:9' | '1:1'
@@ -333,10 +334,13 @@ async function renderClipNow(job: ClipJob): Promise<RenderedClip> {
   progress(0.92)
   const sound = await encodeAudio(audio, job.signal)
   progress(0.97)
-  const bytes = writeMp4([
-    { kind: 'video', timescale: FPS * 1000, entry: avc1Entry(w, h, avcC), samples: video, width: w, height: h },
-    { kind: 'audio', timescale: SR, entry: sound.entry, samples: sound.samples, skip: sound.skip, length: audio.length },
-  ])
+  const bytes = writeMp4(
+    [
+      { kind: 'video', timescale: FPS * 1000, entry: avc1Entry(w, h, avcC), samples: video, width: w, height: h },
+      { kind: 'audio', timescale: SR, entry: sound.entry, samples: sound.samples, skip: sound.skip, length: audio.length },
+    ],
+    sceneHasTd(job.scene) ? TD_LABEL : undefined,
+  ) // the picture carries it too (bases/touchdesigner)
   const seconds = (performance.now() - started) / 1000
   job.onProgress?.(1)
   return { blob: new Blob([bytes], { type: 'video/mp4' }), name: clipFileName(job.aspect), seconds, speed: job.length / seconds }

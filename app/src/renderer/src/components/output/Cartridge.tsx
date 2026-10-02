@@ -16,7 +16,7 @@ import { vis } from '@/visuals/state'
 import { ExportSheet } from './ExportSheet'
 import styles from './output.module.css'
 
-const SETLIST_WIP = Boolean(SCREENS.find((x) => x.id === 'setlist')?.wip)
+const SETLIST_WIP = !SCREENS.some((x) => (x.id as string) === 'setlist') // 1.5.2: PROD is TouchDesigner; the setlist has no page
 
 export interface CartridgeProps {
   render: RenderInfo | null

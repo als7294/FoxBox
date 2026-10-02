@@ -61,7 +61,8 @@ export interface Seen {
   faces: SeenFace[]
   hands: SeenHand[]
   person: PersonMask | null
-  /** BlazePose's first 13 keypoints (nose, eyes, ears, mouth, shoulders): the head, from the body. */
+  /** BlazePose's 33 keypoints (0-1 of the frame, with visibility): the head-first tracking reads the first 13 (nose,
+   *  eyes, ears, mouth, shoulders), TouchDesigner the lot. */
   body?: BodyPoint[] | null
   /** The capture time (performance.now's clock) of the camera frame the faces came from. */
   at?: number
@@ -123,6 +124,9 @@ export function nextRoi(
     return { x: x / vw, y: y / vh, w: side / vw, h: side / vh }
   }
   const FULL = prev.w === 1 && prev.h === 1 ? prev : { x: 0, y: 0, w: 1, h: 1 }
+  // A big face lost from the whole frame is looked for there (3 frames): found in a crop it would go back to the whole
+  // frame, where the landmarker tracks from the crop's coordinates and loses it again (found, lost, found... on a close-up).
+  if (!points?.length && prev === FULL && lost <= 3) return FULL
   // Lost, and the body's head says where it is (Holistic's recipe: the face looked for around the pose's head).
   if (!points?.length && head) return square((head.x + head.w / 2) * vw, (head.y + head.h / 2) * vh, Math.max(head.w * vw, head.h * vh) * 2.4)
   if (!points?.length && lost <= 3 && prev.w * vw < Math.min(vw, vh) * 0.99) {
@@ -162,6 +166,8 @@ export function nextRoi(
 /** Runs the models on camera frames, in a worker. One per camera. */
 export class Vision {
   private worker: Worker | null = null
+  /** Each model's delegate once loaded ({ face: 'GPU', hands: 'CPU', ... }; a model that failed: none). */
+  delegates: Record<string, string> = {}
   private busy = true // until the models are loaded
   private last: Seen = { faces: [], hands: [], person: null, body: null }
   private roi: Roi = { x: 0, y: 0, w: 1, h: 1 }
@@ -178,12 +184,18 @@ export class Vision {
       // The face comes back first (at once: the mask moves), then the extras (the worker is free again).
       w.onmessage = (e: MessageEvent<{ type: 'ready' } | { type: 'face'; seen: Seen; roi?: Roi; at: number } | { type: 'extras'; seen: Seen; at: number }>) => {
         const d = e.data
+        if (d.type === 'ready') {
+          // Which delegate each model got (GPU, or CPU when the worker's WebGL2 failed): the tracking's speed hangs on it.
+          this.delegates = (d as unknown as { delegates?: Record<string, string> }).delegates ?? {}
+          console.info('FoxBox camera models:', JSON.stringify(this.delegates))
+        }
         if (d.type === 'face') {
           const f = fromCrop(d.seen, d.roi)
           this.last = { ...this.last, faces: f.faces, hint: f.hint, ms: f.ms, at: d.at }
           return
         }
-        if (d.type === 'extras') this.last = { ...this.last, hands: d.seen.hands, person: d.seen.person, body: d.seen.body }
+        // The matte only comes every other frame (or every Nth): the last one stands until the next.
+        if (d.type === 'extras') this.last = { ...this.last, hands: d.seen.hands, person: d.seen.person ?? this.last.person, body: d.seen.body }
         this.busy = false
       }
       w.onerror = () => this.dispose() // no extras from here on; faces are still hidden by the detector
@@ -201,10 +213,10 @@ export class Vision {
    * A new camera frame (captured at `at`): sent over if the worker is free, as the face crop (nextRoi; brightened for
    * the tracker when the room is dark: the mask still draws on the real frame) and the whole frame at 640 px for hands,
    * the body and the person. A strobe's dark frame isn't sent (the tracker coasts on its prediction). `head`: where
-   * the body's head is (0-1), to look for a lost face; `people`: faces to track. Returns the latest results. Never
-   * throws.
+   * the body's head is (0-1), to look for a lost face; `people`: faces to track; `body`: the body and hands every frame
+   * (TouchDesigner); `matteEvery`: the person matte every Nth frame. Returns the latest results. Never throws.
    */
-  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1): Seen {
+  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1, body = false, matteEvery = 2): Seen {
     const w = this.worker
     if (!w || this.busy) return this.last
     try {
@@ -227,7 +239,7 @@ export class Vision {
       g.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, cw, ch)
       const face = this.crop.transferToImageBitmap()
       createImageBitmap(video, { resizeWidth: 640, resizeHeight: Math.round((640 * vh) / vw) }).then(
-        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people }, [face, scene]),
+        (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people, body, matteEvery }, [face, scene]),
         () => (this.busy = false),
       )
     } catch {

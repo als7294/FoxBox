@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { usePresets, useRack } from '@/api/queries'
 import { MACRO_IDS, type MacroId, type Preset } from '@/api/types'
@@ -23,29 +22,30 @@ import { SaveClip } from '@/components/clips/SaveClip'
 import { Button } from '@/components/common/Button'
 import common from '@/components/common/common.module.css'
 import { Screen } from '@/components/layout/Screen'
-import { TOP_SLOT_ID } from '@/components/layout/TopBar'
 import { LiveMeters } from '@/components/live/LiveMeters'
 import { LiveSongStrip } from '@/components/live/LiveSongStrip'
 import styles from '@/components/live/live.module.css'
 import { orderPresets } from '@/components/rack/PresetStrip'
 import { Segmented } from '@/components/rack/Segmented'
 import { addTake, setTakeShortcut } from '@/components/source/takes'
-import { BasePanel } from '@/components/visuals/BasePanel'
-import { EffectsPanel } from '@/components/visuals/EffectsPanel'
+import { AudioSourceStrip } from '@/components/visuals/AudioSourceStrip'
+import { faceShowsNow, LayerStack } from '@/components/visuals/LayerStack'
 import { LiveInputControls } from '@/components/visuals/LiveInputControls'
 import { LiveRecord } from '@/components/visuals/LiveRecord'
 import { clipAudioFor, loadPrefs, savePrefs, setClipAudio, voiceOpen, type AudioSource } from '@/components/visuals/page'
 import { StemsRow } from '@/components/visuals/StemsRow'
+import { useStageFrameReader } from '@/components/visuals/stageFrame'
 import { VisualsStage } from '@/components/visuals/VisualsStage'
 import { bridge } from '@/env'
 import { useSong } from '@/state/song'
 import { studio, useStudio } from '@/state/studio'
+import { isTalking, ledsLit, sourceLevel, useLiveAudio, type TalkMode } from '@/state/liveAudio'
+import { useLiveDeck } from '@/state/liveDeck'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
-import { useVisuals } from '@/state/visuals'
+import { useVisualsUi, visualsUi } from '@/state/visualsUi'
 
 type Status = 'off' | 'starting' | 'on' | 'error'
-type TalkMode = 'open' | 'ptt' | 'latch'
 type TakeState = 'idle' | 'count' | 'rec'
 
 const FX: { name: LiveTrigger; label: string; key: string }[] = [
@@ -67,24 +67,23 @@ const COUNT_IN_BEATS = 3
 /** Output device names that sound like headphones (no feedback warning for these). */
 const HEADPHONES = /head(phone|set)|ear(phone|bud)|airpods|buds|in-ear|iem/i
 const bindingText = (b: MidiBinding | undefined) => (b ? `${b.kind === 'cc' ? 'CC' : 'N'}${b.number}` : null)
+/** The header's IN: the source's peak (the deck, the live input or the mic) as a share of its 12 LEDs. */
+const sourceLeds = () => ledsLit(sourceLevel().peak, 12) / 12
 
 /**
- * VISUALS (1.4; LIVE until 1.3, the screen id stays 'live'): the picture first. The STAGE is the compositor's scene
- * (a BASE and a stack of EFFECTS, S4's) with the palette, Link and the output window in its bar; around it, AUDIO
- * SOURCE (TRACK: the song deck and its stems · LIVE INPUT · MIC: the voice mask's devices), BASE, EFFECTS, EXPORT and
- * the camera clips, and under it VOICE: the voice mask laid out to perform, as LIVE had it. The mic goes through
- * S2's live rack (audio/live) with the Studio's preset and macros: preset pads, BPM-quantised FX pads (S2's
- * triggers, on the session grid), four macros, push-to-talk, MIDI learn for all of them (S2's MidiMap), recording
- * the set (S2's SetRecorder) and TAKE → STUDIO.
+ * VISUALS (1.5.2, app/design/visuals-td §A; the screen id stays 'live'): the picture first. The AudioSourceStrip
+ * header (TRACK: the song deck and its stems · LIVE INPUT · MIC: the voice mask's devices, in the SOURCE row under it),
+ * LAYERS on the left (S4's compositor scene: face hiding, the text, the effects, the base), the stage on the right
+ * with its bar, drawers (effects, clips) and PERFORM, and under it VOICE: the voice mask laid out to perform. The mic
+ * goes through S2's live rack (audio/live) with the Studio's preset and macros: preset pads, BPM-quantised FX pads
+ * (S2's triggers, on the session grid), four macros, push-to-talk, MIDI learn for all of them (S2's MidiMap),
+ * recording the set (S2's SetRecorder) and TAKE → STUDIO. Source, latency and talk state are S2's useLiveAudio.
  */
 export function LiveScreen() {
   const [status, setStatus] = useState<Status>('off')
   const [error, setError] = useState<string | null>(null)
-  // The top bar's slot: the live strip lives there, not in a page header. VISUALS stays mounted (App.tsx) but the top
-  // bar makes a new slot on each visit, so find it again whenever the page shows.
-  const [topSlot, setTopSlot] = useState<HTMLElement | null>(null)
   const onPage = useUi((u) => u.screen === 'live')
-  useEffect(() => setTopSlot(onPage ? document.getElementById(TOP_SLOT_ID) : null), [onPage])
+  useStageFrameReader(onPage)
   const [live, setLive] = useState<LiveEngine | null>(null)
   const [inputs, setInputs] = useState<MediaDeviceInfo[]>([])
   const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([])
@@ -92,15 +91,16 @@ export function LiveScreen() {
   /** Whether the running engine has the mic (TRACK starts without it). */
   const [micOpen, setMicOpen] = useState(false)
   const [outputId, setOutputId] = useState('')
-  const [latencyMode, setLatencyMode] = useState<LatencyMode>('low')
+  const latencyMode = useLiveAudio((s) => s.latency)
   const [latency, setLatency] = useState<number | null>(null)
   const [quantize, setQuantize] = useState<Quantize | 'auto'>('auto')
   const [firing, setFiring] = useState<Partial<Record<LiveTrigger, boolean>>>({})
-  const [talkMode, setTalkMode] = useState<TalkMode>('open')
-  const [held, setHeld] = useState(false) // push-to-talk held
-  const [latched, setLatched] = useState(false)
-  const [muted, setMuted] = useState(false)
-  const talking = !muted && (talkMode === 'open' || (talkMode === 'ptt' ? held : latched))
+  // The source, latency and talk state live in useLiveAudio (S5's AudioSourceStrip and VOICE strip set them too).
+  const talkMode = useLiveAudio((s) => s.talkMode)
+  const muted = useLiveAudio((s) => s.muted)
+  const held = useLiveAudio((s) => s.held)
+  const talking = useLiveAudio(isTalking)
+  const { setTalkMode, setMuted, talk } = useLiveAudio.getState()
   // TAKE → STUDIO: a dry take with a count-in, sent to the Studio as its source
   const [takeState, setTakeState] = useState<TakeState>('idle')
   const takeRec = useRef<SetRecorder | null>(null)
@@ -118,13 +118,16 @@ export function LiveScreen() {
   // The song deck: the Studio's song, playing under the voice in the live context (S2's SongDeck).
   const song = useSong((s) => s.song)
   const [deck, setDeck] = useState<SongDeck | null>(null)
+  // PROD's music block plays the same TRACK.
+  useEffect(() => useLiveDeck.setState({ deck }), [deck])
   const [songLevel, setSongLevel] = useState(0)
   const [songDuck, setSongDuck] = useState(true)
   // The page's remembered choices: the audio source, and VOICE open or closed (per source).
   const [prefs, setPrefs] = useState(loadPrefs)
-  useEffect(() => savePrefs(prefs), [prefs])
-  const source = prefs.source
-  const voiceIsOpen = voiceOpen(prefs)
+  const source = useLiveAudio((s) => s.source)
+  useEffect(() => savePrefs({ ...prefs, source }), [prefs, source])
+  const voiceIsOpen = voiceOpen(prefs, source)
+  const sourceOpen = prefs.sourceOpen !== false
   // TRACK plays the song through the live engine with the mic muted (MUTE here, so VOICE can open it again).
   // LIVE INPUT while it listens (its controls own it; leaving LIVE INPUT closes it).
   const [liveInput, setLiveInput] = useState<LiveInput | null>(null)
@@ -135,12 +138,9 @@ export function LiveScreen() {
     return () => setClipAudio(null)
   }, [source, live, liveInput])
   const stageCanvas = useRef<HTMLCanvasElement | null>(null)
-  const aspect = useVisuals((s) => s.aspect)
 
   const liveRef = useRef<LiveEngine | null>(null)
   liveRef.current = live
-  const talkModeRef = useRef(talkMode)
-  talkModeRef.current = talkMode
 
   const presets = orderPresets(usePresets().data ?? [])
   const presetsRef = useRef(presets)
@@ -230,12 +230,6 @@ export function LiveScreen() {
     if (l.setTalk) l.setTalk(talking)
     else l.setOutputGain(talking ? 0 : MUTED_DB)
   }, [live, talking])
-  /** The talk control (button, Space, a MIDI note or pedal): hold in PUSH TO TALK, toggle in LATCH. */
-  const talk = useCallback((down: boolean) => {
-    const mode = talkModeRef.current
-    if (mode === 'ptt') setHeld(down)
-    else if (mode === 'latch' && down) setLatched((v) => !v)
-  }, [])
 
   const fire = useCallback(
     (name: LiveTrigger) => {
@@ -267,6 +261,11 @@ export function LiveScreen() {
       setError((e as Error).message)
     }
   }
+  // PROD's ▶ PLAY starts the TRACK engine (no mic) the way START TRACK does, when VISUALS is on TRACK and it's off.
+  const startRef = useRef(start)
+  startRef.current = start
+  const canStartTrack = source === 'track' && Boolean(song) && (status === 'off' || status === 'error')
+  useEffect(() => useLiveDeck.setState({ startTrack: canStartTrack ? () => void startRef.current() : null }), [canStartTrack])
   const stop = async () => {
     const l = liveRef.current
     setRec.current?.release()
@@ -355,7 +354,8 @@ export function LiveScreen() {
         if (!e.repeat) talk(true)
         return
       }
-      const fx = FX.find((f) => f.key === e.key.toLowerCase())
+      // PERFORM's pads own A, D and F (and the rest of the letters) while it's open.
+      const fx = useVisualsUi.getState().perform ? undefined : FX.find((f) => f.key === e.key.toLowerCase())
       if (fx && !e.repeat) {
         e.preventDefault()
         fire(fx.name)
@@ -470,10 +470,9 @@ export function LiveScreen() {
       toast.info('INPUT CHANGED', { detail: 'Go live again to use it.' })
     }
   }
-  const onLatency = async (mode: LatencyMode) => {
-    setLatencyMode(mode)
-    await live?.setLatencyMode(mode)
-  }
+  const onLatency = (mode: LatencyMode) => useLiveAudio.getState().setLatency(mode)
+  // From here or S5's strip: the running engine follows.
+  useEffect(() => void liveRef.current?.setLatencyMode(latencyMode), [latencyMode])
   /** A running engine started for TRACK has no mic: open it only when the DJ arms it (MIC source, or ARM MIC). */
   const ensureMic = async () => {
     const engine = liveRef.current
@@ -491,12 +490,16 @@ export function LiveScreen() {
     await engine.setInput('none')
     setMicOpen(false)
   }
-  const onSource = (next: AudioSource) => {
-    if (next === 'mic') void ensureMic()
-    else void closeMic()
-    setPrefs((p) => ({ ...p, source: next }))
-  }
-  const toggleVoice = () => setPrefs((p) => ({ ...p, voice: { ...p.voice, [p.source]: !voiceOpen(p) } }))
+  const onSource = (next: AudioSource) => useLiveAudio.getState().setSource(next)
+  // From here or S5's strip: MIC arms the mic, the others close it.
+  useEffect(() => void (source === 'mic' ? ensureMic() : closeMic()), [source]) // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleVoice = () => setPrefs((p) => ({ ...p, voice: { ...p.voice, [source]: !voiceOpen(p, source) } }))
+  // What the strips read: the engine's state and the taps behind sourceLevel() / micLevel().
+  useEffect(() => {
+    const mic = micOpen ? (live?.bus.input ?? null) : null
+    useLiveAudio.setState({ on, micOpen, taps: { track: deck?.tap.analyser ?? null, input: liveInput?.tap.analyser ?? null, mic } })
+  }, [on, micOpen, live, deck, liveInput])
+  useEffect(() => () => useLiveAudio.setState({ on: false, micOpen: false, taps: { track: null, input: null, mic: null } }), [])
   const talkText =
     on && !micOpen
       ? 'MIC OFF'
@@ -514,120 +517,68 @@ export function LiveScreen() {
 
   return (
     <Screen className={styles.screen} data-testid="live-screen" data-learning={learning || undefined}>
-      <h1 className="sr-only">VISUALS</h1>
-      {topSlot &&
-        createPortal(
-          <div className={styles.headBar}>
-            <span className={styles.status} data-status={status} role="status">
-              {status === 'on' ? '● LIVE' : status === 'starting' ? 'STARTING…' : status === 'error' ? 'NO INPUT' : 'LIVE OFF'}
-            </span>
-            <span className={styles.readout} title="Round trip: output, input and the pitch shifter">
-              <b>{latency != null ? Math.round(latency) : '—'}</b> MS
-            </span>
-            <LiveMeters bus={live?.bus ?? null} />
-            {source === 'mic' && !headphones && (
-              <span className={styles.warn} title="On speakers the mic hears the mask and feeds back: use headphones">
-                ⚠ HEADPHONES
-              </span>
-            )}
-          </div>,
-          topSlot,
-        )}
+      <AudioSourceStrip
+        source={source}
+        onSource={onSource}
+        status={status}
+        latency={latency}
+        latencyMode={latencyMode}
+        onLatency={onLatency}
+        onStart={() => void start()}
+        onStop={() => void stop()}
+        startDisabled={status === 'starting' || (source === 'track' && !song)}
+        startTitle={
+          source === 'track' ? (song ? 'Play the song here (the mic stays off)' : 'Pick or drop a song first') : 'Open the mic through the mask'
+        }
+        headphones={source === 'mic' && !headphones}
+        level={sourceLeds}
+        open={sourceOpen}
+        onToggle={() => setPrefs((p) => ({ ...p, sourceOpen: !sourceOpen }))}
+      />
       {error && <p className={styles.error}>{error}</p>}
+      {/* The source's own controls; hidden, never unmounted (LIVE INPUT keeps listening). */}
+      <section className={styles.sourceRow} aria-label="Audio source controls" hidden={!sourceOpen} data-source={source}>
+        {source === 'track' ? (
+          <>
+            <LiveSongStrip deck={deck} level={songLevel} duck={songDuck} onLevel={setSongLevel} onDuck={setSongDuck} />
+            {song && <StemsRow song={song} />}
+          </>
+        ) : source === 'input' ? (
+          <LiveInputControls onInput={setLiveInput} />
+        ) : (
+          <>
+            <label className={styles.field}>
+              <span>INPUT</span>
+              <select value={inputId} onChange={(e) => void onInput(e.target.value)}>
+                <option value="">DEFAULT INPUT</option>
+                {inputs.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `MICROPHONE ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>OUTPUT</span>
+              <select value={outputId} onChange={(e) => void onOutput(e.target.value)}>
+                <option value="">SYSTEM OUTPUT</option>
+                {outputs.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `OUTPUT ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className={styles.hint}>Use headphones: the mask comes back through the output while you talk.</p>
+          </>
+        )}
+      </section>
 
-      <div className={styles.grid} data-voice={voiceIsOpen ? 'open' : 'closed'} data-aspect={aspect}>
-        <aside className={styles.side}>
-          <section className={styles.card} aria-label="Audio source" data-testid="visuals-source">
-            <h2 className={styles.cardTitle}>AUDIO SOURCE</h2>
-            <Segmented<AudioSource>
-              label="Audio source"
-              hideLabel
-              size="sm"
-              value={source}
-              options={[
-                { value: 'track', label: 'TRACK', title: 'The song: the visuals follow the track (and its stems)' },
-                { value: 'input', label: 'LIVE INPUT', title: 'System audio or an audio interface: what the DJ is playing' },
-                { value: 'mic', label: 'MIC', title: 'The live voice mask' },
-              ]}
-              onChange={onSource}
-            />
-            {source === 'track' ? (
-              <>
-                <LiveSongStrip deck={deck} level={songLevel} duck={songDuck} onLevel={setSongLevel} onDuck={setSongDuck} />
-                {song && <StemsRow song={song} />}
-              </>
-            ) : source === 'input' ? (
-              <LiveInputControls onInput={setLiveInput} />
-            ) : (
-              <>
-                <label className={styles.field}>
-                  <span>INPUT</span>
-                  <select value={inputId} onChange={(e) => void onInput(e.target.value)}>
-                    <option value="">DEFAULT INPUT</option>
-                    {inputs.map((d, i) => (
-                      <option key={d.deviceId} value={d.deviceId}>
-                        {d.label || `MICROPHONE ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.field}>
-                  <span>OUTPUT</span>
-                  <select value={outputId} onChange={(e) => void onOutput(e.target.value)}>
-                    <option value="">SYSTEM OUTPUT</option>
-                    {outputs.map((d, i) => (
-                      <option key={d.deviceId} value={d.deviceId}>
-                        {d.label || `OUTPUT ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className={styles.field}>
-                  <span>LATENCY</span>
-                  <Segmented<LatencyMode>
-                    label="Latency"
-                    hideLabel
-                    size="sm"
-                    value={latencyMode}
-                    options={[
-                      { value: 'low', label: 'LOW', title: 'Performing (a little grainier on low voices)' },
-                      { value: 'balanced', label: 'SMOOTH', title: 'Smoother pitch shifting, a few ms more' },
-                    ]}
-                    onChange={(m) => void onLatency(m)}
-                  />
-                </div>
-                <p className={styles.hint}>Use headphones: the mask comes back through the output while you talk.</p>
-              </>
-            )}
-            {source !== 'input' &&
-              (on ? (
-                <Button variant="secondary" onClick={() => void stop()} data-testid="live-stop">
-                  {source === 'track' ? '■ STOP TRACK' : '■ STOP MIC'}
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  onClick={() => void start()}
-                  disabled={status === 'starting' || (source === 'track' && !song)}
-                  title={
-                    source === 'track'
-                      ? song
-                        ? 'Play the song here (the mic stays off)'
-                        : 'Pick or drop a song first'
-                      : 'Open the mic through the mask'
-                  }
-                  data-testid="live-start"
-                >
-                  {source === 'track' ? '▶ START TRACK' : '● START MIC'}
-                </Button>
-              ))}
-          </section>
-          <BasePanel />
-          <section className={styles.card} aria-label="Export" data-testid="visuals-export">
-            <h2 className={styles.cardTitle}>EXPORT</h2>
-            <SaveClip />
-            <LiveRecord stage={() => stageCanvas.current} audioReady={clipAudio != null} deck={source === 'track' ? deck : null} />
-          </section>
+      <div className={styles.grid}>
+        <aside className={styles.side} aria-label="Layers">
+          <ErrorBoundary scope="LAYERS" compact>
+            <LayerStack stemsLive={source === 'input' && Boolean(liveInput)} />
+          </ErrorBoundary>
         </aside>
 
         <div className={styles.stage}>
@@ -638,17 +589,19 @@ export function LiveScreen() {
               input={source === 'input' ? liveInput : null}
               bpm={bpm}
               onCanvas={(c) => (stageCanvas.current = c)}
+              voice={{ talk, lit: talking, ready: on && micOpen }}
+              clips={
+                <>
+                  <SaveClip confirm={(render) => (faceShowsNow() ? visualsUi.askFace('clip', render) : render())} />
+                  <LiveRecord stage={() => stageCanvas.current} audioReady={clipAudio != null} deck={source === 'track' ? deck : null} />
+                </>
+              }
             />
           </ErrorBoundary>
         </div>
 
-        <aside className={styles.fxCol}>
-          <ErrorBoundary scope="EFFECTS" compact>
-            <EffectsPanel stemsLive={source === 'input' && Boolean(liveInput)} />
-          </ErrorBoundary>
-        </aside>
-
-        <section className={styles.voice} aria-label="Voice" data-testid="visuals-voice">
+        {/* VOICE under the stage: the head (mode, mic, preset, PUSH, MUTE, TAKE, REC SET) always, the rack open. */}
+        <section className={styles.voice} aria-label="Voice" data-testid="visuals-voice" data-open={voiceIsOpen || undefined}>
           <div className={styles.voiceHead}>
             <button type="button" className={styles.voiceToggle} aria-expanded={voiceIsOpen} onClick={toggleVoice}>
               <span aria-hidden className={styles.caret}>
@@ -656,39 +609,43 @@ export function LiveScreen() {
               </span>
               VOICE
             </button>
-            <span className={styles.voiceSummary}>
-              {presetName ?? 'CUSTOM'} · {on ? talkText : 'OFF'}
+            <span className={styles.talkMode}>
+              <Segmented<TalkMode>
+                label="Talk"
+                hideLabel
+                size="sm"
+                value={talkMode}
+                options={[
+                  { value: 'open', label: 'OPEN' },
+                  { value: 'ptt', label: 'PUSH' },
+                  { value: 'latch', label: 'LATCH' },
+                ]}
+                onChange={setTalkMode}
+              />
             </span>
-            {!on && <span className={styles.hint}>START the audio source for the pads, TAKE and REC SET</span>}
-            <div className={styles.flex} />
-            {on && source !== 'mic' && (
-              <button
-                type="button"
-                className={styles.toggle}
-                data-on={micOpen || undefined}
-                onClick={() => void (micOpen ? closeMic() : ensureMic())}
-                title="Talk over the track: opens the mic (clips then carry your masked voice too)"
-                data-testid="arm-mic"
-              >
-                {micOpen ? '● MIC ARMED' : 'ARM MIC'}
-              </button>
-            )}
+            <LiveMeters bus={live?.bus ?? null} />
+            <span className={styles.voiceSummary} title="The voice preset">
+              {presetName ?? 'CUSTOM'}
+            </span>
             <button
               type="button"
-              className={styles.toggle}
-              data-on={learning || undefined}
-              disabled={!midi}
-              onClick={() => {
-                if (learning) midi?.cancelLearn()
-                setLearnTarget(null)
-                setLearning(!learning)
-              }}
-              title={
-                midi ? 'Click a pad, macro or push-to-talk, then move a knob or hit a pad on your controller' : 'No MIDI controller access'
-              }
+              className={styles.talk}
+              data-talking={(on && talking) || undefined}
+              disabled={!on && !learning}
+              onClick={learning ? learnOr('ptt', () => {}) : undefined}
+              onPointerDown={() => !learning && talk(true)}
+              onPointerUp={() => !learning && talk(false)}
+              onPointerLeave={() => !learning && talkMode === 'ptt' && held && talk(false)}
+              data-testid="live-talk"
             >
-              MIDI LEARN
+              {talkText}
+              {talkMode !== 'open' && <kbd>SPACE</kbd>}
+              {badge('ptt')}
             </button>
+            <button type="button" className={styles.mute} data-on={muted || undefined} onClick={() => setMuted(!muted)} disabled={!on}>
+              {muted ? 'MUTED' : 'MUTE'}
+            </button>
+            <div className={styles.flex} />
             <Button
               size="sm"
               variant={takeState === 'idle' ? 'secondary' : 'danger'}
@@ -699,13 +656,7 @@ export function LiveScreen() {
             >
               {takeState === 'count' ? 'COUNT-IN…' : takeState === 'rec' ? '■ TAKE → STUDIO' : '● TAKE'}
             </Button>
-            <Button
-              size="sm"
-              variant={setT0 != null ? 'danger' : 'secondary'}
-              disabled={!on}
-              onClick={() => void recordSet()}
-              data-testid="live-rec-set"
-            >
+            <Button size="sm" variant={setT0 != null ? 'danger' : 'secondary'} disabled={!on} onClick={() => void recordSet()} data-testid="live-rec-set">
               {setT0 != null ? `■ STOP SET · ${clock((setNow - setT0) / 1000)}` : '● REC SET'}
             </Button>
           </div>
@@ -724,42 +675,6 @@ export function LiveScreen() {
           )}
           {voiceIsOpen && (
             <div className={styles.voiceBody}>
-              <div className={styles.talkModes}>
-                <Segmented<TalkMode>
-                  label="Talk"
-                  hideLabel
-                  size="sm"
-                  value={talkMode}
-                  options={[
-                    { value: 'open', label: 'OPEN' },
-                    { value: 'ptt', label: 'PUSH' },
-                    { value: 'latch', label: 'LATCH' },
-                  ]}
-                  onChange={(m) => {
-                    setHeld(false)
-                    setLatched(false)
-                    setTalkMode(m)
-                  }}
-                />
-                <button type="button" className={styles.mute} data-on={muted || undefined} onClick={() => setMuted(!muted)} disabled={!on}>
-                  {muted ? 'MUTED' : 'MUTE'}
-                </button>
-                <button
-                  type="button"
-                  className={styles.talk}
-                  data-talking={(on && talking) || undefined}
-                  disabled={!on && !learning}
-                  onClick={learning ? learnOr('ptt', () => {}) : undefined}
-                  onPointerDown={() => !learning && talk(true)}
-                  onPointerUp={() => !learning && talk(false)}
-                  onPointerLeave={() => !learning && talkMode === 'ptt' && held && talk(false)}
-                  data-testid="live-talk"
-                >
-                  {talkText}
-                  {talkMode !== 'open' && <kbd>SPACE</kbd>}
-                  {badge('ptt')}
-                </button>
-              </div>
               <div className={styles.voiceGroup}>
                 <h3 className={styles.cardTitle}>
                   PRESETS <kbd>1–7</kbd>
@@ -844,6 +759,38 @@ export function LiveScreen() {
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className={styles.voiceGroup}>
+                <h3 className={styles.cardTitle}>MIC & MIDI</h3>
+                {!on && <p className={styles.hint}>START the audio source for the pads, TAKE and REC SET.</p>}
+                {on && source !== 'mic' && (
+                  <button
+                    type="button"
+                    className={styles.toggle}
+                    data-on={micOpen || undefined}
+                    onClick={() => void (micOpen ? closeMic() : ensureMic())}
+                    title="Talk over the track: opens the mic (clips then carry your masked voice too)"
+                    data-testid="arm-mic"
+                  >
+                    {micOpen ? '● MIC ARMED' : 'ARM MIC'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={styles.toggle}
+                  data-on={learning || undefined}
+                  disabled={!midi}
+                  onClick={() => {
+                    if (learning) midi?.cancelLearn()
+                    setLearnTarget(null)
+                    setLearning(!learning)
+                  }}
+                  title={
+                    midi ? 'Click a pad, macro or push-to-talk, then move a knob or hit a pad on your controller' : 'No MIDI controller access'
+                  }
+                >
+                  MIDI LEARN
+                </button>
               </div>
             </div>
           )}

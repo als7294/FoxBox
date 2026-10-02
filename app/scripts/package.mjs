@@ -32,7 +32,10 @@ if (dmg && !bundled) {
 }
 
 const repoDir = () => {
-  const commonDir = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: appDir, encoding: 'utf8' }).trim()
+  const commonDir = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+    cwd: appDir,
+    encoding: 'utf8',
+  }).trim()
   return dirname(commonDir)
 }
 
@@ -68,8 +71,13 @@ if (bundled) {
 // Contents/Resources/link-helper next to its license.
 const linkOut = join(outDir, '.link-helper')
 execFileSync('bash', [join(appDir, 'native', 'link', 'build.sh'), linkOut], { stdio: 'inherit' })
-extra.extraResources = [...(extra.extraResources ?? []), { from: join(linkOut, 'link-helper'), to: 'link-helper' },
-  { from: join(linkOut, 'link-helper.LICENSE.md'), to: 'link-helper.LICENSE.md' }]
+// The config's own (TouchDesigner's addon and script) stay: `{ ...config, ...extra }` below would replace them.
+extra.extraResources = [
+  ...(config.extraResources ?? []),
+  ...(extra.extraResources ?? []),
+  { from: join(linkOut, 'link-helper'), to: 'link-helper' },
+  { from: join(linkOut, 'link-helper.LICENSE.md'), to: 'link-helper.LICENSE.md' },
+]
 
 const { build, Platform } = require('electron-builder')
 // electron-builder 26 writes its extraMetadata-merged, stripped package.json over the source one (scripts and

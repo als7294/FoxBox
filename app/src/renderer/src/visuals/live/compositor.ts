@@ -7,7 +7,7 @@
  */
 import type { AudioFrame, StemId, TextTrack } from './registry'
 
-export type BaseKind = 'none' | 'waveform' | 'core' | 'camera' | 'photo' | 'video'
+export type BaseKind = 'none' | 'waveform' | 'core' | 'camera' | 'photo' | 'video' | 'touchdesigner'
 
 export type { FrameExtras, TextTrack } from './registry'
 
@@ -45,6 +45,8 @@ export interface EffectLayer {
   enabled: boolean
   /** 1.5: the AUTO-VJ director never touches a locked layer (the DJ's pick stays as set). */
   locked?: boolean
+  /** 1.5.2, a TOUCHDESIGNER layer (styleId 'touchdesigner'): the look PROD's SEND TO VISUALS picked. */
+  td?: { preset: string }
 }
 
 export interface Scene {
@@ -125,3 +127,11 @@ export type BaseFactory = (
   spec: BaseSpec,
   opts: { paletteId: string; reduced: boolean; output: 'stage' | 'window' | 'clip' },
 ) => BaseInstance | Promise<BaseInstance>
+
+/** 1.5.2: a TOUCHDESIGNER layer's style id. TouchDesigner draws one look at a time: the topmost TD layer's. */
+export const TD_STYLE = 'touchdesigner'
+
+/** Whether TouchDesigner's picture is in the scene: as the BASE, or as an enabled layer. */
+export function sceneHasTd(scene: Scene): boolean {
+  return scene.base.kind === 'touchdesigner' || scene.effects.some((e) => e.enabled && e.styleId === TD_STYLE)
+}

@@ -88,16 +88,19 @@ interface Track {
   chunks: number[]
 }
 
-/** The plain MP4, or null if this isn't a fragmented MP4 we can rewrite (then keep the original). */
-export function defragment(input: ArrayBuffer): Uint8Array<ArrayBuffer> | null {
+/**
+ * The plain MP4, or null if this isn't a fragmented MP4 we can rewrite (then keep the original). `comment`: the file's
+ * QuickTime ©cmt (1.6: SAVE CLIP's LIVE mode puts the TouchDesigner DEMO label there).
+ */
+export function defragment(input: ArrayBuffer, comment?: string): Uint8Array<ArrayBuffer> | null {
   try {
-    return rewrite(input)
+    return rewrite(input, comment)
   } catch {
     return null
   }
 }
 
-function rewrite(input: ArrayBuffer): Uint8Array<ArrayBuffer> | null {
+function rewrite(input: ArrayBuffer, comment?: string): Uint8Array<ArrayBuffer> | null {
   const v = new DataView(input)
   const top = [...boxes(v, 0, input.byteLength)]
   const moov = top.find((b) => b.type === 'moov')
@@ -221,7 +224,7 @@ function rewrite(input: ArrayBuffer): Uint8Array<ArrayBuffer> | null {
       chunkOffsets.get(r.track)!.push(at)
       for (let i = r.from; i < r.from + r.count; i++) at += r.track.samples[i]!.size
     }
-    return moovBox(v, mvhd, movieScale, order, chunkOffsets)
+    return moovBox(v, mvhd, movieScale, order, chunkOffsets, comment)
   }
   // The moov's size doesn't depend on the offsets in it: build once to measure, then for real.
   const measure = build(0)
@@ -242,6 +245,12 @@ function rewrite(input: ArrayBuffer): Uint8Array<ArrayBuffer> | null {
     }
   }
   return out
+}
+
+/** QuickTime user data with a ©cmt comment (QuickTime and Finder show it; ffprobe reads it as `comment`). */
+function udta(comment: string): Uint8Array {
+  const t = new TextEncoder().encode(comment)
+  return box('udta', box('\xa9cmt', u8(t.length >> 8, t.length & 255, 0x55, 0xc4), t)) // 0x55c4: language 'und'
 }
 
 const raw = (v: DataView, b: BoxAt) => new Uint8Array(v.buffer, v.byteOffset + b.start, b.end - b.start)
@@ -267,7 +276,8 @@ function runLengths(values: readonly number[]): [number, number][] {
   return out
 }
 
-function moovBox(v: DataView, mvhd: BoxAt, movieScale: number, tracks: Track[], chunkOffsets: Map<Track, number[]>): Uint8Array {
+function moovBox(v: DataView, mvhd: BoxAt, movieScale: number, tracks: Track[], chunkOffsets: Map<Track, number[]>,
+                 comment?: string): Uint8Array {
   const toMovie = (t: Track, n: number) => Math.round((n * movieScale) / t.timescale)
   const lengths = tracks.map((t) => t.samples.reduce((n, s) => n + s.duration, 0))
   const movieLength = Math.max(...tracks.map((t, i) => toMovie(t, (t.start ?? 0) + lengths[i]!)))
@@ -327,5 +337,5 @@ function moovBox(v: DataView, mvhd: BoxAt, movieScale: number, tracks: Track[], 
       ),
     )
   })
-  return box('moov', withDuration(v, mvhd, movieLength, { v0: 16, v1: 24 }), ...traks)
+  return box('moov', withDuration(v, mvhd, movieLength, { v0: 16, v1: 24 }), ...traks, ...(comment ? [udta(comment)] : []))
 }

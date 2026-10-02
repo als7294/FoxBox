@@ -52,6 +52,9 @@ export interface AudioFrame {
   preDrop?: boolean
   /** Beats until the next drop hit, when predictable. */
   dropIn?: number | null
+  /** The section after this one and the beats to it (TRACK, from the song's sections; AUTO-VJ's countdown). */
+  nextSection?: SongSection | null
+  nextIn?: number | null
   /** True on the one frame a drop lands. */
   dropHit?: boolean
   /** 1 at a drop's hit, decaying to 0 over about a bar. */

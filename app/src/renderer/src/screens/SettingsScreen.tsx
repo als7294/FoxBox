@@ -25,6 +25,7 @@ import { studio, useStudio } from '@/state/studio'
 import { useViewPrefs } from '@/state/viewPrefs'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
+import { TouchDesignerFields } from '@/touchdesigner/TouchDesignerFields'
 import styles from './settings.module.css'
 
 type Rekordbox = NonNullable<Settings['rekordbox']>
@@ -1156,6 +1157,11 @@ export function SettingsScreen() {
         <CameraClipsCard />
         <EngineCard />
         <UpdatesCard />
+        {bridge()?.touchdesigner && (
+          <Card title="TouchDesigner" area="td" caption={<span className={styles.caption}>OSC, this Mac or the network</span>}>
+            <TouchDesignerFields />
+          </Card>
+        )}
       </div>
       <footer className={styles.foot}>
         <CreditLink />
