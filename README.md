@@ -91,7 +91,7 @@ Hold the shaka 🤙 (or press **L**) and your music fans up out of the waveform 
 - **NOTE PICKING** by height or by the space between your hands, and **pluck sensitivity** (Settings → Playing).
 - **One-handed mode** (Settings → Playing): either hand plays. Hold a shape to switch its effect on or off, hold one L to
   make a frame, and set the hold time, wobble tolerance and your reach. The GUIDE has a one-handed version, and
-  **F** (frame), **P** (next style) and **L** (library) work from the keyboard.
+  **F** (frame), **P** (the frame's next style) and **L** (library) work from the keyboard.
 - **Left-handed layout** (Settings → Playing): in FLOW your left hand plays and your right makes the shapes, and the library dial is your left index.
 - **Record:** WAV takes in SAUCE, video with sound in REMIX. Drag them straight into Ableton, Rekordbox or Finder.
 - **Send to output:** the picture full screen on a projector or a stream.
@@ -102,8 +102,8 @@ Hold the shaka 🤙 (or press **L**) and your music fans up out of the waveform 
 
 - **2.1:** MIDI out to any synth or DAW, a FoxBox device for Ableton Live that installs from the app, Ableton Link tempo
   sync, and MIDI takes (.mid). The roadmap is on [foxbox.tech](https://foxbox.tech/#roadmap).
-- **[FoxBox Voice](https://foxbox.tech/voice/) (beta):** the sibling app. Type a line and get a finished vocal, cut to the
-  bar and ready for your DAW. Invite-only for now.
+- **[FoxBox Voice](https://foxbox.tech/voice/) (beta):** the sibling app. Type a line or record yourself and get a finished
+  vocal, cut to the bar and ready for your DAW. Invite-only for now.
 
 ## Install
 
