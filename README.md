@@ -16,6 +16,9 @@ and remix it with hand shapes locked to its beat. Everything runs on your Mac.
 <br/>
 
 [![Download for macOS](https://img.shields.io/github/v/release/als7294/FoxBox?style=for-the-badge&label=download%20for%20macOS&color=ff4b2b&labelColor=0b0b0c)](https://github.com/als7294/FoxBox/releases/latest)
+[![foxbox.tech](https://img.shields.io/badge/website-foxbox.tech-0b0b0c?style=for-the-badge&labelColor=0b0b0c&color=2a1a12)](https://foxbox.tech)
+
+**New in 2.0.1: play with one hand.** Settings → Playing → One-handed.
 
 ![macOS 14+](https://img.shields.io/badge/macOS_14+-Apple_silicon-0b0b0c?style=flat-square&logo=apple&logoColor=e9e5da)
 ![On-device](https://img.shields.io/badge/100%25-on--device-0b0b0c?style=flat-square)
@@ -86,11 +89,21 @@ Hold the shaka 🤙 (or press **L**) and your music fans up out of the waveform 
 - **Visuals:** Bars, Halo, Silk, Grain or Scope. In SAUCE they play over the camera; in REMIX they wrap around the waveform.
 - **Edit shapes** (in Hands or Beat FX): choose what each hand shape does.
 - **NOTE PICKING** by height or by the space between your hands, and **pluck sensitivity** (Settings → Playing).
+- **One-handed mode** (Settings → Playing): either hand plays. Hold a shape to switch its effect on or off, hold one L to
+  make a frame, and set the hold time, wobble tolerance and your reach. The GUIDE has a one-handed version, and
+  **F** (frame), **P** (next style) and **L** (library) work from the keyboard.
 - **Left-handed layout** (Settings → Playing): in FLOW your left hand plays and your right makes the shapes, and the library dial is your left index.
 - **Record:** WAV takes in SAUCE, video with sound in REMIX. Drag them straight into Ableton, Rekordbox or Finder.
 - **Send to output:** the picture full screen on a projector or a stream.
 - **Face hiding** is there if you want it (off by default).
 - **The GUIDE** walks you through every move with your own camera. Press **G** to replay it.
+
+## What's next
+
+- **2.1:** MIDI out to any synth or DAW, a FoxBox device for Ableton Live that installs from the app, Ableton Link tempo
+  sync, and MIDI takes (.mid). The roadmap is on [foxbox.tech](https://foxbox.tech/#roadmap).
+- **[FoxBox Voice](https://foxbox.tech/voice/) (beta):** the sibling app. Type a line and get a finished vocal, cut to the
+  bar and ready for your DAW. Invite-only for now.
 
 ## Install
 
