@@ -3,10 +3,14 @@
 // Tab loops inside it, ←/→ are Back/Next and Esc skips while it's open, and focus goes back on close. Never blocking: Next
 // is always live, a step can be done from its own button too, and a step the camera sees done moves on by itself after
 // ~1.2 s. Skip or Esc remembers the step. It waits while the camera is off, and for WHAT'S NEW.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { SauceAction } from '@/audio/play/instrument'
+import { usePlayPrefs } from '@/components/camera/playPrefs'
+import { CalibrateReach } from '@/components/fb/CalibrateReach'
+import { useTick } from '@/components/stage/StageControls'
 import { beatFxNow } from '@/audio/live/beatFx'
 import { cameraSignals } from '@/components/camera/smartCamera'
-import { playActions, SOUNDS, usePlay } from '@/components/play/playStore'
+import { currentInstrument, playActions, SOUNDS, usePlay } from '@/components/play/playStore'
 import { playTestBeat, startOutput, useOutputOpen } from '@/components/prod/prodActions'
 import { useTakes } from '@/components/stage/takes'
 import { fingerCuts } from '@/components/strings/beatFx'
@@ -44,6 +48,8 @@ export interface GuideStepSpec {
   icon?: string
   /** The move's real sound, quietly (S2's guideDemo), while the step shows. */
   demo?: GuideDemoId
+  /** What the step shows under its line (the one-handed reach and shapes). */
+  body?: () => ReactNode
   watch?: Watch
   /** The step done from the card (the page's own control is there too). */
   action?: { label: string; run: () => void }
@@ -192,6 +198,99 @@ const REMIX_STEPS: GuideStepSpec[] = [
 
 export const GUIDE_STEPS: Record<Chapter, GuideStepSpec[]> = { play: PLAY_STEPS, remix: REMIX_STEPS }
 
+// ONE-HANDED (2.0.1, STRINGS_UX "The one-handed GUIDE"): one hand does it all
+const PRACTICE: [SauceAction, string, string][] = [
+  ['drive', 'a fist', 'DRIVE'],
+  ['wobble', 'a pinch', 'WOBBLE'],
+  ['echo', 'peace', 'ECHO'],
+  ['space', 'horns', 'SPACE'],
+]
+const practised = new Set<SauceAction>()
+const notePractice = () => (currentInstrument()?.latched ?? []).forEach((a) => practised.add(a))
+
+/** The shapes, one at a time: the next to hold, big, and a tick for each that has turned on. */
+function ShapesPractice() {
+  useTick(true, 200)
+  notePractice()
+  const next = PRACTICE.find(([a]) => !practised.has(a))
+  return (
+    <div className={s.practice}>
+      {next && (
+        <b className={s.practiceNow}>
+          Hold {next[1]} to turn on {next[2]}
+        </b>
+      )}
+      <ul className={s.ticks}>
+        {PRACTICE.map(([a, , name]) => (
+          <li key={a} data-done={practised.has(a) || undefined}>
+            {practised.has(a) ? '✓' : '○'} {name}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const reachNow = () => JSON.stringify(usePlayPrefs.getState().reach)
+const ONE_PLAY_STEPS: GuideStepSpec[] = [
+  {
+    title: 'Hold one hand up, curved into a C',
+    text: 'Turned a little toward the camera.',
+    move: 'c-pose',
+    watch: { start: now(), done: () => cameraSignals().play.one != null },
+  },
+  {
+    title: 'Raise or lower it to pick a note',
+    text: 'Then curl a finger to pluck. Now you try: play three notes.',
+    move: 'pluck',
+    demo: 'pluck',
+    watch: rises('pluck', 3),
+  },
+  {
+    title: 'Show us your reach',
+    text: 'Your highest comfortable note, then your lowest. Each one counts down from 3.',
+    move: 'height',
+    body: () => <CalibrateReach onDone={() => undefined} />,
+    watch: {
+      start: () => ((reachAtStart = reachNow()), 0),
+      done: () => usePlayPrefs.getState().reach != null && reachNow() !== reachAtStart,
+    },
+  },
+  {
+    title: 'Practise the shapes, one at a time',
+    text: 'Hold a shape to turn its effect on. Hold it again to turn it off.',
+    move: 'fist',
+    body: () => <ShapesPractice />,
+    watch: {
+      start: () => (practised.clear(), 0),
+      done: () => (notePractice(), PRACTICE.every(([a]) => practised.has(a))),
+    },
+  },
+  { title: 'Twist to bend', text: 'Point up or down for the octave.', move: 'twist', demo: 'twist', watch: rises('twist') },
+  {
+    title: 'Hold an L to open a frame',
+    text: `Pinch and hold for a moment to change the effect, turn your hand over for the flip side, and hold the L again to let it go.`,
+    move: 'frame',
+    demo: 'frame',
+    watch: { start: () => progress().frame, done: (from) => progress().frame > from || cameraSignals().frame.latched },
+  },
+  {
+    title: 'Try FLOW',
+    text: 'Press S: height for pitch, open and close your thumb and index for the filter, a fist to mute.',
+    move: 'flow',
+    demo: 'height',
+    watch: { start: () => progress().pitch, done: (from) => usePlay.getState().style === 'flow' && progress().pitch > from },
+  },
+]
+let reachAtStart = ''
+const ONE_REMIX_STEPS: GuideStepSpec[] = REMIX_STEPS.map((x) =>
+  x.move === 'shaka' ? { ...x, text: 'Your index spins it, close your hand to preview, hold a fist to load.' } : x,
+)
+
+/** The chapter's steps: the one-handed ones while One-handed is on (S1's usePlayPrefs). */
+export const stepsFor = (c: Chapter): GuideStepSpec[] =>
+  (usePlayPrefs.getState().oneHanded ? { play: ONE_PLAY_STEPS, remix: ONE_REMIX_STEPS } : GUIDE_STEPS)[c]
+
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: number; of: number; done: boolean }) {
@@ -199,7 +298,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
     <>
       <div className={s.demo} key={n}>
         {spec.move ? (
-          <GuideHands move={spec.move} width={332} />
+          <GuideHands move={spec.move} width={332} hands={usePlayPrefs.getState().oneHanded ? 1 : 2} />
         ) : (
           <span className={s.icon} aria-hidden="true">
             {spec.icon}
@@ -209,6 +308,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
       </div>
       <h2 className={s.title}>{spec.title}</h2>
       <p className={s.text}>{spec.text}</p>
+      {spec.body?.()}
       <div className={s.row}>
         <p className={s.try} data-done={done || undefined} role="status">
           <span className={s.tryDot} />
@@ -240,7 +340,7 @@ export function Guide() {
   const cam = useStrings((t) => t.camera)
   const ref = useRef<HTMLDialogElement>(null)
   const [done, setDone] = useState(false)
-  const steps = chapter ? GUIDE_STEPS[chapter] : []
+  const steps = chapter ? stepsFor(chapter) : []
   const spec = steps[step]
   const waiting = cam !== 'live'
 
@@ -263,7 +363,7 @@ export function Guide() {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTextTarget(e.target)) return
       const { step: at, open } = useGuide.getState()
-      const count = open ? GUIDE_STEPS[open].length : 0
+      const count = open ? stepsFor(open).length : 0
       if (e.key === 'ArrowRight') at + 1 < count ? guide.go(at + 1) : guide.close(true)
       else if (e.key === 'ArrowLeft') at > 0 && guide.go(at - 1)
       else if (e.key === 'Escape') guide.close()

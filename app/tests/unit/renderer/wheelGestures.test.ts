@@ -101,4 +101,24 @@ describe("the library wheel's gestures", () => {
       usePlayPrefs.getState().setLeftHanded(false)
     }
   })
+
+  it('one-handed: the one hand dials with its index, closes to grab, and a fist held 0.8 s loads', () => {
+    usePlayPrefs.setState({ oneHanded: true })
+    try {
+      const step = session()
+      const point = [1, 0, 1, 1, 1]
+      expect(step(turned(point, 0, 0.3), null, 10).dial).not.toBeNull() // the right hand alone: it dials
+      expect(step(turned(point, 0, 0.3), null, 1).grab).toBeLessThan(0.85) // pointing isn't a full grab
+      expect(step(hand3d([0, 0.7, 0.7, 0.7, 0.7], 0.3), null, 30).loads).toBe(0) // closed round a grab: a preview, no load
+      step(turned(point, 0, 0.3), null, 5)
+      expect(step(hand3d([0, 1, 1, 1, 1], 0.3), null, 30).loads).toBe(0) // fingers folded, the thumb out: not a fist
+      const fist = hand3d([1, 1, 1, 1, 1], 0.3) // the thumb wrapped over the middle finger's middle joint
+      fist.world[4] = { ...fist.world[10]!, z: fist.world[10]!.z - 0.01 }
+      fist.points[4] = { ...fist.points[10]! }
+      expect(step(fist, null, 25).loads).toBe(1) // the same hand's fist: a load
+      expect(step(hand3d([0, 0, 0, 0, 0], 0.3), null, 10).loads).toBe(1) // opening after it doesn't load again
+    } finally {
+      usePlayPrefs.setState({ oneHanded: false })
+    }
+  })
 })

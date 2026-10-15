@@ -4,11 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UpdateState } from '@shared/bridge'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { api, EngineError, unwrap } from '@/api/client'
-import { usePlayPrefs } from '@/components/camera/playPrefs'
+import { HOLD_MAX_MS, HOLD_MIN_MS, usePlayPrefs } from '@/components/camera/playPrefs'
+import { clearReach } from '@/components/camera/smartCamera'
 import { LEGACY_URL } from '@/components/whatsnew/WhatsNew'
 import { creditHref, CREDIT_TEXT } from '@/components/common/CreditLink'
 import { guide, useGuide } from '@/components/guide/guideStore'
-import { GUIDE_STEPS } from '@/components/guide/Guide'
+import { stepsFor } from '@/components/guide/Guide'
+import { CalibrateReach } from './CalibrateReach'
 import { playActions, usePlay } from '@/components/play/playStore'
 import { startOutput, stopOutput, useOutputOpen } from '@/components/prod/prodActions'
 import { useProd } from '@/components/prod/prodStore'
@@ -127,10 +129,23 @@ function useHealth() {
   return pushed ?? fetched.data ?? null
 }
 
+/** The one-handed GUIDE ran once (its first turn-on opens it; later ones calibrate in place). */
+const GUIDED_KEY = 'foxbox-onehanded-guided'
+function oneHandedGuided(): boolean {
+  try {
+    if (localStorage.getItem(GUIDED_KEY)) return true
+    localStorage.setItem(GUIDED_KEY, '1')
+  } catch {
+    // storage off: the GUIDE each time, harmless
+  }
+  return false
+}
+
 function Playing() {
   const mode = usePlay((p) => p.noteMode)
   const hiding = useProd((p) => p.faceHiding)
   const prefs = usePlayPrefs()
+  const [calibrating, setCalibrating] = useState(false)
   return (
     <>
       <Group label="NOTE PICKING">
@@ -182,6 +197,77 @@ function Playing() {
           </div>
         </Row>
         <span className={s.note}>HIGH plucks on a smaller fold; LOW needs a deeper one.</span>
+      </Group>
+      <Group label="ONE-HANDED">
+        <Toggle
+          name="One-handed"
+          checked={prefs.oneHanded}
+          onChange={(on) => {
+            prefs.setOneHanded(on)
+            if (!on) return setCalibrating(false)
+            if (oneHandedGuided()) return setCalibrating(true) // turning it on calibrates the reach (STRINGS_UX)
+            useUi.getState().setSettingsOpen(false) // the first time: the one-handed GUIDE, reach included
+            guide.open(useUi.getState().mode, 0)
+          }}
+        />
+        <span className={s.note}>
+          One hand does it all: curl to pluck, hold a shape to turn its effect on or off, hold one L to frame. With two hands in view,
+          Left-handed picks the one that plays.
+        </span>
+        {prefs.oneHanded && (
+          <>
+            <Row name="Hold time">
+              <span className={s.btns} style={{ alignItems: 'center' }}>
+                <input
+                  type="range"
+                  className={s.range}
+                  aria-label="Hold time"
+                  min={HOLD_MIN_MS}
+                  max={HOLD_MAX_MS}
+                  step={100}
+                  value={prefs.holdMs}
+                  onChange={(e) => prefs.setHoldMs(Number(e.target.value))}
+                />
+                <span className={s.rowValue}>{(prefs.holdMs / 1000).toFixed(1)} s</span>
+              </span>
+            </Row>
+            <Row name="Wobble tolerance">
+              <div
+                className={s.seg}
+                role="radiogroup"
+                aria-label="Wobble tolerance"
+                style={{ width: 330, gridTemplateColumns: 'repeat(3, 1fr)' }}
+              >
+                {(['low', 'medium', 'high'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={v === prefs.wobble}
+                    className={s.segBtn}
+                    onClick={() => prefs.setWobble(v)}
+                  >
+                    {v.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </Row>
+            <Row name="Reach">
+              <span className={s.btns} style={{ alignItems: 'center' }}>
+                <span className={s.rowValue}>{prefs.reach ? 'Calibrated' : 'Default'}</span>
+                {prefs.reach && (
+                  <button type="button" className={s.btn} onClick={clearReach}>
+                    Reset
+                  </button>
+                )}
+                <button type="button" className={s.btn} onClick={() => setCalibrating(true)}>
+                  Calibrate reach
+                </button>
+              </span>
+            </Row>
+            {calibrating && <CalibrateReach onDone={() => setCalibrating(false)} />}
+          </>
+        )}
       </Group>
     </>
   )
@@ -424,7 +510,7 @@ function Library() {
 function GuideTab() {
   const resume = useGuide((g) => g.resume)
   const sub = (chapter: 'play' | 'remix') => {
-    const n = GUIDE_STEPS[chapter].length
+    const n = stepsFor(chapter).length
     const at = resume[chapter]
     return `${n} steps${at != null && at > 0 ? ` · Continue from step ${at + 1}` : ''}`
   }

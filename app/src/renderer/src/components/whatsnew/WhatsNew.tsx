@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import bootBgUrl from '../../../../../design/brand/foxbox-boot-bg.svg?url'
-import { AnimatedFoxMark } from '@/components/common/AnimatedFoxMark'
 import { bridge } from '@/env'
 import { useUi } from '@/state/ui'
 import { parseNotes, splitHighlights, toHighlight, versionsToShow, type Notes } from './notes'
@@ -8,7 +6,6 @@ import voiceLockupUrl from '../../../../../design/brand/foxbox-voice-lockup.svg?
 import launchFilm from '@/assets/launch/foxbox-launch.mp4'
 import { GuideHands, type GuideMove } from '@/components/guide/GuideHands'
 import { guide } from '@/components/guide/guideStore'
-import styles from './WhatsNew.module.css'
 import w from './whatsnew2.module.css'
 
 /** Every release's notes, bundled (so WHAT'S NEW works offline). */
@@ -71,17 +68,8 @@ const writeSeen = (v: string) => {
   }
 }
 
-/** Line glyphs cut from the mark's facets (its 512 grid): ear, eye, muzzle, head, both ears. */
-const GLYPHS: { viewBox: string; d: string }[] = [
-  { viewBox: '100 92 108 142', d: 'M112 104 L196 190 L130 222 Z' },
-  { viewBox: '128 238 132 104', d: 'M140 250 L248 290 L226 330 L176 306 Z' },
-  { viewBox: '44 280 424 148', d: 'M56 298 L256 410 L456 298' },
-  { viewBox: '44 40 424 446', d: 'M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z' },
-  { viewBox: '100 92 312 142', d: 'M112 104 L196 190 L130 222 Z M400 104 L316 190 L382 222 Z' },
-]
-
 /**
- * WHAT'S NEW (1.5): a full-window branded screen, once per version, on the first start after an update: the
+ * WHAT'S NEW: a full-window screen, once per version, on the first start after an update: the
  * animated mark over the fox lattice, the release (or every release skipped since the last one seen, merged), up to
  * five highlight cards and the rest listed, then LET'S GO. Not a modal: it's the app's first screen until dismissed.
  */
@@ -194,62 +182,48 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
       </section>
     )
   }
+  // a point release (2.0.x): the same film and column, its notes as one compact list of glass cards
   const { cards, more } = splitHighlights(shown)
   const newest = shown[0]!
   const oldest = shown[shown.length - 1]!
   return (
     <section
-      className={styles.screen}
+      className={w.screen}
+      data-fb
       aria-label="What's new"
       data-testid="whats-new"
       onKeyDown={(e) => {
         if (e.key === 'Escape') done()
       }}
     >
-      <img className={styles.bg} src={bootBgUrl} alt="" aria-hidden="true" draggable={false} />
-      <div className={styles.inner}>
-        <header className={styles.head}>
-          <AnimatedFoxMark size={96} className={styles.mark} />
-          <p className={styles.kicker}>WHAT’S NEW{shown.length > 1 ? ` · ${oldest.version} → ${newest.version}` : ''}</p>
-          <h1 className={styles.title}>
-            FOXBOX {newest.version}
-            {newest.title && <span className={styles.subtitle}>{newest.title}</span>}
-          </h1>
-        </header>
-        <ol className={styles.cards}>
-          {cards.map((h, i) => {
-            const g = GLYPHS[i % GLYPHS.length]!
-            return (
-              <li key={`${h.version}-${i}`} className={styles.card} style={{ animationDelay: `${120 + i * 70}ms` }}>
-                <div className={styles.cardTop}>
-                  <span className={styles.num}>{String(i + 1).padStart(2, '0')}</span>
-                  <svg className={styles.glyph} viewBox={g.viewBox} aria-hidden="true">
-                    <path d={g.d} />
-                  </svg>
-                </div>
-                {h.title && <h2 className={styles.cardTitle}>{h.title}</h2>}
-                <p className={styles.cardBody}>{h.body}</p>
-                {shown.length > 1 && <span className={styles.ver}>{h.version}</span>}
-              </li>
-            )
-          })}
-        </ol>
-        {more.length > 0 && (
-          <ul className={styles.more} aria-label="Also new">
-            {more.map((h, i) => (
-              <li key={`${h.version}-m${i}`}>
-                {h.title ? `${h.title}: ` : ''}
-                {h.body}
-              </li>
-            ))}
-          </ul>
-        )}
-        <footer className={styles.foot}>
-          <button ref={go} type="button" className={styles.go} onClick={done} data-testid="whats-new-go">
-            LET’S GO
+      <video className={w.film} src={launchFilm} autoPlay={!REDUCED} muted loop playsInline preload="auto" aria-hidden="true" />
+      <div className={w.shade} aria-hidden="true" />
+      <div className={w.col}>
+        <p className={w.kicker}>WHAT’S NEW · {shown.length > 1 ? `${oldest.version} → ${newest.version}` : newest.version}</p>
+        <h1 className={w.title}>{newest.title ?? `FoxBox ${newest.version}`}</h1>
+        <ul className={w.list}>
+          {[...cards, ...more].map((h, i) => (
+            <li key={`${h.version}-${i}`} className={w.item}>
+              {h.title && <b className={w.itemTitle}>{h.title}</b>}
+              <span className={w.itemBody}>{h.body}</span>
+            </li>
+          ))}
+        </ul>
+        <div className={w.ctas}>
+          <button ref={go} type="button" className={w.go} onClick={done} data-testid="whats-new-go">
+            Let’s play
           </button>
-          <p className={styles.signoff}>Stay stealthy.</p>
-        </footer>
+          <button
+            type="button"
+            className={w.how}
+            onClick={() => {
+              done()
+              guide.open(useUi.getState().mode, 0)
+            }}
+          >
+            Show me how
+          </button>
+        </div>
       </div>
     </section>
   )

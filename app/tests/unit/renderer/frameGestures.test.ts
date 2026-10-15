@@ -3,6 +3,7 @@ import { handShapes, isAnL, isLPose, type HandShapes } from '@/components/camera
 import { FrameGestures, frameQuad, palmFacing } from '@/components/camera/frameGestures'
 import { FxShapes, rawShape } from '@/components/camera/fxShapes'
 import { PlayGestures } from '@/components/camera/playGestures'
+import { usePlayPrefs } from '@/components/camera/playPrefs'
 import { hand3d } from './hand3d'
 
 const ASPECT = 16 / 9
@@ -235,5 +236,39 @@ describe('the FRAME', () => {
     expect(plucks).toHaveLength(0)
     step(open(), 15)
     expect(step(frame(), 8).f.latched).toBe(false) // a new frame: the loop's off
+  })
+
+  it('one-handed: one L held the Hold time opens a frame on its corner (latched); let go it stays; held again it goes', () => {
+    usePlayPrefs.setState({ oneHanded: true, holdMs: 500, wobble: 'medium' })
+    try {
+      const { step } = session()
+      const [right] = frame()
+      const open = hand3d([0, 0, 0, 0, 0], 0.36, 0.72, ASPECT, { mirror: true })
+      for (let i = 0; i < 5; i++) step([open])
+      let s = step([right!], 6) // 240 ms
+      expect(s.f.formed).toBe(false)
+      expect(s.f.holdProgress).toBeGreaterThan(0.3)
+      s = step([right!], 8) // 560 ms
+      expect(s.f).toMatchObject({ formed: true, latched: true, holdProgress: 0 })
+      expect(s.f.corners).toHaveLength(4)
+      expect(s.f.corner!.x).toBeCloseTo(0.36, 1) // the L's corner, about where the hand is
+      s = step([open], 10) // let go, back to playing
+      expect(s.f.corner).not.toBeNull() // kept where it locked
+      expect(s.f).toMatchObject({ formed: false, latched: true })
+      step([right!], 2) // an L again, turned over in its corner: the flip side, no release
+      for (const r of [45, 90, 135]) step([frame(0, null, r)[0]!])
+      s = step([frame(0, null, 180)[0]!], 15)
+      expect(s.f).toMatchObject({ latched: true, flipped: true })
+      for (const r of [135, 90, 45]) step([frame(0, null, r)[0]!])
+      s = step([right!], 10) // and back: the front
+      expect(s.f).toMatchObject({ latched: true, flipped: false })
+      s = step([open], 10)
+      s = step([right!], 14)
+      expect(s.f.latched).toBe(false) // held again: let go
+      const both = step(frame(), 10).f // the other hand's L too: no two-handed frame, the one hand's hold already fired
+      expect(both.latched).toBe(false)
+    } finally {
+      usePlayPrefs.setState({ oneHanded: false })
+    }
   })
 })

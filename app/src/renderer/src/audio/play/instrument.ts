@@ -25,6 +25,10 @@
  *                glass type: setFrameStyle; turned over, its flip side and the loop backwards), new notes on top;
  *                making it again lets go with a tick (it latches: a held frame would leave no hand to play with). A
  *                pinch while it loops is S3's restyle, not the wobble
+ *   ONE-HANDED   (2.0.1, S1's flow.oneHanded) one hand does it all: PLUCK's effect shapes (FIST, PINCH, PEACE, HORNS)
+ *                toggle when held HOLD_TOGGLE_MS and stay latched (a soft pip up for on, down for off), POINT UP / DOWN
+ *                held as before; FLOW: the hand plays, its thumb-index gap opens the filter (not the spread), its fist
+ *                mutes, POINT UP / DOWN its octave; TWIST the same hand's; the frame as before
  *   FLOW style   the right hand's height plays (scale-snapped, gliding), the left's shifts the octave at its ends, the
  *                spread opens a low-pass (on WOBBLE: its rate, on GROWL: its vowel), shake is vibrato, the right fist
  *                (or no right hand) mutes
@@ -66,6 +70,12 @@ export const SAUCE_ACTIONS: readonly { id: SauceAction; label: string }[] = [
   { id: 'octave', label: 'OCT ±1' }, { id: 'loop', label: 'LOOP' }, { id: 'bend', label: 'BEND' }, { id: 'vibrato', label: 'VIBRATO' },
   { id: 'mute', label: 'MUTE' }, { id: 'record', label: 'RECORD' }, { id: 'off', label: 'OFF' },
 ]
+/** ONE-HANDED: an effect shape held this long toggles its action (latched on, or off again): Settings → Playing's
+ *  Hold time (S4: setHoldTime), 0.3-1.2 s, this as made. */
+export const HOLD_TOGGLE_MS = 500
+export const HOLD_RANGE_MS = [300, 1200] as const
+/** ONE-HANDED: the shapes that toggle (POINT UP / DOWN stay as they are, held). */
+export const LATCHING_SHAPES: readonly PlayShape[] = ['fist', 'pinch', 'peace', 'horns']
 /** The shapes' actions as made (POINT UP an octave up, POINT DOWN down; OCT ±1 on another shape: up). */
 export const DEFAULT_SHAPE_ACTIONS: Readonly<Record<PlayShape, SauceAction>> = { fist: 'drive', pinch: 'wobble', peace: 'echo', horns: 'space', point_up: 'octave', point_down: 'octave' }
 export interface PluckEvent {
@@ -106,6 +116,11 @@ export interface FlowSignal {
   octave?: number
   /** The hand whose shapes count in FLOW (S1's playPrefs: the left, or left-handed the right); the other plays. */
   shapeHand?: PlayHand
+  /** ONE-HANDED (2.0.1, S1's flag): one hand does it all. PLUCK: its effect shapes toggle on a hold and stay latched;
+   *  FLOW: it plays, its thumb-index `gap` opens the filter, its fist mutes (`mute`). */
+  oneHanded?: boolean
+  /** 0-1: ONE-HANDED FLOW's thumb-index gap (closed … wide open). */
+  gap?: number
 }
 /** S1's per-hand wrist roll, -1..1 (+1: the thumb end toward the camera; 0 within 15° of square). */
 export interface PlayTwist {
@@ -157,6 +172,12 @@ export interface Instrument {
   frame(held: boolean): void
   /** The frame's loop is on (for S3's pane). */
   readonly frozen: boolean
+  /** ONE-HANDED: the actions toggled on now (for the legend). */
+  readonly latched: SauceAction[]
+  /** ONE-HANDED: Settings → Playing's Hold time (ms, clamped to HOLD_RANGE_MS). */
+  setHoldTime(ms: number): void
+  /** ONE-HANDED: how far the hand's effect-shape hold is to its toggle, 0-1 (0: none, or it's fired): the ring. */
+  holdProgress(hand: PlayHand): number
   /** S3's glass (glassSignal(), each frame): its type is the loop's style (a change while it loops lands on the beat);
    *  flipped (the frame turned over: its flip side) plays the loop backwards. */
   setFrameStyle(type: string, flipped?: boolean): void
@@ -547,6 +568,14 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   const subGain = new Tone.Gain(0)
   sub.chain(subGain, trim)
   const subHz = (hz: number) => (hz / 2 >= 40 ? hz / 2 : hz)
+  // ONE-HANDED's confirm: a soft pip pair, up for on, down for off
+  const pip = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.003, decay: 0.05, sustain: 0, release: 0.03 } })
+  const pipGain = new Tone.Gain(0.08)
+  pip.chain(pipGain, volume)
+  const confirm = (on: boolean) => {
+    const t = now()
+    ;(on ? [880, 1320] : [1320, 880]).forEach((hz, k) => pip.triggerAttackRelease(hz, 0.05, t + 0.07 * k, 0.6))
+  }
   let subKey: string | null = null
   const detachOutput = attachOutput(ctx) // the settings sheet's output (audio/output.ts); offline: nothing
 
@@ -657,13 +686,24 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   let rolled: PlayTwist = { left: 0, right: 0 }
   let shapeHand: PlayHand = 'left' // FLOW's shape hand (S1: left-handed, the right); the other plays
   const bend = () => {
-    const roll = style === 'flow' ? rolled[shapeHand === 'left' ? 'right' : 'left'] : Math.abs(rolled.left) > Math.abs(rolled.right) ? rolled.left : rolled.right // FLOW: the pitch hand's
+    const pitchHand: PlayHand = oneHanded ? shapeHand : shapeHand === 'left' ? 'right' : 'left' // ONE-HANDED: the one hand
+    const roll = style === 'flow' ? rolled[pitchHand] : Math.abs(rolled.left) > Math.abs(rolled.right) ? rolled.left : rolled.right // FLOW: the pitch hand's
     voice.detune((style === 'pluck' ? tiltCents(tilt) : 0) + twistCents(roll, bendSemis(board.bend!)) + bent)
   }
 
   const hands = (): PlayHand[] => (style === 'flow' ? [shapeHand] : ['left', 'right'])
   let shapeActions: Record<PlayShape, SauceAction> = { ...DEFAULT_SHAPE_ACTIONS }
   const manual = new Map<SauceAction, number>() // the mouse's held actions: their depth
+  let oneHanded = false
+  let holdMs = HOLD_TOGGLE_MS
+  const holding1 = (hand: PlayHand) => { // a one-handed effect-shape hold that hasn't fired yet
+    const h = holdAt[hand]
+    return oneHanded && style === 'pluck' && h.shape !== null && LATCHING_SHAPES.includes(h.shape) && !h.fired
+  }
+  const latchedFx = new Map<SauceAction, number>() // ONE-HANDED: the actions toggled on, their depth then
+  const holdAt: Record<PlayHand, { shape: PlayShape | null; at: number; fired: boolean }> = {
+    left: { shape: null, at: 0, fired: false }, right: { shape: null, at: 0, fired: false },
+  }
   let muted = false
   let bent = 0 // BEND: cents
   let bendShake = 0 // VIBRATO: depth
@@ -677,11 +717,13 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     for (const h of hands()) {
       const x = held[h]
       if (!x.shape || (frozen && x.shape === 'pinch')) continue
+      // ONE-HANDED: the effect shapes act through their toggles (below); in FLOW only POINT UP / DOWN (the fist mutes)
+      if (oneHanded && (LATCHING_SHAPES.includes(x.shape) || (style === 'flow' && x.shape !== 'point_up' && x.shape !== 'point_down'))) continue
       const a = shapeActions[x.shape]
       add(a, x.depth)
       if (a === 'octave') next += x.shape === 'point_down' ? -1 : 1
     }
-    for (const [a, d] of manual) {
+    for (const [a, d] of [...manual, ...latchedFx]) {
       add(a, d)
       if (a === 'octave') next += 1
     }
@@ -839,6 +881,12 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
         shapeHand = sig.shapeHand
         applyShapes()
       }
+      if ((sig.oneHanded === true) !== oneHanded) {
+        oneHanded = sig.oneHanded === true
+        if (!oneHanded) latchedFx.clear() // two hands again: the shapes are held, as made
+        applyShapes()
+        bend()
+      }
       shake = Math.max(0, Math.min(1, sig.shake || 0))
       applyVibrato()
       tilt = sig.tilt ?? 0
@@ -859,7 +907,7 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
         }
         return
       }
-      const spread = Math.max(0, Math.min(1, sig.spread || 0))
+      const spread = Math.max(0, Math.min(1, (oneHanded && Number.isFinite(sig.gap) ? sig.gap : sig.spread) || 0)) // ONE-HANDED: the thumb-index gap
       if (voice.control) { if (!(sound === 'wobble' && pinched)) voice.control(spread) } // WOBBLE's rate (a pinch's wins), GROWL's vowel
       else {
         flowSpread = spread
@@ -934,14 +982,31 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     },
     shape(hand, s, depth = 0.5) {
       held[hand] = { shape: s, depth: Math.max(0, Math.min(1, Number.isFinite(depth) ? depth : 0.5)) }
+      const h = holdAt[hand]
+      if (s !== h.shape) holdAt[hand] = { shape: s, at: now(), fired: false }
+      else if (s && holding1(hand) && now() - h.at >= holdMs / 1000) { // the hold's end: the pip then, never at its start
+        h.fired = true // once a hold
+        const a = shapeActions[s]
+        if (a !== 'off' && a !== 'record' && a !== 'octave' && a !== 'loop') {
+          const on = !latchedFx.has(a)
+          if (on) latchedFx.set(a, held[hand].depth)
+          else latchedFx.delete(a)
+          confirm(on)
+        }
+      }
       applyShapes()
     },
+    get latched() { return [...latchedFx.keys()] },
+    setHoldTime(ms) {
+      holdMs = Math.max(HOLD_RANGE_MS[0], Math.min(HOLD_RANGE_MS[1], Number.isFinite(ms) ? ms : HOLD_TOGGLE_MS))
+    },
+    holdProgress: (hand) => (holding1(hand) ? Math.min(1, (now() - holdAt[hand].at) / (holdMs / 1000)) : 0),
     dispose() {
       releaseAll()
       offShapeMap()
       detachOutput()
       voice.dispose()
-      for (const n of [trim, drive, wobble, vibrato, tone, master, echoSend, echo, spaceSend, space, glue, glueWet, bus, volume, sub, subGain]) n.dispose()
+      for (const n of [trim, drive, wobble, vibrato, tone, master, echoSend, echo, spaceSend, space, glue, glueWet, bus, volume, sub, subGain, pip, pipGain]) n.dispose()
       split?.disconnect()
       loop.disconnect()
       limiter.disconnect()

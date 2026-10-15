@@ -49,9 +49,12 @@ describe('Settings → Playing: left-handed and pluck sensitivity', () => {
   it('remembered; anything else remembered reads the defaults', async () => {
     usePlayPrefs.getState().setLeftHanded(true)
     usePlayPrefs.getState().setSensitivity('high')
-    expect(JSON.parse(store['foxbox-play-prefs']!).state).toEqual({ leftHanded: true, sensitivity: 'high' })
+    expect(JSON.parse(store['foxbox-play-prefs']!).state).toMatchObject({ leftHanded: true, sensitivity: 'high', oneHanded: false, holdMs: 500, wobble: 'medium' })
     store['foxbox-play-prefs'] = JSON.stringify({ state: { leftHanded: 'yes', sensitivity: 'max' }, version: 0 })
     await usePlayPrefs.persist.rehydrate()
     expect(usePlayPrefs.getState()).toMatchObject({ leftHanded: false, sensitivity: 'medium' })
+    store['foxbox-play-prefs'] = JSON.stringify({ state: { oneHanded: 'yes', holdMs: 5000, wobble: 'max', reach: { low: 0.5, high: 0.52 } }, version: 0 })
+    await usePlayPrefs.persist.rehydrate()
+    expect(usePlayPrefs.getState()).toMatchObject({ oneHanded: false, holdMs: 1200, wobble: 'medium', reach: null })
   })
 })

@@ -318,3 +318,25 @@
   color: #ff8a78;
   padding: 0 4px;
 }
+
+/* One-handed (2.0.1): the hold time's slider and Calibrate reach's steps */
+.range {
+  width: 220px;
+  accent-color: var(--fb-accent);
+}
+.calib {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(242, 112, 31, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(242, 112, 31, 0.4);
+  font-size: 17px;
+}
+.calibCount {
+  font: 800 44px var(--fb-font);
+  color: var(--fb-accent);
+  font-variant-numeric: tabular-nums;
+}

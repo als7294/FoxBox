@@ -17,12 +17,14 @@ describe("the GUIDE's hand animations", () => {
     }) as unknown as CanvasRenderingContext2D
     const stack: number[] = []
     expect(GUIDE_MOVES.length).toBe(19)
-    for (const m of GUIDE_MOVES) {
-      for (const t of [0, 0.7, 1.9, 3.3, 4.9, null]) {
-        drawn = 0
-        drawGuideMove(ctx, m, t)
-        expect(drawn, `${m} at ${t}`).toBeGreaterThan(0)
-        expect(state.globalAlpha, `${m} at ${t}`).toBe(1)
+    for (const hands of [2, 1] as const) { // and ONE-HANDED's
+      for (const m of GUIDE_MOVES) {
+        for (const t of [0, 0.7, 1.9, 3.3, 3.7, 4.9, null]) {
+          drawn = 0
+          drawGuideMove(ctx, m, t, hands)
+          expect(drawn, `${m} at ${t} (${hands})`).toBeGreaterThan(0)
+          expect(state.globalAlpha, `${m} at ${t} (${hands})`).toBe(1)
+        }
       }
     }
   })

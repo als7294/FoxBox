@@ -406,4 +406,93 @@ describe("PLAY's gestures", () => {
     expect(play.signals().progress.pinch).toBe(1)
     expect(play.signals().shapes.right?.shape).toBe('pinch')
   })
+
+  describe('one-handed (2.0.1)', () => {
+    const on = (patch: Partial<ReturnType<typeof usePlayPrefs.getState>> = {}) => usePlayPrefs.setState({ oneHanded: true, ...patch })
+    const off = () => usePlayPrefs.setState({ oneHanded: false, leftHanded: false, reach: null })
+
+    it('with two in view the right hand plays (the left, left-handed); the other plucks nothing and has no shape', () => {
+      on()
+      try {
+        const { step, plucks } = session()
+        let s = step(OPEN, OPEN)
+        for (let i = 0; i < 5; i++) s = step(OPEN, OPEN)
+        expect(s.one).toEqual({ hand: 'right', slot: 'left' })
+        expect(s.flow).toMatchObject({ oneHanded: true, shapeHand: 'right' })
+        for (let i = 0; i < 2; i++) step(OPEN, [0, 1, 0, 0, 0]) // the left folds: ignored
+        for (let i = 0; i < 2; i++) step([0, 1, 0, 0, 0], OPEN)
+        expect(plucks.map((p) => [p.hand, p.finger])).toEqual([['right', 1]])
+        usePlayPrefs.setState({ leftHanded: true })
+        expect(step(OPEN, OPEN).one).toEqual({ hand: 'left', slot: 'right' })
+        expect(step(OPEN, null).one).toEqual({ hand: 'right', slot: 'left' }) // one in view: it plays
+      } finally {
+        off()
+      }
+    })
+
+    it('FLOW: the playing hand pitches, its fist mutes, its thumb-index gap is the filter (0 shut … 1 open)', () => {
+      on()
+      try {
+        const { step } = session()
+        let s = step(OPEN, null)
+        for (let i = 0; i < 10; i++) s = step(OPEN, null)
+        expect(s.flow.gap).toBeGreaterThan(0.5) // an open hand: the thumb well off the index
+        expect(s.flow.mute).toBe(false)
+        const pinch = () => {
+          const h = hand3d([0, 0.3, 0, 0, 0], 0.3)
+          h.world[4] = { ...h.world[8]! }
+          h.points[4] = { ...h.points[8]! }
+          return h
+        }
+        const fx = new FxShapes()
+        const play = new PlayGestures()
+        let prev: HandShapes | null = null
+        let t = 0
+        for (let i = 0; i < 15; i++) {
+          t += 40
+          prev = handShapes([pinch()], t, prev, ASPECT)
+          play.step(prev, fx.step(prev, t, ASPECT), t, ASPECT)
+        }
+        expect(play.signals().flow.gap).toBeLessThan(0.1)
+        expect(step(FIST, null).flow.mute).toBe(true)
+      } finally {
+        off()
+      }
+    })
+
+    it("a held shape survives a misread shorter than Wobble tolerance (a hold toggles it); opened for real, it's gone", () => {
+      on({ wobble: 'medium' })
+      try {
+        const { step } = session()
+        for (let i = 0; i < 8; i++) step(OPEN, null)
+        let s = step(FIST, null)
+        for (let i = 0; i < 12; i++) s = step(FIST, null)
+        expect(s.shapes.right?.shape).toBe('fist')
+        expect(step(OPEN, null).shapes.right?.shape).toBe('fist') // one result misread open (40 ms)
+        s = step(FIST, null)
+        expect(s.shapes.right?.shape).toBe('fist')
+        for (let i = 0; i < 12; i++) s = step(OPEN, null) // half a second open (the read lets go of the fist)
+        expect(s.shapes.right?.shape ?? null).toBeNull()
+      } finally {
+        off()
+      }
+    })
+
+    it('the reach: a calibrated low and high map the hand onto the notes; without one the top note is at chest height', () => {
+      on({ reach: { low: 0.3, high: 0.5 } })
+      try {
+        const { step } = session()
+        let s = step(OPEN, null, { ry: 0.787 }) // the palm 0.35 up the picture: a quarter of the way up the reach
+        for (let i = 0; i < 20; i++) s = step(OPEN, null, { ry: 0.787 })
+        expect(s.height.right!).toBeCloseTo(0.25, 1)
+        for (let i = 0; i < 20; i++) s = step(OPEN, null, { ry: 0.687 }) // 0.45 up: three quarters
+        expect(s.height.right!).toBeCloseTo(0.75, 1)
+        usePlayPrefs.setState({ reach: null })
+        for (let i = 0; i < 20; i++) s = step(OPEN, null, { ry: 0.5 }) // 0.64 up, about the shoulder: the top note
+        expect(s.height.right!).toBeGreaterThan(0.95)
+      } finally {
+        off()
+      }
+    })
+  })
 })

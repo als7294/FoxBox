@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { handShapes, type HandShapes } from '@/components/camera/camMath'
 import {
   BEAT_SNAP_MS, CALM_MS, CENTRE_CORNERS, createGlass, FLIP_MS, FLIP_SIDE, EXIT_HOLD_MS, FRAME_TIMING, fitGlass, GLASS_TYPES, glassSignal, LOOP_MAX_MS, loopClock, loopTime, loopWindow,
-  quadOf, rectCorners, RESTYLE_MS, type FrameCorners, type GlassQuad,
+  ONE_L, oneLCorners, quadOf, rectCorners, RESTYLE_MS, type FrameCorners, type GlassQuad,
 } from '@/components/strings/glass'
 import { invert3, squareToQuad } from '@/components/strings/glassPass'
 import { synthHands, synthL } from '@/components/strings/strings'
@@ -238,5 +238,25 @@ describe('the FRAME: the fallback pane between the hands', () => {
     const t = 9.2
     const tilted = fitGlass(frameHands(t).left!, frameHands(t).right!, ASPECT)
     expect(tilted.tilt).toBeCloseTo(0.3 * Math.sin(0.9 * t), 2)
+  })
+})
+
+describe('ONE-HANDED: the one-L frame', () => {
+  it('has its corner at the L and opens toward the centre, the far corner mirrored through it', () => {
+    const c = oneLCorners({ x: 0.2, y: 0.25 })
+    expect(c[0]).toEqual({ x: 0.2, y: 0.25 })
+    expect(c[2].x).toBeCloseTo(0.8)
+    expect(c[2].y).toBeCloseTo(0.75)
+    const br = oneLCorners({ x: 0.85, y: 0.9 }) // an L low on the right: its corner's the bottom-right
+    expect(br[2].x).toBeCloseTo(0.85)
+    expect(br[2].y).toBeCloseTo(0.9)
+  })
+  it('is never smaller than ONE_L.min (an L near the centre opens away from it), nor past the margin', () => {
+    for (const at of [{ x: 0.5, y: 0.5 }, { x: 0.56, y: 0.44 }, { x: 0, y: 1 }, { x: 1.2, y: -0.1 }]) {
+      const [p0, , p2] = oneLCorners(at)
+      expect(p2.x - p0.x).toBeGreaterThanOrEqual(ONE_L.min - 1e-9)
+      expect(p2.y - p0.y).toBeGreaterThanOrEqual(ONE_L.min - 1e-9)
+      for (const v of [p0.x, p0.y, p2.x, p2.y]) expect(v >= ONE_L.margin - 1e-9 && v <= 1 - ONE_L.margin + 1e-9).toBe(true)
+    }
   })
 })

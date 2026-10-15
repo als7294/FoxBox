@@ -163,6 +163,75 @@ describe("PLAY's instrument (the API)", () => {
     expect(drive.wet.value).toBe(0)
   })
 
+  it('ONE-HANDED PLUCK: an effect shape held the Hold time (500 ms as made) toggles it on (a pip up), it stays latched; held again, off (a pip down); POINT UP still held', async () => {
+    const { createInstrument, HOLD_TOGGLE_MS } = await import('@/audio/play/instrument')
+    const inst = await createInstrument(ctx)
+    const drive = made.find((n) => n.kind === 'Distortion' && made.indexOf(n) < made.findIndex((m) => m.kind === 'AutoFilter'))!
+    const pip = made.filter((n) => n.kind === 'Synth')[1]! // after the sub
+    inst.flow({ pitch: 0.5, spread: 0.5, shake: 0, mute: false, oneHanded: true })
+    const hold = (shape: 'fist' | 'point_up' | null, from: number, ms: number) => {
+      for (let t = 0; t <= ms; t += 50) { ctx.currentTime = from + t / 1000; inst.shape('right', shape, 0.6) }
+    }
+    hold('fist', 0, 200) // a flick: nothing
+    inst.shape('right', null)
+    expect(drive.wet.value).toBe(0)
+    hold('fist', 1, HOLD_TOGGLE_MS + 50)
+    expect(drive.wet.value).toBeCloseTo(0.8, 6) // on (0.5 + 0.5 x its height then)
+    expect(pip.triggerAttackRelease.mock.calls.map((c) => c[0])).toEqual([880, 1320]) // up: on
+    inst.shape('right', null) // the hand opens: it stays on
+    expect(drive.wet.value).toBeCloseTo(0.8, 6)
+    expect(inst.latched).toEqual(['drive'])
+    hold('fist', 2, HOLD_TOGGLE_MS + 300) // held long: toggles once
+    inst.shape('right', null)
+    expect(drive.wet.value).toBe(0)
+    expect(pip.triggerAttackRelease.mock.calls.slice(2).map((c) => c[0])).toEqual([1320, 880]) // down: off
+    inst.shape('right', 'point_up', 0.5) // the octave: held, as before
+    inst.pluck({ hand: 'right', finger: 0, velocity: 1, height: 0.5 })
+    expect(voice('Synth').triggerAttackRelease.mock.calls.at(-1)![0]).toBeCloseTo(at(4, 2, 1), 6)
+    inst.shape('right', null)
+    hold('fist', 3, HOLD_TOGGLE_MS + 50)
+    inst.shape('right', null) // latched on, the hand open
+    inst.flow({ pitch: 0.5, spread: 0.5, shake: 0, mute: false, oneHanded: false }) // two hands again: the latches go
+    expect([inst.latched, drive.wet.value]).toEqual([[], 0])
+    // Settings → Playing's Hold time: 0.3-1.2 s; the ring's progress follows it
+    inst.flow({ pitch: 0.5, spread: 0.5, shake: 0, mute: false, oneHanded: true })
+    inst.setHoldTime(100) // clamped to 300
+    ctx.currentTime = 10
+    inst.shape('right', 'peace', 0.5)
+    ctx.currentTime = 10.15
+    inst.shape('right', 'peace', 0.5)
+    expect(inst.holdProgress('right')).toBeCloseTo(0.5, 6)
+    ctx.currentTime = 10.31
+    inst.shape('right', 'peace', 0.5)
+    expect([inst.latched, inst.holdProgress('right')]).toEqual([['echo'], 0]) // fired: the ring done
+    inst.setHoldTime(5000)
+    inst.shape('right', null)
+    ctx.currentTime = 20
+    inst.shape('right', 'peace', 0.5)
+    ctx.currentTime = 21.15
+    inst.shape('right', 'peace', 0.5)
+    expect(inst.latched).toEqual(['echo']) // 1.2 s at most: not yet
+    ctx.currentTime = 21.25
+    inst.shape('right', 'peace', 0.5)
+    expect(inst.latched).toEqual([])
+  })
+
+  it('ONE-HANDED FLOW: the thumb-index gap opens the filter (not the spread), a pinch does nothing, the same hand bends', async () => {
+    const { createInstrument } = await import('@/audio/play/instrument')
+    const inst = await createInstrument(ctx)
+    const tone = made.find((n) => n.kind === 'Filter')!, wobble = made.find((n) => n.kind === 'AutoFilter')!
+    inst.setSound('lead')
+    inst.setStyle('flow')
+    inst.flow({ pitch: 0.5, spread: 1, shake: 0, mute: false, oneHanded: true, gap: 0, shapeHand: 'right' })
+    expect(tone.frequency.value).toBeCloseTo(200, 6) // the gap shut, whatever the spread
+    inst.flow({ pitch: 0.5, spread: 0, shake: 0, mute: false, oneHanded: true, gap: 1, shapeHand: 'right' })
+    expect(tone.frequency.value).toBeCloseTo(18000, 0)
+    inst.shape('right', 'pinch', 1)
+    expect(wobble.wet.value).toBe(0) // its pinch is the gap closing, not a wobble
+    inst.twist({ left: 0, right: 1 })
+    expect(voice('MonoSynth').detune.rampTo).toHaveBeenLastCalledWith(700, 0.03, 0) // the playing hand's own roll
+  })
+
   it("left-handed FLOW (S1's shapeHand 'right'): the right hand's shapes count, the left's pitch hand bends", async () => {
     const { createInstrument } = await import('@/audio/play/instrument')
     const inst = await createInstrument(ctx)

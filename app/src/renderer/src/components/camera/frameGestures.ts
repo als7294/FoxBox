@@ -14,6 +14,8 @@
  * - latched: PLAY's loop, on with a frame and off with the next.
  */
 import { type HandShape, type HandShapes, type Pt } from './camMath'
+import { playingHand, SLOT } from './playGestures'
+import { usePlayPrefs, WOBBLE_MS } from './playPrefs'
 
 export interface FrameSignal {
   formed: boolean
@@ -35,6 +37,11 @@ export interface FrameSignal {
   /** How long a hand has been an L with no frame formed (ms; 0 otherwise): a frame tried for and not found (the coach's
    *  "Frames need a little more light" in a dim room, where the second hand goes unseen). */
   lHeldMs: number
+  /** One-handed: the single L held toward opening (or releasing) the frame, 0 … 1 at Hold time; 0 once it fires. */
+  holdProgress: number
+  /** One-handed: the L's corner (camera 0-1; cameraSignals maps it to the stage), where S3's pane opens from toward the
+   *  picture's middle (glass oneLCorners); followed while the L's held, kept after; null with two hands. */
+  corner: Pt | null
 }
 
 /** The frame's feel. */
@@ -54,6 +61,8 @@ export const FRAME = {
   CYCLE_GAP_MS: 400,
   /** Turned over (or back) this long before it counts: a hand caught mid-turn isn't. */
   FLIP_MS: 150,
+  /** One-handed's frame: its sides, palm lengths. */
+  ONE_SIZE: 2.2,
   /** Dropped and made again within this, every hand now facing the other way from its last L: the same frame turned
    *  over (its Ls unread edge-on for RELEASE_MS, a slow turn or a loaded tracker), not a new one. */
   REJOIN_MS: 1000,
@@ -61,7 +70,7 @@ export const FRAME = {
   SMOOTH: 0.45,
 }
 
-export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, size: 0, cycles: 0, flipped: false, flips: 0, latched: false, lHeldMs: 0 }
+export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, size: 0, cycles: 0, flipped: false, flips: 0, latched: false, lHeldMs: 0, holdProgress: 0, corner: null }
 
 /** An L's corner (camera 0-1): where its thumb's line (2 to 4) meets its index's (5 to 8); the index's knuckle when the
  *  lines are near parallel. `aspect`: the frame's width over its height. */
@@ -82,7 +91,26 @@ export function frameQuad(a: HandShape, b: HandShape, aspect: number): Pt[] {
   const mid = (p: Pt, q: Pt) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
   const [a4, a8, b4, b8] = [a.points[4]!, a.points[8]!, b.points[4]!, b.points[8]!]
   const crossed = d(a4, b8) + d(a8, b4) <= d(a4, b4) + d(a8, b8)
-  const quad = [lVertex(a, aspect), mid(a4, crossed ? b8 : b4), lVertex(b, aspect), mid(a8, crossed ? b4 : b8)]
+  return clockwise([lVertex(a, aspect), mid(a4, crossed ? b8 : b4), lVertex(b, aspect), mid(a8, crossed ? b4 : b8)], aspect)
+}
+
+/** One-handed's frame (2.0.1): its corner the L's, its sides along the index and the thumb, FRAME.ONE_SIZE palm lengths
+ *  each (camera 0-1), clockwise from the top-left. */
+export function oneQuad(h: HandShape, aspect: number): Pt[] {
+  const p = (i: number) => ({ x: h.points[i]!.x * aspect, y: h.points[i]!.y })
+  const unit = (a: Pt, b: Pt) => {
+    const n = Math.hypot(b.x - a.x, b.y - a.y) || 1
+    return { x: (b.x - a.x) / n, y: (b.y - a.y) / n }
+  }
+  const [ui, ut] = [unit(p(5), p(8)), unit(p(2), p(4))]
+  const len = FRAME.ONE_SIZE * Math.hypot(p(9).x - p(0).x, p(9).y - p(0).y)
+  const c = lVertex(h, aspect)
+  const at = (i: number, t: number) => ({ x: (c.x * aspect + (ui.x * i + ut.x * t) * len) / aspect, y: c.y + (ui.y * i + ut.y * t) * len })
+  return clockwise([at(0, 0), at(1, 0), at(1, 1), at(0, 1)], aspect)
+}
+
+/** Four corners in order, clockwise from the top-left. */
+function clockwise(quad: Pt[], aspect: number): Pt[] {
   const c = { x: quad.reduce((s, p) => s + p.x, 0) / 4, y: quad.reduce((s, p) => s + p.y, 0) / 4 }
   // Clockwise on screen (y down) is increasing angle; start at the top-left (the least x + y).
   const sorted = quad.sort((p, q) => Math.atan2(p.y - c.y, (p.x - c.x) * aspect) - Math.atan2(q.y - c.y, (q.x - c.x) * aspect))
@@ -130,9 +158,14 @@ export class FrameGestures {
   private flipSince = -1
   private tapping = { left: false, right: false }
   private lSince = -1 // a hand an L, no frame formed, since
+  /** One-handed: the L's hold (since, last seen, fired: it toggles once per hold; its palm facing as it began, and
+   *  whether the hand's turned since: a turn is the flip side, not a toggle). */
+  private hold = { since: -1, seen: -1e9, fired: false, facing: 0, turned: false }
 
   /** One hands result. `taps`: PLAY's quick pinch per performer hand (playGestures), for cycles while latched. */
   step(shapes: HandShapes, now: number, aspect: number, taps: Record<'left' | 'right', boolean> = { left: false, right: false }): FrameSignal {
+    const { oneHanded, holdMs, wobble } = usePlayPrefs.getState()
+    if (oneHanded) return this.oneStep(shapes, now, aspect, taps, holdMs, WOBBLE_MS[wobble])
     const { left, right } = shapes
     const detected = shapes.frame.held && shapes.frame.seen === now && !!left && !!right
     if (left || right) this.anyAt = now
@@ -205,7 +238,56 @@ export class FrameGestures {
       this.tapping[hand] = taps[hand]
     }
     this.lSince = !formed && (ls.left || ls.right) ? (this.lSince < 0 ? now : this.lSince) : -1
-    this.s = { ...this.s, formed, cycles, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince }
+    this.s = { ...this.s, formed, cycles, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince, holdProgress: 0, corner: null }
+    return this.s
+  }
+
+  /** One-handed (2.0.1): the playing hand's L held Hold time opens the frame (PLAY's loop latches) with the L as its
+   *  corner, and held again lets it go; a misread shorter than Wobble tolerance doesn't break a hold. An L turned over
+   *  (palm to back) is the flip side instead, and back the front: a turning hand's hold never toggles. Back to playing,
+   *  a pinch while it's latched cycles it, as with two hands. */
+  private oneStep(shapes: HandShapes, now: number, aspect: number, taps: Record<'left' | 'right', boolean>, holdMs: number, wobbleMs: number): FrameSignal {
+    const hand = playingHand(shapes)
+    const slot = hand ? SLOT[hand] : null
+    const h = slot ? shapes[slot] : null
+    if (h) this.anyAt = now
+    if (h?.isL) {
+      const facing = palmFacing(h)
+      if (this.hold.since < 0) this.hold = { since: now, seen: now, fired: false, facing, turned: false }
+      this.hold.seen = now
+      if (facing !== this.hold.facing) this.hold.turned = true
+    } else if (now - this.hold.seen > wobbleMs) this.hold = { since: -1, seen: this.hold.seen, fired: false, facing: 0, turned: false }
+    let { formed, cycles } = this.s
+    let holdProgress = 0
+    if (this.hold.since >= 0 && !this.hold.fired && !this.hold.turned) {
+      holdProgress = Math.min(1, (now - this.hold.since) / holdMs)
+      if (holdProgress >= 1 && h && slot) {
+        this.hold.fired = true
+        holdProgress = 0
+        formed = true
+        this.facing0 = { left: 0, right: 0, [slot]: palmFacing(h) }
+        this.flipSince = -1
+        this.s = { ...this.s, formedAt: now, latched: !this.s.latched, flipped: false, corners: null, corner: null }
+      }
+    }
+    if (formed && this.hold.since < 0) formed = false // the L let go
+    // Turned over in an L while it's latched: the flip side (and back: the front), however the hold began.
+    if (this.s.latched && !formed && h && slot && h.isL && this.hold.turned) this.turnOver(slot === 'left' ? h : null, slot === 'right' ? h : null, now)
+    if (formed && h && slot && h.isL) {
+      const quad = oneQuad(h, aspect)
+      const was4 = this.s.corners
+      const corners = was4 ? was4.map((p, i) => ({ x: p.x + (quad[i]!.x - p.x) * FRAME.SMOOTH, y: p.y + (quad[i]!.y - p.y) * FRAME.SMOOTH })) : quad
+      const v = lVertex(h, aspect)
+      const was = this.s.corner
+      const corner = was ? { x: was.x + (v.x - was.x) * FRAME.SMOOTH, y: was.y + (v.y - was.y) * FRAME.SMOOTH } : v
+      this.s = { ...this.s, corners, corner, size: Math.hypot(corners[2]!.x - corners[0]!.x, (corners[2]!.y - corners[0]!.y) / aspect) }
+      this.turnOver(slot === 'left' ? h : null, slot === 'right' ? h : null, now)
+    }
+    for (const side of ['left', 'right'] as const) {
+      if (!formed && this.s.latched && taps[side] && !this.tapping[side]) cycles = this.cycle(cycles, now)
+      this.tapping[side] = taps[side]
+    }
+    this.s = { ...this.s, formed, cycles, lHeldMs: 0, holdProgress }
     return this.s
   }
 

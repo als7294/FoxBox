@@ -30,7 +30,7 @@ const SAG = 3 // a string's rest sag, and a pluck's bow on top of it (the design
 const BOW = 11
 
 /** The picture isn't mirrored: the performer's right hand is the stage's left slot (S1). */
-const stageHand = (h: StageHands, hand: PlayHand): Pt[] | null => (hand === 'right' ? h.left : h.right)
+export const stageHand = (h: StageHands, hand: PlayHand): Pt[] | null => (hand === 'right' ? h.left : h.right)
 export interface PlayStringsInstance {
   frame(hands: StageHands, now: number): void
   dispose(): void

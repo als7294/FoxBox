@@ -37,6 +37,9 @@ export const playFeed = {
   flow: null as FlowLine | null,
   /** Since the renderer last took them (it empties this). */
   plucks: [] as PlayPluck[],
+  /** ONE-HANDED (2.0.1), either mode: each performer hand's hold, 0-1 to firing (0: none, or it's fired), read each
+   *  frame for its ring (holdRing.ts). S4: inst.holdProgress, with S1's one-L frame hold. */
+  hold: null as ((hand: PlayHand) => number) | null,
 }
 
 export const setPlayStrings = (s: Partial<PlayStrings>): void => void Object.assign(playFeed.strings, s)

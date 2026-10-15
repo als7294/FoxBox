@@ -17,6 +17,7 @@ import { StrokeShapes, type Drawn } from './drawnShapes'
 import { FxShapes, type FxSignals } from './fxShapes'
 import { HandGestures, type HandGestureEvent, type Rect as PullRect } from './handGestures'
 import { NO_PLAY, PlayGestures, type PlaySignals, type PluckEvent, type ReleaseEvent } from './playGestures'
+import { usePlayPrefs, type Reach } from './playPrefs'
 import { NO_WHEEL, WheelGestures, type WheelSignals } from './wheelGestures'
 import { FrameGestures, NO_FRAME_SIGNAL, type FrameSignal } from './frameGestures'
 import {
@@ -202,6 +203,25 @@ export function onRelease(cb: (e: ReleaseEvent) => void): () => void {
   releases.add(cb)
   return () => void releases.delete(cb)
 }
+/** One-handed's reach calibration (Settings → Playing → "Calibrate reach", S4's two steps): the playing hand's height
+ *  over the last half second as the highest or the lowest note; false without a hand. Both taken, the notes map onto
+ *  them (usePlayPrefs.reach; too close together, kept as before). clearReach: back to the default. */
+let reachNow: () => number | null = () => null
+let captured: Partial<Reach> = {}
+export function captureReach(which: 'high' | 'low'): boolean {
+  const v = reachNow()
+  if (v == null) return false
+  captured = { ...captured, [which]: v }
+  if (captured.low != null && captured.high != null) {
+    usePlayPrefs.getState().setReach({ low: captured.low, high: captured.high })
+    captured = {}
+  }
+  return true
+}
+export function clearReach(): void {
+  captured = {}
+  usePlayPrefs.getState().setReach(null)
+}
 /** Each listener gets each event; a listener's error is its own (the tracking goes on). */
 const emit = <E>(to: Set<(e: E) => void>, events: readonly E[]) =>
   events.forEach((e) =>
@@ -374,6 +394,7 @@ export function createSmartCamera(): SmartCamera {
   const fx = new FxShapes()
   let fxNow: FxSignals = { hands: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false }
   const play = new PlayGestures()
+  reachNow = () => play.reachNow()
   const wheel = new WheelGestures()
   const frames = new FrameGestures()
   let frameNow = NO_FRAME_SIGNAL
@@ -829,6 +850,7 @@ export function createSmartCamera(): SmartCamera {
       frame: {
         ...frameNow,
         corners: frameNow.corners?.map(toStage) ?? null,
+        corner: frameNow.corner && toStage(frameNow.corner), // one-handed: the L's corner, the stage's (S3's pane)
         size: frameNow.size * (vw / crop.w), // of the picture's width: of the stage's
       },
       stage: {

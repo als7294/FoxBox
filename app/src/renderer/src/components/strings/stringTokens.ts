@@ -37,20 +37,24 @@ export interface StringTokens {
   label: { font: string; size: number; weight: string; color: Rgb; alpha: number; bg: Rgba }
   /** REMIX's beat FX on the strings: the most a move takes them (px), how dark RIDDIM gates them (0-1). */
   fx: { stringDisplace: number; gate: number }
+  /** ONE-HANDED's hold ring (holdRing.ts), the design's hold-to-load ring: the accent filling over a faint track, its
+   *  radius and line (the design stage's units), and the glow a fired hold goes out with (px). */
+  ring: { color: Rgb; track: Rgba; size: number; width: number; glow: number }
 }
 
 const LABEL = { font: 'Geist, system-ui, sans-serif', size: 13, weight: '600', color: [255, 255, 255] as Rgb, alpha: 1, bg: [20, 14, 10, 0.62] as Rgba }
 const NOTE = { ...LABEL, size: 15, color: [246, 239, 230] as Rgb, alpha: 0.45, bg: [15, 10, 6, 0.6] as Rgba }
 const FX = { stringDisplace: 36, gate: 0.6 }
 const CUT: Rgba = [255, 255, 255, 0.4]
+const RING = { color: [242, 112, 31] as Rgb, track: [255, 255, 255, 0.18] as Rgba, size: 14, width: 2, glow: 12 }
 const DEFAULTS: Record<StringsMode, StringTokens> = {
   play: {
     core: [255, 241, 222], weight: 3, tipSize: 5, glowColor: [255, 122, 31], glow: 18, glowAlpha: 0.22, flashMs: 900,
-    pluckWeight: 7, pluckCoreMs: 500, cut: CUT, cutDash: [4, 12], drop: [255, 75, 43], label: NOTE, fx: FX,
+    pluckWeight: 7, pluckCoreMs: 500, cut: CUT, cutDash: [4, 12], drop: [255, 75, 43], label: NOTE, fx: FX, ring: RING,
   },
   remix: {
     core: [255, 255, 255], weight: 1.8, tipSize: 5, glowColor: [255, 154, 60], glow: 10.8, glowAlpha: 0.22, flashMs: 300,
-    pluckWeight: 3.6, pluckCoreMs: 250, cut: CUT, cutDash: [4, 12], drop: [255, 75, 43], label: LABEL, fx: FX,
+    pluckWeight: 3.6, pluckCoreMs: 250, cut: CUT, cutDash: [4, 12], drop: [255, 75, 43], label: LABEL, fx: FX, ring: RING,
   },
 }
 
@@ -131,6 +135,13 @@ export function parseTokens(mode: StringsMode, get: (name: string) => string): S
     fx: {
       stringDisplace: r.num('--s-fx-string-displace', d.fx.stringDisplace, 0, 120),
       gate: r.num('--s-fx-gate', d.fx.gate, 0, 1),
+    },
+    ring: {
+      color: r.colour('--s-ring', d.ring.color),
+      track: r.colourA('--s-ring-track', d.ring.track),
+      size: r.num('--s-ring-size', d.ring.size, 4, 80),
+      width: r.num('--s-ring-width', d.ring.width, 0.5, 20),
+      glow: r.num('--s-ring-glow', d.ring.glow, 0, 80),
     },
   }
 }

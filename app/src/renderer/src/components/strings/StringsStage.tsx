@@ -21,7 +21,7 @@
  * Dev only: `?strings-hands=1` in the web mock plays scripted hands instead of the camera (no camera opened).
  */
 import { useEffect, useRef } from 'react'
-import { fingerPairs, handShapes } from '@/components/camera/camMath'
+import { fingerPairs, handShapes, type Pt } from '@/components/camera/camMath'
 import { cameraSignals, mockSignals } from '@/components/camera/smartCamera'
 import { cameraBaseState, cameraFrames, cameraTrack, cameraTracker, smartCameraBase } from '@/components/camera/smartCameraBase'
 import { bridge } from '@/env'
@@ -32,8 +32,9 @@ import { feedStageFrames, stageSource } from '@/visuals/live/stage'
 import { beatFx as beatFxHands } from '@/audio/live/beatFx'
 import { createBeatFx, createFeelFilter, fingerCuts, readBeatFx, setBeatFxSource, stringFeel, synthBeatFx, synthCuts, synthFeel } from './beatFx'
 import { createBeatFxPass } from './beatFxPass'
-import { clearGlassSignal, createGlass, fitGlass, frameTiming, rectCorners, type FrameCorners } from './glass'
+import { CENTRE_CORNERS, clearGlassSignal, createGlass, fitGlass, frameTiming, keyFrame, oneLCorners, rectCorners, type FrameCorners } from './glass'
 import { createGlassPass, frameLabel } from './glassPass'
+import { createHoldRing } from './holdRing'
 import { playBeat, playFeed } from './playFeed'
 import { createPlayStrings } from './playStrings'
 import { createStrings, STRINGS, synthHands } from './strings'
@@ -44,16 +45,20 @@ const SYNTH = import.meta.env.DEV && typeof location !== 'undefined' && new URLS
 const PANEL_MS = 100 // the right panel's refresh
 const REMIX_FRAME_MS = 30 // REMIX draws every other display frame at 60 Hz
 
-/** The hands' frame now: S1's quad (cameraSignals().frame, smoothed, in the stage's picture) once it's there, else the
- *  fallback rectangle from the two Ls; null without both hands. */
+/** The hands' frame now: ONE-HANDED's one-L frame opening from its L's corner toward the middle (S1's frame.corner, 2.0.1);
+ *  else S1's quad (cameraSignals().frame, smoothed, in the stage's picture) once it's there, else the fallback rectangle
+ *  from the two Ls; null without both hands. */
 function frameCorners(hands: ReturnType<typeof cameraSignals>['stage'], aspect: number): FrameCorners | null {
-  const s1 = cameraSignals().frame.corners
+  if (keyFrame.on) return CENTRE_CORNERS // the F key's
+  const f: { corners: Pt[] | null; corner?: Pt | null } = cameraSignals().frame
+  if (!SYNTH && f.corner) return oneLCorners(f.corner)
+  const s1 = f.corners
   if (!SYNTH && s1?.length === 4) return s1 as FrameCorners
   return hands.left && hands.right ? rectCorners(fitGlass(hands.left, hands.right, aspect), aspect) : null
 }
 
 /** S1's frame state: its pinch count while framed (a change restyles it), and turned over like a card (the flip side). */
-const frameCycles = (): number | undefined => (SYNTH ? undefined : cameraSignals().frame.cycles)
+const frameCycles = (): number => (SYNTH ? 0 : cameraSignals().frame.cycles) + keyFrame.cycles // and the P key's
 const frameTurned = (): boolean | undefined => (SYNTH ? undefined : cameraSignals().frame.flipped)
 
 const DIAG_MS = 5000 // main.log's STRINGS line
@@ -97,6 +102,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
     // the FRAME, both modes: REMIX's follows the held frame; PLAY's (FREEZE) locks where it formed while frozen
     const glass = createGlass({ reduced, aspect: w / h, timing: frameTiming, follow: !play, ...(play ? { exitHoldMs: 0, settleMs: 250 } : {}) })
     const pass = createGlassPass(w, h, { reduced, mode }) // and the camera's last seconds, on the GPU
+    const holdRing = createHoldRing(play ? 'play' : 'remix', { reduced }) // ONE-HANDED's holds, at the hand
     const visual = createStageVisual({ reduced }) // VISUALS: SAUCE over the camera, REMIX instead of it
     setVisualStage(play ? 'play' : 'remix')
     let box = w / h // the canvas's box on screen (it's shown covering it): where REMIX's visual finds the waveform
@@ -190,13 +196,14 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
         else base?.frame(silentFrame(now / 1000), dt)
         playStrings?.frame(hands, now)
         keep(now)
-        const g = glass.update(now, playFeed.strings.frozen, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest() })
+        const g = glass.update(now, playFeed.strings.frozen || keyFrame.on, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest() })
         camera()
         visual.draw(octx, w, h, dt, now / 1000, box)
         const pane = g.mix > 0 ? pass.draw(base ? base.canvas : out, g, { bass: 0, kick: 0, time: now / 1000, now }) : null
         if (pane) octx.drawImage(pane, 0, 0, w, h)
         octx.drawImage(layer, 0, 0, w, h) // the strings, played over the loop (as in the design)
         if (pane) frameLabel(octx, g, w, h, 'play') // and the frame's pills over them
+        holdRing.draw(octx, hands, now, w, h)
         props.current.onFrame?.(out)
         counted(now)
         if (now - panelAt < PANEL_MS) return
@@ -235,7 +242,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
       const { levels } = strings.frame(a, fdt * fx.speed, hands, pulledAt, cuts) // HALFTIME: half speed
       keep(now)
       // S1's frame: formed holds through corner taps and a card turn (the raw L drops mid-turn); the scripted hands, the L
-      const formed = SYNTH ? cameraSignals().shapes.frame.held : cameraSignals().frame.formed
+      const formed = (SYNTH ? cameraSignals().shapes.frame.held : cameraSignals().frame.formed) || keyFrame.on
       const g = glass.update(now, formed, frameCorners(hands, w / h), {
         beat: a.bpm > 0 ? { bpm: a.bpm, phase: a.beatPhase } : null, cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest() })
       if (g.changed) useStrings.setState({ glass: { type: g.type, at: now } })
@@ -256,6 +263,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
         octx.drawImage(shown, 0, 0, w, h) // inside it, the world (over the strings)
         frameLabel(octx, g, w, h)
       }
+      holdRing.draw(octx, hands, now, w, h)
       props.current.onFrame?.(out)
       counted(now)
       if (now - panelAt < PANEL_MS) return

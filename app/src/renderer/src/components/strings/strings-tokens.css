@@ -14,6 +14,8 @@
  *   label-*                           REMIX: the band pills (SUB · LOW · MID · HI-MID · HIGH); SAUCE: each hand's
  *                                     note, faint (label-alpha; label-bg its shadow), the glass NotePop over it on a pluck
  *   fx-string-displace / fx-gate      REMIX's beat FX on the strings: the most they move them (px), RIDDIM's gate (0-1)
+ *   ring / -track / -size / -width / -glow   ONE-HANDED's hold ring at the hand: the design's hold-to-load ring (52 px,
+ *                                     a 3 px line, at 982 tall), filling in the accent; a fired hold's glow (px)
  *
  * --frame-*, ours (window px at 982 tall):
  *   flash-alpha                       one soft flash as the edge closes
@@ -41,6 +43,11 @@
   --strings-play-label-color: var(--fb-ink);
   --strings-play-label-alpha: 0.45;
   --strings-play-label-bg: rgba(15, 10, 6, 0.6);
+  --strings-play-ring: var(--fb-accent);
+  --strings-play-ring-track: rgba(255, 255, 255, 0.18);
+  --strings-play-ring-size: 14;
+  --strings-play-ring-width: 2;
+  --strings-play-ring-glow: 12;
 
   --strings-remix-core: var(--string-remix-core);
   --strings-remix-weight: var(--string-remix-width);
@@ -61,6 +68,11 @@
   --strings-remix-label-bg: var(--string-label-bg);
   --strings-remix-fx-string-displace: 36;
   --strings-remix-fx-gate: 0.6;
+  --strings-remix-ring: var(--fb-accent);
+  --strings-remix-ring-track: rgba(255, 255, 255, 0.18);
+  --strings-remix-ring-size: 14;
+  --strings-remix-ring-width: 2;
+  --strings-remix-ring-glow: 12;
 
   --frame-flash-alpha: 0.3;
   --frame-world-opacity: 0.85;

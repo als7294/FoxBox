@@ -22,8 +22,9 @@ import type { Pt } from '@/components/camera/camMath'
 import { shapeActions } from '@/components/camera/shapeMap'
 import { cameraSignals, onPluck, onRelease } from '@/components/camera/smartCamera'
 import { finishTake, startTake, useTakes } from '@/components/stage/takes'
-import { notePluck, setFlowLine, setPlayBeat, setPlayNotes, setPlayStrings } from '@/components/strings/playFeed'
-import { glassSignal } from '@/components/strings/glass'
+import { usePlayPrefs } from '@/components/camera/playPrefs'
+import { notePluck, playFeed, setFlowLine, setPlayBeat, setPlayNotes, setPlayStrings } from '@/components/strings/playFeed'
+import { glassSignal, keyFrame, setKeyFrame } from '@/components/strings/glass'
 
 export const SOUNDS: { id: SoundId; label: string; family: 'BASS' | 'MELODY' }[] = [
   { id: '808', label: '808', family: 'BASS' },
@@ -119,6 +120,14 @@ function syncMelody(i: Instrument): void {
 let inst: Instrument | null = null
 let starting: Promise<Instrument> | null = null
 
+// ONE-HANDED (2.0.1): Hold time reaches S2's shape toggles; S3's hold ring reads each hand's hold, its shape's (S2) or
+// its single-L frame's (S1)
+usePlayPrefs.subscribe((p, was) => p.holdMs !== was.holdMs && inst?.setHoldTime(p.holdMs))
+playFeed.hold = (hand) => {
+  const c = cameraSignals()
+  return Math.max(inst?.holdProgress(hand) ?? 0, c.play.one?.hand === hand ? c.frame.holdProgress : 0)
+}
+
 /** The instrument once it's made (the Board's meter and spectrum read it), else null. */
 export const currentInstrument = (): Instrument | null => inst
 
@@ -136,6 +145,7 @@ export function playInstrument(): Promise<Instrument> {
     i.setNoteMode(s.noteMode)
     i.setMelodyMode(s.melodyMode)
     i.output.connect(ctx.destination)
+    i.setHoldTime(usePlayPrefs.getState().holdMs) // ONE-HANDED's shape toggles (2.0.1)
     inst = i
     usePlay.setState({ ladder: i.ladder(), audio: 'ready' })
     syncMelody(i)
@@ -194,12 +204,14 @@ export const playActions = {
     if (!inst) return
     inst.frame(true)
     inst.frame(false)
+    setKeyFrame(inst.frozen) // F, the Board, the Frame card: S3's pane shows while it loops, hands or none
     usePlay.setState({ frozen: inst.frozen })
   },
   /** Leaving PLAY: FLOW's note and FREEZE's drone let go (setKey stops both; plucks ring out). */
   release() {
     const k = usePlay.getState().key
     inst?.setKey(k.root, k.scale)
+    setKeyFrame(false)
     usePlay.setState({ frozen: false, moves: [] })
   },
 }
@@ -282,6 +294,7 @@ export function startPlayHands(): () => void {
     setPlayStrings({ style: inst.style, key: inst.key, octave: inst.octave, frozen: inst.frozen, shift })
     const was = usePlay.getState()
     if (inst.frozen !== was.frozen) usePlay.setState({ frozen: inst.frozen })
+    if (!inst.frozen && keyFrame.on) setKeyFrame(false) // the hands let the loop go: the key's pane too
     if (moves.length !== was.moves.length || moves.some((m, i) => m !== was.moves[i])) usePlay.setState({ moves })
     // the ladder and its lights: each hand's note (while it's seen), FOLLOW's next, FIT's allowed
     if (now - litAt >= LIT_MS) {

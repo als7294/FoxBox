@@ -3,6 +3,8 @@
  * design's glyph style (a 12% palm, bones over a 16% underlay, fingertip dots, the active ones orange), moving as the
  * onboarding reference does (ease-out entrances, in-out draws, a little overshoot on a pop). One light canvas, no text.
  * Reduced motion: the move's start pose faint, its end pose, and an arrow between them (still).
+ * ONE-HANDED (2.0.1, `hands={1}`): the two-hand moves with one hand. Its C reaches strands out (as PLAY draws one hand), its
+ * L alone opens the frame after the hold ring fills (and lets it go the same way), and FLOW's filter is its thumb-index gap.
  */
 import { useEffect, useRef } from 'react'
 
@@ -99,6 +101,8 @@ function sideC(x: number, y: number, s: number, mirror: boolean, curls: number[]
 interface G {
   c: CanvasRenderingContext2D
   t: number
+  /** ONE-HANDED: the performer's right hand alone */
+  one?: boolean
 }
 function hand(g: G, P: V[], s: number, hot: number[] = [], backSide = false) {
   const c = g.c
@@ -192,6 +196,25 @@ function arc(g: G, x: number, y: number, r: number, a0: number, a1: number, alph
 }
 
 type PaneStyle = 'echo' | 'prism' | 'halftone' | 'slitscan'
+/** ONE-HANDED's hold ring (the stage's holdRing.ts): a faint track, the accent filling clockwise from 12 o'clock. */
+function holdRing(g: G, [x, y]: V, fill: number, alpha = 1) {
+  if (fill <= 0 || alpha <= 0) return
+  const c = g.c
+  c.save()
+  c.globalAlpha *= alpha
+  c.lineWidth = 3
+  c.lineCap = 'round'
+  c.beginPath()
+  c.arc(x, y, 13, 0, Math.PI * 2)
+  c.strokeStyle = 'rgba(255, 255, 255, 0.18)'
+  c.stroke()
+  c.beginPath()
+  c.arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fill)
+  c.strokeStyle = `rgb(${ACC})`
+  c.stroke()
+  c.restore()
+}
+
 /** The frame's pane in quad q (clockwise from the top-left): its style, its edge drawn so far (0-1), bloomed (0-1). */
 function pane(g: G, q: V[], style: PaneStyle, edge = 1, bloom = 1) {
   const c = g.c
@@ -303,11 +326,18 @@ const SC = 30 // a side-on hand's size
 const C_L = 62 // the C hands' wrists
 const C_R = 178
 const C_Y = 86
+const C_ONE = 160 // the one C hand's wrist
 const cTips = (P: V[]) => TIPS.map((i) => P[i]!)
 
 /** Two C hands with strings between them; `curl(side, finger)` and a pluck's flash per string. */
 function cHands(g: G, y: number, o: { curl?: (side: 0 | 1, f: number) => number; lit?: (f: number) => number; draw?: number; white?: boolean; cut?: (f: number) => boolean; turn?: number } = {}) {
   const curls = (s: 0 | 1) => [0, 1, 2, 3, 4].map((f) => o.curl?.(s, f) ?? 0)
+  if (g.one) { // one hand: a short strand from each fingertip, reaching for the other hand
+    const R = sideC(C_ONE, y, SC, true, curls(1), o.turn ?? 1)
+    cTips(R).forEach((p, f) => string(g, p, [p[0] - 64, p[1] + (f - 2) * 4], { lit: o.lit?.(f) ?? 0, bow: 1 + 4 * (o.lit?.(f) ?? 0), draw: 0.75 * (o.draw ?? 1), white: o.white, cut: o.cut?.(f) }))
+    hand(g, R, SC * 0.9, TIPS.filter((_, f) => (o.curl?.(1, f) ?? 0) > 0.3))
+    return { L: R, R }
+  }
   const L = sideC(C_L, y, SC, false, curls(0), o.turn ?? 1)
   const R = sideC(C_R, y, SC, true, curls(1), o.turn ?? 1)
   const [a, b] = [cTips(L), cTips(R)]
@@ -330,7 +360,8 @@ const MOVES: Record<GuideMove, Move> = {
       const y = lerp(H + 40, C_Y, rise)
       cHands(g, y, { draw: inOut(seg(t, 1.4, 2.0)), turn })
       const show = seg(t, 0.85, 1.0) * (1 - seg(t, 1.5, 1.7))
-      if (show > 0) for (const [x, a0, a1] of [[C_L, -2.4, -1.3], [C_R, -0.74, -1.84]] as const) arc(g, x, y - 6, 34, a0, a1, show)
+      const arcs = g.one ? ([[C_ONE, -0.74, -1.84]] as const) : ([[C_L, -2.4, -1.3], [C_R, -0.74, -1.84]] as const)
+      if (show > 0) for (const [x, a0, a1] of arcs) arc(g, x, y - 6, 34, a0, a1, show)
       return [W / 2, y]
     },
   },
@@ -338,7 +369,7 @@ const MOVES: Record<GuideMove, Move> = {
     period: 2.5, still: [0, 0.12],
     draw(g, t) {
       const f = Math.floor(t / 0.5) % 5
-      const side = (Math.floor(t / 0.5) % 2) as 0 | 1
+      const side = (g.one ? 1 : Math.floor(t / 0.5) % 2) as 0 | 1
       const k = pulse(t % 0.5, 0.12)
       const { L, R } = cHands(g, C_Y, { curl: (s, i) => (s === side && i === f ? k : 0), lit: (i) => (i === f ? k : 0) })
       return (side ? R : L)[TIPS[f]!]!
@@ -421,7 +452,7 @@ const MOVES: Record<GuideMove, Move> = {
         g.c.fill()
       })
       const f = (n * 3 + 1) % 5
-      const side = (n % 2) as 0 | 1
+      const side = (g.one ? 1 : n % 2) as 0 | 1
       cHands(g, C_Y + 14, { curl: (s, i) => (s === side && i === f ? k : 0), lit: (i) => (i === f ? k : 0) })
       return [70 + (n % 8) * 13 + 4, 20]
     },
@@ -431,6 +462,13 @@ const MOVES: Record<GuideMove, Move> = {
     draw(g, t) {
       const mute = seg(t, 2.6, 2.75) * (1 - seg(t, 3.3, 3.45))
       const y = 96 - 34 * Math.sin((Math.min(t, 2.6) / 2.6) * Math.PI * 2)
+      if (g.one) { // its height the pitch, its thumb-index gap the filter (open: bright), a fist mutes
+        const gap = 0.5 + 0.5 * Math.cos(t * 4.8)
+        const R = front({ x: 160, y: y + 26, s: S, curls: mute > 0.5 ? [1, 1, 1, 1, 1] : [0.3 * (1 - gap), 0.3 * (1 - gap), 0.6, 0.6, 0.6], pinch: mute > 0.5 ? 0 : 1 - gap })
+        string(g, R[9]!, [R[9]![0] - 110, R[9]![1] + 4], { bow: -(96 - y) * 0.6, lit: 0.1 + 0.7 * gap, cut: mute > 0.5, draw: 0.85 })
+        hand(g, R, S, mute > 0.5 ? [] : [4, 8])
+        return R[8]!
+      }
       const L = sideC(C_L, C_Y + 6, SC, false)
       const R = mute > 0.5 ? front({ x: C_R, y: y + 30, s: S, curls: [1, 1, 1, 1, 1] }) : sideC(C_R, y, SC, true)
       const a = L[9]!
@@ -444,12 +482,16 @@ const MOVES: Record<GuideMove, Move> = {
   frame: {
     period: 3.6, still: [0, 2.2],
     draw(g, t) {
-      const k = inOut(seg(t, 0, 0.9)) * (1 - inOut(seg(t, 3.1, 3.6)))
+      const k = g.one ? 1 : inOut(seg(t, 0, 0.9)) * (1 - inOut(seg(t, 3.1, 3.6)))
       const th = 0.06 * Math.sin(t * 1.3)
       const F = frameHands(W / 2, H / 2 + 6, lerp(60, 110, k), lerp(40, 74, k), th, 22)
       pane(g, F.q, 'echo', seg(t, 0.9, 1.35) * (1 - seg(t, 3.1, 3.2)), out3(seg(t, 1.15, 1.85)) * (1 - seg(t, 3.0, 3.3)))
+      g.c.save()
+      if (g.one) g.c.globalAlpha *= seg(t, 0, 0.3) * (1 - seg(t, 3.1, 3.6))
       hand(g, F.L, 22, [4, 8])
-      hand(g, F.R, 22, [4, 8])
+      if (!g.one) hand(g, F.R, 22, [4, 8])
+      g.c.restore()
+      if (g.one) holdRing(g, F.q[3]!, seg(t, 0.3, 0.9), 1 - seg(t, 0.9, 1.1)) // one L held: the ring, then the pane
       return F.q[3]!
     },
   },
@@ -491,7 +533,7 @@ const MOVES: Record<GuideMove, Move> = {
         g.c.restore()
       }
       hand(g, F.L, 22, tap > 0.3 ? [4, 8] : [8])
-      hand(g, F.R, 22, [4, 8])
+      if (!g.one) hand(g, F.R, 22, [4, 8])
       return F.L[8]!
     },
   },
@@ -503,7 +545,7 @@ const MOVES: Record<GuideMove, Move> = {
       pane(g, cardQuad(F.q, turn), Math.cos(turn) >= 0 ? 'echo' : 'slitscan')
       const backSide = Math.cos(turn) < 0
       hand(g, F.L, 22, [4, 8], backSide)
-      hand(g, F.R, 22, [4, 8], backSide)
+      if (!g.one) hand(g, F.R, 22, [4, 8], backSide)
       if (t > 0.6 && t < 1.0) arc(g, W / 2, H / 2 + 6, 70, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5, (t - 0.6) / 0.4)
       return [W / 2 + 40 * Math.cos(turn), H / 2]
     },
@@ -615,12 +657,12 @@ const MOVES: Record<GuideMove, Move> = {
   'frame-glass': {
     period: 5.2, still: [0.2, 3.4],
     draw(g, t) {
-      const form = inOut(seg(t, 0, 0.8))
+      const form = g.one ? 1 : inOut(seg(t, 0, 0.8)) // one hand holds its L where it is (the ring), not apart
       const tap = pulse(t, 2.0, 0.1, 0.2)
       const turn = Math.PI * inOut(seg(t, 2.6, 3.2))
       const gone = seg(t, 4.0, 4.6)
       const th = 0.05 * Math.sin(t * 1.3)
-      const apart = inOut(seg(t, 3.9, 4.6))
+      const apart = g.one ? 0 : inOut(seg(t, 3.9, 4.6)) // one hand lets go by holding the L again (the ring)
       const F = frameHands(W / 2, H / 2 + 6, lerp(60, 110, form) + 50 * apart, lerp(40, 74, form) + 30 * apart, th, 22, turn, [tap * 0.6, tap * 0.4, 1, 1, 1])
       if (gone <= 0) pane(g, cardQuad(F.q, turn), Math.cos(turn) < 0 ? 'slitscan' : t > 2.0 ? 'prism' : 'echo', seg(t, 0.8, 1.2), out3(seg(t, 1.0, 1.6)))
       else { // letting go: it shatters
@@ -656,8 +698,9 @@ const MOVES: Record<GuideMove, Move> = {
       g.c.save()
       g.c.globalAlpha *= 1 - seg(t, 4.6, 5.2)
       hand(g, F.L, 22, tap > 0.3 ? [4, 8] : [8], backSide)
-      hand(g, F.R, 22, [4, 8], backSide)
+      if (!g.one) hand(g, F.R, 22, [4, 8], backSide)
       g.c.restore()
+      if (g.one) holdRing(g, F.q[3]!, t < 2 ? seg(t, 0.2, 0.75) : seg(t, 3.45, 3.95), t < 2 ? 1 - seg(t, 0.75, 0.9) : 1 - seg(t, 3.95, 4.1))
       return [W / 2 + 40 * Math.cos(turn), H / 2]
     },
   },
@@ -697,21 +740,22 @@ const MOVES: Record<GuideMove, Move> = {
 export const GUIDE_MOVES = Object.keys(MOVES) as GuideMove[]
 
 /** Draws `move` at loop time `t` (seconds; null: its reduced-motion still) into a W x H-unit context. */
-export function drawGuideMove(c: CanvasRenderingContext2D, move: GuideMove, t: number | null): void {
+export function drawGuideMove(c: CanvasRenderingContext2D, move: GuideMove, t: number | null, hands: 1 | 2 = 2): void {
   const m = MOVES[move]
+  const one = hands === 1
   c.clearRect(0, 0, W, H)
   if (t !== null) {
     c.save()
-    m.draw({ c, t: t % m.period }, t % m.period)
+    m.draw({ c, t: t % m.period, one }, t % m.period)
     c.restore()
     return
   }
   c.save()
   c.globalAlpha = 0.35
-  const a = m.draw({ c, t: m.still[0] }, m.still[0])
+  const a = m.draw({ c, t: m.still[0], one }, m.still[0])
   c.restore()
   c.save()
-  const b = m.draw({ c, t: m.still[1] }, m.still[1])
+  const b = m.draw({ c, t: m.still[1], one }, m.still[1])
   c.restore()
   const d = Math.hypot(b[0] - a[0], b[1] - a[1])
   const g = { c, t: 0 }
@@ -719,8 +763,8 @@ export function drawGuideMove(c: CanvasRenderingContext2D, move: GuideMove, t: n
   else arc(g, b[0], b[1], 14, -Math.PI * 0.9, -Math.PI * 0.2)
 }
 
-/** One step's animation (decorative: the step's words say it), `width` px wide (3:2). */
-export function GuideHands({ move, width = 240, className }: { move: GuideMove; width?: number; className?: string }) {
+/** One step's animation (decorative: the step's words say it), `width` px wide (3:2); `hands={1}`: ONE-HANDED's. */
+export function GuideHands({ move, width = 240, className, hands = 2 }: { move: GuideMove; width?: number; className?: string; hands?: 1 | 2 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current
@@ -731,17 +775,17 @@ export function GuideHands({ move, width = 240, className }: { move: GuideMove; 
     c.setTransform((width * dpr) / W, 0, 0, (width * dpr) / W, 0, 0)
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) {
-      drawGuideMove(c, move, null)
+      drawGuideMove(c, move, null, hands)
       return
     }
     const t0 = performance.now()
     let raf = 0
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick)
-      drawGuideMove(c, move, (now - t0) / 1000)
+      drawGuideMove(c, move, (now - t0) / 1000, hands)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [move, width])
+  }, [move, width, hands])
   return <canvas ref={ref} className={className} aria-hidden="true" style={{ width, height: (width * H) / W }} />
 }

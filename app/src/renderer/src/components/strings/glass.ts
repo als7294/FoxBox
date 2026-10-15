@@ -215,8 +215,30 @@ export function quadOf(c: FrameCorners, aspect: number): GlassQuad {
   }
 }
 
+/** ONE-HANDED (2.0.1): the frame one L makes. Its corner is the L's (`at`: S1's cameraSignals().frame.corner, the
+ *  stage's 0-1) and the pane opens toward the picture's centre, the far corner mirrored through it: at least `min` of
+ *  the picture each way, `margin` inside its edges. */
+export const ONE_L = { min: 0.4, margin: 0.04 }
+export function oneLCorners(at: Pt): FrameCorners {
+  const span = (v: number) => {
+    const a = Math.min(1 - ONE_L.margin, Math.max(ONE_L.margin, v))
+    const b = Math.abs(1 - 2 * a) >= ONE_L.min ? 1 - a : a + (a <= 0.5 ? ONE_L.min : -ONE_L.min)
+    return [Math.min(a, b), Math.max(a, b)] as const
+  }
+  const [x0, x1] = span(at.x)
+  const [y0, y1] = span(at.y)
+  return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }]
+}
+
 /** FREEZE with no frame to lock onto (a hand unseen): a pane in the middle of the picture. */
 export const CENTRE_CORNERS: FrameCorners = [{ x: 0.22, y: 0.2 }, { x: 0.78, y: 0.2 }, { x: 0.78, y: 0.8 }, { x: 0.22, y: 0.8 }]
+
+/** The fallback keys (STRINGS_UX: F frame · P next style; S4 wires them). F: a pane at CENTRE_CORNERS while on (SAUCE:
+ *  with inst.frame's latch; REMIX: held till F again). P: the next style, as a pinch (S1's cycles) would; the sound
+ *  follows through glassSignal(). */
+export const keyFrame = { on: false, cycles: 0 }
+export const setKeyFrame = (on: boolean): void => void (keyFrame.on = on)
+export const nextGlassStyle = (): void => void keyFrame.cycles++
 
 const ease = (t: number) => t * t * (3 - 2 * t)
 const easeOut = (t: number) => 1 - (1 - t) ** 3 // the design's cubic-bezier(.2, .8, .2, 1), near enough

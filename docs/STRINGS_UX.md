@@ -437,6 +437,7 @@ Settings is a 1200 × 780 window over a blurred scrim, opened from ⌘, or the d
   - Face hiding (off by default);
   - Left-handed layout (off by default);
   - Pluck sensitivity (Low / Medium / High, Medium by default; S1 maps it to the pluck thresholds).
+  - *2.0.1:* One-handed (off by default), Hold time (0.3–1.2 s, 0.5 s by default), Wobble tolerance (Low / Medium / High) and Calibrate reach (see "One-handed mode").
 - **Output & recording:**
   - Send to output (opens a picture-only window);
   - Clip watermark;
@@ -459,6 +460,61 @@ Settings is a 1200 × 780 window over a blurred scrim, opened from ⌘, or the d
   - the version and **Check now**;
   - credits and licences, including "The stem splitter's weights are Meta's (Demucs), licensed for scientific use only.";
   - "Looking for STUDIO, VISUALS or MASKS? They live on in FoxBox 1.5.5 on GitHub."
+
+## One-handed mode (2.0.1)
+For accessibility: FoxBox plays with one hand *(the user's decision; it ships right after 2.0)*. S1–S4 build it after 2.0 ships. No new libraries.
+
+**Turning it on:**
+- **The setting:** Settings → Playing → **One-handed**, off by default. Either hand plays.
+- **Two hands in view:** the Left-handed setting picks which hand plays. The other hand is ignored, with no strings and no shapes.
+- **First turn-on:** the reach calibration and the one-handed GUIDE run (see below).
+
+**SAUCE · PLUCK:**
+- **Height picks the note,** and a curled finger plucks, as now.
+- **Shapes toggle:** ✊ DRIVE · 🤏 WOBBLE · ✌️ ECHO · 🤘 SPACE are **hold to toggle**. Hold the shape for the hold time (default 0.5 s) and its effect latches on; hold it again and it turns off. The same hand can't hold a shape and pluck at once, so this is the one-handed way.
+- **What's on:** a small pill by the hand lists what's on, e.g. "DRIVE · ECHO".
+- **Momentary shapes:** point up or down stays momentary; only ✊ 🤏 ✌️ 🤘 latch.
+- **Back to two hands:** latched effects turn off when One-handed is switched off.
+- **Twist** bends, and **point up or down** changes octave, as now.
+
+**SAUCE · FLOW:**
+- **Height** is the pitch.
+- **The thumb–index gap** is the filter: open is bright, closed is dark.
+- **A fist** mutes.
+
+**Frames *(the user's pick)*:**
+- **Opening:** hold **one L** (thumb and index out) for the hold time, and a frame opens with the L as its corner. It latches, like SAUCE's two-handed frame.
+- **Changing:** a pinch held ~0.2 s steps to the next style. Turning the hand over gives the flip side.
+- **Releasing:** hold the L again, and the glass fracture follows.
+
+**REMIX:**
+- **Beat FX shapes and finger cuts** work as now, with one hand.
+- **The library wheel:** the shaka opens it and the index dials. Closing the hand grabs and previews, and holding a fist ~0.8 s loads. The shaka again, or Esc, closes it.
+
+**Keys, as the fallback** (to confirm with S4): F frame · P next style · L library.
+
+**Holds, for every hold above:**
+- **Hold time:** Settings → Playing → **Hold time**, 0.3–1.2 s, default 0.5 s. It applies to the L-frame and the shape toggles; S2's toggle reads it instead of a fixed 400 ms.
+- **Hold feedback:** nothing for the first ~200 ms, so passing shapes stay quiet. Then a small ring fills at the hand until the hold fires. Then a short confirm sound and a glow: a soft two-note pip, rising for on and falling for off, quiet (~−22 dB, S2).
+- **Wobble tolerance:** a little hand movement doesn't break a hold. Settings → Playing → **Wobble tolerance**, Low / Medium / High, Medium by default.
+
+**Reach calibration:**
+- **When it runs:** on turning One-handed on, and again from Settings, with "Calibrate reach".
+- **What it asks:** "Raise your hand to your highest comfortable note", then "now your lowest". The note range maps onto that reach.
+- **The default** without calibration sits around chest height, and no note needs the hand above the shoulder.
+
+**The one-handed GUIDE** (Settings → Guide & shortcuts, and on first turn-on):
+1. Hold one hand up, curved into a C, turned a little toward the camera.
+2. Raise or lower it to pick a note; curl a finger to pluck.
+3. Show us your reach: raise your hand to your highest comfortable note, then your lowest.
+4. **Practice the shapes, one at a time.** Each one gets a tick when it reads: "Hold a fist to turn on DRIVE" → "Hold a pinch for WOBBLE" → "Hold peace for ECHO" → "Hold horns for SPACE". Hold it again to turn it off.
+5. Twist to bend; point up or down for the octave.
+6. Hold an L to open a frame. Pinch and hold for a moment to change the effect, turn your hand over for the flip side, and hold the L again to let it go.
+7. Try FLOW: height for pitch, open and close your thumb and index for the filter, a fist to mute.
+
+REMIX's one-handed chapter is the same as the two-handed one, except for step 6: "Hold the shaka 🤙 for your library: your index spins it, close your hand to preview, hold a fist to load."
+
+The GUIDE keeps its rules: "Now you try" never blocks, and the demos use one hand.
 
 ## Type and surfaces
 - **Everything visual comes from `app/design/foxbox-2/foxbox-tokens.css`:** colour, type, space, radii, blur and shadow, motion, `--string-*`, `--frame-*` and `--wheel-*`.

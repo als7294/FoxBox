@@ -18,7 +18,7 @@ import { useLoadTrack } from '@/components/prod/SongBlock'
 import { stemsGate } from '@/components/prod/stems'
 import { useTick } from '@/components/stage/StageControls'
 import { useStrings } from '@/components/strings/stringsStore'
-import { glassSignal } from '@/components/strings/glass'
+import { glassSignal, keyFrame, nextGlassStyle, setKeyFrame } from '@/components/strings/glass'
 import { setVisualSource } from '@/components/strings/visuals'
 import { closeWheel, followShaka, useWheelUi, WheelOverlay } from '@/components/wheel/WheelOverlay'
 import { isTextTarget } from '@/lib/shortcuts'
@@ -174,9 +174,10 @@ function Remix({ active }: { active: boolean }) {
       closeWheel()
     }
   }, [active])
-  // leaving REMIX pauses the song on the bar (a running RECORD stops in the mode switch)
+  // leaving REMIX pauses the song on the bar (a running RECORD stops in the mode switch), and lets a key GLASS go
   useEffect(() => {
     if (active) return
+    setKeyFrame(false)
     const deck = useLiveDeck.getState().deck
     if (!deck?.isPlaying) return
     deck.stop()
@@ -238,6 +239,9 @@ function useShellKeys() {
         const next = VISUALS[(VISUALS.indexOf(cur) + 1) % VISUALS.length]!
         useFb.setState((f) => ({ visual: { ...f.visual, [mode]: next } }))
       } else if (e.key === 'b' || e.key === 'B') toggleBoard()
+      // the frame without hands (accessibility): F loops it (SAUCE) or holds a centred GLASS (REMIX), P its next style
+      else if (e.key === 'f' || e.key === 'F') mode === 'play' ? playActions.toggleFrame() : setKeyFrame(!keyFrame.on)
+      else if (e.key === 'p' || e.key === 'P') nextGlassStyle()
       else return
       e.preventDefault()
     }

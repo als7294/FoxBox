@@ -24,7 +24,7 @@
  */
 import { follow, FRAME_HOLD_MS, isLPose, type HandShape, type HandShapes, type Pt } from './camMath'
 import { fingerCurls, type FxShape, type FxSignals } from './fxShapes'
-import { PLUCK_SCALE, usePlayPrefs } from './playPrefs'
+import { PLUCK_SCALE, usePlayPrefs, WOBBLE_MS } from './playPrefs'
 
 export type PlayHand = 'left' | 'right'
 export type PlayShape = FxShape
@@ -73,8 +73,13 @@ export interface FlowSignal {
   mute: boolean
   /** The left hand's height (PlaySignals.height), 0-1 (0.5 without it); the right's, left-handed. */
   octave: number
-  /** The hand whose shapes count in FLOW: the left (the right, left-handed; the pitch is the other's). */
+  /** The hand whose shapes count in FLOW: the left (the right, left-handed; the pitch is the other's); one-handed, the
+   *  one hand. */
   shapeHand: PlayHand
+  /** One-handed (playPrefs): the playing hand does it all, and the gap below opens the filter in place of the spread. */
+  oneHanded: boolean
+  /** The playing hand's thumb-index gap, 0 closed … 1 wide open (smoothed); 0 without one. */
+  gap: number
 }
 
 export interface PlaySignals {
@@ -95,6 +100,9 @@ export interface PlaySignals {
   /** The hands apart, 0 palms together … 1 at SPREAD_PALMS palm widths (near or far the same), smoothed; held while a
    *  hand is missing (no jump when it's re-found). */
   spread: number
+  /** One-handed: the playing hand (the performer's) and its slot in the picture (cameraSignals().stage[slot]); null
+   *  otherwise, or with no hand seen. */
+  one: { hand: PlayHand; slot: 'left' | 'right' } | null
 }
 
 /** The GUIDE's "you did it": how many times each move has been done since the camera started (only ever goes up). */
@@ -204,10 +212,27 @@ const SHAKE_DONE = 0.4 // progress: a shake counts past this, again once it's un
 const PITCH_DONE = 0.2 // progress: the right hand's height moved this far
 
 /** The performer's hand → the picture's slot. */
-const SLOT = { right: 'left', left: 'right' } as const
+export const SLOT = { right: 'left', left: 'right' } as const
+/** One-handed's default reach (the palm's height up the picture) without a calibration: around chest height, no note
+ *  above the shoulder; two-handed uses HEIGHT_LOW / HEIGHT_HIGH. */
+const RAW_MS = 500 // captureReach's window
+const ONE_LOW = 0.15
+const ONE_HIGH = 0.62
+/** The thumb-index gap (palm lengths) read as FLOW's filter: closed at GAP_SHUT, wide open at GAP_OPEN. */
+const GAP_SHUT = 0.25
+const GAP_OPEN = 1.4
+
+/** One-handed (playPrefs): the hand that plays, the performer's: with both in view Left-handed picks (the right, or the
+ *  left), else the one seen; null when one-handed is off or no hand is seen. */
+export function playingHand(shapes: HandShapes): PlayHand | null {
+  const { oneHanded, leftHanded } = usePlayPrefs.getState()
+  if (!oneHanded) return null
+  const [r, l] = [!!shapes[SLOT.right], !!shapes[SLOT.left]]
+  return r && l ? (leftHanded ? 'left' : 'right') : r ? 'right' : l ? 'left' : null
+}
 
 export const NO_PLAY: PlaySignals = {
-  flow: { pitch: 0, spread: 0, shake: 0, tilt: 0, mute: true, octave: 0.5, shapeHand: 'left' },
+  flow: { pitch: 0, spread: 0, shake: 0, tilt: 0, mute: true, octave: 0.5, shapeHand: 'left', oneHanded: false, gap: 0 },
   shapes: { left: null, right: null },
   twist: { left: 0, right: 0 },
   frame: false,
@@ -215,6 +240,7 @@ export const NO_PLAY: PlaySignals = {
   held: { left: [false, false, false, false, false], right: [false, false, false, false, false] },
   height: { left: null, right: null },
   spread: 0,
+  one: null,
 }
 
 /** One hand over the other: their boxes (their points' extents) sharing a third of the smaller (fingertips meeting
@@ -247,6 +273,12 @@ export function wristRoll(h: HandShape): number | null {
 const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180
 
 interface Hand {
+  /** One-handed: its thumb-index gap, 0 shut … 1 open (smoothed); its heights up the picture lately (captureReach);
+   *  its last named shape and when (Wobble tolerance keeps it through a short misread). */
+  gapN: number
+  raws: { t: number; v: number }[]
+  lastShape: PlayShape | null
+  lastShapeAt: number
   /** A rise seen, waiting on CONFIRM (the curl it rose from, and its speed). */
   pending: ({ was: number; speed: number } | null)[]
   /** The thumb-index gap (3D, in palm lengths) at rest, and PLAY's pinch (with its candidate's since). */
@@ -286,6 +318,8 @@ interface Hand {
 
 export class PlayGestures {
   private hands: Record<PlayHand, Hand | null> = { left: null, right: null }
+  /** One-handed: the playing hand, kept while it's briefly unseen. */
+  private one: PlayHand | null = null
   /** A hand's plucks of two or more fingers at once (and any after them meanwhile), held CHORD_WAIT_MS: an L's thumb
    *  and index showing by then, they were a frame being made (its folds often come before either L reads: its thumb
    *  lags), not a chord. */
@@ -312,8 +346,11 @@ export class PlayGestures {
    *  neither WOBBLE nor a pluck of the closing index; formed or being made (an L's thumb and index), nothing plucks. */
   step(shapes: HandShapes, fx: FxSignals, now: number, aspect: number, frame = { formed: false, latched: false }): PlayEvents {
     const framed = frame.formed || frame.latched
-    const { leftHanded, sensitivity } = usePlayPrefs.getState()
+    const { leftHanded, sensitivity, oneHanded, wobble, reach } = usePlayPrefs.getState()
     const scale = PLUCK_SCALE[sensitivity]
+    const one = playingHand(shapes)
+    if (one) this.one = one
+    else if (!oneHanded) this.one = null
     // A frame formed, or on its way (either hand's thumb and index in an L with two of its other three folded: the
     // other hand's L often reads a result later): nothing plucks (making the Ls folds three fingers each; held, turned
     // or wobbling, they move). A C turned toward the camera has an L's thumb and index, its other fingers out.
@@ -331,6 +368,14 @@ export class PlayGestures {
       else releases.push({ hand, finger: f as ReleaseEvent['finger'], t: now })
     }
     for (const hand of ['left', 'right'] as const) {
+      // One-handed: the other hand is ignored (no strings, no shapes); its notes end.
+      if (oneHanded && one && hand !== one) {
+        const ig = this.hands[hand]
+        if (ig) ig.held.forEach((on, f) => on && release(hand, ig, f))
+        this.hands[hand] = null
+        this.waiting[hand] = []
+        continue
+      }
       const h = shapes[SLOT[hand]]
       const s = this.hands[hand]
       if (!h) {
@@ -344,12 +389,14 @@ export class PlayGestures {
       const q = h.points.map((p) => ({ x: p.x * aspect, y: p.y }))
       const centre = [0, 5, 9, 13, 17].reduce((a, i) => ({ x: a.x + q[i]!.x / 5, y: a.y + q[i]!.y / 5 }), { x: 0, y: 0 })
       const palm = Math.hypot(q[9]!.x - q[0]!.x, q[9]!.y - q[0]!.y)
-      const height = Math.min(1, Math.max(0, (1 - centre.y - HEIGHT_LOW) / (HEIGHT_HIGH - HEIGHT_LOW)))
+      // Its height: the palm up the picture over the reach (one-handed: the calibrated one, or ONE_LOW-ONE_HIGH).
+      const [lo, hi] = oneHanded ? (reach ? [reach.low, reach.high] : [ONE_LOW, ONE_HIGH]) : [HEIGHT_LOW, HEIGHT_HIGH]
+      const height = Math.min(1, Math.max(0, (1 - centre.y - lo) / (hi - lo)))
       // A new hand's first result arms nothing and rests nothing (straight off the palm detector it reads half bent):
       // a hand that comes up already folded never plucks.
       if (!s) {
         const off = [false, false, false, false, false]
-        this.hands[hand] = { pending: [null, null, null, null, null], gapRest: null, pinched: false, pinchSince: -1, armed: off.slice(), back: [0, 0, 0, 0, 0], backAt: [0, 0, 0, 0, 0], held: off.slice(), curl, rest: null, height, centre, palm, at: now, born: now, twist: 0, roll: null, missed: false, steady: false, plucked: -1e9, shapeAt: -1e9, tapping: false }
+        this.hands[hand] = { pending: [null, null, null, null, null], gapRest: null, pinched: false, pinchSince: -1, armed: off.slice(), back: [0, 0, 0, 0, 0], backAt: [0, 0, 0, 0, 0], held: off.slice(), curl, rest: null, height, centre, palm, at: now, born: now, twist: 0, roll: null, missed: false, steady: false, plucked: -1e9, shapeAt: -1e9, tapping: false, gapN: 0, raws: [], lastShape: null, lastShapeAt: -1e9 }
         continue
       }
       const dt = Math.max(1, now - s.at)
@@ -363,6 +410,7 @@ export class PlayGestures {
         s.height = follow(s.height, height, dt, STEADY_MS, STEADY_MS)
         s.centre = centre
         s.palm = palm
+        s.raws = [...s.raws.filter((r) => now - r.t < RAW_MS), { t: now, v: 1 - centre.y }]
       }
       // PINCH: the gap well under its own rest (up at once, down slowly, frozen while pinched), held PINCH.HOLD_MS.
       const w = h.world ?? h.points.map((p) => ({ x: p.x * aspect, y: p.y, z: 0 }))
@@ -370,6 +418,7 @@ export class PlayGestures {
       if (!refound) {
         if (s.gapRest == null) s.gapRest = gap
         else if (!s.pinched) s.gapRest = follow(s.gapRest, gap, dt, PINCH.REST_UP_MS, PINCH.REST_DOWN_MS)
+        s.gapN = follow(s.gapN, Math.min(1, Math.max(0, (gap - GAP_SHUT) / (GAP_OPEN - GAP_SHUT))), dt, STEADY_MS, STEADY_MS)
         const shut = Math.min(PINCH.GAP_RATIO * s.gapRest, PINCH.GAP_MAX)
         s.tapping = gap < Math.min(0.5 * s.gapRest, 0.2)
         const flip = s.pinched ? gap > shut * PINCH.OPEN : gap < shut
@@ -456,7 +505,7 @@ export class PlayGestures {
     const left = fx.hands?.[SLOT.left] ?? null
     const isFist = (s: Hand | null) => !!s && s.curl.slice(1).every((c) => c >= MUTE)
     // FLOW's hands: the lead's height the pitch (its fist mutes), the other's the octave and its shapes.
-    const [lead, other]: PlayHand[] = leftHanded ? ['left', 'right'] : ['right', 'left']
+    const [lead, other]: PlayHand[] = oneHanded ? [this.one ?? 'right', this.one ?? 'right'] : leftHanded ? ['left', 'right'] : ['right', 'left']
     const leadFx = fx.hands?.[SLOT[lead!]] ?? null
     const fist = isFist(this.hands[lead!])
     // The spread: both hands seen and settled this result, else held (no jump as one's re-found).
@@ -497,23 +546,35 @@ export class PlayGestures {
     // PLAY's FIST is all four fingers folded (its own curls), its PINCH the gap shut well under its rest (PINCH): a C
     // (half curled, the thumb near the index) that the recognizer or the picture calls a fist or a pinch is neither.
     const shape = (s: NonNullable<FxSignals['hands']>['left'], hand: PlayHand) => {
-      if (!s) return null
+      if (!s || (oneHanded && one && hand !== one)) return null
       const mine = this.hands[hand]
       const quiet = !mine || now - mine.plucked >= SHAPE.QUIET_MS
       const departed = !!mine && mine.curl.slice(1).filter((c, i) => c >= (mine.rest?.[i + 1] ?? 0) + SHAPE.PAST).length >= SHAPE.DEPARTED
       const meant = quiet && departed && s.since > 0 && now - s.since >= SHAPE.HOLD_MS
       const named: PlayShape | null = mine?.pinched ? (quiet && !framed ? 'pinch' : null) : !meant || s.shape === 'pinch' || (s.shape === 'fist' && !isFist(mine)) ? null : s.shape
-      return { shape: framing ? null : named, depth: s.height }
+      // One-handed (a hold toggles it): the shape kept through a misread shorter than Wobble tolerance, or while the
+      // raw read is the same shape coming back (its own hold restarting).
+      let kept = named
+      if (oneHanded && mine) {
+        if (named) [mine.lastShape, mine.lastShapeAt] = [named, now]
+        else if (mine.lastShape && (s.shape === mine.lastShape || now - mine.lastShapeAt < WOBBLE_MS[wobble])) {
+          kept = mine.lastShape
+          if (s.shape === mine.lastShape) mine.lastShapeAt = now
+        } else mine.lastShape = null
+      }
+      return { shape: framing ? null : kept, depth: s.height }
     }
     this.last = {
       flow: {
         pitch: this.hands[lead!]?.height ?? this.last.flow.pitch,
         spread: this.spread,
         shake: fx.shake,
-        tilt: leftHanded ? -fx.tilt : fx.tilt, // up: the lead hand the higher
+        tilt: oneHanded ? 0 : leftHanded ? -fx.tilt : fx.tilt, // up: the lead hand the higher
         mute: !leadFx || fist,
-        octave: this.hands[other!]?.height ?? 0.5,
+        octave: oneHanded ? 0.5 : (this.hands[other!]?.height ?? 0.5),
         shapeHand: other!,
+        oneHanded,
+        gap: this.hands[lead!]?.gapN ?? 0,
       },
       shapes: { left: shape(left, 'left'), right: shape(right, 'right') },
       twist: { left: this.hands.left?.twist ?? 0, right: this.hands.right?.twist ?? 0 },
@@ -522,12 +583,20 @@ export class PlayGestures {
       held: { left: this.hands.left?.held.slice() ?? NO_PLAY.held.left, right: this.hands.right?.held.slice() ?? NO_PLAY.held.right },
       height: { left: this.hands.left?.height ?? null, right: this.hands.right?.height ?? null },
       spread: this.spread,
+      one: one ? { hand: one, slot: SLOT[one] } : null,
     }
     return { plucks, releases }
   }
 
   signals(): PlaySignals {
     return this.last
+  }
+
+  /** One-handed's reach calibration: the playing hand's height up the picture over the last RAW_MS (0 low … 1 high),
+   *  null without one. */
+  reachNow(): number | null {
+    const raws = (this.one && this.hands[this.one]?.raws) || []
+    return raws.length ? raws.reduce((a, r) => a + r.v, 0) / raws.length : null
   }
 
   /** A quick pinch (the thumb on the index, unheld) on each performer hand now: frameGestures' cycles while PLAY's loop
