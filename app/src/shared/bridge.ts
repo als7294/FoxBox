@@ -1,6 +1,5 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Type-only: nothing here may import from electron or node.
-import type { TdPreset } from './tdPresets'
 
 export type EngineState = 'idle' | 'starting' | 'ready' | 'unresponsive' | 'restarting' | 'offline' | 'stopped' | 'mock'
 
@@ -34,10 +33,8 @@ export interface EngineStatus {
   logFile: string | null
 }
 
-export type MicAccess = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'
-
 /** Commands the native menu can send to the renderer. They mirror the keyboard shortcuts. */
-export type MenuCommand = 'render-final' | 'export' | 'save-preset' | 'toggle-ab' | 'toggle-loop' | 'play' | 'shortcuts' | 'open-settings'
+export type MenuCommand = 'open-settings'
 
 export interface StartDragOptions {
   /** PNG data URL used as the drag image (for example a mini waveform). Falls back to the app icon. */
@@ -57,11 +54,6 @@ export interface EngineRequest {
   body: ArrayBuffer | null
   timeoutMs?: number
 }
-
-/** What main answers for a sample pack add: the scan job (JSON, ids and file names only) or the engine's error. */
-export type SamplePackAddResult =
-  | { job: { id: string; state: string; progress: number } & Record<string, unknown> }
-  | { error: { code: string; message: string; hint?: string | null } }
 
 export interface EngineResponse {
   status: number
@@ -144,7 +136,7 @@ export interface UpdatesBridge {
 }
 
 /**
- * The update check at boot (packaged builds, after Setup): a newer version is installed before the Studio opens.
+ * The update check at boot (packaged builds): a newer version is installed before the app opens.
  * checking: the boot screen holds its hand-over (4 s at most) · clear: go on (up to date, skipped, or CONTINUE
  * pressed) · required: UPDATE REQUIRED, downloading then installing and relaunching · failed: the reason and
  * CONTINUE (offline, the feed failing or timing out, two failed downloads, an install that can't happen), so a
@@ -177,31 +169,6 @@ export interface BootUpdateBridge {
 
 // ---------------------------------------------------------------------------------------------- first-run setup
 
-export interface SetupInfo {
-  /** The engine runs from the bundle inside the app (a fresh Mac), not a linked checkout. */
-  bundled: boolean
-  /** Where downloaded models live (bundled: <data>/models; otherwise the Hugging Face cache). */
-  modelsDir: string | null
-  dataDir: string | null
-  /** The home folder, so paths can be shown as "~/…". */
-  home: string | null
-  /** macOS is running a read-only copy (the app was opened from Downloads or the DMG): it must be moved first. */
-  translocated: boolean
-}
-
-export interface SetupCompleteResult {
-  ok: boolean
-  /** Why main refused (required models still missing, engine unreachable). */
-  error?: string
-  missing?: string[]
-}
-
-export interface SetupBridge {
-  info(): Promise<SetupInfo>
-  /** The required parts are installed: main writes the setup marker, opens the Studio and closes this window. */
-  complete(): Promise<SetupCompleteResult>
-}
-
 /** What the preload script exposes as `window.fvwks`. */
 export interface FvwksBridge {
   readonly isElectron: true
@@ -233,45 +200,32 @@ export interface FvwksBridge {
   saveClip(name: string, data: ArrayBuffer): Promise<string>
   /** Free bytes on the export folder's volume (REMIX's LOW DISK strip); null when it can't be read. */
   diskFree(): Promise<number | null>
-  /** Native folder picker. Resolves null when cancelled. */
-  chooseFolder(options?: { title?: string; defaultPath?: string }): Promise<string | null>
-  /**
-   * v0.15 sample packs (REMIX's SAMPLE LAYERS): main opens the folder picker (or takes a dropped folder) and POSTs
-   * /api/sample-packs itself, so the renderer never holds the folder's path: it gets the scan job's ids back. Resolves
-   * null when the picker is cancelled.
-   */
-  readonly samplePacks: {
-    addFromDialog(): Promise<SamplePackAddResult | null>
-    addFromDrop(file: File): Promise<SamplePackAddResult | null>
-  }
-  /** macOS microphone permission (systemPreferences.askForMediaAccess). */
-  askMicAccess(): Promise<boolean>
   /** macOS camera permission (systemPreferences.askForMediaAccess), asked before the camera clip opens it. */
   askCameraAccess(): Promise<boolean>
-  micAccessStatus(): Promise<MicAccess>
-  /** Opens System Settings → Privacy & Security → Microphone. */
-  openMicSettings(): Promise<void>
+  /** 2.0 library wheel: pick a music folder, a Rekordbox XML or a _Serato_ folder in the native dialog; main adds it to the
+   *  engine (no path ever reaches the renderer). added false and no error: cancelled. */
+  addLibrarySource(kind: 'folder' | 'rekordbox' | 'serato'): Promise<{ added: boolean; error?: string }>
+  /** 2.0: macOS's camera permission without asking ('not-determined' until the user turns the camera on). */
+  cameraStatus(): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>
   /** Opens System Settings → Privacy & Security → Camera. */
   openCameraSettings(): Promise<void>
+  /** 2.0: the window's top sits under a physical notch now (full screen on a notched built-in display): the island
+   *  draws as the notch only then, a floating pill otherwise. */
+  atNotch(): Promise<boolean>
+  onNotch(listener: (atNotch: boolean) => void): () => void
   getEngineStatus(): Promise<EngineStatus>
   onEngineStatus(listener: (status: EngineStatus) => void): () => void
   restartEngine(): Promise<void>
   onMenuCommand(listener: (command: MenuCommand) => void): () => void
   openLogs(): Promise<void>
-  /** Page zoom: ⌘+ / ⌘− / ⌘0 when no page handled them (REMIX zooms its timeline instead). */
+  /** Page zoom: ⌘+ / ⌘− / ⌘0. */
   zoom(step: -1 | 0 | 1): void
   /** App updates (checked, downloaded, verified and installed by main). */
   readonly updates: UpdatesBridge
   /** The update check at boot (the boot screen's UPDATE REQUIRED). */
   readonly bootUpdate: BootUpdateBridge
-  /** The first-run Setup window. */
-  readonly setup: SetupBridge
-  /** 1.3: the stage visuals' output window (a projector or LED wall), and the user's ISF shaders for SHADERS. */
+  /** The output window (SEND TO OUTPUT: a projector or LED wall). */
   readonly visuals: VisualsBridge
-  /** Ableton Link, "Sync to Rekordbox" (1.4): the visuals' tempo and beat from the DJ's Link session. */
-  readonly link: LinkBridge
-  /** TouchDesigner over OSC (1.3; the free route, 1.6). */
-  readonly touchdesigner: TouchDesignerBridge
 }
 
 export interface DisplayInfo {
@@ -301,90 +255,6 @@ export interface VisualsBridge {
   close(): Promise<VisualsOutputState>
   getState(): Promise<VisualsOutputState>
   onState(listener: (state: VisualsOutputState) => void): () => void
-
-  /** The .fs files in <data dir>/shaders/, as text. */
-  listShaders(): Promise<{ file: string; source: string }[]>
-  /** Native open dialog; copies the chosen .fs files in. Resolves with how many were added. */
-  importShaders(): Promise<number>
-  /** Deletes one of them by file name. Resolves false if there's no such file. */
-  removeShader(file: string): Promise<boolean>
-}
-
-// ------------------------------------------------------------------------------------------------ TouchDesigner (1.3)
-
-export interface TdSettings {
-  enabled: boolean
-  /** Where TouchDesigner runs: this Mac (127.0.0.1) or another machine on the network. */
-  host: string
-  /** FoxBox → TouchDesigner (its OSC In CHOP). */
-  outPort: number
-  /** TouchDesigner → FoxBox (its OSC Out). */
-  inPort: number
-}
-
-/** An OSC argument: numbers go out as float32, {type:'i'} as int32. */
-export type TdArg = number | string | boolean | { type: 'i'; value: number }
-
-export interface TdMessage {
-  address: string
-  args: TdArg[]
-}
-
-export interface TdStatus {
-  enabled: boolean
-  listening: boolean
-  error: string | null
-  /** Messages sent since launch. */
-  sent: number
-  /** The last control TouchDesigner sent us. */
-  lastIn: { address: string; at: number } | null
-  lastOutAt: number | null
-}
-
-export interface TouchDesignerBridge {
-  getSettings(): Promise<TdSettings>
-  setSettings(patch: Partial<TdSettings>): Promise<TdSettings>
-  getStatus(): Promise<TdStatus>
-  /** One frame of /foxbox/... messages (fire and forget). */
-  send(messages: TdMessage[]): void
-  /** Controls from TouchDesigner: /foxbox/preset <id>, /foxbox/macro/<name> <0..1>, /foxbox/fx/<name>, /foxbox/ptt <0|1>. */
-  onControl(listener: (msg: TdMessage) => void): () => void
-  /**
-   * 1.6, TouchDesigner as a VISUALS base: open the user's TouchDesigner in the background and take its picture.
-   * `setup` (SET UP TOUCHDESIGNER): run the steps the first time; afterwards picking the base is enough.
-   */
-  startSession(setup?: boolean): Promise<TdSessionStatus>
-  /** Stops taking its picture, and quits TouchDesigner if FoxBox opened it. */
-  stopSession(): Promise<TdSessionStatus>
-  getSession(): Promise<TdSessionStatus>
-  onSession(listener: (status: TdSessionStatus) => void): () => void
-  /** derivative.ca's download page, in the browser. */
-  openDownload(): void
-  /** TouchDesigner in front, as the user opens it (its first launch: their sign-in and free key). */
-  openTouchDesigner(): void
-  /** The presets (touchdesigner/presets), in TouchDesigner's order: /foxbox/td_preset is the index. */
-  presets(): Promise<TdPreset[]>
-  /** One camera frame for TouchDesigner (RGBA8, rows top first): FoxBox's Syphon server "FoxBox Camera". */
-  /** Asks main for the camera's MessagePort to TouchDesigner: it arrives as a window message {fvwks: 'td-camera-port'}
-   *  (renderer/touchdesigner/camera.ts hands it to its worker, which posts {rgba, width, height} frames on it). */
-  cameraPort(): void
-}
-
-export type TdStep = 'todo' | 'doing' | 'done' | 'failed'
-
-/** 1.6: where TouchDesigner as a base stands (main/bridge/tdSession.ts), as the BASE panel's checklist shows it. */
-export interface TdSessionStatus {
-  state: 'off' | 'not_installed' | 'needs_setup' | 'needs_activation' | 'starting' | 'live' | 'error'
-  /** What to tell the user (an error, a slow start). */
-  message: string | null
-  /** TouchDesigner's version once found, e.g. 2025.33230. */
-  version: string | null
-  /** SET UP TOUCHDESIGNER's steps: installed, activated (its free key), the FoxBox patch built, connected (the picture). */
-  steps: { installed: TdStep; activated: TdStep; patch: TdStep; connected: TdStep }
-  /** Frames a second coming in (live). */
-  fps: number
-  /** FoxBox's camera frames sent to TouchDesigner in the last second (0 when its camera stalls or is off). */
-  cameraFps: number
 }
 
 export const IPC = {
@@ -400,14 +270,11 @@ export const IPC = {
   diskFree: 'fvwks:disk-free',
   logError: 'fvwks:log-error',
   log: 'fvwks:log',
-  chooseFolder: 'fvwks:choose-folder',
-  samplePackAdd: 'fvwks:sample-pack-add',
-  samplePackDrop: 'fvwks:sample-pack-drop',
-  askMic: 'fvwks:ask-mic',
   askCamera: 'fvwks:ask-camera',
-  micStatus: 'fvwks:mic-status',
-  openMicSettings: 'fvwks:open-mic-settings',
+  cameraStatus: 'fvwks:camera-status',
+  addLibrarySource: 'fvwks:add-library-source',
   openCameraSettings: 'fvwks:open-camera-settings',
+  notch: 'fvwks:notch',
   menuCommand: 'fvwks:menu-command',
   openLogs: 'fvwks:open-logs',
   zoom: 'fvwks:zoom',
@@ -423,8 +290,6 @@ export const IPC = {
   bootUpdateState: 'fvwks:boot-update-state',
   bootUpdateGet: 'fvwks:boot-update-get',
   bootUpdateContinue: 'fvwks:boot-update-continue',
-  setupInfo: 'fvwks:setup-info',
-  setupComplete: 'fvwks:setup-complete',
   visualsDisplays: 'fvwks:visuals-displays',
   visualsOpen: 'fvwks:visuals-open',
   visualsClose: 'fvwks:visuals-close',
@@ -432,49 +297,7 @@ export const IPC = {
   visualsState: 'fvwks:visuals-state',
   /** main → both windows: one end each of the MessageChannel the frames go over. */
   visualsPort: 'fvwks:visuals-port',
-  shadersList: 'fvwks:shaders-list',
-  shadersImport: 'fvwks:shaders-import',
-  shadersRemove: 'fvwks:shaders-remove',
-  linkSet: 'fvwks:link-set',
-  linkTempo: 'fvwks:link-tempo',
-  linkState: 'fvwks:link-state',
-  tdGet: 'fvwks:td-get',
-  tdSet: 'fvwks:td-set',
-  tdStatus: 'fvwks:td-status',
-  tdSend: 'fvwks:td-send',
-  tdControl: 'fvwks:td-control',
-  tdSessionStart: 'fvwks:td-session-start',
-  tdSessionStop: 'fvwks:td-session-stop',
-  tdSessionGet: 'fvwks:td-session-get',
-  tdSessionState: 'fvwks:td-session-state',
-  tdOpenDownload: 'fvwks:td-open-download',
-  tdOpenApp: 'fvwks:td-open-app',
-  tdCameraPort: 'fvwks:td-camera-port',
-  tdPresets: 'fvwks:td-presets',
 } as const
-
-// ------------------------------------------------------------------------------------------------ Ableton Link (1.4)
-
-export interface LinkState {
-  enabled: boolean
-  /** Other Link apps in the session (0 = alone on the network). */
-  peers: number
-  tempo: number
-  /** Session beat when main received this line (Date.now() = `at`), and the phase within the quantum. */
-  beat: number
-  phase: number
-  quantum: number
-  at: number
-}
-
-export interface LinkBridge {
-  /** Join (true) or leave (false) the Link session. Resolves with whether it's running and any error. */
-  setEnabled(on: boolean): Promise<{ running: boolean; error: string | null }>
-  /** Propose a tempo to the whole session. */
-  setTempo(bpm: number): void
-  /** ~60 updates a second while joined; null when it stops. */
-  onState(listener: (state: LinkState | null) => void): () => void
-}
 
 export interface BootInfo {
   /** FVWKS_MOCK=1: no engine; the renderer (dev server only) answers /api/* with MSW. */

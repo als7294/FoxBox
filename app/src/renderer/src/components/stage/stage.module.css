@@ -1,0 +1,32 @@
+/* 2.0, unstyled on purpose: layout only. The Claude Design handoff replaces it. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.record,
+.take,
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+.grip {
+  cursor: grab;
+}
+.coach {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 18px;
+  pointer-events: none;
+}
+.coach[data-small] {
+  inset: auto 0 12px;
+  font-size: 13px;
+}

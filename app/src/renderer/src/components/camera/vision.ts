@@ -104,6 +104,24 @@ export interface Roi {
 const FACE_PX = 384
 const STROBE_MS = 300 // a strobe's blackout is shorter: darker for longer is the room's new light
 
+const DARK_ON = 0.12 // the light (0-1, the frame's mean) under which hands are hard to see even lifted 2.2x …
+const DARK_OFF = 0.16 // … and over which they're fine again
+const DARK_MS = 1000 // dark this long before it's said: a passing shadow isn't
+
+/** "Too dark to track" (PLAY's coach) with hysteresis: on once the light's been under DARK_ON for DARK_MS, off once it's
+ *  over DARK_OFF. `light` < 0: not measured yet. */
+export function darkRoom(s: { dark: boolean; since: number }, light: number, now: number): boolean {
+  if (light < 0) return s.dark
+  if (light < DARK_ON) {
+    if (s.since < 0) s.since = now
+    if (now - s.since >= DARK_MS) s.dark = true
+  } else {
+    s.since = -1
+    if (light > DARK_OFF) s.dark = false
+  }
+  return s.dark
+}
+
 /** A strobe's dark frame (under half the running light) isn't tracked and doesn't drag the light down; dark for
  *  STROBE_MS is the room's new light (the lights went down, the crop is on a black booth), tracked from then on. */
 export function strobeGate(s: { light: number; darkSince: number }, lum: number, now: number): boolean {
@@ -184,6 +202,8 @@ export class Vision {
   /** Each model's delegate once loaded ({ face: 'GPU', hands: 'CPU', ... }; a model that failed: none). */
   delegates: Record<string, string> = {}
   private busy = true // until the models are loaded
+  /** Each new hands result, as it arrives (before the next frame is drawn: PLAY's plucks). */
+  onHands: ((seen: Seen) => void) | null = null
   private last: Seen = { faces: [], hands: [], person: null, body: null }
   private roi: Roi = { x: 0, y: 0, w: 1, h: 1 }
   private lost = 0
@@ -197,8 +217,14 @@ export class Vision {
     try {
       const w = new Worker(new URL('./vision.worker.ts', import.meta.url))
       // The face comes back first (at once: the mask moves), then the extras (the worker is free again).
-      w.onmessage = (e: MessageEvent<{ type: 'ready' } | { type: 'face'; seen: Seen; roi?: Roi; at: number } | { type: 'extras'; seen: Seen; at: number }>) => {
+      w.onmessage = (e: MessageEvent<{ type: 'ready' } | { type: 'models' } | { type: 'face'; seen: Seen; roi?: Roi; at: number } | { type: 'extras'; seen: Seen; at: number; fresh?: boolean }>) => {
         const d = e.data
+        // The face, body and matte models, loaded once a frame first asked for them (the worker's loadOthers).
+        if (d.type === 'models') {
+          this.delegates = (d as unknown as { delegates?: Record<string, string> }).delegates ?? this.delegates
+          console.info('FoxBox camera models:', JSON.stringify(this.delegates))
+          return
+        }
         if (d.type === 'ready') {
           // Which delegate each model got (GPU, or CPU when the worker's WebGL2 failed): the tracking's speed hangs on it.
           this.delegates = (d as unknown as { delegates?: Record<string, string> }).delegates ?? {}
@@ -210,7 +236,14 @@ export class Vision {
           return
         }
         // The matte only comes every other frame (or every Nth): the last one stands until the next.
-        if (d.type === 'extras') this.last = { ...this.last, hands: d.seen.hands, person: d.seen.person ?? this.last.person, body: d.seen.body }
+        if (d.type === 'extras') {
+          this.last = { ...this.last, hands: d.seen.hands, person: d.seen.person ?? this.last.person, body: d.seen.body }
+          this.busy = false // first: nothing a listener does stalls the tracker
+          // Only hands run on this frame: a frame that ran the body or the matte carries the last ones over, and a copy
+          // stepped as a new result reads as no movement then a jump (a pluck's speed, its re-arm).
+          if (d.fresh !== false) this.onHands?.(this.last)
+          return
+        }
         this.busy = false
       }
       w.onerror = () => this.dispose() // no extras from here on; faces are still hidden by the detector
@@ -230,10 +263,10 @@ export class Vision {
    * the body and the person. A strobe's dark frame isn't sent (the tracker coasts on its prediction). `head`: where
    * the body's head is (0-1), to look for a lost face; `people`: faces to track; `body`: the body and hands every frame
    * (TouchDesigner); `matteEvery`: the person matte every Nth frame; `handsFirst`: the hands every frame, the body and
-   * the matte one frame in four, and with `faceLight` the face too (DrawOptions.handsFirst). Returns the latest results.
-   * Never throws.
+   * the matte one frame in four, and with `faceLight` the face too (DrawOptions.handsFirst); `handsOnly`: the hands
+   * alone (no face crop, no other model: DrawOptions.handsOnly). Returns the latest results. Never throws.
    */
-  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1, body = false, matteEvery = 2, handsFirst = false, faceLight = false): Seen {
+  run(video: HTMLVideoElement, now: number, at = now, head: Roi | null = null, people = 1, body = false, matteEvery = 2, handsFirst = false, faceLight = false, handsOnly = false): Seen {
     const w = this.worker
     if (!w || this.busy) return this.last
     try {
@@ -241,6 +274,18 @@ export class Vision {
       const vh = video.videoHeight
       if (this.strobed(video, this.roi, vw, vh, now)) return this.last
       this.busy = true
+      const sw = 640
+      const sh = Math.round((640 * vh) / vw)
+      // The whole frame as it is: the worker levels a dark or tinted one for the hands itself (a brightness lift here
+      // clipped a dim, pink room's hands to nothing).
+      const scene = createImageBitmap(video, { resizeWidth: sw, resizeHeight: sh })
+      if (handsOnly) {
+        scene.then(
+          (s) => w.postMessage({ type: 'frame', face: null, scene: s, roi: null, now, at, people, handsOnly }, [s]),
+          () => (this.busy = false),
+        )
+        return this.last
+      }
       this.lost = this.last.faces.length ? 0 : this.lost + 1
       const r = (this.roi = nextRoi(this.last.faces[0]?.points ?? null, this.roi, vw, vh, this.lost, this.last.hint ?? null, head))
       // A square crop at FACE_PX; the whole frame at 640 px wide.
@@ -255,12 +300,9 @@ export class Vision {
       g.filter = this.gain > 1.05 ? `brightness(${this.gain.toFixed(2)}) contrast(1.1)` : 'none'
       g.drawImage(video, r.x * vw, r.y * vh, r.w * vw, r.h * vh, 0, 0, cw, ch)
       const face = this.crop.transferToImageBitmap()
-      // The whole frame for the hands (the body, the matte): brightened as the face crop is in a dark room when the
-      // hands come first (STRINGS: a dim set's hands are what it plays with).
-      const sw = 640
-      const sh = Math.round((640 * vh) / vw)
-      const bright = handsFirst && this.gain > 1.05
-      ;(bright ? Promise.resolve(this.brightScene(video, sw, sh)) : createImageBitmap(video, { resizeWidth: sw, resizeHeight: sh })).then(
+      // The whole frame for the hands (the body, the matte; `scene`): brightened as the face crop is in a dark room when
+      // the hands come first (STRINGS: a dim set's hands are what it plays with).
+      scene.then(
         (scene) => w.postMessage({ type: 'frame', face, scene, roi: r, now, at, people, body, matteEvery, handsFirst, faceLight }, [face, scene]),
         () => (this.busy = false),
       )
@@ -270,20 +312,14 @@ export class Vision {
     return this.last
   }
 
-  private scene: OffscreenCanvas | null = null
-  /** The whole frame at sw x sh, brightened by the crop's gain (the tracker's dark-room lift). */
-  private brightScene(video: HTMLVideoElement, sw: number, sh: number): ImageBitmap {
-    this.scene ??= new OffscreenCanvas(sw, sh)
-    if (this.scene.width !== sw || this.scene.height !== sh) Object.assign(this.scene, { width: sw, height: sh })
-    const g = this.scene.getContext('2d')!
-    g.filter = `brightness(${this.gain.toFixed(2)}) contrast(1.1)`
-    g.drawImage(video, 0, 0, sw, sh)
-    return this.scene.transferToImageBitmap()
-  }
-
   /** The tracker's dark-room brightening now (1: none, up to 2.2): STRINGS' diagnostics. */
   lightGain(): number {
     return this.gain
+  }
+
+  /** The room's light as the tracker sees it (0-1, its running mean; -1 before the first frame). */
+  light(): number {
+    return this.level.light
   }
 
   /**

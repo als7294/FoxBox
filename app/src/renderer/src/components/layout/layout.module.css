@@ -12,8 +12,8 @@
   color: var(--vb-ink);
   font-family: var(--vb-font-mono);
   display: grid;
-  grid-template-columns: var(--vb-rail-w) minmax(0, 1fr);
-  grid-template-rows: var(--vb-top-h) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 0 minmax(0, 1fr); /* 2.0: no top bar, no rail; row 1 is the update bar while it shows */
 }
 .flex {
   flex: 1;
@@ -403,7 +403,7 @@
 
 /* ---------------------------------------------------------------- main */
 .main {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 2;
   position: relative;
   min-height: 0;
@@ -561,11 +561,7 @@
 /* ---------------------------------------------------------------- update bar (components/updates/UpdateBanner) */
 /* While it shows, the shell gets a 34 px row for it under the top bar; the rail and the screen take the rest. */
 .shell:has(> [data-update-bar]) {
-  grid-template-rows: var(--vb-top-h) auto minmax(0, 1fr);
-}
-.shell:has(> [data-update-bar]) > .rail,
-.shell:has(> [data-update-bar]) > .main {
-  grid-row: 3;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 /* ---------------------------------------------------------------- 1.2.3 glass (tokens.css): top-bar controls */
@@ -650,12 +646,6 @@
   background: var(--vb-chrome);
   border-right: 1px solid var(--vb-line);
   -webkit-app-region: drag;
-}
-.shell:is([data-screen='remix'], [data-screen='masks'], [data-screen='prod'], [data-screen='live']) > .main {
-  grid-row: 1 / -1;
-}
-.shell:is([data-screen='remix'], [data-screen='masks'], [data-screen='prod'], [data-screen='live']):has(> [data-update-bar]) > .main {
-  grid-row: 3;
 }
 .railStatus {
   display: flex;

@@ -22,7 +22,7 @@ interface BarProps {
   children?: ReactNode
 }
 
-/** The slim row under the top bar. layout.module.css gives the shell a row for it while it is in the DOM. */
+/** A glass pill under the notch (2.0 design §11), its download a thin line along its bottom. */
 function Bar({ tone, head, note, meter, progress, children }: BarProps) {
   const pct = progress == null ? null : Math.min(1, Math.max(0, progress))
   return (
@@ -32,7 +32,7 @@ function Bar({ tone, head, note, meter, progress, children }: BarProps) {
       </span>
       <p className={styles.msg} title={[head, note, meter].filter(Boolean).join(' · ')}>
         <span role="status">
-          <span className={styles.head}>{head}</span>
+          <span>{head}</span>
           {note ? <span className={styles.note}> · {note}</span> : null}
         </span>
         {meter ? <span className={styles.note}> · {meter}</span> : null}
@@ -62,7 +62,7 @@ function downloadMeter(d: UpdateState['download']): string {
 }
 
 /**
- * App updates, under the top bar: available → downloading → verifying → ready → restarting, or a failure (still on
+ * App updates, under the notch: available → downloading → verifying → ready → restarting, or a failure (still on
  * the old version). Quiet while idle, checking, up to date, or when a check failed. Nothing in the browser build.
  */
 export function UpdateBanner() {
@@ -84,7 +84,13 @@ export function UpdateBanner() {
       if (later) return null
       return (
         <Bar tone="offer" head={`FoxBox ${v} available`} note={s.sizeBytes ? formatBytes(s.sizeBytes) : null}>
-          <button type="button" className={styles.btn} data-kind="solid" aria-label={`Update to FoxBox ${v}`} onClick={() => run(() => updates.download())}>
+          <button
+            type="button"
+            className={styles.btn}
+            data-kind="solid"
+            aria-label={`Update to FoxBox ${v}`}
+            onClick={() => run(() => updates.download())}
+          >
             Update
           </button>
           {laterButton}
@@ -93,7 +99,12 @@ export function UpdateBanner() {
     case 'downloading': {
       const d = s.download
       return (
-        <Bar tone="busy" head={`Downloading ${v}`} meter={downloadMeter(d)} progress={d && d.bytes_total > 0 ? d.bytes_done / d.bytes_total : 0}>
+        <Bar
+          tone="busy"
+          head={`Downloading ${v}`}
+          meter={downloadMeter(d)}
+          progress={d && d.bytes_total > 0 ? d.bytes_done / d.bytes_total : 0}
+        >
           <button type="button" className={styles.btn} aria-label="Cancel download" onClick={() => run(() => updates.cancel())}>
             Cancel
           </button>
@@ -105,10 +116,16 @@ export function UpdateBanner() {
     case 'ready':
       // Main asks for a native confirmation before it swaps the app.
       return (
-        <Bar tone="ready" head={`FoxBox ${v} is ready`} note={s.installBlocked}>
+        <Bar tone="ready" head={`Update ready · FoxBox ${v}`} note={s.installBlocked}>
           {s.installBlocked ? null : (
-            <button type="button" className={styles.btn} data-kind="accent" onClick={() => run(() => updates.install())}>
-              Restart to update
+            <button
+              type="button"
+              className={styles.btn}
+              data-kind="accent"
+              aria-label="Restart to update"
+              onClick={() => run(() => updates.install())}
+            >
+              Restart
             </button>
           )}
         </Bar>

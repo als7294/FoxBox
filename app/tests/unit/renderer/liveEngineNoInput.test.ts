@@ -1,5 +1,5 @@
-// A mic-less start (VISUALS → TRACK) must never touch the mic, and no public getter may assume one (1.4.0: latencyMs()
-// read `.latency` of undefined during render and blanked the app). A small Web Audio stand-in runs the real engine.
+// REMIX's audio context (2.0: the voice mask gone): it never touches the mic, the song reaches the speakers and the mix
+// tap, and the grid follows a playing song's clock. A small Web Audio stand-in runs the real engine.
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 class Param {
@@ -50,43 +50,28 @@ const nav = globalThis.navigator
 Object.defineProperty(globalThis, 'navigator', { value: { ...nav, mediaDevices: { getUserMedia } }, configurable: true })
 afterAll(() => Object.defineProperty(globalThis, 'navigator', { value: nav, configurable: true }))
 
-vi.mock('@/audio/live/vendor/signalsmith-stretch/SignalsmithStretch.mjs', () => ({
-  default: Object.assign(async () => Object.assign(new Node(), { configure: async () => {}, latency: async () => 0.016, schedule: async () => {} }), {}),
-}))
+const { LiveEngine } = await import('@/audio/live')
 
-const { LiveEngine, SetRecorder, liveParams } = await import('@/audio/live')
-
-describe('LiveEngine with no input', () => {
-  it('never opens the mic, and every public getter and control works until the mic is asked for', async () => {
+describe('LiveEngine (REMIX: the context, the song in, the grid)', () => {
+  it('never asks for the mic; the song goes to the speakers and the mix tap; the bus reads silence until it plays', async () => {
     const live = await LiveEngine.create({ input: 'none', bpm: 128 })
     expect(getUserMedia).not.toHaveBeenCalled()
-    expect(live.input).toBe('none')
-    expect(Number.isFinite(live.latencyMs())).toBe(true)
-    live.apply(liveParams({ chain: { modules: [] }, macros: { depth: 0.5, grit: 0.5, machine: 0.5, space: 0.5 }, macroMap: {}, key: 'Am' }))
-    for (const tap of [live.bus.mix, live.bus.voice]) {
-      expect(tap.rms()).toBe(0)
-      expect(tap.bands()).toEqual({ low: 0, mid: 0, high: 0 })
-    }
-    expect([live.bus.rms(), live.bus.input.fftSize]).toEqual([0, 2048])
+    expect(live.songInput).toBeInstanceOf(GainNode)
+    expect([live.bus.rms(), live.bus.input.fftSize, live.bus.analyser.fftSize]).toEqual([0, 2048, 2048])
     live.bus.onOnset(() => {})()
-    live.setTalk(false)
-    live.setTalk(true)
-    live.setGate(-50)
-    live.setOutputGain(0)
-    live.setTempo(128)
-    expect(live.nextGridTime('bar')).toBeGreaterThan(1)
-    for (const t of ['throw', 'stutter', 'swell', 'tapestop', 'dropout'] as const) expect(live.trigger(t).at).toBeGreaterThan(1)
-    const rec = new SetRecorder(live.bus, { dry: true })
-    rec.arm()
-    expect(rec.level().peak).toBe(0)
-    rec.release()
+    await live.close()
+    expect(live.ctx.state).toBe('closed')
+  })
 
-    await live.setInput('mic') // the user picks MIC: now, and only now
-    expect(getUserMedia).toHaveBeenCalledTimes(1)
-    expect([live.input, live.latencyMs()]).toEqual(['mic', expect.any(Number)])
-    await live.setInput('none')
-    expect(track.stop).toHaveBeenCalled()
-    expect(Number.isFinite(live.latencyMs())).toBe(true)
+  it('quantized starts land on the session grid, then on a playing song\'s', async () => {
+    const live = await LiveEngine.create({ bpm: 120 }) // context time 1: the session's beat 1
+    expect(live.nextGridTime('bar')).toBeCloseTo(3, 9) // the next bar of 2 s
+    expect(live.nextGridTime('beat')).toBeCloseTo(1.5, 9)
+    live.followClock({ bpm: 60, anchor: 0.5 })
+    expect(live.nextGridTime('beat')).toBeCloseTo(1.5, 9)
+    expect(live.nextGridTime('bar')).toBeCloseTo(4.5, 9)
+    live.followClock(null)
+    expect(live.nextGridTime('1/16')).toBeCloseTo(1.125, 9)
     await live.close()
   })
 })

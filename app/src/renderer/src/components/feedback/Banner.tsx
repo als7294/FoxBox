@@ -2,8 +2,6 @@ import { useEffect, useRef } from 'react'
 import { bridge } from '@/env'
 import { formatBytes, LOW_DISK_BYTES } from '@/lib/format'
 import { engineHealth, useEngine } from '@/state/engine'
-import { renderNow } from '@/state/renderController'
-import { studio, useStudio } from '@/state/studio'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import { animate } from '@/visuals/motion'
@@ -19,11 +17,9 @@ interface BannerData {
   action?: { label: string; run: () => void }
 }
 
-/** The one problem worth interrupting for, in priority order (engine, render errors, levels, disk). */
+/** The one problem worth interrupting for, in priority order (engine, disk). */
 function useBanner(): BannerData | null {
   const status = useEngine((s) => s.status)
-  const error = useStudio((s) => s.error)
-  const render = useStudio((s) => s.render)
   const health = engineHealth(status)
   const b = bridge()
   if (status.state === 'offline') {
@@ -31,7 +27,7 @@ function useBanner(): BannerData | null {
       id: `offline:${status.lastError ?? ''}`,
       kind: 'err',
       title: 'ENGINE OFFLINE',
-      body: `${status.lastError ?? 'The engine stopped.'} Your script and rack are safe.`,
+      body: `${status.lastError ?? 'The engine stopped.'} Your track is safe.`,
       ...(b ? { action: { label: 'RECONNECT', run: () => void b.restartEngine() } } : {}),
     }
   }
@@ -48,42 +44,8 @@ function useBanner(): BannerData | null {
       id: `health-error:${health.message ?? ''}`,
       kind: 'err',
       title: 'ENGINE ERROR',
-      body: `${health.message ?? 'The engine reported an error.'} Synthesis will fail until it recovers.`,
+      body: `${health.message ?? 'The engine reported an error.'} Stems will fail until it recovers.`,
       ...(b ? { action: { label: 'RESTART', run: () => void b.restartEngine() } } : {}),
-    }
-  }
-  if (error && error.code !== 'no_source') {
-    const synth = /tts|voice|synth/i.test(error.code)
-    const title: Record<string, string> = {
-      engine_offline: 'ENGINE OFFLINE',
-      export_dir_unavailable: 'EXPORT FOLDER UNAVAILABLE',
-      disk_full: 'DISK FULL',
-      export_failed: 'EXPORT FAILED',
-    }
-    return {
-      id: `error:${error.code}:${error.message}`,
-      kind: 'err',
-      title: title[error.code] ?? (synth ? 'SYNTHESIS FAILED' : 'RENDER FAILED'),
-      body: [error.message, error.hint].filter(Boolean).join(' '),
-      action: {
-        label: 'RETRY',
-        run: () => {
-          studio.setError(null)
-          void renderNow('preview')
-        },
-      },
-    }
-  }
-  const stack = render?.warnings?.find((w) => /stack/i.test(w))
-  if (stack) return { id: `stack:${render!.id}`, kind: 'err', title: 'STACK VOICE FAILED', body: stack }
-  if (render && render.loudness.true_peak_db > -1 + 0.05) {
-    const tp = render.loudness.true_peak_db
-    return {
-      id: `tp:${render.id}`,
-      kind: 'warn',
-      title: `TRUE PEAK ${tp > 0 ? '+' : ''}${tp.toFixed(1)} dBTP`,
-      body: 'Over the −1.0 dBTP ceiling. Club systems will clip on the echo.',
-      action: { label: 'RE-RENDER', run: () => void renderNow('preview') },
     }
   }
   if (health && health.disk_free_bytes < LOW_DISK_BYTES) {

@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { DragEvent } from 'react'
 import { expect, it, vi } from 'vitest'
-import { useSongFile } from '../../../src/renderer/src/components/song/SongStrip'
+import { useSongFile } from '../../../src/renderer/src/components/song/songFile'
 import { songs } from '../../../src/renderer/src/state/song'
 
 it('LS8: a song dropped while the track plays waits, then loads on stop', () => {

@@ -76,6 +76,8 @@ export interface FxDraw {
   step: number
   /** BUILD ROLL: 0-1 through its build. */
   build: number
+  /** 1: WOBBLE's light may pulse with its LFO (3 Hz or slower); 0: too fast to flash, a steady glow. */
+  pulse: number
 }
 export interface FxFrame {
   slots: [FxDraw, FxDraw]
@@ -89,7 +91,8 @@ export interface FxFrame {
   hud: { label: string; beat: string; depth: number; step: number }[]
 }
 
-const OFF: FxDraw = { mode: 0, amount: 0, phase: 0, step: 0, build: 0 }
+const OFF: FxDraw = { mode: 0, amount: 0, phase: 0, step: 0, build: 0, pulse: 0 }
+const MAX_FLASH_HZ = 3 // STRINGS_UX: at most 3 flashes a second
 
 /** Each hand's FX over time: `update` each drawn frame with S2's FX and the audio frame. */
 export function createBeatFx(opts: { reduced?: boolean } = {}) {
@@ -125,6 +128,7 @@ export function createBeatFx(opts: { reduced?: boolean } = {}) {
           phase: gridPhase(a, shown.beat),
           step: gridStep(a, shown.beat),
           build: Math.min(1, Math.max(0, (now - shown.since) / (BUILD_BEATS * beatMs))),
+          pulse: 1000 / (beatMs * shown.beat) <= MAX_FLASH_HZ ? 1 : 0,
         }
       }) as [FxDraw, FxDraw]
       const snap = now - snapAt < SNAP_MS ? 1 - (now - snapAt) / SNAP_MS : 0

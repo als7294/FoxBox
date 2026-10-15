@@ -1,0 +1,220 @@
+/* The notch island (app/design/foxbox-2 README §3 and its markup). */
+.glow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 420px;
+  height: 36px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 8;
+  transition:
+    width 0.5s var(--fb-ease-spring),
+    height 0.5s var(--fb-ease-spring);
+}
+.glow[data-open] {
+  width: 480px;
+  height: 168px;
+}
+.glowBand {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 70%;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 77, 46, 0),
+    rgba(255, 120, 40, 0.55),
+    rgba(255, 180, 110, 0.4),
+    rgba(255, 90, 150, 0.38),
+    rgba(255, 140, 50, 0.55),
+    rgba(255, 77, 46, 0)
+  );
+  background-size: 250% 100%;
+  filter: blur(10px);
+  opacity: 0.3;
+  animation:
+    fbHolo 60s linear infinite,
+    fbNotchGlow 16s ease-in-out infinite;
+}
+
+.island {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  height: 36px;
+  background: #000;
+  border-radius: 0 0 16px 16px;
+  transition:
+    width 0.5s var(--fb-ease-spring),
+    height 0.5s var(--fb-ease-spring),
+    border-radius 0.5s;
+  cursor: pointer;
+  overflow: hidden;
+  color: #fff;
+  z-index: 9;
+  font-family: var(--fb-font);
+}
+.island[data-open] {
+  width: 480px;
+  height: 168px;
+  border-radius: 0 0 34px 34px;
+}
+.row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fb-accent);
+}
+.recDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fb-rec);
+  animation: fbRec 1s infinite;
+}
+.beats {
+  display: flex;
+  gap: 4px;
+}
+.beat {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+}
+.beat[data-on] {
+  background: var(--fb-accent);
+}
+.quick {
+  height: 28px;
+  padding: 0 10px;
+  margin-right: -10px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--fb-accent-soft);
+}
+.quick:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pills {
+  position: absolute;
+  top: 44px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.island[data-open] .pills {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* the NON-selected mode is the orange one: the one to switch to */
+.pill {
+  position: relative;
+  overflow: hidden;
+  height: 68px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background-color: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  background-image: linear-gradient(110deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0) 62%);
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  background-repeat: no-repeat;
+  transition:
+    background-color 0.3s,
+    background-position 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.25s cubic-bezier(0.3, 1.4, 0.4, 1),
+    box-shadow 0.25s;
+}
+.pill[data-selected] {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.pill:hover {
+  background-position: -30% 0;
+  transform: translateY(-1px) scale(1.035);
+  box-shadow:
+    0 8px 22px -8px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.pill:active {
+  transform: scale(0.98);
+}
+.pillArt {
+  position: absolute;
+  opacity: 0.18;
+  pointer-events: none;
+}
+.pillLabel {
+  position: relative;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.foot {
+  position: absolute;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.island[data-open] .foot {
+  opacity: 1;
+}
+
+/* Not under a notch (windowed, an external display, a Mac without one): a floating glass pill, no notch silhouette */
+.island:not([data-notch]) {
+  top: 10px;
+  border-radius: 18px;
+  background: rgba(20, 15, 12, 0.72);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+.island:not([data-notch])[data-open] {
+  border-radius: 28px;
+}
+.glow:not([data-notch]) {
+  top: 10px;
+}

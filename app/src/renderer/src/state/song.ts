@@ -1,60 +1,28 @@
 /**
- * SONG (contracts v0.7): the track a drop goes over. One current song, shared by the Studio's SONG strip and the
- * camera. The song lives in the engine (POST /api/songs, analysed there in the background: BPM, key, bar 1); the
- * decoded audio stays here for previews and camera clips.
+ * SONG (contracts v1.0): REMIX's track. The song lives in the engine (POST /api/songs, analysed there in the background:
+ * BPM, key, bar 1, structure, stems); the decoded audio stays here.
  *
- * State, `useSong`:
- *   song       Song | null          the engine's record (analysis_state, analysis, overrides), polled while analysing
- *   buffer     AudioBuffer | null   the decoded song
- *   beatDrop   number | null        its first big beat drop in seconds (findBeatDrop on the decoded audio)
- *   placement  Placement            { atBar, duckDb, songGainDb, dropGainDb, auto }: `auto` until the user moves the
- *                                   drop, and while auto the drop follows autoPlace() as the render and grid change
- *   busy       string | null        'READING…' / 'SENDING…' while importing
- *   error      string | null
- *   open       boolean              the SONG drawer
- *
- * Actions, `songs.*`: importFile(file, {open?}) · patch(SongUpdate) (overrides; null clears one) · setPlacement(patch) ·
- * autoPlace() · clear() (forgets the song; it stays in the engine) · setOpen(open).
- *
- * Pure helpers:
- *   songGrid(song)          {bpm, downbeatS, beatsPerBar, barS}: the user's overrides, else the analysis (as the engine)
- *   barTime(grid, bar)      song bar (1-based) → seconds;  barAt(grid, s): nearest bar;  lastBar(grid, duration)
- *   songKey(song)           key_override ?? analysis.key, in the app's spelling ('D#m'), or null
- *   songPlacement(state)    the contract SongPlacement (MixRequest, ExportRequest.bake), null without a usable song
- *   autoPlace(song, render, beatDrop?)  the bar the drop starts on so its last word lands on the song's first big
- *                           beat drop (from the decoded audio, else from the song's peaks)
- *   findBeatDrop, beatDropFromPeaks, lowEnd, voiceEndOf, clampLand, planClip (ClipPlan, LEAD_S, TAIL_S, AFTER_S),
- *   songShape, decodeSong, decodeAiff: the camera's song maths (were components/camera/mix.ts), same behaviour.
+ * State, `useSong`: song (the engine's record, polled while analysing), buffer (the decoded song), beatDrop (its first
+ * big beat drop, findBeatDrop on the decoded audio), busy ('READING…' / 'SENDING…' while importing), error, open.
+ * Actions, `songs.*`: importFile(file, {open?}) · restore() · pick(id) · patch(SongUpdate) (overrides; null clears one)
+ * · clear() (forgets the song; it stays in the engine) · setOpen(open).
+ * Pure helpers: songGrid, barTime / barAt / lastBar, songKey, findBeatDrop, beatDropFromPeaks, lowEnd, decodeSong,
+ * decodeAiff. (2.0: the Studio's drop placement and the camera clips' maths went with them.)
  */
 import { create } from 'zustand'
 import { api, audioUrl, unwrap } from '@/api/client'
-import type { Peaks, RenderInfo, Song, SongPlacement, SongUpdate } from '@/api/types'
+import type { Peaks, Song, SongUpdate } from '@/api/types'
 import { uploadSong } from '@/api/upload'
 import { engineAccepts } from '@/audio/importFile'
-import { audioContext } from '@/audio/player'
+import { audioContext } from '@/audio/context'
 import { encodeWav } from '@/audio/wav'
 import { normalizeKey } from '@/lib/keys'
 import { isEngineUsable, useEngine } from './engine'
-import { studio, useStudio } from './studio'
-
-export interface Placement {
-  /** Song bar (1-based) the drop starts on. */
-  atBar: number
-  /** Song level under the drop. */
-  duckDb: number
-  songGainDb: number
-  dropGainDb: number
-  /** The drop follows autoPlace() until the user moves it. */
-  auto: boolean
-}
-
-export const DEFAULT_PLACEMENT: Placement = { atBar: 1, duckDb: -6, songGainDb: 0, dropGainDb: 0, auto: true }
 
 export interface SongState {
   song: Song | null
   buffer: AudioBuffer | null
   beatDrop: number | null
-  placement: Placement
   busy: string | null
   error: string | null
   open: boolean
@@ -64,7 +32,6 @@ export const useSong = create<SongState>(() => ({
   song: null,
   buffer: null,
   beatDrop: null,
-  placement: DEFAULT_PLACEMENT,
   busy: null,
   error: null,
   open: false,
@@ -103,26 +70,6 @@ export function songKey(song: Song | null): string | null {
   return k ? normalizeKey(k) : null
 }
 
-export function songPlacement(s: Pick<SongState, 'song' | 'placement'>): SongPlacement | null {
-  if (!s.song || !songGrid(s.song)) return null
-  const p = s.placement
-  return { song_id: s.song.id, at_bar: p.atBar, duck_db: p.duckDb, song_gain_db: p.songGainDb, drop_gain_db: p.dropGainDb }
-}
-
-/**
- * Where the drop starts (song bar) so that its last word lands on the song's first big beat drop: the bar nearest that.
- * The beat drop comes from the decoded audio when given (findBeatDrop), else from the song's peaks. Bar 1 without one.
- */
-export function autoPlace(song: Song, render: Pick<RenderInfo, 'duration_s' | 'tail_s'> | null, beatDrop: number | null = null): number {
-  const g = songGrid(song)
-  if (!g) return 1
-  const drop = beatDrop ?? beatDropFromPeaks(song.peaks)
-  if (drop == null) return 1
-  const voiceEnd = render ? (render.tail_s ?? render.duration_s) : 0
-  const bar = barAt(g, drop - voiceEnd) // the start on the bar nearest to where the voice would end right on the hit
-  return Math.min(lastBar(g, song.duration_s), Math.max(1, bar))
-}
-
 // ------------------------------------------------------------------------------------------------ actions
 
 let gen = 0
@@ -130,18 +77,10 @@ let patchSeq = 0
 const POLL_MS = 500
 const message = (err: unknown) => (err as Error)?.message ?? String(err)
 
-function placeAuto(): void {
-  const { song, placement, beatDrop } = get()
-  if (!song || !placement.auto || !songGrid(song)) return
-  const atBar = autoPlace(song, useStudio.getState().render, beatDrop)
-  if (atBar !== placement.atBar) set({ placement: { ...placement, atBar } })
-}
-
 function analysed(song: Song): void {
   if (song.analysis_state === 'error' && !songGrid(song)) {
     set({ error: "Couldn't analyse this song. Set its BPM and bar 1 yourself." })
   }
-  placeAuto()
 }
 
 async function poll(id: string, g: number): Promise<void> {
@@ -175,7 +114,7 @@ function remember(id: string | null): void {
   }
 }
 
-/** Loads an engine song (its audio decoded here for the drop's placement), then waits out its analysis. */
+/** Loads an engine song (its audio decoded here), then waits out its analysis. */
 async function loadSong(id: string, g: number): Promise<void> {
   const song = await unwrap(api.GET('/api/songs/{song_id}', { params: { path: { song_id: id } } }))
   const res = await fetch(audioUrl(song.audio_id))
@@ -186,7 +125,6 @@ async function loadSong(id: string, g: number): Promise<void> {
     song,
     buffer,
     beatDrop: findBeatDrop(channelsOf(buffer), buffer.sampleRate),
-    placement: DEFAULT_PLACEMENT,
     busy: null,
     error: null,
   })
@@ -219,7 +157,7 @@ export const songs = {
         song = await uploadSong(wav(), `${name}.wav`, name)
       }
       if (g !== gen) return
-      set({ song, buffer, beatDrop, busy: null, placement: DEFAULT_PLACEMENT })
+      set({ song, buffer, beatDrop, busy: null })
       remember(song.id)
       if (song.analysis_state === 'done' || song.analysis_state === 'error') analysed(song)
       else void poll(song.id, g)
@@ -268,112 +206,33 @@ export const songs = {
     }
     const n = ++patchSeq
     set({ song: { ...before, ...body } as Song, error: null })
-    placeAuto()
     try {
       const fresh = await unwrap(api.PATCH('/api/songs/{song_id}', { params: { path: { song_id: before.id } }, body }))
       if (n === patchSeq && get().song?.id === before.id) set({ song: fresh })
     } catch (err) {
       if (n === patchSeq && get().song?.id === before.id) set({ song: before, error: message(err) })
     }
-    placeAuto()
-  },
-
-  /** Move the drop (snapped into the song; ends auto) or set the levels. */
-  setPlacement(patch: Partial<Omit<Placement, 'auto'>>): void {
-    const { placement, song } = get()
-    const next = { ...placement, ...patch }
-    if (patch.atBar != null) {
-      const g = songGrid(song)
-      next.atBar = Math.max(1, Math.min(g && song ? lastBar(g, song.duration_s) : Infinity, Math.round(patch.atBar)))
-      next.auto = false
-    }
-    set({ placement: next })
-  },
-
-  /** AUTO: the drop back on the song's first big beat drop (and following the render again). */
-  autoPlace(): void {
-    set({ placement: { ...get().placement, auto: true } })
-    placeAuto()
   },
 
   clear(): void {
     gen++
     remember(null)
-    set({ song: null, buffer: null, beatDrop: null, placement: DEFAULT_PLACEMENT, busy: null, error: null, open: false })
+    set({ song: null, buffer: null, beatDrop: null, busy: null, error: null, open: false })
   },
 
   setOpen(open: boolean): void {
-    if (open) studio.setRackOpen(false)
     set({ open })
   },
 }
 
-// The engine is up (first start, or back after a restart): bring the last song back.
-if (isEngineUsable(useEngine.getState().status)) void songs.restore()
-useEngine.subscribe((s, prev) => {
-  if (isEngineUsable(s.status) && !isEngineUsable(prev.status)) void songs.restore()
-})
-
-// A new render (another drop length) moves an automatic placement; the rack drawer and the SONG drawer share a place.
-useStudio.subscribe((s, prev) => {
-  if (s.render !== prev.render) placeAuto()
-  if (s.rackOpen && !prev.rackOpen && get().open) set({ open: false })
-})
-
-// ------------------------------------------------------------------------------------------------ the camera's maths
-
-/** Song before the drop starts, and after the beat drop (camera clips). */
-export const LEAD_S = 2
-export const TAIL_S = 7
-/** The drop alone: this long past its last word. */
-export const AFTER_S = 1
-
-/** Where things sit in a camera clip, in seconds. */
-export interface ClipPlan {
-  /** Where the clip starts in the song. */
-  songFrom: number
-  /** Where the drop starts in the clip. */
-  dropAt: number
-  /** Where its voice ends in the clip: with a song, where the beat drops. */
-  dropEnd: number
-  length: number
+/** REMIX open (2.0: never PLAY, which touches no song): the last song back once the engine is up, and after a restart. */
+export function watchSongRestore(): () => void {
+  if (isEngineUsable(useEngine.getState().status)) void songs.restore()
+  return useEngine.subscribe((s, prev) => {
+    if (isEngineUsable(s.status) && !isEngineUsable(prev.status)) void songs.restore()
+  })
 }
 
-/** Where the drop's voice can end in the song: not before the voice has had time to play, not after the song. */
-export function clampLand(landAt: number, songDuration: number, voiceEnd: number): number {
-  return Math.min(Math.max(landAt, voiceEnd), Math.max(voiceEnd, songDuration))
-}
-
-/** The clip for a drop whose voice ends `voiceEnd` s in, landing at `landAt` in the song (or no song). */
-export function planClip(drop: { duration: number; voiceEnd: number }, songDuration: number | null, landAt: number): ClipPlan {
-  if (songDuration == null) {
-    const length = Math.min(drop.duration, drop.voiceEnd + AFTER_S)
-    return { songFrom: 0, dropAt: 0, dropEnd: Math.min(drop.voiceEnd, length), length }
-  }
-  const land = clampLand(landAt, songDuration, drop.voiceEnd)
-  const songFrom = Math.max(0, land - drop.voiceEnd - LEAD_S)
-  const end = Math.max(land, Math.min(songDuration, land + TAIL_S))
-  return { songFrom, dropAt: land - drop.voiceEnd - songFrom, dropEnd: land - songFrom, length: end - songFrom }
-}
-
-/** Where a drop's voice ends: its last sample within 40 dB of its peak (the render pads drops to whole bars). */
-export function voiceEndOf(channels: readonly Float32Array[], rate: number): number {
-  let peak = 0
-  for (const ch of channels) for (let i = 0; i < ch.length; i++) peak = Math.max(peak, Math.abs(ch[i]!))
-  const floor = peak / 100
-  let last = 0
-  for (const ch of channels) {
-    for (let i = ch.length - 1; i > last; i--) {
-      if (Math.abs(ch[i]!) >= floor) {
-        last = i
-        break
-      }
-    }
-  }
-  return peak ? (last + 1) / rate : 0
-}
-
-/** Decodes a song: whatever Chromium reads (MP3, M4A/AAC, WAV, FLAC, Ogg), plus AIFF, which it doesn't. */
 export async function decodeSong(ac: BaseAudioContext, bytes: ArrayBuffer): Promise<AudioBuffer> {
   const aiff = decodeAiff(bytes)
   if (aiff) {
@@ -528,25 +387,4 @@ export function beatDropFromPeaks(peaks: Peaks): number | null {
     p[i] = amp * amp
   }
   return beatDropIn(p, peaks.duration_s / n)
-}
-
-/** The song's shape over part of it: its loudness (RMS) per bucket, 0–1 against the loudest bucket. A mastered song
- * peaks near full scale everywhere, so peaks alone would draw a flat block; loudness shows the build and the drop. */
-export function songShape(buffer: AudioBuffer, from: number, length: number, buckets = 480): Float32Array {
-  const out = new Float32Array(buckets)
-  const a = Math.max(0, Math.round(from * buffer.sampleRate))
-  const b = Math.min(buffer.length, Math.round((from + length) * buffer.sampleRate))
-  const per = (b - a) / buckets
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    const ch = buffer.getChannelData(c)
-    for (let k = 0; k < buckets; k++) {
-      let e = 0
-      for (let i = Math.floor(a + k * per), end = Math.floor(a + (k + 1) * per); i < end; i++) e += ch[i]! * ch[i]!
-      out[k]! += e
-    }
-  }
-  let top = 0
-  for (let k = 0; k < buckets; k++) top = Math.max(top, (out[k] = Math.sqrt(out[k]! / Math.max(1, per))))
-  if (top > 0) for (let k = 0; k < buckets; k++) out[k]! /= top
-  return out
 }

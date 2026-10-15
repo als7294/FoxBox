@@ -23,6 +23,12 @@ describe('STRINGS beat FX: on the grid', () => {
 })
 
 describe('STRINGS beat FX: each hand', () => {
+  it("WOBBLE's light pulses only at 3 Hz or slower (2.0: at most 3 flashes a second)", () => {
+    const f = createBeatFx()
+    expect(run(f, 0, 200, hands(slot('wobble'))).slots[0].pulse).toBe(0) // 1/8 at 120 BPM: 4 Hz, a steady glow
+    expect(run(f, 300, 200, hands({ ...slot('wobble'), beat: 1, label: '1/4' })).slots[0].pulse).toBe(1) // 2 Hz
+  })
+
   it('eases in over IN_MS times DEPTH, and out over OUT_MS (no pops)', () => {
     const f = createBeatFx()
     const half = run(f, 0, IN_MS / 2, hands(slot('wobble')))

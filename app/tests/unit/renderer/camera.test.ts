@@ -9,21 +9,10 @@ import {
   markPose,
   mosaicBlocks,
 } from '../../../src/renderer/src/components/camera/compose'
-import {
-  AFTER_S,
-  clampLand,
-  decodeAiff,
-  findBeatDrop,
-  LEAD_S,
-  planClip,
-  songShape,
-  TAIL_S,
-  voiceEndOf,
-} from '../../../src/renderer/src/state/song'
+import { decodeAiff, findBeatDrop } from '../../../src/renderer/src/state/song'
 import { FacePicker, HOLD_MS, iou, mergeBoxes, onePerHead, pad, SECOND_MS, step, type Box, type Track } from '../../../src/renderer/src/components/camera/faceTrack'
 import { clipName, extensionOf, pickMimeType } from '../../../src/renderer/src/components/camera/recording'
 import { box, concat, defragment, fullBox, u32 } from '../../../src/renderer/src/components/camera/remux'
-import { filmTime, onsetOf } from '../../../src/renderer/src/components/camera/filmSync'
 
 const face: Box = { x: 400, y: 200, w: 200, h: 240 }
 const covers = (outer: Box, inner: Box) =>
@@ -127,34 +116,6 @@ describe('face masks', () => {
 })
 
 describe('clip sound', () => {
-  it("plans the clip: a lead-in, the drop's last word landing on the beat drop, then the beat drop playing out", () => {
-    // A 14 s drop (8 bars) whose voice ends 9.5 s in.
-    const drop = { duration: 14, voiceEnd: 9.5 }
-    // No song: the drop, a second past its last word.
-    expect(planClip(drop, null, 60)).toEqual({ songFrom: 0, dropAt: 0, dropEnd: 9.5, length: 9.5 + AFTER_S })
-    expect(planClip({ duration: 10, voiceEnd: 9.8 }, null, 0).length).toBe(10)
-    // The last word lands at 40.6 s in the song.
-    const p = planClip(drop, 180, 40.6)
-    expect(p.songFrom).toBeCloseTo(40.6 - 9.5 - LEAD_S)
-    expect(p.dropAt).toBeCloseTo(LEAD_S)
-    expect(p.dropEnd).toBeCloseTo(LEAD_S + 9.5)
-    expect(p.length).toBeCloseTo(LEAD_S + 9.5 + TAIL_S)
-    // A beat drop earlier than the voice is long: the drop starts with the song.
-    expect(planClip(drop, 180, 6)).toMatchObject({ songFrom: 0, dropAt: 0, dropEnd: 9.5, length: 9.5 + TAIL_S })
-    // Near the song's end: the clip stops with the song.
-    expect(planClip(drop, 60, 58)).toMatchObject({ dropAt: LEAD_S, length: LEAD_S + 9.5 + 2 })
-    expect([clampLand(5, 200, 9.5), clampLand(90, 200, 9.5), clampLand(300, 200, 9.5), clampLand(9, 8, 9.5)]).toEqual([9.5, 90, 200, 9.5])
-  })
-
-  it("finds where a drop's voice ends, before its bar padding", () => {
-    const rate = 1000
-    const d = new Float32Array(14 * rate) // 14 s, voice for 9.5 s, then a faint tail and silence
-    for (let i = 0; i < 9.5 * rate; i++) d[i] = 0.8 * Math.sin(i / 3)
-    for (let i = 9.5 * rate; i < 11 * rate; i++) d[i] = 0.001
-    expect(voiceEndOf([d], rate)).toBeCloseTo(9.5, 2)
-    expect(voiceEndOf([new Float32Array(100)], rate)).toBe(0)
-  })
-
   it("finds the song's first big beat drop, past a lone kick and a fill", () => {
     // A stand-in dance track at 8 kHz: a quiet intro, a groove, a breakdown, a kick and a fill, then the drop at 40.6 s.
     const rate = 8000
@@ -176,17 +137,6 @@ describe('clip sound', () => {
     const flat = new Float32Array(rate * 30)
     for (let i = 0; i < flat.length; i++) flat[i] = 0.5 * Math.sin((2 * Math.PI * 55 * i) / rate)
     expect(findBeatDrop([flat], rate)).toBeNull()
-  })
-
-  it("draws the song's shape by loudness, so a mastered build and drop don't look the same", () => {
-    // 1 s quiet build, 1 s loud drop, both peaking at full scale.
-    const data = new Float32Array(200)
-    for (let i = 0; i < 100; i++) data[i] = i % 10 === 0 ? 1 : 0.1
-    for (let i = 100; i < 200; i++) data[i] = i % 2 === 0 ? 1 : -1
-    const buffer = { sampleRate: 100, length: 200, numberOfChannels: 1, getChannelData: () => data } as unknown as AudioBuffer
-    const [build, dropped] = songShape(buffer, 0, 2, 2)
-    expect(dropped).toBeCloseTo(1)
-    expect(build).toBeLessThan(0.4)
   })
 
   it('reads AIFF (big-endian) and AIFF-C sowt (little-endian), which Chromium cannot decode', () => {
@@ -303,18 +253,6 @@ describe('clip file', () => {
     expect([0, 1].map((k) => labelled[lv.getUint32(at('stco', lvideo) + 8 + 4 * k)])).toEqual([10, 20])
     // Not a fragmented MP4: left alone.
     expect(defragment(concat([box('ftyp', u32(0)), moov]).slice().buffer)).toBeNull()
-  })
-})
-
-describe('filmed take playback', () => {
-  it("keeps the take's film in step with its (stretched) render", () => {
-    // The take's first word at 0.5 s; the render's at 0.1 s, the speech stretched 1.25×.
-    const take = [0, 0, 0, 0, 0, 1, 0.8, 0.9, 0.2, 0]
-    expect(onsetOf(take, 1)).toBeCloseTo(0.5)
-    expect(onsetOf([0, 0, 0], 1)).toBe(0)
-    const sync = { takeOnset: 0.5, renderOnset: 0.1, ratio: 1.25 }
-    expect(filmTime(sync, 0.1)).toBeCloseTo(0.5) // the first word, both sides
-    expect(filmTime(sync, 1.35)).toBeCloseTo(1.5) // 1.25 s of render is 1 s of take
   })
 })
 

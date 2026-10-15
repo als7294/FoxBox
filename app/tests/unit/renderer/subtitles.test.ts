@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { RenderInfo } from '@/api/types'
-import { SUB_FADE_S, SUB_HOLD_S, subtitleAt, subtitleWords, type SubWord } from '@/components/camera/subtitles'
+import { SUB_FADE_S, SUB_HOLD_S, subtitleAt, type SubWord } from '@/components/camera/subtitles'
 
 // "GUY FVWKS | IN THE MIX ALL NIGHT LONG WITH YOU": two segments, a word every 0.4 s from 1 s.
 const said = (text: string, t0: number): SubWord[] =>
@@ -38,26 +37,5 @@ describe('camera clip subtitles', () => {
       { t0: 0.6, t1: 0.8, w: 'TWO', brk: false },
     ]
     expect(subtitleAt(gap, 0.5)!.current).toBe(-1)
-  })
-
-  it("reads the render's words without script markup, each segment a new phrase", () => {
-    const r = {
-      segments: [
-        {
-          index: 0,
-          start_s: 0,
-          end_s: 1,
-          words: [
-            { text: '*US*', start_s: 0, end_s: 0.4, throw: true },
-            { text: '|', start_s: 0.4, end_s: 0.4, throw: false },
-          ],
-        },
-        { index: 1, start_s: 1, end_s: 2, words: [{ text: 'Fawkes', start_s: 1, end_s: 1.5, throw: false }] },
-      ],
-    } as unknown as RenderInfo
-    expect(subtitleWords(r)).toEqual([
-      { t0: 0, t1: 0.4, w: 'US', brk: true },
-      { t0: 1, t1: 1.5, w: 'Fawkes', brk: true },
-    ])
   })
 })

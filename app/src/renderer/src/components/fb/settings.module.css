@@ -1,0 +1,320 @@
+/* The settings window (app/design/foxbox-2 README §10 and its markup). */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 5, 3, 0);
+  backdrop-filter: blur(0);
+  pointer-events: none;
+  transition:
+    background 0.45s,
+    backdrop-filter 0.45s;
+  font-family: var(--fb-font);
+}
+.scrim[data-open] {
+  background: rgba(8, 5, 3, 0.55);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+.win {
+  width: min(1200px, calc(100vw - 48px));
+  height: min(780px, calc(100vh - 48px));
+  border-radius: 40px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 30%), rgba(22, 17, 13, 0.94);
+  box-shadow:
+    0 60px 120px -30px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: var(--fb-ink);
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  overflow: hidden;
+  transform: translateY(40px) scale(0.96);
+  opacity: 0;
+  transition:
+    transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1),
+    opacity 0.35s;
+}
+.scrim[data-open] .win {
+  transform: none;
+  opacity: 1;
+}
+.nav {
+  padding: 36px 28px;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.navTitle {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  padding: 0 12px 18px;
+}
+.tab {
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 16px;
+  text-align: left;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fb-ink-2);
+  transition: background 0.2s;
+}
+.tab[aria-current='page'] {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fb-ink);
+}
+.navFoot {
+  margin-top: auto;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #8f8275;
+}
+.body {
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  overflow: auto;
+  user-select: text;
+}
+.bodyHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.bodyTitle {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.done {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+  font-size: 16px;
+  font-weight: 700;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fb-ink-2);
+  padding: 0 4px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 8px 20px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
+}
+.rowName {
+  font-size: 17px;
+  font-weight: 600;
+}
+.rowValue {
+  font-size: 16px;
+  color: var(--fb-ink-2);
+  text-align: right;
+  min-width: 0;
+}
+.rowValue[data-tone='ok'] {
+  color: var(--fb-ok);
+}
+.rowValue[data-tone='bad'] {
+  color: #ff8a78;
+}
+.note {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fb-ink-2);
+  padding: 0 4px;
+}
+.note a {
+  color: var(--fb-accent);
+  text-underline-offset: 3px;
+}
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.segBtn {
+  height: 52px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.segBtn[aria-checked='true'] {
+  background: rgba(255, 255, 255, 0.14);
+}
+/* 52×32 toggles, on #F2701F */
+.toggle {
+  appearance: none;
+  width: 52px;
+  height: 32px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  position: relative;
+  flex: none;
+  cursor: pointer;
+  margin: 0;
+  transition: background 0.2s;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--fb-ink);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s var(--fb-ease-out);
+}
+.toggle:checked {
+  background: var(--fb-accent);
+}
+.toggle:checked::after {
+  transform: translateX(20px);
+}
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  color: var(--fb-ink-2);
+  max-width: 60%;
+}
+.select select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.select span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 15px;
+  font-weight: 600;
+  flex: none;
+}
+.btn[data-primary] {
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font-size: 16px;
+  font-weight: 700;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.output {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.outputArt {
+  width: 220px;
+  height: 124px;
+  border-radius: 14px;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 8px, rgba(255, 255, 255, 0.02) 8px 16px);
+  display: grid;
+  place-items: center;
+  font: 500 12px var(--fb-mono);
+  color: #8f8275;
+  flex: none;
+}
+.outputText {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+.guides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.guide {
+  height: 120px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.guide[data-lead] {
+  background: rgba(255, 77, 46, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 46, 0.4);
+}
+.guideTitle {
+  font-size: 20px;
+  font-weight: 700;
+}
+.guideSub {
+  font-size: 14px;
+  color: var(--fb-ink-2);
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--fb-ink);
+  font: 500 14px var(--fb-mono);
+}
+.error {
+  font-size: 14px;
+  color: #ff8a78;
+  padding: 0 4px;
+}

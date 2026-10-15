@@ -1,0 +1,268 @@
+/* The library (2.0 design): the stage dimmed round the dome, the glass library bar under the notch with its shelf, the
+   hint under the waveform line, messages in a glass card. Compact sizes: FOXBOX2_COMPACT.md. */
+.wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  font-family: var(--fb-font);
+  color: var(--fb-ink);
+}
+.dim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(55% 60% at 51% 42%, rgba(12, 8, 5, 0.3), rgba(12, 8, 5, 0.72));
+  pointer-events: none;
+  animation: wheelFade 0.4s ease both;
+}
+.host {
+  position: absolute;
+  inset: 0;
+  outline: none;
+}
+.top,
+.hint,
+.msgs {
+  transition: opacity 0.3s;
+}
+.wrap[data-closing] .top,
+.wrap[data-closing] .hint,
+.wrap[data-closing] .msgs,
+.wrap[data-closing] .dim {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+@keyframes wheelFade {
+  from {
+    opacity: 0;
+  }
+}
+.top {
+  position: absolute;
+  left: 50%;
+  top: calc(52px + var(--island-drop, 0px));
+  translate: -50% 0;
+  max-width: min(1100px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 20px;
+  background: rgba(28, 22, 18, 0.74);
+  backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow:
+    0 20px 50px -15px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  z-index: 6;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  white-space: nowrap;
+}
+.search {
+  flex: none;
+  width: 200px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  font: 500 15px var(--fb-font);
+  color: var(--fb-ink);
+  outline: none;
+}
+.search:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--fb-accent);
+}
+.sources {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.src,
+.crate {
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fb-ink);
+}
+.src[aria-checked='true'],
+.crate[aria-checked='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.srcCount {
+  font-size: 12px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.count {
+  font-size: 13px;
+  color: var(--fb-ink-2);
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-right: 4px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fb-ink-2);
+  font-size: 17px;
+}
+.close:hover {
+  color: var(--fb-ink);
+}
+/* the playlists, crates or folders: a row under the bar, scrolling sideways, fading at the right */
+.shelf {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 40px 6px 14px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+}
+.shelfLabel {
+  flex: none;
+  margin-right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #b5a798;
+}
+.crate {
+  height: 30px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.hint {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  font-size: 13px;
+  color: rgba(246, 239, 230, 0.72);
+  white-space: nowrap;
+  z-index: 6;
+  pointer-events: none;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.msgs {
+  position: absolute;
+  left: 50%;
+  top: 330px;
+  translate: -50% 0;
+  width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 7;
+}
+.msg {
+  padding: 22px;
+  border-radius: 26px;
+  background: rgba(28, 22, 18, 0.86);
+  backdrop-filter: blur(40px);
+  box-shadow:
+    0 30px 70px -20px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.msgTitle {
+  font-size: 22px;
+  font-weight: 600;
+}
+.msgBody {
+  font-size: 15px;
+  line-height: 1.45;
+  color: #b5a798;
+}
+.msgBtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.msgBtns button {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1439px), (max-height: 899px) {
+  .top {
+    top: calc(46px + var(--island-drop, 0px));
+  }
+  .bar {
+    gap: 6px;
+    padding: 5px;
+  }
+  .search {
+    width: 168px;
+    height: 34px;
+  }
+  .src {
+    height: 30px;
+    font-size: 13px;
+  }
+  .crate {
+    height: 28px;
+  }
+  .srcCount {
+    font-size: 11px;
+  }
+  .count {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dim {
+    animation: none;
+  }
+}
+.msgBtns button[data-kind='solid'] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.scanBar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.scanBar > span {
+  display: block;
+  width: 33%;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--fb-accent);
+  animation: wheelScan 1.4s ease-in-out infinite alternate;
+}
+@keyframes wheelScan {
+  to {
+    transform: translateX(200%);
+  }
+}

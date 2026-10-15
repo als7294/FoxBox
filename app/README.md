@@ -13,7 +13,7 @@ renderer (React, sandboxed) ──window.fvwks──▶ preload ──IPC──�
 | | |
 |---|---|
 | `npm run dev` | Electron with HMR. Spawns `../engine/.venv/bin/fvwks-engine` (runs `uv sync --all-packages` first if the venv is missing). Dev data goes in `<repo>/.devdata/{data,exports,electron}`. |
-| `npm run dev:mock` | Electron, no engine: MSW answers `/api/*` from `contracts/examples` + `fixtures/voices`. |
+| `npm run dev:mock` | Electron, no engine: MSW answers `/api/*` (src/renderer/src/mocks). |
 | `npm run web` | Same UI in a normal browser at http://localhost:5199 with the MSW mock engine. |
 | `npm test` | Vitest: main process (supervisor, export guard, proxy), renderer logic, and components. |
 | `npm run e2e` | Build, then Playwright drives the real app against the repo engine: core loop, drag chain, crash restart, and a screenshot walk of every screen. |

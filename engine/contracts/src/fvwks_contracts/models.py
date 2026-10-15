@@ -1,4 +1,4 @@
-"""Frozen API/data models for FoxBox (v0.15.3 contracts: the take loudness readout runs as its own job after PREPARE (Job.kind take_loudness, listed in PREPARE's result_ids); v0.15.2: PATCH /api/masks/{id} renames any user mask (MaskRename); v0.15.1: a bar that changes chord halfway (Chord.root2/quality2), power chords (quality "5"), the source's tuning (SongAnalysis.tuning_cents); v0.15: your own drum sample packs (SamplePackAdd, SamplePack, SamplePackUpdate, job sample_scan; /api/sample-packs); v0.14: chords bar by bar (Chord; SongStructure.chords, RemixSection.chords), the harmony REMIX's engine voices follow; v0.13: character-creator masks (MaskRecipeSave, MaskInfo.format "recipe", GET/PUT /api/masks/{id}/recipe); v0.12.1: the Rekordbox import job reports per track through JobItems (RekordboxImportResult dropped); v0.12: Rekordbox library import (RekordboxLibrary, RekordboxImportRequest, job rekordbox_import), Song.cues (SongCue), SongAnalysis.source; v0.11.12: Remix.bass_macros (GRIT/WOBBLE/SUB/GLIDE), Remix.top_layers (ear candy BUILD places), FlipStyle.grid (a 2-bar kick/snare preview); v0.11.11: RemixLane.role adds top (the design package's TOP lane); v0.11.10: RemixTake loudness (short_term_max_lufs, true_peak_db) for the TakeCard readout; BassPatch.category adds tearout and top for SWAP SOUND tabs; v0.11.9: a take keeps its own edited arrangement (RemixTake.sections/lanes), RemixBuildRequest.fresh; v0.11.8: REMIX takes (RemixTake with the choices BUILD resolved), take ratings (TakeFeedback) and the per-style counts ROLL leans on (RemixPrefs); v0.11.7: Remix.seed, so BUILD makes distinct reproducible takes; v0.11.6: camera face masks (MaskInfo, /api/masks); v0.11.5: remix export writes rekordbox.xml cues at the drops; kit previews; v0.11.4: REMIX gaps closed (sync MASH RADAR scan result, chosen MashMatch on the Remix, groove render request/result, export result route, mp3 exports); v0.11.3: seam MashFeatures + FxAPI.mash_features, mash_scan over cached features; v0.11.2: KitClipSrc carries inline hits; v0.11.1: BassGroove in beats (as built); v0.11: REMIX (recipes, arrangement, BASS DNA groove, MASH RADAR matches, sound library); v0.10.1: bass-line intelligence (StemFeatures.bass_b64, SongSection bass fields); v0.10: song structure (sections, drops, phrases) + timed lyrics for SMART VISUALS; v0.9: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
+"""Frozen API/data models for FoxBox (v1.1 contracts, FoxBox 2.0: the REMIX library wheel (LibrarySourceAdd, LibrarySource, LibraryPlaylist, LibraryTrack, LibraryTrackPage; /api/library); v1.0: 2.0's engine, songs and stems only; v0.15.3: the take loudness readout runs as its own job after PREPARE (Job.kind take_loudness, listed in PREPARE's result_ids); v0.15.2: PATCH /api/masks/{id} renames any user mask (MaskRename); v0.15.1: a bar that changes chord halfway (Chord.root2/quality2), power chords (quality "5"), the source's tuning (SongAnalysis.tuning_cents); v0.15: your own drum sample packs (SamplePackAdd, SamplePack, SamplePackUpdate, job sample_scan; /api/sample-packs); v0.14: chords bar by bar (Chord; SongStructure.chords, RemixSection.chords), the harmony REMIX's engine voices follow; v0.13: character-creator masks (MaskRecipeSave, MaskInfo.format "recipe", GET/PUT /api/masks/{id}/recipe); v0.12.1: the Rekordbox import job reports per track through JobItems (RekordboxImportResult dropped); v0.12: Rekordbox library import (RekordboxLibrary, RekordboxImportRequest, job rekordbox_import), Song.cues (SongCue), SongAnalysis.source; v0.11.12: Remix.bass_macros (GRIT/WOBBLE/SUB/GLIDE), Remix.top_layers (ear candy BUILD places), FlipStyle.grid (a 2-bar kick/snare preview); v0.11.11: RemixLane.role adds top (the design package's TOP lane); v0.11.10: RemixTake loudness (short_term_max_lufs, true_peak_db) for the TakeCard readout; BassPatch.category adds tearout and top for SWAP SOUND tabs; v0.11.9: a take keeps its own edited arrangement (RemixTake.sections/lanes), RemixBuildRequest.fresh; v0.11.8: REMIX takes (RemixTake with the choices BUILD resolved), take ratings (TakeFeedback) and the per-style counts ROLL leans on (RemixPrefs); v0.11.7: Remix.seed, so BUILD makes distinct reproducible takes; v0.11.6: camera face masks (MaskInfo, /api/masks); v0.11.5: remix export writes rekordbox.xml cues at the drops; kit previews; v0.11.4: REMIX gaps closed (sync MASH RADAR scan result, chosen MashMatch on the Remix, groove render request/result, export result route, mp3 exports); v0.11.3: seam MashFeatures + FxAPI.mash_features, mash_scan over cached features; v0.11.2: KitClipSrc carries inline hits; v0.11.1: BassGroove in beats (as built); v0.11: REMIX (recipes, arrangement, BASS DNA groove, MASH RADAR matches, sound library); v0.10.1: bass-line intelligence (StemFeatures.bass_b64, SongSection bass fields); v0.10: song structure (sections, drops, phrases) + timed lyrics for SMART VISUALS; v0.9: song stems + per-stem reactive features for VISUALS; v0.8: ARRANGE chop (words placed on the beat grid); v0.7: songs (drop over your own track, baked exports, mixes for camera clips); v0.6: model manifest/uninstall, error model_id; voice-core motion data, model install reattach; installer/update fields; AUTO bars, denoise, transcripts; otherwise additive over v0).
 
 These pydantic models are the single source of truth. contracts/openapi.yaml is exported from the server built
 on them, and contracts/chain.schema.json is exported from Preset. Sessions don't edit this file; they send
@@ -1408,3 +1408,69 @@ class SamplePackUpdate(Model):
 
     name: str | None = Field(default=None, min_length=1, max_length=80)
     enabled: bool | None = None
+
+
+# --------------------------------------------------------------------------- the library wheel (2.0, contracts v1.1)
+
+LibraryKind = Literal["folder", "rekordbox", "serato"]
+
+
+class LibrarySourceAdd(Model):
+    """POST /api/library/sources (v1.1), from main only (header X-FoxBox-Main): a music folder, a rekordbox.xml export
+    or a _Serato_ folder the user picked in main's native dialog. The renderer never sends paths."""
+
+    kind: LibraryKind
+    path: str = Field(min_length=1, max_length=4096)
+
+
+class LibrarySource(Model):
+    """A library the wheel browses (v1.1). Where it lives never leaves the engine: `name` is for display only."""
+
+    id: str
+    kind: LibraryKind
+    name: str = Field(description="e.g. 'Music' (a folder's name), 'Rekordbox', 'Serato · USB DRIVE'.")
+    state: Literal["scanning", "ready", "error"] = Field(description="scanning: its first scan (later rescans keep serving the last index).")
+    tracks: int = 0
+    playlists: int = 0
+    scanned_at: str | None = None
+    message: str | None = Field(default=None, description="Why it's in error, or a note (e.g. which Serato library was read).")
+    created_at: str
+
+
+class LibraryPlaylist(Model):
+    """A playlist, crate or folder of a library (v1.1): flat, nested by parent_id. A folder lists everything under it."""
+
+    id: str
+    source_id: str
+    name: str
+    parent_id: str | None = None
+    kind: Literal["folder", "playlist", "crate"]
+    track_count: int
+
+
+class LibraryTrack(Model):
+    """A track in a library (v1.1). Its file stays where it is; it's addressed by id (art, preview, load as a song)."""
+
+    id: str
+    source_id: str
+    title: str = Field(description="Its title tag, else the file name without its extension.")
+    artist: str | None = None
+    album: str | None = None
+    genre: str | None = None
+    bpm: float | None = None
+    key: str | None = Field(default=None, description="e.g. 'Am', 'F#' (the source's spelling when it isn't one we read).")
+    camelot: str | None = None
+    duration_s: float | None = None
+    file_name: str = Field(description="The file's name only (never its path).")
+    format: str = Field(description="Its extension, e.g. 'mp3', 'm4a', 'flac'.")
+    missing: bool = Field(default=False, description="Its file isn't there (moved, or its drive is unplugged).")
+    has_art: bool | None = Field(default=None, description="None until known (GET .../art says).")
+    added_at: str | None = None
+
+
+class LibraryTrackPage(Model):
+    """GET /api/library/tracks (v1.1): one page of tracks."""
+
+    total: int
+    offset: int
+    items: list[LibraryTrack]

@@ -1,4 +1,5 @@
-"""FastAPI app (owned by S3).
+"""FastAPI app (owned by S3). FoxBox 2.0 (contracts v1.0): STRINGS' REMIX only, songs and their stems; PLAY never
+calls the engine.
 
 Route signatures and models are the HTTP contract, exported to contracts/openapi.yaml by scripts/export_openapi.py,
 and the drift test in engine/contracts/tests keeps them frozen. The bodies delegate to ``EngineService``.
@@ -6,7 +7,9 @@ and the drift test in engine/contracts/tests keeps them frozen. The bodies deleg
 Exposure: the engine binds 127.0.0.1 only (main.py). Every route needs ``Authorization: Bearer <token>``; only
 ``GET /api/audio/*`` also accepts ``?token=`` (for media elements). CORS is off unless ``--allow-origin`` is given
 (dev only; the app proxies through Electron main). The engine never accepts client file paths, apart from the export
-folder in Settings, which is validated.
+folder in Settings, which is validated, and a library the user picked in main's native dialog (POST
+/api/library/sources), which only main can add: it needs ``X-FoxBox-Main: <token>`` as well, a header main's proxy
+never forwards from the renderer (which never holds the token either).
 """
 
 from __future__ import annotations
@@ -14,8 +17,9 @@ from __future__ import annotations
 import hmac
 import logging
 from contextlib import asynccontextmanager
-from typing import Literal
 from urllib.parse import parse_qs
+
+from typing import Literal
 
 from fastapi import APIRouter, Depends, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -26,77 +30,29 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from fvwks_contracts.models import (
     ApiError,
-    BassGroove,
-    BassPatch,
-    BatchRequest,
-    DrumKit,
     ErrorEnvelope,
-    ExportRequest,
-    ExportResult,
-    FlipStyle,
-    GrooveRenderRequest,
-    GrooveRenderResult,
     Health,
     Job,
-    Lexicon,
-    LibraryPage,
-    MaskInfo,
-    MaskRecipeSave,
-    MaskRename,
-    SamplePack,
-    SamplePackAdd,
-    SamplePackUpdate,
-    MashMatch,
-    MashScanRequest,
-    MashScanResult,
-    Remix,
-    RemixCreate,
-    RemixExportRequest,
-    RekordboxImportRequest,
-    RekordboxLibrary,
-    RemixBuildRequest,
-    RemixExportResult,
-    RemixPrefsResult,
-    RemixUpdate,
-    TakeFeedback,
-    TakeFeedbackCreate,
-    MixInfo,
-    MixRequest,
+    LibraryPlaylist,
+    LibrarySource,
+    LibrarySourceAdd,
+    LibraryTrackPage,
     ModelInfo,
-    PersonaCandidate,
-    PersonaDesignRequest,
-    PersonaSaveRequest,
-    Preset,
-    RackDescriptor,
-    RekordboxRequest,
-    RekordboxResult,
-    RenderInfo,
-    RenderRequest,
-    ScriptPreview,
-    ScriptPreviewRequest,
     Settings,
     SignedModelManifest,
     Song,
-    SongLyrics,
-    StemFeatures,
     SongUpdate,
-    SourceInfo,
-    SourceList,
-    TTSRequest,
-    Take,
-    TakePatch,
-    TranscriptUpdate,
-    Voice,
+    StemFeatures,
 )
 
 from .config import VERSION, Config
 from .errors import ApiException, NotFound
-from .masks import MAX_RASTER, MEDIA
-from .service import MAX_SONG_BYTES, MAX_UPLOAD_BYTES, EngineService
+from .service import MAX_SONG_BYTES, EngineService
 
 log = logging.getLogger("fvwks.engine")
 
 ERRORS = {s: {"model": ErrorEnvelope} for s in (400, 401, 404, 409, 422, 500)}
+_BINARY = lambda kind, desc: {200: {"content": {kind: {"schema": {"type": "string", "format": "binary"}}}, "description": desc}}  # noqa: E731
 _HTTP_CODES = {401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",
                413: "file_too_large"}
 
@@ -186,15 +142,10 @@ def create_app(config: Config) -> FastAPI:
         raise ApiException(401, "unauthorized", "Missing or invalid engine token.")
 
     r = APIRouter(prefix="/api", dependencies=[Depends(auth)], responses=ERRORS)
-
     # ------------------------------------------------------------------ system
     @r.get("/health", response_model=Health, tags=["system"], operation_id="getHealth")
     def get_health() -> Health:
         return service.health()
-
-    @r.get("/rack", response_model=RackDescriptor, tags=["system"], operation_id="getRack")
-    def get_rack() -> RackDescriptor:
-        return service.rack()
 
     @r.get("/models", response_model=list[ModelInfo], tags=["system"], operation_id="listModels")
     def list_models() -> list[ModelInfo]:
@@ -228,66 +179,12 @@ def create_app(config: Config) -> FastAPI:
     def cancel_job(job_id: str) -> Job:
         return service.cancel_job(job_id)
 
-    # ------------------------------------------------------------------ voices & sources
-    @r.get("/voices", response_model=list[Voice], tags=["voices"], operation_id="listVoices")
-    def list_voices() -> list[Voice]:
-        return service.list_voices()
-
-    @r.post("/sources/tts", response_model=SourceInfo, tags=["sources"], operation_id="createTtsSource")
-    def create_tts_source(req: TTSRequest) -> SourceInfo:
-        return service.create_tts(req)
-
-    @r.post("/sources/upload", response_model=SourceInfo, tags=["sources"], operation_id="uploadSource")
-    async def upload_source(file: UploadFile = File(...), kind: Literal["recording", "import"] = Form("import"),
-                            name: str | None = Form(None),
-                            denoise: float | None = Form(None, ge=0, le=1)) -> SourceInfo:  # v0.3
-        if file.size is not None and file.size > MAX_UPLOAD_BYTES:  # refuse before reading it into memory
-            raise ApiException(400, "file_too_large", f"Uploads are limited to {MAX_UPLOAD_BYTES >> 20} MB.",
-                               hint="Trim the recording first.")
-        data = await file.read()
-        return await run_in_threadpool(service.upload, data, file.filename, kind, name, denoise)
-
-    @r.put("/sources/{source_id}/transcript", response_model=SourceInfo, tags=["sources"],
-           operation_id="updateTranscript")
-    def update_transcript(source_id: str, body: TranscriptUpdate) -> SourceInfo:
-        """v0.3: edit a recording's transcript (markup allowed) → re-segment + re-align."""
-        return service.update_transcript(source_id, body.script)
-
-    @r.get("/sources", response_model=SourceList, tags=["sources"], operation_id="listSources")
-    def list_sources(kind: Literal["tts", "recording", "import"] | None = None, limit: int = 50, offset: int = 0) -> SourceList:
-        return service.list_sources(kind, limit, offset)
-
-    @r.get("/sources/{source_id}", response_model=SourceInfo, tags=["sources"], operation_id="getSource")
-    def get_source(source_id: str) -> SourceInfo:
-        return service.get_source(source_id)
-
-    @r.delete("/sources/{source_id}", status_code=204, response_class=Response, tags=["sources"], operation_id="deleteSource")
-    def delete_source(source_id: str) -> Response:
-        service.delete_source(source_id)
-        return Response(status_code=204)
-
-    # ------------------------------------------------------------------ songs (v0.7)
+    # ------------------------------------------------------------------ songs & stems (REMIX)
     def _songs(name: str):
         fn = getattr(service, name, None)
         if fn is None:
             raise ApiException(501, "not_implemented", "Songs arrive with the v0.7 server work.")
         return fn
-
-    @r.post("/rekordbox/library", response_model=RekordboxLibrary, tags=["songs"], operation_id="readRekordboxLibrary")
-    async def read_rekordbox_library(file: UploadFile = File(...)) -> RekordboxLibrary:
-        """v0.12: the user's rekordbox.xml (its bytes: no path crosses the API): its tracks with an opaque id each, their
-        grid, key and cues and whether the file is on this Mac, and its playlists. Kept 30 min for POST
-        /rekordbox/import. 400 bad_xml; 413 over 100 MB."""
-        if file.size is not None and file.size > 100 << 20:
-            raise ApiException(413, "file_too_large", "This rekordbox.xml is over 100 MB.",
-                               hint="Export a playlist's tracks instead of the whole collection.")
-        return _songs("rekordbox_library")(await file.read())
-
-    @r.post("/rekordbox/import", response_model=Job, tags=["songs"], operation_id="importRekordboxTracks")
-    def import_rekordbox_tracks(req: RekordboxImportRequest) -> Job:
-        """v0.12: the chosen tracks become Songs with their Rekordbox grid, key and cues (a rekordbox_import job; the
-        result lists imported, updated and skipped). 404 library_expired: choose the XML again."""
-        return _songs("import_rekordbox")(req)
 
     @r.post("/songs", response_model=Song, tags=["songs"], operation_id="uploadSong")
     async def upload_song(file: UploadFile = File(...), name: str | None = Form(None)) -> Song:
@@ -299,87 +196,6 @@ def create_app(config: Config) -> FastAPI:
                                hint="Use an MP3 or FLAC of it, or trim it.")
         data = await file.read()
         return await run_in_threadpool(fn, data, file.filename, name)
-
-    @r.get("/sample-packs", response_model=list[SamplePack], tags=["remix"], operation_id="listSamplePacks")
-    def list_sample_packs() -> list[SamplePack]:
-        """v0.15: your drum sample packs. Enabled ones replace FoxBox's own one-shots for the roles they cover."""
-        return service.list_sample_packs()
-
-    @r.post("/sample-packs", response_model=Job, tags=["remix"], operation_id="addSamplePack")
-    def add_sample_pack(req: SamplePackAdd) -> Job:
-        """v0.15: a folder of your one-shots (from the OS folder picker, main process only), read where it is (a
-        sample_scan job, one item per audio file). 400 not_a_folder, 404 missing."""
-        return service.add_sample_pack(req)
-
-    @r.patch("/sample-packs/{pack_id}", response_model=SamplePack, tags=["remix"], operation_id="updateSamplePack")
-    def update_sample_pack(pack_id: str, req: SamplePackUpdate) -> SamplePack:
-        return service.update_sample_pack(pack_id, req)
-
-    @r.delete("/sample-packs/{pack_id}", status_code=204, response_class=Response, tags=["remix"],
-              operation_id="deleteSamplePack")
-    def delete_sample_pack(pack_id: str) -> Response:
-        """v0.15: forget the pack; its files are never touched."""
-        service.delete_sample_pack(pack_id)
-        return Response(status_code=204)
-
-    @r.post("/sample-packs/{pack_id}/rescan", response_model=Job, tags=["remix"], operation_id="rescanSamplePack")
-    def rescan_sample_pack(pack_id: str) -> Job:
-        """v0.15: read the pack's folder again (rename a file, e.g. 'Kick 01.wav', then RESCAN to correct its role)."""
-        return service.rescan_sample_pack(pack_id)
-
-    @r.get("/masks", response_model=list[MaskInfo], tags=["camera"], operation_id="listMasks")
-    def list_masks() -> list[MaskInfo]:
-        """v0.11.6: the user's imported face masks (the built-ins are app assets)."""
-        return service.masks.list()
-
-    @r.post("/masks", response_model=MaskInfo, tags=["camera"], operation_id="uploadMask")
-    async def upload_mask(file: UploadFile = File(...), name: str = Form(...)) -> MaskInfo:
-        """v0.11.6: a user mask: SVG <= 2 MB (re-checked: no script, foreignObject, on*= or outside refs) or PNG / WebP
-        <= 16 MB and <= 4096 px a side (read from its header)."""
-        if file.size is not None and file.size > MAX_RASTER:  # refuse before reading it into memory
-            raise ApiException(400, "file_too_large", "Masks are limited to 16 MB.")
-        data = await file.read(MAX_RASTER + 1)
-        return await run_in_threadpool(service.masks.add, data, name)
-
-    @r.post("/masks/recipes", response_model=MaskInfo, tags=["camera"], operation_id="saveMaskRecipe")
-    def save_mask_recipe(req: MaskRecipeSave) -> MaskInfo:
-        """v0.13: a MASKS character-creator mask: its recipe JSON (<= 256 KB, stored as-is, never evaluated) and a PNG
-        thumbnail (<= 512 px, <= 1 MB) served at /image. 413 over a limit; 415 a thumbnail that isn't a PNG."""
-        return service.masks.save_recipe(req)
-
-    @r.put("/masks/{mask_id}/recipe", response_model=MaskInfo, tags=["camera"], operation_id="updateMaskRecipe")
-    def update_mask_recipe(mask_id: str, req: MaskRecipeSave) -> MaskInfo:
-        """v0.13: replace a character's name and recipe (and its thumbnail, when one is sent). 409 for an image mask."""
-        return service.masks.save_recipe(req, mask_id)
-
-    @r.get("/masks/{mask_id}/recipe", response_model=dict[str, dict], tags=["camera"], operation_id="getMaskRecipe")
-    def get_mask_recipe(mask_id: str) -> dict[str, dict]:
-        """v0.13: {"recipe": {...}} as saved. 409 for an image mask."""
-        return {"recipe": service.masks.recipe(mask_id)}
-
-    @r.get("/masks/{mask_id}/image", response_class=Response, tags=["camera"], operation_id="getMaskImage",
-           responses={200: {"content": {m: {} for m in MEDIA.values()}}})
-    def get_mask_image(mask_id: str) -> Response:
-        """v0.11.6: the mask's image with its own Content-Type; an SVG comes with CSP default-src 'none'."""
-        info, path = service.masks.get(mask_id)
-        if not path.is_file():  # a character saved without a thumbnail
-            raise NotFound("mask image", mask_id)
-        headers = {"X-Content-Type-Options": "nosniff"}
-        if info.format == "svg":
-            headers["Content-Security-Policy"] = "default-src 'none'"
-        return FileResponse(path, media_type=MEDIA[info.format], headers=headers)
-
-    @r.patch("/masks/{mask_id}", response_model=MaskInfo, tags=["camera"], operation_id="renameMask")
-    def rename_mask(mask_id: str, req: MaskRename) -> MaskInfo:
-        """v0.15.2: rename a user mask, image or recipe (only its name changes). 404 for an id the server doesn't hold
-        (the built-ins are the app's), 409 for a mask that isn't the user's."""
-        return service.masks.rename(mask_id, req.name)
-
-    @r.delete("/masks/{mask_id}", status_code=204, response_class=Response, tags=["camera"], operation_id="deleteMask")
-    def delete_mask(mask_id: str) -> Response:
-        """v0.11.6: a user mask."""
-        service.masks.delete(mask_id)
-        return Response(status_code=204)
 
     @r.get("/songs", response_model=list[Song], tags=["songs"], operation_id="listSongs")
     def list_songs() -> list[Song]:
@@ -409,190 +225,7 @@ def create_app(config: Config) -> FastAPI:
         """v0.9: per-stem envelopes and onsets for the visuals (60 fps over the whole song)."""
         return _songs("stem_features")(song_id)
 
-    @r.post("/songs/{song_id}/lyrics", response_model=Job, tags=["songs"], operation_id="transcribeSongLyrics")
-    def transcribe_song_lyrics(song_id: str) -> Job:
-        """v0.10: timed lyrics (a song_lyrics job): from the vocals stem when the song has stems, else the mix."""
-        return _songs("request_lyrics")(song_id)
-
-    @r.get("/songs/{song_id}/lyrics", response_model=SongLyrics, tags=["songs"], operation_id="getSongLyrics")
-    def get_song_lyrics(song_id: str) -> SongLyrics:
-        """v0.10: the song's timed words (409 until its song_lyrics job is done)."""
-        return _songs("lyrics")(song_id)
-
-    @r.post("/remixes", response_model=Remix, tags=["remix"], operation_id="createRemix")
-    def create_remix(req: RemixCreate) -> Remix:
-        """v0.11: a new remix of song A (+ B for a mashup), empty until BUILD; starts stems on sources without them."""
-        return _songs("create_remix")(req)
-
-    @r.get("/remixes", response_model=list[Remix], tags=["remix"], operation_id="listRemixes")
-    def list_remixes(song_id: str | None = None, recipe: str | None = None) -> list[Remix]:
-        """v0.11.9: `song_id` / `recipe` narrow the list (RESUME)."""
-        return _songs("list_remixes")(song_id, recipe)
-
-    @r.get("/remixes/{remix_id}", response_model=Remix, tags=["remix"], operation_id="getRemix")
-    def get_remix(remix_id: str) -> Remix:
-        return _songs("get_remix")(remix_id)
-
-    @r.patch("/remixes/{remix_id}", response_model=Remix, tags=["remix"], operation_id="updateRemix")
-    def update_remix(remix_id: str, body: RemixUpdate) -> Remix:
-        """v0.11: save the arrangement at the rev it was edited from (409 remix_conflict when it's stale)."""
-        return _songs("update_remix")(remix_id, body)
-
-    @r.post("/remixes/{remix_id}/feedback", response_model=TakeFeedback, tags=["remix"], operation_id="rateRemixTake")
-    def rate_remix_take(remix_id: str, req: TakeFeedbackCreate) -> TakeFeedback:
-        """v0.11.8: rate one take (404 when the remix has no take with that seed); ROLL learns from it."""
-        return _songs("rate_take")(remix_id, req)
-
-    @r.get("/remix-prefs", response_model=RemixPrefsResult, tags=["remix"], operation_id="getRemixPrefs")
-    def get_remix_prefs() -> RemixPrefsResult:
-        """v0.11.8: the per-style option counts ROLL leans on."""
-        return _songs("remix_prefs")()
-
-    @r.delete("/remix-prefs/{style}", status_code=204, response_class=Response, tags=["remix"], operation_id="resetRemixPrefs")
-    def reset_remix_prefs(style: str) -> Response:
-        """v0.11.8: RESET, forget one style's ratings."""
-        _songs("reset_remix_prefs")(style)
-        return Response(status_code=204)
-
-    @r.post("/remixes/{remix_id}/build", response_model=Job, tags=["remix"], operation_id="buildRemix")
-    def build_remix(remix_id: str, req: RemixBuildRequest | None = None) -> Job:
-        """v0.11: the recipe → a draft arrangement (a remix_build job; a new rev). A mashup lines up on Remix.mash.
-        v0.11.9: a take with a saved arrangement (you switched away from it) gets it back; `fresh` rebuilds it."""
-        return _songs("build_remix")(remix_id, req)
-
-    @r.post("/remixes/{remix_id}/prepare", response_model=Job, tags=["remix"], operation_id="prepareRemix")
-    def prepare_remix(remix_id: str) -> Job:
-        """v0.11: render every clip without audio at the remix tempo and key (a remix_prepare job). Clips gain their
-        audio_id as they're ready (the playhead's first 16 bars and the first drop first): refetch the remix meanwhile."""
-        return _songs("prepare_remix")(remix_id)
-
-    @r.post("/remixes/{remix_id}/export", response_model=Job, tags=["remix"], operation_id="exportRemix")
-    def export_remix(remix_id: str, req: RemixExportRequest) -> Job:
-        """v0.11.4: the mixdown as AIFF / MP3, the Ableton Live 11 set (BETA), and (visuals) a new Song whose structure
-        is the arrangement's (a remix_export job; GET /remixes/{id}/export has the result)."""
-        return _songs("export_remix")(remix_id, req)
-
-    @r.get("/remixes/{remix_id}/export", response_model=RemixExportResult, tags=["remix"], operation_id="getRemixExport")
-    def get_remix_export(remix_id: str) -> RemixExportResult:
-        """v0.11.4: the latest export of this remix (404 until one exists)."""
-        return _songs("remix_export")(remix_id)
-
-    @r.delete("/remixes/{remix_id}", status_code=204, response_class=Response, tags=["remix"], operation_id="deleteRemix")
-    def delete_remix(remix_id: str) -> Response:
-        _songs("delete_remix")(remix_id)
-        return Response(status_code=204)
-
-    @r.get("/patches", response_model=list[BassPatch], tags=["remix"], operation_id="listPatches")
-    def list_patches() -> list[BassPatch]:
-        """v0.11: the bass library (preview_audio_id streams a short audition)."""
-        return _songs("list_patches")()
-
-    @r.get("/kits", response_model=list[DrumKit], tags=["remix"], operation_id="listKits")
-    def list_kits() -> list[DrumKit]:
-        return _songs("list_kits")()
-
-    @r.get("/flip-styles", response_model=list[FlipStyle], tags=["remix"], operation_id="listFlipStyles")
-    def list_flip_styles() -> list[FlipStyle]:
-        return _songs("list_flip_styles")()
-
-    @r.get("/songs/{song_id}/bass/groove", response_model=BassGroove, tags=["remix"], operation_id="getBassGroove")
-    def get_bass_groove(song_id: str, start_bar: int = Query(1, ge=1), bars: int | None = Query(None, ge=1, le=256)) -> BassGroove:
-        """v0.11: BASS DNA of a section of the song's bass stem (409 stems_not_ready until it's split); cached."""
-        return _songs("bass_groove")(song_id, start_bar, bars)
-
-    @r.post("/grooves/render", response_model=GrooveRenderResult, tags=["remix"], operation_id="renderGroove")
-    def render_groove(req: GrooveRenderRequest) -> GrooveRenderResult:
-        """v0.11.4: a section's BASS DNA re-played on a patch (the A/B audition); cached."""
-        return _songs("render_groove")(req)
-
-    @r.post("/mash/scan", response_model=MashScanResult, tags=["remix"], operation_id="scanMash")
-    def scan_mash(req: MashScanRequest) -> MashScanResult:
-        """v0.11.4 MASH RADAR (synchronous, cached features only): the other songs' parts that fit one part of this
-        song, ranked; songs not read yet are in `missing` (queued)."""
-        return _songs("mash_scan")(req)
-
-    @r.post("/mix", response_model=MixInfo, tags=["songs"], operation_id="mixSong")
-    def mix_song(req: MixRequest) -> MixInfo:
-        """v0.7: a song + drop mix (backing-track preview, camera-clip soundtrack)."""
-        return _songs("mix_song")(req)
-
-    @r.post("/personas/design", response_model=Job, tags=["voices"], operation_id="designPersona")
-    def design_persona(req: PersonaDesignRequest) -> Job:
-        return service.design_persona(req)
-
-    @r.post("/personas", response_model=Voice, tags=["voices"], operation_id="savePersona")
-    def save_persona(req: PersonaSaveRequest) -> Voice:
-        return service.save_persona(req)
-
-    @r.get("/personas/candidates/{candidate_id}", response_model=PersonaCandidate, tags=["voices"],
-           operation_id="getPersonaCandidate")
-    def get_persona_candidate(candidate_id: str) -> PersonaCandidate:
-        return service.get_persona_candidate(candidate_id)
-
-    @r.post("/script/preview", response_model=ScriptPreview, tags=["sources"], operation_id="previewScript")
-    def preview_script(req: ScriptPreviewRequest) -> ScriptPreview:
-        return service.preview_script(req)
-
-    # ------------------------------------------------------------------ presets
-    @r.get("/presets", response_model=list[Preset], tags=["presets"], operation_id="listPresets")
-    def list_presets() -> list[Preset]:
-        return service.presets()
-
-    @r.post("/presets", response_model=Preset, tags=["presets"], operation_id="createPreset")
-    def create_preset(preset: Preset) -> Preset:
-        return service.create_preset(preset)
-
-    @r.put("/presets/{preset_id}", response_model=Preset, tags=["presets"], operation_id="updatePreset")
-    def update_preset(preset_id: str, preset: Preset) -> Preset:
-        return service.update_preset(preset_id, preset)
-
-    @r.delete("/presets/{preset_id}", status_code=204, response_class=Response, tags=["presets"], operation_id="deletePreset")
-    def delete_preset(preset_id: str) -> Response:
-        service.delete_preset(preset_id)
-        return Response(status_code=204)
-
-    # ------------------------------------------------------------------ render & export
-    @r.post("/render", response_model=RenderInfo, tags=["render"], operation_id="render")
-    def render(req: RenderRequest) -> RenderInfo:
-        return service.render(req)
-
-    @r.get("/renders/{render_id}", response_model=RenderInfo, tags=["render"], operation_id="getRender")
-    def get_render(render_id: str) -> RenderInfo:
-        return service.get_render(render_id)
-
-    @r.post("/exports", response_model=ExportResult, tags=["export"], operation_id="createExports")
-    def create_exports(req: ExportRequest) -> ExportResult:
-        return service.create_exports(req)
-
-    @r.post("/exports/rekordbox", response_model=RekordboxResult, tags=["export"], operation_id="exportRekordbox")
-    def export_rekordbox(req: RekordboxRequest) -> RekordboxResult:
-        return service.rekordbox(req)
-
-    # ------------------------------------------------------------------ library
-    @r.get("/library", response_model=LibraryPage, tags=["library"], operation_id="listLibrary")
-    def list_library(q: str | None = None, starred: bool | None = None, preset_id: str | None = None,
-                     limit: int = 50, offset: int = 0) -> LibraryPage:
-        return service.library_page(q, starred, preset_id, limit, offset)
-
-    @r.get("/library/{take_id}", response_model=Take, tags=["library"], operation_id="getTake")
-    def get_take(take_id: str) -> Take:
-        return service.get_take(take_id)
-
-    @r.patch("/library/{take_id}", response_model=Take, tags=["library"], operation_id="updateTake")
-    def update_take(take_id: str, patch: TakePatch) -> Take:
-        return service.update_take(take_id, patch)
-
-    @r.delete("/library/{take_id}", status_code=204, response_class=Response, tags=["library"], operation_id="deleteTake")
-    def delete_take(take_id: str) -> Response:
-        service.delete_take(take_id)
-        return Response(status_code=204)
-
-    # ------------------------------------------------------------------ batch
-    @r.post("/batch", response_model=Job, tags=["batch"], operation_id="createBatch")
-    def create_batch(req: BatchRequest) -> Job:
-        return service.create_batch(req)
-
-    # ------------------------------------------------------------------ settings & lexicon
+    # ------------------------------------------------------------------ settings
     @r.get("/settings", response_model=Settings, tags=["settings"], operation_id="getSettings")
     def get_settings() -> Settings:
         return service.settings()
@@ -601,13 +234,73 @@ def create_app(config: Config) -> FastAPI:
     def update_settings(settings: Settings) -> Settings:
         return service.update_settings(settings)
 
-    @r.get("/lexicon", response_model=Lexicon, tags=["settings"], operation_id="getLexicon")
-    def get_lexicon() -> Lexicon:
-        return service.lexicon()
+    # ------------------------------------------------------------------ the library wheel (v1.1)
+    def main_only(request: Request) -> None:
+        if config.token and not hmac.compare_digest(request.headers.get("x-foxbox-main", "").encode(), config.token.encode()):
+            raise ApiException(403, "main_only", "Only FoxBox itself adds a library.", hint="Add it in Settings → Library.")
 
-    @r.put("/lexicon", response_model=Lexicon, tags=["settings"], operation_id="updateLexicon")
-    def update_lexicon(lexicon: Lexicon) -> Lexicon:
-        return service.update_lexicon(lexicon)
+    @r.get("/library/sources", response_model=list[LibrarySource], tags=["library"], operation_id="listLibrarySources")
+    def list_library_sources() -> list[LibrarySource]:
+        return service.library_sources()
+
+    @r.post("/library/sources", response_model=LibrarySource, tags=["library"], operation_id="addLibrarySource",
+            dependencies=[Depends(main_only)], responses={403: {"model": ErrorEnvelope}})
+    def add_library_source(body: LibrarySourceAdd) -> LibrarySource:
+        """Main only (`X-FoxBox-Main`): a folder, rekordbox.xml or _Serato_ folder the user picked in the native dialog.
+        Its first scan runs in the background (state scanning); adding the same one again returns it."""
+        return service.add_library_source(body)
+
+    @r.post("/library/sources/serato", response_model=LibrarySource, tags=["library"], operation_id="detectSeratoLibrary")
+    def detect_serato_library() -> LibrarySource:
+        """Serato's standard library on this Mac (~/Music/_Serato_, or Serato DJ 4's), no path needed. 404
+        serato_not_found when there's none."""
+        return service.detect_serato_library()
+
+    @r.delete("/library/sources/{source_id}", status_code=204, response_class=Response, tags=["library"],
+              operation_id="removeLibrarySource")
+    def remove_library_source(source_id: str) -> Response:
+        """Forgets the library's index; its files are never touched."""
+        service.remove_library_source(source_id)
+        return Response(status_code=204)
+
+    @r.post("/library/sources/{source_id}/rescan", response_model=LibrarySource, tags=["library"],
+            operation_id="rescanLibrarySource")
+    def rescan_library_source(source_id: str) -> LibrarySource:
+        return service.rescan_library_source(source_id)
+
+    @r.get("/library/sources/{source_id}/playlists", response_model=list[LibraryPlaylist], tags=["library"],
+           operation_id="listLibraryPlaylists")
+    def list_library_playlists(source_id: str) -> list[LibraryPlaylist]:
+        return service.library_playlists(source_id)
+
+    @r.get("/library/tracks", response_model=LibraryTrackPage, tags=["library"], operation_id="listLibraryTracks")
+    def list_library_tracks(source_id: str | None = None, playlist_id: str | None = None,
+                            q: str | None = Query(default=None, max_length=200),
+                            sort: Literal["added", "title", "artist", "bpm"] | None = Query(
+                                default=None, description="Default: the playlist's order, else added (newest first)."),
+                            offset: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=10_000)) -> LibraryTrackPage:
+        """One page of tracks (up to 10,000: the wheel can take a whole filtered list at once): all libraries, one, or one
+        playlist; `q` matches title, artist, album, genre and file name, every word."""
+        return service.library_tracks(source_id=source_id, playlist_id=playlist_id, q=q, sort=sort, offset=offset,
+                                      limit=limit)
+
+    @r.get("/library/tracks/{track_id}/art", response_class=Response, tags=["library"], operation_id="getLibraryTrackArt",
+           responses=_BINARY("image/jpeg", "The cover, at most 512 px (or a PNG when it couldn't be resized). 404 no_art: none."))
+    def get_library_track_art(track_id: str) -> Response:
+        path, mime = service.library_art(track_id)
+        return FileResponse(path, media_type=mime, headers={"Cache-Control": "private, max-age=86400"})
+
+    @r.get("/library/tracks/{track_id}/preview", response_class=Response, tags=["library"],
+           operation_id="getLibraryTrackPreview",
+           responses=_BINARY("audio/wav", "~20 s from 40% in (earlier on a short track), 16-bit WAV with 30 ms fades."))
+    def get_library_track_preview(track_id: str) -> Response:
+        return FileResponse(service.library_preview(track_id), media_type="audio/wav")
+
+    @r.post("/library/tracks/{track_id}/song", response_model=Song, tags=["library"], operation_id="loadLibraryTrack")
+    def load_library_track(track_id: str) -> Song:
+        """Load it into REMIX: the upload's pipeline (analysis, then stems on request). A Rekordbox track with a fixed
+        grid keeps it, its key and its cues. The same audio again returns the song it already is."""
+        return service.load_library_track(track_id)
 
     # ------------------------------------------------------------------ audio
     @r.get("/audio/{audio_id}", response_class=Response, tags=["audio"], operation_id="getAudio",

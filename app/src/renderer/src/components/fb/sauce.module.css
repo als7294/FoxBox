@@ -1,0 +1,427 @@
+/* SAUCE's popovers: Hands, Visual, Record (app/design/foxbox-2 markup). */
+.handsGrid {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.colHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+  min-height: 32px;
+}
+.colLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fb-ink-2);
+}
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 66px;
+  padding: 0 14px 0 8px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition:
+    background 0.3s,
+    box-shadow 0.3s;
+}
+.legendRow[data-live] {
+  background: rgba(242, 112, 31, 0.14);
+  box-shadow: inset 0 0 0 1.5px rgba(242, 112, 31, 0.55);
+}
+.legendIcon {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.legendText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.legendB {
+  font-size: 16px;
+  font-weight: 800;
+}
+.legendA {
+  font-size: 13px;
+  color: var(--fb-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 11px var(--fb-mono); /* ≥ 11px (FOXBOX2_COMPACT.md) */
+  letter-spacing: 0.1em;
+  color: #ff9c5c;
+}
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff8a3d;
+  box-shadow: 0 0 8px #ff8a3d;
+  animation: fbRec 1.6s ease-in-out infinite;
+}
+.editBtn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.2s;
+}
+.editBtn[aria-pressed='true'] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.shapes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.shape {
+  position: relative;
+  height: 132px;
+  padding: 10px;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--fb-ink);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition:
+    background 0.2s,
+    box-shadow 0.2s,
+    transform 0.12s;
+}
+.shape:hover {
+  filter: brightness(1.12);
+}
+.shape[data-on] {
+  background: rgba(242, 112, 31, 0.9);
+  color: var(--fb-ink-on-accent);
+}
+.shape[data-live]:not([data-on]) {
+  box-shadow: inset 0 0 0 1.5px rgba(242, 112, 31, 0.55);
+}
+.shape[data-selected] {
+  background: rgba(242, 112, 31, 0.16);
+  box-shadow: inset 0 0 0 2px var(--fb-accent);
+}
+.shapeName {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+.shapeIcon {
+  margin-top: 10px;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+}
+.chip {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.1);
+}
+.shape[data-on] .chip {
+  background: var(--fb-ink-on-accent);
+  color: var(--fb-ink);
+}
+.shape[data-selected] .chip {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+
+/* Visual */
+.visGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+.vis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  transition: transform 0.12s;
+}
+.vis:active {
+  transform: scale(0.97);
+}
+.visTile {
+  width: 100%;
+  height: 100px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #140c08;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transition: box-shadow 0.2s;
+}
+.vis[aria-checked='true'] .visTile {
+  box-shadow:
+    0 0 0 3px var(--fb-accent),
+    0 10px 24px -10px rgba(242, 112, 31, 0.6);
+}
+.visCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.visOff {
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 243, 230, 0.85);
+}
+.visName {
+  font-size: 15px;
+  font-weight: 700;
+  padding-left: 4px;
+}
+
+/* Record */
+.recPanel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 20px 16px 16px;
+  margin-right: 40px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.recBtn {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.18),
+    0 6px 16px -6px rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.recBtn:active {
+  transform: scale(0.96);
+}
+.recMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e5402b;
+  box-shadow: 0 0 18px rgba(229, 64, 43, 0.6);
+  transition: all 0.25s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.recBtn[aria-pressed='true'] .recMark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+.recText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.recLabel {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.recSub {
+  font-size: 14px;
+  color: var(--fb-ink-2);
+}
+.recTime {
+  margin-left: auto;
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+.takes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.take {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 60px;
+  padding: 0 10px 0 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: grab;
+}
+.take:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.grip {
+  font-size: 16px;
+  color: #8f8275;
+  letter-spacing: -2px;
+}
+.takeArt {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f7a35c, #e8601a);
+  flex: none;
+}
+.takeName {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.takeDur {
+  font-size: 14px;
+  color: var(--fb-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.finder {
+  margin-left: auto;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 14px;
+  font-weight: 600;
+  flex: none;
+}
+.empty {
+  font-size: 14px;
+  color: var(--fb-ink-2);
+  padding: 4px;
+}
+
+/* Edit shapes (README §5) */
+.editBtn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.2s;
+}
+.editBtn[aria-pressed='true'] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.shape[data-locked] {
+  opacity: 0.5;
+  cursor: default;
+}
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(242, 112, 31, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(242, 112, 31, 0.45);
+}
+.editHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.editTitle {
+  font-size: 17px;
+  font-weight: 700;
+}
+.editReset {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffb27a;
+  background: rgba(255, 178, 122, 0.1);
+}
+.editChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.editChip {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+}
+.editChip:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.editChip[aria-pressed='true'] {
+  background: #f6efe6;
+  color: #1c1611;
+}
+.editChip span {
+  font-size: 12px;
+  opacity: 0.6;
+}
+.editHint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fb-ink-2);
+}
+
+/* Compact (FOXBOX2_COMPACT.md): editing shapes folds the gestures column; the six cards go in one row */
+@media (max-width: 1439px), (max-height: 899px) {
+  .handsGrid[data-edit] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .handsGrid[data-edit] > .col:first-child {
+    display: none;
+  }
+  .handsGrid[data-edit] .shapes {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}

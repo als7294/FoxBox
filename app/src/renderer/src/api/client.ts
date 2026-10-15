@@ -3,7 +3,7 @@ import { hideHome } from '@/lib/paths'
 import { bridge, isMockMode } from '@/env'
 import type { paths } from './schema'
 import { ipcTransport, webTransport, type Transport } from './transport'
-import type { ApiErrorBody } from './types'
+import type { ApiErrorBody, Job } from './types'
 
 /** Engine error with the engine's own {code, message, hint, retryable}. */
 export class EngineError extends Error {
@@ -27,9 +27,7 @@ export class EngineError extends Error {
 }
 
 export function isAbort(err: unknown): boolean {
-  return (
-    (err instanceof DOMException && err.name === 'AbortError') || (err instanceof EngineError && err.code === 'aborted')
-  )
+  return (err instanceof DOMException && err.name === 'AbortError') || (err instanceof EngineError && err.code === 'aborted')
 }
 
 function pickTransport(): { baseUrl: string; transport: Transport } {
@@ -42,6 +40,12 @@ function pickTransport(): { baseUrl: string; transport: Transport } {
 const { baseUrl, transport } = pickTransport()
 
 export const api = createClient<paths>({ baseUrl, fetch: transport })
+
+/** 2.0 library wheel: a track's cover or preview, vbx://art|preview/<id> in Electron, the engine's route otherwise. */
+export function libraryUrl(kind: 'art' | 'preview', trackId: string): string {
+  const id = encodeURIComponent(trackId)
+  return bridge() && !isMockMode() ? `vbx://${kind}/${id}` : `${baseUrl}/api/library/tracks/${id}/${kind}`
+}
 
 /** Audio URL for GET /api/audio/{id}: vbx://audio/<id> in Electron, same-origin /api/audio/<id> otherwise. */
 export function audioUrl(audioId: string): string {
@@ -69,4 +73,19 @@ export async function unwrap<T>(pending: Promise<FetchResult<T>>): Promise<T> {
   if (response.ok) return data as T
   const body = (error as { error?: ApiErrorBody } | undefined)?.error ?? null
   throw new EngineError(response.status, body)
+}
+
+const SETTLED: Job['state'][] = ['done', 'error', 'cancelled']
+
+/** Polls GET /api/jobs/{id} until the job settles; resolves when done, throws its error otherwise. */
+export async function waitJob(job: Job, onProgress?: (j: Job) => void, everyMs = 300): Promise<Job> {
+  let j = job
+  while (!SETTLED.includes(j.state)) {
+    onProgress?.(j)
+    await new Promise((r) => setTimeout(r, everyMs))
+    j = await unwrap(api.GET('/api/jobs/{job_id}', { params: { path: { job_id: j.id } } }))
+  }
+  onProgress?.(j)
+  if (j.state !== 'done') throw new EngineError(500, j.error ?? { code: j.state, message: `${j.kind} ${j.state}` })
+  return j
 }

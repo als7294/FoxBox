@@ -9,15 +9,16 @@
 #     python/          uv-managed CPython (python-build-standalone), trimmed
 #     venv/            `uv venv --relocatable` with the locked dependencies; fvwks-code.pth puts ../code on sys.path
 #     requirements.txt what was installed (uv export, no header)
-#   code/              our packages: fvwks_contracts, fvwks_voice, fvwks_fx, fvwks_server, fvwks_synth (+ package data,
-#                      and surgepy in fvwks_synth/_native when build_surgepy.sh has run)
+#   code/              our packages: fvwks_contracts, fvwks_voice, fvwks_fx, fvwks_server (FoxBox 2.0: REMIX's songs
+#                      and stems only), plus CODE_ONLY's small pure-Python dependencies (mutagen: the library wheel's
+#                      tags), so adding one never changes the runtime
 #   components.json    {"runtime": sha256, "code": sha256}: each a sha256 of the component's sorted file manifest
 #   bin/fvwks-engine   launcher with the same flags as the dev entry point:
 #                      --port 0 --token T --data-dir D [--export-dir E] --exit-with-parent
 # Every .pyc is unchecked-hash (never rewritten) and records /install/engine/... as its source path.
 #
 # Needs engine/uv.lock (git-ignored until integration; created with `uv lock` if missing).
-# Models are not bundled: voices download into the user's cache on first use.
+# Models are not bundled: the stem splitter downloads into the user's cache on the first split.
 set -euo pipefail
 
 ENGINE="$(cd "$(dirname "$0")/../.." && pwd -P)"
@@ -58,11 +59,19 @@ done
 echo "==> dependencies from uv.lock"
 (cd "$ENGINE" && uv export --quiet --frozen --no-dev --no-hashes --no-header --no-emit-workspace \
   --package fvwks-server -o "$RT/requirements.txt")
+# CODE_ONLY's packages leave requirements.txt (with their "# via" lines) for code/, at their locked versions.
+CODE_ONLY="mutagen"
+CODE_REQS="$(mktemp)"
+grep -E "^($CODE_ONLY)==" "$RT/requirements.txt" > "$CODE_REQS"
+awk -v pat="^($CODE_ONLY)==" '$0 ~ pat {skip = 1; next} skip && /^ +#/ {next} {skip = 0; print}' \
+  "$RT/requirements.txt" > "$RT/requirements.txt.tmp" && mv "$RT/requirements.txt.tmp" "$RT/requirements.txt"
 install() { VIRTUAL_ENV="$RT/venv" uv pip install --quiet --python "$RT/venv/bin/python" --link-mode copy "$@"; }
 install -r "$RT/requirements.txt"
 # Our packages go to code/, without dist-info (nothing reads their metadata), found through a .pth whose relative
 # line site.py resolves against site-packages, so the runtime never changes when only our code does.
-install --no-deps --target "$OUT/code" "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server" "$ENGINE/synth"
+install --no-deps --target "$OUT/code" "$ENGINE/contracts" "$ENGINE/voice" "$ENGINE/fx" "$ENGINE/server"
+install --no-deps --target "$OUT/code" -r "$CODE_REQS"
+rm -f "$CODE_REQS"
 rm -rf "$OUT"/code/*.dist-info "$OUT/code/bin"
 echo "../../../../../code" > "$SITE/fvwks-code.pth"
 
@@ -125,8 +134,7 @@ chmod +x "$OUT/bin/fvwks-engine"
 
 echo "==> smoke test"
 "$OUT/bin/fvwks-engine" --version
-"$RT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, fvwks_synth.bass, mutagen, soundfile
-from fvwks_server.writer import cover_art; cover_art()  # package data (the AIFF cover art) is in'
+"$RT/venv/bin/python" -I -B -c 'import fvwks_server.app, fvwks_voice.api, fvwks_fx.api, mlx.core, soundfile, mutagen'
 echo "==> no build paths"
 # Fails the build if any file (or symlink) still names the build folder, uv's interpreter folder or the builder's
 # home, also in the dash-escaped form (/Users/x -> -Users-x) that temp folders use.

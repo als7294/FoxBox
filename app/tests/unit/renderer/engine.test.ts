@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react'
-import { createElement } from 'react'
+import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EngineStatus as Status } from '../../../src/shared/bridge'
-import { EngineStatus } from '../../../src/renderer/src/components/layout/EngineStatus'
 import { bootStage, reached } from '../../../src/renderer/src/state/bootStage'
 import { engineView, useEngine, watchEngineRestarts } from '../../../src/renderer/src/state/engine'
-import { useUi } from '../../../src/renderer/src/state/ui'
 
 afterEach(cleanup)
 
@@ -48,27 +45,6 @@ describe('engine store', () => {
     expect(engineView(status({}))).toBe('ready')
     expect(engineView(status({ health: { state: 'error', message: 'espeak-ng missing' } }))).toBe('error')
     expect(engineView(status({ health: { state: 'loading_model', progress: 0.4 } }))).toBe('loading')
-  })
-})
-
-describe('engine status pill', () => {
-  it('shows start-up states only while booting; afterwards an engine coming back reads RECONNECTING', () => {
-    useUi.getState().setBooting(true)
-    useEngine.getState().setStatus(status({ state: 'starting', pid: null, health: null, setup: 'update', detail: 'Updating the engine (uv sync)…' }))
-    render(createElement(EngineStatus))
-    const pill = screen.getByTestId('engine-status')
-    expect(pill).toHaveTextContent('UPDATING ENGINE')
-    expect(pill).toHaveAttribute('title', 'Updating the engine (uv sync)…')
-    expect(pill).toHaveAttribute('data-tone', 'busy')
-    act(() => useEngine.getState().setStatus(status({ state: 'starting', pid: null, health: null, setup: 'install' })))
-    expect(screen.getByTestId('engine-status')).toHaveTextContent('INSTALLING ENGINE')
-    act(() => useEngine.getState().setStatus(status({ state: 'starting', pid: 7, health: null, setup: null })))
-    expect(screen.getByTestId('engine-status')).toHaveTextContent('STARTING')
-    // After the boot screen: never the normal start-up states.
-    act(() => useUi.getState().setBooting(false))
-    expect(screen.getByTestId('engine-status')).toHaveTextContent('RECONNECTING')
-    act(() => useEngine.getState().setStatus(status({})))
-    expect(screen.getByTestId('engine-status')).toHaveTextContent('READY')
   })
 })
 

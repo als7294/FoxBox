@@ -1,5 +1,5 @@
 import { audioUrl } from '@/api/client'
-import { decodeAudio } from './player'
+import { decodeAudio } from './context'
 
 const MAX_ENTRIES = 16
 const buffers = new Map<string, Promise<AudioBuffer>>()

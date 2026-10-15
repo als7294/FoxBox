@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { handShapes, type HandShape, type Pt, type Pt3 } from '@/components/camera/camMath'
+import { handShapes, type HandShape, type Pt } from '@/components/camera/camMath'
 import { FxShapes, HOLD_MS, fingerCurls, rawShape, tremble } from '@/components/camera/fxShapes'
 import type { HandGesture } from '@/components/camera/vision'
+import { hand3d } from './hand3d'
 
 const ASPECT = 16 / 9
 
@@ -36,11 +37,14 @@ const _ = false
 describe("STRINGS' BEAT FX hand shapes", () => {
   it('reads each shape off the landmarks where the recognizer says nothing', () => {
     expect(rawShape(shapeOf(hand(0.3, 0.6, [_, _, _, _, _])), ASPECT)).toBe('fist')
-    expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, O, O, O])), ASPECT)).toBe('open_palm')
+    expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, O, O, O])), ASPECT)).toBeNull() // open: the playing pose, never an FX
+    expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, O, O, O]), 'open'), ASPECT)).toBeNull()
     expect(rawShape(shapeOf(hand(0.3, 0.6, [_, O, O, _, _])), ASPECT)).toBe('peace')
     expect(rawShape(shapeOf(hand(0.3, 0.6, [_, O, _, _, O])), ASPECT)).toBe('horns') // 🤘
     expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, _, _, O])), ASPECT)).toBe('horns') // ILoveYou
     expect(rawShape(shapeOf(hand(0.3, 0.6, [_, O, _, _, _])), ASPECT)).toBe('point_up')
+    expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, _, _, _])), ASPECT)).toBeNull() // an L: FRAME's half, no point
+    expect(rawShape(shapeOf(hand(0.3, 0.6, [O, O, _, _, _]), 'point'), ASPECT)).toBeNull()
     expect(rawShape(shapeOf(hand(0.3, 0.3, [_, O, _, _, _], { turn: true })), ASPECT)).toBe('point_down')
     const thumbDown = hand(0.3, 0.6, [_, _, _, _, _])
     thumbDown[3] = { x: thumbDown[2]!.x, y: thumbDown[2]!.y + 0.04 } // the thumb out, pointing down the frame
@@ -53,6 +57,10 @@ describe("STRINGS' BEAT FX hand shapes", () => {
     const pinch = hand(0.3, 0.6, [_, O, _, _, _])
     pinch[4] = { ...pinch[8]! } // the thumb's tip on the index's
     expect(rawShape(shapeOf(pinch), ASPECT)).toBe('pinch')
+    expect(rawShape(shapeOf(pinch, 'fist'), ASPECT)).toBe('pinch') // the recognizer reads the curled rest as a fist
+    const side = hand3d([0, 0, 1, 1, 1]) // in 3D the tips touch, in the picture they're apart (a hand side-on)
+    side.world[4] = { ...side.world[8]! }
+    expect(handShapes([side], 0, null, ASPECT).left!.pinch).toBeCloseTo(1)
     const fist = hand(0.3, 0.6, [_, _, _, _, _])
     fist[4] = { ...fist[8]! } // a fist: the thumb over the curled index
     expect(rawShape(shapeOf(fist), ASPECT)).toBe('fist')
@@ -69,17 +77,17 @@ describe("STRINGS' BEAT FX hand shapes", () => {
   it(`holds a shape after ${HOLD_MS} ms, lets it go ${HOLD_MS} ms after it's gone, ignores a flicker`, () => {
     const fx = new FxShapes()
     const fist = hand(0.3, 0.6, [_, _, _, _, _])
-    const open = hand(0.3, 0.6, [O, O, O, O, O])
+    const peace = hand(0.3, 0.6, [_, O, O, _, _])
     const at = (points: Pt[] | null, t: number) =>
       fx.step(points ? handShapes([{ points, gesture: null }], t, null, ASPECT) : handShapes([], t), t, ASPECT).hands?.left ?? null
     expect(at(fist, 0)?.shape).toBeNull()
     expect(at(fist, 100)?.shape).toBeNull()
     expect(at(fist, HOLD_MS + 10)).toMatchObject({ shape: 'fist', since: HOLD_MS + 10 })
-    expect(at(open, 230)?.shape).toBe('fist') // a flicker of another shape...
+    expect(at(peace, 230)?.shape).toBe('fist') // a flicker of another shape...
     expect(at(fist, 300)?.shape).toBe('fist') // ...doesn't switch it
-    expect(at(open, 400)?.shape).toBe('fist')
-    expect(at(open, 400 + HOLD_MS + 10)?.shape).toBe('open_palm') // held long enough: it does
-    expect(at(null, 700)?.shape).toBe('open_palm') // a dropped frame keeps it
+    expect(at(peace, 400)?.shape).toBe('fist')
+    expect(at(peace, 400 + HOLD_MS + 10)?.shape).toBe('peace') // held long enough: it does
+    expect(at(null, 700)?.shape).toBe('peace') // a dropped frame keeps it
     expect(fx.step(handShapes([], 1100), 1100, ASPECT).hands).toBeNull() // gone
   })
 
@@ -141,33 +149,6 @@ describe("STRINGS' BEAT FX hand shapes", () => {
     expect(tremble([{ t: 0, x: 0, y: 0 }, { t: 60, x: 1, y: 2 }, { t: 140, x: 2.33, y: 4.67 }, { t: 200, x: 3.33, y: 6.67 }])).toBeCloseTo(0, 1) // a steady move, uneven results
   })
 
-  /** A hand in metres (MediaPipe's world landmarks): the palm flat, fingers up the frame along their knuckles; `fold[f]`
-   *  folds finger f (thumb first) toward the palm, 0 straight … 1 a fist's (MCP 90°, PIP 100°, DIP 70°; the thumb's
-   *  tip tucked in by the middle knuckle). With its points in the picture (0-1, about `x`). */
-  function hand3d(fold: number[], x = 0.3): { points: Pt[]; world: Pt3[]; gesture: null } {
-    const p: [number, number, number][] = Array.from({ length: 21 }, () => [0, 0, 0])
-    ;[[-0.03, -0.085], [-0.01, -0.09], [0.01, -0.087], [0.03, -0.08]].forEach(([kx, ky], i) => {
-      const k = 5 + i * 4
-      const n = Math.hypot(kx!, ky!)
-      let [px, py, pz, phi] = [kx!, ky!, 0, 0]
-      p[k] = [px, py, pz]
-      ;[0.045, 0.027, 0.022].forEach((len, j) => {
-        phi += (fold[i + 1]! * [90, 100, 70][j]! * Math.PI) / 180
-        px += (len * Math.cos(phi) * kx!) / n
-        py += (len * Math.cos(phi) * ky!) / n
-        pz += len * Math.sin(phi)
-        p[k + 1 + j] = [px, py, pz]
-      })
-    })
-    const t = fold[0]!
-    const mix = (a: number[], b: number[]): [number, number, number] => [0, 1, 2].map((i) => a[i]! + (b[i]! - a[i]!) * t) as [number, number, number]
-    p[1] = [-0.025, -0.025, 0]
-    p[2] = [-0.045, -0.045, 0]
-    p[3] = mix([-0.065, -0.065, 0], [-0.03, -0.06, 0.02])
-    p[4] = mix([-0.085, -0.085, 0], [0, -0.06, 0.03])
-    const world = p.map(([wx, wy, wz]) => ({ x: wx, y: wy, z: wz }))
-    return { world, points: world.map((q) => ({ x: x + (q.x * 2) / ASPECT, y: 0.6 + q.y * 2 })), gesture: null }
-  }
   const curlsOf = (fold: number[]) => {
     const h = hand3d(fold)
     return fingerCurls(handShapes([h], 0, null, ASPECT).left!, ASPECT)

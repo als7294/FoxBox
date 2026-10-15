@@ -160,7 +160,8 @@ def test_v2_library_migrates_to_transcript_state(tmp_path):
     conn.close()
     lib = Library(path)
     try:
-        assert lib.schema_version == SCHEMA_VERSION == 7
+        assert lib.schema_version == SCHEMA_VERSION == 8
+        assert lib.query("SELECT COUNT(*) AS n FROM lib_sources")[0]["n"] == 0  # v8 (2.0: the library wheel)
         assert lib.get("sources", "src_1")["transcript_state"] == "none"
         assert lib.count("songs") == lib.count("mixes") == 0  # v4 (v0.7 songs) arrived too
         song = lib.insert("songs", name="s", audio_id="a", info={})

@@ -1,33 +1,41 @@
 import { useEffect, useRef } from 'react'
 import { bridge } from '@/env'
+import { useFb } from '@/components/fb/fbStore'
+import { UpdateBanner } from '@/components/updates/UpdateBanner'
 import { useToasts } from '@/state/toasts'
-import { useUi } from '@/state/ui'
 import { animate } from '@/visuals/motion'
 import styles from './feedback.module.css'
 
-/** Bottom-right toast: title in the display face, detail below; export toasts carry a draggable file. */
+/** Under the notch (below the island when it's open, and REMIX's Beat FX badge when it's up): the update, the toast. */
+export function NotchStack() {
+  const top = (useFb((f) => f.island) ? 184 : 52) + (useFb((f) => f.badge) ? 54 : 0)
+  return (
+    <div className={styles.notch} style={{ top: `calc(${top}px + var(--island-drop, 0px))` }}>
+      <UpdateBanner />
+      <Toast />
+    </div>
+  )
+}
+
+/** The toast, a glass pill (2.6 s); detail below; export toasts carry a draggable file. */
 export function Toast() {
   const items = useToasts((s) => s.items)
   const dismiss = useToasts((s) => s.dismiss)
   const t = items[items.length - 1]
   const ref = useRef<HTMLDivElement>(null)
   const b = bridge()
-  // REMIX shows notifications in its transport's status display instead (design/remix: no floating toasts there).
-  const onRemix = useUi((u) => u.screen === 'remix')
   useEffect(() => {
     if (!t) return
     animate(
       ref.current,
       [
-        { opacity: 0, transform: 'translateY(-14px)', clipPath: 'inset(0 0 100% 0)' },
-        { opacity: 1, offset: 0.5 },
-        { opacity: 0.4, offset: 0.6 },
-        { opacity: 1, transform: 'none', clipPath: 'inset(0 0 0 0)' },
+        { opacity: 0, transform: 'translateY(-8px)' },
+        { opacity: 1, transform: 'none' },
       ],
-      { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' },
+      { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' },
     )
   }, [t?.id])
-  if (!t || onRemix) return null
+  if (!t) return null
   return (
     <div ref={ref} className={styles.toast} data-tone={t.tone} role={t.tone === 'error' ? 'alert' : 'status'} aria-live="polite">
       <div className={styles.toastHead}>
@@ -46,7 +54,7 @@ export function Toast() {
             b.startDrag(t.dragPath!)
           }}
         >
-          ⠿ DRAG THE FILE OUT
+          ⠿ Drag the file out
         </div>
       )}
       {t.actions && t.actions.length > 0 && (

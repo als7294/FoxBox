@@ -1,0 +1,17 @@
+/* The 2.0 design's base for everything it draws ([data-fb]: the shell, the settings window, the launch screen), at no
+   specificity so each component's own styles win: plain buttons and the design's focus ring. */
+:where([data-fb]) button {
+  font: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+:where([data-fb]) :focus-visible {
+  outline: 3px solid var(--fb-accent);
+  outline-offset: 2px;
+}
+:where([data-fb]) input::placeholder {
+  color: #8f8275;
+}

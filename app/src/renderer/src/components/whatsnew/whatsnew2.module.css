@@ -1,0 +1,245 @@
+/* WHAT'S NEW 2.0: the launch film full-bleed, the copy and cards in its darker right side (the launch screen's layout),
+   glass cards with S3's hand demos, the accent CTA. */
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden auto;
+  background: #0b0608;
+  color: var(--fb-ink);
+  font-family: var(--fb-font);
+  animation: wn2In 0.5s ease-out both;
+}
+@keyframes wn2In {
+  from {
+    opacity: 0;
+  }
+}
+.film {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.shade {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(270deg, rgba(10, 6, 9, 0.9) 0%, rgba(10, 6, 9, 0.78) 34%, rgba(10, 6, 9, 0.25) 56%, rgba(10, 6, 9, 0) 66%);
+}
+.col {
+  position: relative;
+  margin-left: 50%;
+  margin-right: 56px;
+  min-height: 100%;
+  padding: 72px 0 40px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+}
+.kicker {
+  margin: 0;
+  font: 600 13px var(--fb-mono);
+  letter-spacing: 0.14em;
+  color: var(--fb-accent);
+}
+.title {
+  margin: 0;
+  max-width: 620px;
+  font: 800 44px/1.05 var(--fb-font);
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.45);
+}
+.cards {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 680px;
+}
+.card {
+  padding: 12px 14px 16px;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(28, 22, 18, 0.66);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  animation: wn2Card 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.card:nth-child(3) {
+  animation-delay: 0.16s;
+}
+.card:nth-child(4) {
+  animation-delay: 0.24s;
+}
+@keyframes wn2Card {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.demo {
+  height: 116px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #140c08;
+}
+.demo canvas {
+  max-height: 116px;
+  width: auto !important;
+}
+.cardTitle {
+  font-size: 20px;
+  font-weight: 700;
+}
+.cardBody {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--fb-ink-2);
+}
+/* FoxBox VOICE: WHAT'S NEW's glass with Voice's aurora (its ARCTIC teal #5ce6cf into violet) */
+.voice {
+  max-width: 680px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(92, 230, 207, 0.16), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(100% 120% at 100% 100%, rgba(140, 110, 255, 0.14), rgba(0, 0, 0, 0) 60%), rgba(20, 22, 30, 0.7);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.5px rgba(160, 230, 255, 0.22);
+}
+.voiceFilm {
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  background:
+    radial-gradient(70% 90% at 25% 30%, rgba(92, 230, 207, 0.75), rgba(92, 230, 207, 0) 70%),
+    radial-gradient(60% 80% at 75% 65%, rgba(140, 110, 255, 0.7), rgba(140, 110, 255, 0) 70%),
+    radial-gradient(50% 60% at 60% 20%, rgba(255, 120, 200, 0.45), rgba(255, 120, 200, 0) 70%), #0b1020;
+  background-size: 200% 200%;
+  animation: wn2Aurora 12s ease-in-out infinite alternate;
+}
+@keyframes wn2Aurora {
+  to {
+    background-position: 100% 60%;
+  }
+}
+.voiceText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.voiceLockup {
+  height: 20px;
+  width: auto;
+}
+.voiceLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--fb-ink-2);
+}
+.voiceCta {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  color: #071514;
+  background: linear-gradient(90deg, #5ce6cf, #9b8cff);
+}
+.voiceCta:hover {
+  filter: brightness(1.08);
+}
+.voiceSmall {
+  font-size: 13px;
+  color: #9aabc2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .voiceFilm {
+    animation: none;
+  }
+}
+.all summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fb-ink-2);
+}
+.all[open] summary {
+  margin-bottom: 8px;
+}
+.more {
+  margin: 0;
+  padding-left: 18px;
+  max-width: 620px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fb-ink-2);
+}
+.ctas {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.go,
+.how {
+  height: 50px;
+  padding: 0 24px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.go {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.how {
+  background: rgba(255, 255, 255, 0.1);
+}
+.how:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.legacy {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fb-ink-2);
+}
+.legacy a {
+  color: var(--fb-accent);
+  text-underline-offset: 3px;
+}
+@media (max-width: 1100px) {
+  .col {
+    margin-left: 40%;
+    margin-right: 32px;
+  }
+  .title {
+    font-size: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .card {
+    animation: none;
+  }
+}

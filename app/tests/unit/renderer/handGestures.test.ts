@@ -7,6 +7,7 @@ const hand = (at: Pt, { pinched = false, gesture = null as HandShape['gesture'] 
   open: 0,
   fingers: 0,
   gesture,
+  isL: false,
   points: Array.from({ length: 21 }, () => ({ ...at })),
   pinched,
   twist: 0,

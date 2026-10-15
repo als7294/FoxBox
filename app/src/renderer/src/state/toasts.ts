@@ -31,8 +31,8 @@ export const useToasts = create<ToastStore>((set, get) => ({
   items: [],
   push(t) {
     const id = nextId++
-    // The design's 3.8 s (the toast sits over the OUTPUT actions); errors stay longer.
-    const timeoutMs = t.timeoutMs ?? (t.tone === 'error' ? 10_000 : t.actions?.length || t.dragPath ? 6_000 : 3_800)
+    // The design's 2.6 s; errors, and toasts with something to press or drag, stay longer.
+    const timeoutMs = t.timeoutMs ?? (t.tone === 'error' ? 10_000 : t.actions?.length || t.dragPath ? 6_000 : 2_600)
     // Never a home folder on screen (anonymous act): an engine error or a path in the text shows it as "~".
     const shown = { ...t, message: hideHome(t.message), ...(t.detail ? { detail: hideHome(t.detail) } : {}) }
     const rest = get().items.filter((x) => x.message !== shown.message)

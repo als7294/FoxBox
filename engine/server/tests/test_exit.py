@@ -48,24 +48,41 @@ def test_mlx_exit_hook_belongs_to_the_main_thread(tmp_path):
         assert out.returncode == 0, (out.returncode, out.stderr[-3000:])
 
 
-def test_engine_exits_cleanly_after_kokoro_ran_on_main_and_worker_threads(tmp_path):
-    """What the server suite did: a line over HTTP (a worker thread), audition clips rendered on the main thread,
-    then another line over HTTP. Unfixed, the process segfaulted at exit every time."""
+def test_engine_exits_cleanly_after_the_stem_splitter_ran_on_worker_threads(tmp_path):
+    """FoxBox 2.0's MLX work: a song split into stems (a job on a worker thread), twice, then the process exits.
+    Unfixed, MLX's per-thread cache made the process segfault at exit."""
+    from fvwks_voice import stems
+
+    if not stems.get_splitter().is_installed():
+        pytest.skip("stems-htdemucs isn't installed")
     code = f"""
+        import io, time, wave
+
+        import numpy as np
         from fastapi.testclient import TestClient
 
         from fvwks_server.app import create_app
         from fvwks_server.config import Config
 
+        def song(seed):
+            sr, rng = 44100, np.random.default_rng(seed)
+            x = (0.3 * np.sin(2 * np.pi * 55 * np.arange(sr * 3) / sr) + 0.05 * rng.standard_normal(sr * 3))
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+                w.writeframes((np.clip(x, -1, 1) * 30000).astype("<i2").tobytes())
+            return buf.getvalue()
+
         config = Config.from_env({str(tmp_path / "data")!r}, {str(tmp_path / "exports")!r}, "t")
         with TestClient(create_app(config), headers={{"Authorization": "Bearer t"}}) as client:
-            def line(script):
-                res = client.post("/api/sources/tts", json={{"script": script, "voice_id": "kokoro:am_fenrir"}})
-                assert res.status_code == 200, res.text
-
-            line("First line, on a worker thread.")
-            client.app.state.service.prerender_samples()  # Kokoro on the main thread
-            line("A different line, on a worker thread again.")
+            for seed in (1, 2):
+                s = client.post("/api/songs", files={{"file": ("s.wav", song(seed), "audio/wav")}}).json()
+                job = client.post(f"/api/songs/{{s['id']}}/stems").json()
+                deadline = time.monotonic() + 120
+                while job["state"] in ("queued", "running") and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                    job = client.get(f"/api/jobs/{{job['id']}}").json()
+                assert job["state"] == "done", job
     """
     out = _run(code, tmp_path)
     assert out.returncode == 0, (out.returncode, out.stderr[-3000:])

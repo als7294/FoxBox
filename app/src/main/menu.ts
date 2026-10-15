@@ -11,12 +11,6 @@ export function buildMenu(
   isDev: boolean,
   zoom: (step: -1 | 0 | 1) => void,
 ): Menu {
-  const item = (label: string, accelerator: string, command: MenuCommand): MenuItemConstructorOptions => ({
-    label,
-    accelerator,
-    registerAccelerator: false,
-    click: () => send(command),
-  })
   const template: MenuItemConstructorOptions[] = [
     // The app menu by hand: no ⌘H on Hide, which hides the output window (a projector) along with the app.
     {
@@ -36,10 +30,6 @@ export function buildMenu(
     {
       label: 'File',
       submenu: [
-        item('Final Render', 'CmdOrCtrl+Enter', 'render-final'),
-        item('Export', 'CmdOrCtrl+Shift+E', 'export'),
-        item('Save Preset…', 'CmdOrCtrl+S', 'save-preset'),
-        { type: 'separator' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => send('open-settings') },
         { type: 'separator' },
         { role: 'close' },
@@ -47,17 +37,13 @@ export function buildMenu(
     },
     { role: 'editMenu' },
     {
-      label: 'Playback',
-      submenu: [item('Play / Pause', 'Space', 'play'), item('A/B Dry–Wet', '\\', 'toggle-ab'), item('Loop', 'L', 'toggle-loop')],
-    },
-    {
       label: 'View',
       submenu: [
-        // ⌘R restarts the page (back to STUDIO, mid-set): dev builds only.
+        // ⌘R restarts the page (mid-set): dev builds only.
         ...(isDev
           ? ([{ role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' }, { type: 'separator' }] as MenuItemConstructorOptions[])
           : []),
-        // Page zoom is display-only too: ⌘+ / ⌘− reach the page first (REMIX zooms its timeline; elsewhere the page zooms).
+        // Page zoom is display-only too: ⌘+ / ⌘− reach the page first.
         { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', registerAccelerator: false, click: () => zoom(0) },
         { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', registerAccelerator: false, click: () => zoom(1) },
         { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', registerAccelerator: false, click: () => zoom(-1) },
@@ -68,10 +54,7 @@ export function buildMenu(
     { role: 'windowMenu' },
     {
       role: 'help',
-      submenu: [
-        { label: 'Keyboard Shortcuts', accelerator: '?', registerAccelerator: false, click: () => send('shortcuts') },
-        { label: 'Open Engine Logs', click: openLogs },
-      ],
+      submenu: [{ label: 'Open Engine Logs', click: openLogs }],
     },
   ]
   return Menu.buildFromTemplate(template)

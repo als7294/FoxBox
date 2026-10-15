@@ -1,0 +1,129 @@
+/* The launch screen (2.0): the fox's room film full-bleed, the UI in its darker right side over a soft shade. */
+.launch {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #0b0608;
+  cursor: pointer;
+  color: var(--fb-ink);
+  font-family: var(--fb-font);
+  overflow: hidden;
+}
+.launch[data-leaving] {
+  animation: fbLaunchOut 0.7s ease forwards;
+}
+.film {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* the right side's contrast for the text, and a little at the bottom */
+.shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(270deg, rgba(10, 6, 9, 0.84) 0%, rgba(10, 6, 9, 0.66) 26%, rgba(10, 6, 9, 0.2) 46%, rgba(10, 6, 9, 0) 58%),
+    linear-gradient(0deg, rgba(10, 6, 9, 0.35), rgba(10, 6, 9, 0) 30%);
+}
+.col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 61%;
+  right: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  animation: fbRise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both 0.2s;
+}
+.wordmark {
+  width: min(520px, 100%);
+  height: auto;
+  filter: drop-shadow(0 2px 24px rgba(0, 0, 0, 0.45));
+  user-select: none;
+}
+.status {
+  margin-top: 26px;
+  min-height: 22px;
+  max-width: 420px;
+  font: 500 16px var(--fb-font);
+  color: var(--fb-ink-2);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+}
+.status[data-ready] {
+  color: var(--fb-ink);
+}
+.track {
+  margin-top: 14px;
+  width: min(360px, 100%);
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff4d2e, #ffb27a);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.5, 0, 0.3, 1);
+}
+.foot {
+  position: absolute;
+  bottom: 32px;
+  left: 0;
+  font: 500 12px var(--fb-mono);
+  letter-spacing: 0.14em;
+  color: rgba(246, 239, 230, 0.5);
+}
+.update {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+.updateHead {
+  margin-top: 26px;
+  font: 600 18px var(--fb-font);
+  color: var(--fb-ink);
+}
+.update .status {
+  margin-top: 8px;
+}
+.problem {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 420px;
+  font: 500 15px/1.45 var(--fb-font);
+  color: var(--fb-ink-2);
+  cursor: default;
+}
+.problem .updateHead {
+  margin-top: 0;
+}
+.btn {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font-size: 16px;
+  font-weight: 700;
+}
+@media (max-width: 1100px) {
+  .col {
+    left: 54%;
+    right: 32px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .col {
+    animation: none;
+  }
+}

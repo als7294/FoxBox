@@ -1,11 +1,9 @@
 /**
- * A TouchDesigner preset's `sound` map driving the TRACK song's FX (1.5.2; S3's preset contract: "sound":
- * {changes_sound, map: [{target, source, min, max, curve, smooth_ms?}]}). Every VISUALS stage frame the sources are
+ * A page's `sound` map driving the TRACK song's FX (1.5.2 for TouchDesigner presets; 2.0: STRINGS' REMIX only):
+ * {changes_sound, map: [{target, source, min, max, curve, smooth_ms?}], drive?}. Every stage frame the sources are
  * read, each entry gives min + (max - min) · curve(source), and the FX move toward the result (songFx.ts ramps it).
  *
- *   sources   knob.<intensity|colour|chaos|trails|lines|size> (the TD panel's six knobs, their reacts-to applied: S4's
- *             tdKnobs()), macro.<id> (a v1-2 preset's macros, 0-1), ch.<TE_CHANNELS name> (touchdesigner/channels.ts),
- *             gesture.hand_height / head_tilt / jaw_open / motion / pinch / squeeze / hands_dist / fingers, per side
+ *   sources   macro.<id> (the sound's macros, 0-1), gesture.hand_height / head_tilt / jaw_open / motion / pinch / squeeze / hands_dist / fingers, per side
  *             pinch_l / _r, open_l / _r, fingers_l / _r, twist_l / _r (a pinched hand turned, -1..1: ±90°, a knob),
  *             FRAME frame_held / frame_size, STRING HANDS' pair_thumb / _index / _middle / _ring / _pinky (S1's
  *             shapes.pairs: two fingertips apart over the shoulders; 1 with a hand unseen) (the camera's signals and S1's
@@ -21,17 +19,14 @@
  *             one target: the largest wins (by size on the bipolar filter and pan; the last on echo_beats and
  *             stutter_div, which are settings). An unmapped target sits neutral.
  *
- * A new preset or a new VISUALS base resets the FX (ramped neutral, tails cut); no preset with a map leaves them
- * neutral.
+ * A new sound resets the FX (ramped neutral, tails cut); no sound with a map leaves them neutral.
  */
 import { create } from 'zustand'
 import { cameraSignals, type CameraSignals } from '@/components/camera/smartCamera'
 import { glassSignal } from '@/components/strings/glass'
+import { frameStyle } from './frameLoop'
 import { beatFxDrive } from './beatFx'
-import { useVisuals } from '@/state/visuals'
-import { channelState, frameChannels } from '@/touchdesigner/channels'
-import { tdKnobs } from '@/touchdesigner/knobs'
-import { activeTdPreset } from '@/touchdesigner/presets'
+import type { AudioFrame } from '@/visuals/live/registry'
 import { stageFrames } from '@/visuals/live/stage'
 import { currentSongFx, NEUTRAL, STEMS, useSongFx, type SongFx, type SongFxParams, type StemName } from './songFx'
 
@@ -107,6 +102,10 @@ export interface Gestures {
   glass_tilt: number
   glass_world: number
   glass_crack: number
+  /** The FRAME's style (frameLoop.ts' index over 12: ECHO TRAIL 1/12 … ICE 1; 0 none), on or off (it's the next one's);
+   *  1 while it's turned over (its flip side: the loop backwards). */
+  glass_style: number
+  glass_flip: number
   /** 0 or 1: a sign held SIGN_HOLD_MS (fist / victory / love / open on either hand; TRIANGLE with both). */
   fist: number
   victory: number
@@ -118,7 +117,7 @@ export interface Gestures {
 export const GESTURES_NEUTRAL: Gestures = Object.freeze({ hand_height: 0, head_tilt: 0, jaw_open: 0, motion: 0, pinch: 0,
   squeeze: 0, hands_dist: 0, fingers: 0, pinch_l: 0, pinch_r: 0, open_l: 0, open_r: 0, fingers_l: 0, fingers_r: 0, twist_l: 0, twist_r: 0, turn_l: 0, turn_r: 0,
   frame_held: 0, frame_size: 0, drawn_circle: 0, drawn_triangle: 0, drawn_star: 0, drawn_zigzag: 0, pair_thumb: 1, pair_index: 1,
-  pair_middle: 1, pair_ring: 1, pair_pinky: 1, glass_on: 0, glass_size: 0, glass_tilt: 0, glass_world: 0, glass_crack: 0, fist: 0, victory: 0, love: 0, open: 0, triangle: 0 })
+  pair_middle: 1, pair_ring: 1, pair_pinky: 1, glass_on: 0, glass_size: 0, glass_tilt: 0, glass_world: 0, glass_crack: 0, glass_style: 0, glass_flip: 0, fist: 0, victory: 0, love: 0, open: 0, triangle: 0 })
 
 const PAIRS = ['thumb', 'index', 'middle', 'ring', 'pinky'] as const
 const GLASS_CRACK_MS = 200
@@ -131,6 +130,8 @@ export interface GlassSignal {
   size: number
   tilt: number
   crackAt: number
+  /** Turned over: its flip side (S3). */
+  flipped?: boolean
 }
 /** S3's glass worlds, in the stemfx worklet's order (1-6): each has its own sound. */
 export const GLASS_WORLDS = ['thermal', 'xray', 'halftone', 'prism', 'kaleido', 'datamosh'] as const
@@ -196,8 +197,12 @@ export class GestureTracker {
     g.twist_r = follow(g.twist_r, R?.pinched ? clamp(R.twist, -1, 1) : 0, dtS, 0.06)
     g.turn_l = Math.abs(g.twist_l)
     g.turn_r = Math.abs(g.twist_r)
-    g.frame_held = sh?.frame.held ? 1 : 0 // FRAME holds and lets go on S1's side
-    g.frame_size = follow(g.frame_size, sh?.frame.held ? v(sh.frame.size) : 0, dtS, 0.08)
+    // FRAME holds and lets go on S1's side: formed (frameGestures) holds through a corner's tap and the turn over, where
+    // the raw L drops; the raw L until it's there
+    const fr = (s as { frame?: { formed?: boolean; size?: number } } | null)?.frame
+    const framed = fr?.formed ?? Boolean(sh?.frame.held)
+    g.frame_held = framed ? 1 : 0
+    g.frame_size = follow(g.frame_size, framed ? v(fr?.formed != null ? fr.size : sh?.frame.size) : 0, dtS, 0.08)
     const d = fresh ? s.drawn : null
     if (d && d.at > this.drawnAt) {
       this.drawnAt = d.at
@@ -216,6 +221,8 @@ export class GestureTracker {
       if (nowMs - glass.crackAt < DRAWN_FRESH_MS) this.crackStart = nowMs
     }
     g.glass_crack = nowMs - this.crackStart < GLASS_CRACK_MS ? 1 : 0
+    g.glass_style = frameStyle(glass?.type) / 12
+    g.glass_flip = glass?.on && glass.flipped ? 1 : 0
     const pairs = (sh as { pairs?: Partial<Record<(typeof PAIRS)[number], number>> } | undefined)?.pairs
     for (const k of PAIRS) g[`pair_${k}`] = follow(g[`pair_${k}`], L && R && pairs ? v(pairs[k]) : 1, dtS, 0.08)
     for (const k of SIGNS) {
@@ -238,7 +245,7 @@ const TARGETS: Record<string, keyof SongFxParams> = {
   'bass.gate': 'gate', 'fx.pump': 'pump', 'bass.wobble_rate': 'wobbleRate', 'bass.gate_rate': 'gateRate', 'bass.subdrop': 'subdrop',
   'bass.slide': 'bassSemi', 'bass.vibrato': 'vibrato', 'fx.halftime': 'halftime', 'fx.buildroll': 'buildroll', 'fx.octave': 'octave',
   'fx.rewind': 'rewind', 'fx.reverse': 'reverse', 'fx.brake': 'brake', 'fx.glass': 'glass', 'fx.crack': 'crack', 'glass.world': 'world',
-  'glass.wet': 'worldWet', 'glass.tilt': 'worldTilt',
+  'glass.wet': 'worldWet', 'glass.tilt': 'worldTilt', 'frame.on': 'frame', 'frame.style': 'frameStyle', 'frame.flip': 'frameFlip',
 }
 
 /** A map that moves a stem: the deck plays the song from its stems while it's the active one (decoded only then). */
@@ -246,7 +253,7 @@ export const usesStems = (map: readonly SoundEntry[] | null | undefined): boolea
 /** The map targets a preset may name. */
 export const SOUND_TARGETS = Object.keys(TARGETS)
 const BIPOLAR_TARGETS = new Set<keyof SongFxParams>(['filter', 'pan', 'bassSemi'])
-const SETTINGS = new Set<keyof SongFxParams>(['echoBeats', 'stutterDiv', 'wobbleRate', 'gateRate', 'world'])
+const SETTINGS = new Set<keyof SongFxParams>(['echoBeats', 'stutterDiv', 'wobbleRate', 'gateRate', 'world', 'frameStyle'])
 const BIPOLAR_SOURCES = new Set(['gesture.head_tilt', 'gesture.twist_l', 'gesture.twist_r', 'gesture.glass_tilt'])
 
 /** The FX parameters `map` asks for given `sources`; `smoothed` keeps each entry's smoothed value between frames. */
@@ -288,15 +295,13 @@ export interface ActiveSound {
 }
 
 /**
- * Drives the playing deck's FX from the active preset every stage frame (call once; returns the stop). `preset()`:
- * the active TouchDesigner preset (S3's useTdPresets), null with none; `base()`: the VISUALS base's kind. A change of
- * either resets the FX; with no map they stay neutral. Stage frames only come while VISUALS draws (on screen, or the
- * OUTPUT window open): once they stop for FRAMES_LOST_MS the FX ease back to neutral, so a held gesture (a fist's
- * tape stop) never freezes on another page.
+ * Drives the playing deck's FX from the active sound every stage frame (call once; returns the stop). `preset()`:
+ * the page's sound, null with none; `base()`: a key whose change also resets the FX. With no map they stay neutral.
+ * Stage frames only come while the STRINGS stage draws: once they stop for FRAMES_LOST_MS the FX ease back to neutral,
+ * so a held gesture (a fist's tape stop) never freezes.
  */
 export function startSoundMap(preset: () => ActiveSound | null, base: () => string, fx: () => SongFx | null = currentSongFx): () => void {
   const gestures = new GestureTracker()
-  const ch = channelState()
   const smoothed = new Map<number, number>()
   let key: string | null = null
   let idle = true
@@ -308,14 +313,13 @@ export function startSoundMap(preset: () => ActiveSound | null, base: () => stri
     f?.tick()
     idle = true
   }, FRAMES_LOST_MS / 2)
-  const onFrame = (a: Parameters<typeof frameChannels>[0], dt: number) => {
+  const onFrame = (_a: AudioFrame, dt: number) => {
     lastFrame = performance.now()
     const f = fx()
     const p = preset()
     const k = `${p?.id ?? ''}|${base()}`
     const dtS = dt / 1000
     const g = gestures.update(cameraSignals(), performance.now(), dtS)
-    const values = frameChannels(a, ch, dtS)
     if (k !== key) {
       key = k
       smoothed.clear()
@@ -333,8 +337,6 @@ export function startSoundMap(preset: () => ActiveSound | null, base: () => stri
     }
     const sources: Record<string, number> = {}
     for (const [id, v] of Object.entries(p!.macros)) sources[`macro.${id}`] = v
-    for (const [id, v] of Object.entries(tdKnobs())) sources[`knob.${id}`] = v
-    for (const [name, v] of Object.entries(values)) if (typeof v === 'number') sources[`ch.${name}`] = v
     for (const [name, v] of Object.entries(g)) sources[`gesture.${name}`] = v
     const out = evaluate(map, sources, smoothed, dtS)
     if (drive) Object.assign(out, drive(dtS, performance.now()))
@@ -350,34 +352,21 @@ export function startSoundMap(preset: () => ActiveSound | null, base: () => stri
   }
 }
 
-/** The active TouchDesigner preset as the driver reads it, while TOUCHDESIGNER is the VISUALS base (its macros by id:
- * S3's positional values, else each macro's default); null otherwise. */
-export function tdActiveSound(): ActiveSound | null {
-  if (useVisuals.getState().scene.base.kind !== 'touchdesigner') return null
-  const a = activeTdPreset()
-  if (!a) return null
-  const macros: Record<string, number> = {}
-  a.preset.macros.forEach((m, i) => (macros[m.id] = a.macros[i] ?? m.default))
-  return { id: a.preset.id, sound: a.preset.sound, macros }
-}
-
 /**
  * STRINGS (PROD's page, 1.5.5): BEAT FX in the air for bass remixes. Each hand's shape, held, fires one FX on the song's
  * grid, height its DEPTH, the strings' tension its BEAT, their tilt an 808 slide and their shake a vibrato (the drive:
- * beatFx.ts); the song plays from its stems. A finger-frame GLASS opens a world with its own sound (HEAT, SKELETON, 8-BIT,
- * SHIMMER, MIRROR, GLITCH): its size how far in, its tilt the world's one control; in and out whoosh, a crack hits.
- * Hands unseen: all of it at rest.
+ * beatFx.ts); the song plays from its stems. The FRAME loops the song's last 4 beats through its style (frameLoop.ts;
+ * slip, letting go lands where the song is now, with a glass break); turned over, its flip side plays it backwards. Hands
+ * unseen: all of it at rest.
  */
 export const STRINGS_SOUND: SoundMap = {
   changes_sound: true,
   stems: true,
   drive: beatFxDrive,
   map: [
-    { target: 'fx.glass', source: 'gesture.glass_on', min: 0, max: 1, curve: 'gate' },
-    { target: 'glass.world', source: 'gesture.glass_world', min: 0, max: 6, curve: 'lin' },
-    { target: 'glass.wet', source: 'gesture.glass_size', min: 0.35, max: 1, curve: 'lin', smooth_ms: 80 },
-    { target: 'glass.tilt', source: 'gesture.glass_tilt', min: 0, max: 1, curve: 'lin', smooth_ms: 80 },
-    { target: 'fx.crack', source: 'gesture.glass_crack', min: 0, max: 1, curve: 'gate' },
+    { target: 'frame.on', source: 'gesture.glass_on', min: 0, max: 1, curve: 'gate' },
+    { target: 'frame.style', source: 'gesture.glass_style', min: 0, max: 12, curve: 'lin' },
+    { target: 'frame.flip', source: 'gesture.glass_flip', min: 0, max: 1, curve: 'gate' },
   ],
 }
 
@@ -392,6 +381,5 @@ export function stemLevels(): Record<StemName, number> {
   return Object.fromEntries(STEMS.map((n) => [n, p[n]])) as Record<StemName, number>
 }
 
-/** The app's one call (App.tsx): a page's sound (STRINGS), else the TD preset, drives the TRACK song's FX. */
-export const startTdSoundMap = (): (() => void) =>
-  startSoundMap(() => usePageSound.getState().source ?? tdActiveSound(), () => useVisuals.getState().scene.base.kind)
+/** The app's one call (App.tsx): a page's sound (STRINGS' REMIX) drives the TRACK song's FX. */
+export const startPageSoundMap = (): (() => void) => startSoundMap(() => usePageSound.getState().source, () => '')

@@ -8,8 +8,8 @@ import { STRINGS } from '@/components/strings/strings'
 import { useStrings } from '@/components/strings/stringsStore'
 import { Knob } from '@/components/rack/Knob'
 import { reducedMotion } from '@/visuals/motion'
-import { openStringsGuide } from '@/components/whatsnew/StringsGuide'
-import guide from '@/components/whatsnew/guide.module.css'
+import { guide } from '@/components/guide/guideStore'
+import { useWheelUi } from '@/components/wheel/WheelOverlay'
 import shared from './prod.module.css'
 import s from './play.module.css'
 
@@ -21,7 +21,6 @@ export const BEAT_FX: { id: BeatFxId; shape: string; icon: string; label: string
   { id: 'tearout', shape: 'FIST', icon: '✊', label: 'TEAROUT' },
   { id: 'riddim', shape: 'PEACE', icon: '✌️', label: 'RIDDIM CHOPS' },
   { id: 'wobble', shape: 'PINCH', icon: '🤏', label: 'WOBBLE' },
-  { id: 'growl', shape: 'OPEN PALM', icon: '🖐️', label: 'GROWL' },
   { id: 'halftime', shape: 'HORNS', icon: '🤘', label: 'HALFTIME' },
   { id: 'subdrop', shape: 'POINT DOWN', icon: '👇', label: 'SUB DROP' },
   { id: 'buildroll', shape: 'POINT UP', icon: '👆', label: 'BUILD ROLL', sub: 'let go: DROP' },
@@ -87,7 +86,7 @@ export function BeatFxSheet({ read = beatFxNow }: { read?: () => BeatFxRead }) {
       </div>
       <span className={s.note}>
         Hold a hand shape to remix the drop; raise the hand for more depth.
-        <button type="button" className={guide.replay} onClick={openStringsGuide} title="Play the STRINGS guide again">
+        <button type="button" onClick={() => guide.open('remix', 0)} title="REMIX's GUIDE again">
           GUIDE ▸
         </button>
       </span>
@@ -180,6 +179,7 @@ export function StringControls({ read = fromCamera }: { read?: () => StringShape
 
 export function StringsPanel() {
   const knobs = useStrings((t) => t.knobs)
+  const wheelOpen = useWheelUi((w) => w.open)
   const note = stemsNote(
     useSongFx((f) => f.stems),
     useSongFx((f) => f.stemsProgress),
@@ -191,6 +191,7 @@ export function StringsPanel() {
         <span className={shared.panelTitle}>BEAT FX</span>
       </div>
       <div className={s.body}>
+        {wheelOpen && <span role="status">Library open: shapes paused</span>}
         <BeatFxSheet />
         <StringControls />
         {note && (

@@ -1,5 +1,4 @@
-"""v0.7 songs: tempo, key and bar-1 analysis of an imported track (``analyze_song``), and the song + drop mix
-(``mix_song``) behind the backing-track preview, baked exports and camera-clip soundtracks. numpy / scipy only.
+"""Songs: tempo, key and bar-1 analysis of an imported track (``analyze_song``). numpy / scipy only.
 
 Analysis runs on a mono mixdown at 22.05 kHz:
 - tempo: a log spectral-flux onset envelope, its spectrum on a 0.01 BPM grid (chirp-z), scored with its 2nd and 4th
@@ -20,11 +19,9 @@ import numpy as np
 from scipy import fft as sfft
 from scipy import ndimage, signal
 
-from fvwks_contracts.models import Loudness, Master, SongAnalysis, SongPlacement
-from fvwks_contracts.seam import MixOutput
+from fvwks_contracts.models import SongAnalysis
 
-from .dsp import EPS, add_at, as2d, butter_sos, db_to_lin, envelope, fade_edges, lin_to_db, match_channels
-from .master import _Chain, measure, resample, true_peak
+from .dsp import EPS, as2d, butter_sos, resample
 from .music import _CAMELOT, _NAMES
 
 AN_SR = 22050
@@ -315,109 +312,3 @@ def analyze_song(audio: np.ndarray, sr: int) -> SongAnalysis:
     return SongAnalysis(bpm=round(bpm, 2), bpm_confidence=round(bpm_conf, 3), key=key, camelot=camelot,
                         key_confidence=round(key_conf, 3), downbeat_s=round(max(0.0, down), 4),
                         beats_per_bar=BEATS_PER_BAR, tuning_cents=_tuning(x))
-
-
-# --------------------------------------------------------------------------- mix
-
-CHUNK_S, OVERLAP_S = 20.0, 1.0  # whole-song mixes are limited and metered in chunks (bounded memory)
-DUCK_ATTACK_S = 0.010
-LIMIT_MARGIN_S = 0.5  # context kept around an excerpt for the duck release and the limiter
-EDGE_FADE_S = 0.005
-
-
-def duck_gain(drop: np.ndarray, sr: int, duck_db: float, bpm: float) -> np.ndarray:
-    """Song gain (linear, per sample) under the drop: ``duck_db`` while the drop's voice is present. A ~10 ms
-    attack and a release of half a beat (250 ms at 120 BPM, 150-350 ms), so the song swells back in time."""
-    if duck_db >= -0.01 or drop.size == 0:
-        return np.ones(as2d(drop).shape[1], np.float32)
-    beat = 60.0 / bpm if bpm and bpm > 0 else 0.5
-    release = float(np.clip(0.5 * beat, 0.15, 0.35))
-    env = envelope(as2d(drop).mean(axis=0), sr, attack_s=DUCK_ATTACK_S, release_s=release)
-    env_db = lin_to_db(env)
-    active = env_db[env_db > -70.0]
-    if active.size == 0:
-        return np.ones(env.size, np.float32)
-    ref = float(np.percentile(active, 95))
-    amount = np.clip((env_db - (ref - 36.0)) / 24.0, 0.0, 1.0)  # full duck from 12 dB under the drop's level up
-    return db_to_lin(duck_db * amount).astype(np.float32)
-
-
-def _chunked(x: np.ndarray, sr: int, fn) -> np.ndarray:
-    """``fn`` (length-preserving) over overlapping chunks, the middles stitched: with 1 s of shared context on
-    each side a limiter's state has converged, so the seams are sample-identical in practice."""
-    n = x.shape[1]
-    step, ov = int(CHUNK_S * sr), int(OVERLAP_S * sr)
-    if n <= step + 2 * ov:
-        return fn(x)
-    out = np.empty_like(x)
-    for i in range(0, n, step):
-        a, b = max(0, i - ov), min(n, i + step + ov)
-        m = min(step, n - i)
-        out[:, i : i + m] = fn(x[:, a:b])[:, i - a : i - a + m]
-    return out
-
-
-def _true_peak(x: np.ndarray, sr: int) -> float:
-    n, step, pad = x.shape[1], int(CHUNK_S * sr), 512
-    if n == 0:
-        return -150.0
-    return max(true_peak(x[:, max(0, i - pad) : min(n, i + step + pad)], sr) for i in range(0, n, step))
-
-
-def _loudness(z: np.ndarray, sr: int) -> Loudness:
-    rep = measure(z, sr, _true_peak(z, sr))
-    return Loudness(integrated_lufs=round(float(rep.integrated_lufs), 3), short_term_max_lufs=round(float(rep.short_term_max_lufs), 3),
-                    true_peak_db=round(float(rep.true_peak_dbtp), 3), sample_peak_db=round(float(rep.sample_peak_dbfs), 3))
-
-
-def mix_song(song: np.ndarray, song_sr: int, drop: np.ndarray, drop_sr: int, *, drop_start_s: float, bpm: float,
-             placement: SongPlacement, excerpt_s: tuple[float, float] | None, master: Master, quality: str) -> MixOutput:
-    """Put the (already mastered) drop into the song at ``drop_start_s`` on the song's timeline: duck the song under
-    it, apply the gains, keep true peak <= master.true_peak_db (no loudness normalization: the song is mastered),
-    and return the excerpt [start, end) of the song timeline (None = the whole song) at master.sample_rate."""
-    sr, chans = int(master.sample_rate), int(master.channels)
-    warnings: list[str] = []
-    s = match_channels(resample(np.asarray(song, dtype=np.float32), int(song_sr), sr), chans)
-    d = match_channels(resample(np.asarray(drop, dtype=np.float32), int(drop_sr), sr), chans)
-    n_song = s.shape[1]
-    at = int(round(drop_start_s * sr))
-    drop_end = at + d.shape[1]
-    timeline = max(n_song, drop_end)
-    if drop_end > n_song:
-        warnings.append(f"the drop runs {(drop_end - n_song) / sr:.2f} s past the song's end")
-    if at < 0:
-        warnings.append(f"the drop starts {-at / sr:.2f} s before the song: its start is cut")
-
-    a = 0 if excerpt_s is None else int(round(max(0.0, excerpt_s[0]) * sr))
-    b = timeline if excerpt_s is None or excerpt_s[1] is None else int(round(excerpt_s[1] * sr))
-    b = min(b, timeline)
-    if b <= a:
-        raise ValueError(f"empty excerpt: {a / sr:.3f}-{b / sr:.3f} s on a {timeline / sr:.3f} s timeline")
-    if excerpt_s is not None and at < drop_end and (at < a < drop_end or at < b < drop_end):
-        warnings.append("the excerpt cuts into the drop")
-
-    # work on the excerpt plus a margin (the duck's release and the limiter's lookahead see real context)
-    margin = int(LIMIT_MARGIN_S * sr)
-    wa, wb = max(0, a - margin), min(timeline, b + margin)
-    song_w = np.zeros((chans, wb - wa), np.float32)
-    add_at(song_w, s, -wa)
-    drop_w = np.zeros_like(song_w)
-    add_at(drop_w, d, at - wa)
-    g_song = np.float32(db_to_lin(placement.song_gain_db))
-    g_drop = np.float32(db_to_lin(placement.drop_gain_db))
-    mix = song_w * g_song * duck_gain(drop_w, sr, placement.duck_db, bpm)[None, :] + drop_w * g_drop
-
-    ceiling = float(master.true_peak_db)
-    tp = _true_peak(mix, sr)
-    if tp > ceiling:
-        mix = _chunked(mix, sr, lambda seg: _Chain(seg, sr, ceiling - 0.25, soft_clip=False)(0.0))
-        tp = _true_peak(mix, sr)
-        if tp > ceiling - 0.02:
-            mix = mix * np.float32(db_to_lin(ceiling - 0.02 - tp))
-    z = np.ascontiguousarray(mix[:, a - wa : b - wa], dtype=np.float32)
-    fade = max(1, int(EDGE_FADE_S * sr))
-    z = fade_edges(z, fade, fade).astype(np.float32)
-    z[:, 0] = 0.0  # like the master: a clip never starts or ends on a click
-    z[:, -1] = 0.0
-    return MixOutput(audio=z, sample_rate=sr, start_s=round(a / sr, 6), drop_start_s=round((at - a) / sr, 6),
-                     loudness=_loudness(z, sr), warnings=warnings)

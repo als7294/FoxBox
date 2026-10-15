@@ -1,0 +1,80 @@
+/*
+ * FoxBox 2.0's string and frame tokens (S3), read by stringTokens.ts once a second. The look is the Claude Design
+ * handoff's (app/design/foxbox-2, foxbox-tokens.css): the strings' variables below map onto its names, and the frame
+ * reads its `--frame-*` directly, so change a look there. This file adds only what the handoff doesn't cover, and
+ * never redefines its names (it loads last, so it would win).
+ *
+ * --strings-<mode>-*, the strings (sizes in the design stage's units: its 1000 x 620 picture):
+ *   core / weight / tip-size          the core line, its width, the fingertip dots' radius
+ *   glow-color / glow / glow-alpha    the glow under it: colour, width, opacity at rest
+ *   flash-ms                          a pluck lifts the glow to 1, back to rest over this
+ *   pluck-weight / pluck-core-ms      and widens the core (bowing the string), back over this
+ *   cut / cut-dash                    REMIX: a cut band, dashed, labelled "· CUT"
+ *   drop                              REMIX: what a drop warms the glow toward
+ *   label-*                           REMIX: the band pills (SUB · LOW · MID · HI-MID · HIGH); SAUCE: each hand's
+ *                                     note, faint (label-alpha; label-bg its shadow), the glass NotePop over it on a pluck
+ *   fx-string-displace / fx-gate      REMIX's beat FX on the strings: the most they move them (px), RIDDIM's gate (0-1)
+ *
+ * --frame-*, ours (window px at 982 tall):
+ *   flash-alpha                       one soft flash as the edge closes
+ *   world-opacity / displace          how much the style replaces the picture inside (0-1), how far it bends it (px)
+ *   depth / glint                     the pane's 3D depth (0-1), the kick's glint on its edge (0-1, at most 3 a second)
+ *   pulse                             the brightness each beat adds (0-1; the design's 1.6x)
+ *   hint-bg                           the "● ● ● ● 4 beats · pinch to change" pill
+ *   fracture-ms / -shards / -distance / -ease   letting go: chat's glass fracture (fine shards, refracting, a fast
+ *                                     fall) instead of the design's 6-shard shatter
+ *   ice / frost / blur / shimmer-s    the ICE flip side: its tint, how frosted (0-1), its blur (px), its shimmer (s)
+ */
+:root {
+  --strings-play-core: var(--string-play-core);
+  --strings-play-weight: var(--string-play-width);
+  --strings-play-tip-size: 5;
+  --strings-play-glow-color: var(--string-play-glow);
+  --strings-play-glow: 18;
+  --strings-play-glow-alpha: 0.22;
+  --strings-play-flash-ms: var(--string-play-pluck-flash);
+  --strings-play-pluck-weight: 7;
+  --strings-play-pluck-core-ms: 500;
+  --strings-play-label-font: Geist, system-ui, sans-serif;
+  --strings-play-label-size: 15;
+  --strings-play-label-weight: 600;
+  --strings-play-label-color: var(--fb-ink);
+  --strings-play-label-alpha: 0.45;
+  --strings-play-label-bg: rgba(15, 10, 6, 0.6);
+
+  --strings-remix-core: var(--string-remix-core);
+  --strings-remix-weight: var(--string-remix-width);
+  --strings-remix-tip-size: 5;
+  --strings-remix-glow-color: var(--string-remix-glow);
+  --strings-remix-glow: 10.8;
+  --strings-remix-glow-alpha: 0.22;
+  --strings-remix-flash-ms: 300;
+  --strings-remix-pluck-weight: 3.6;
+  --strings-remix-pluck-core-ms: 250;
+  --strings-remix-cut: var(--string-cut);
+  --strings-remix-cut-dash: var(--string-cut-dash);
+  --strings-remix-drop: #ff4b2b;
+  --strings-remix-label-font: Geist, system-ui, sans-serif;
+  --strings-remix-label-size: 13;
+  --strings-remix-label-weight: 600;
+  --strings-remix-label-color: var(--string-label-ink);
+  --strings-remix-label-bg: var(--string-label-bg);
+  --strings-remix-fx-string-displace: 36;
+  --strings-remix-fx-gate: 0.6;
+
+  --frame-flash-alpha: 0.3;
+  --frame-world-opacity: 0.85;
+  --frame-displace: 33;
+  --frame-depth: 0.6;
+  --frame-glint: 0.35;
+  --frame-pulse: 0.6;
+  --frame-hint-bg: rgba(28, 22, 18, 0.85);
+  --frame-fracture-ms: 140;
+  --frame-fracture-shards: 42;
+  --frame-fracture-distance: 0.5;
+  --frame-fracture-ease: 2.5;
+  --frame-ice: #cfe8ff;
+  --frame-frost: 0.55;
+  --frame-blur: 14;
+  --frame-shimmer-s: 4;
+}

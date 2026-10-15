@@ -29,6 +29,32 @@ def _post(url, token, body):
         return json.loads(res.read())
 
 
+def _song_wav(seconds=4.0, sr=44100) -> bytes:
+    import io
+    import math
+    import wave
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(b"".join(int(12000 * math.sin(2 * math.pi * 110 * i / sr)
+                                   + (16000 if i % (sr // 2) < 300 else 0)).to_bytes(2, "little", signed=True)
+                               for i in range(int(seconds * sr))))
+    return buf.getvalue()
+
+
+def _upload(url, token, data: bytes, name="song.wav"):
+    boundary = "fvwks-test-boundary"
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\n"
+            f"Content-Type: audio/wav\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Authorization": f"Bearer {token}", "Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req, timeout=120) as res:
+        return json.loads(res.read())
+
+
 def _spawn(tmp_path, *flags):
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     env.pop("FVWKS_TOKEN", None)
@@ -46,7 +72,7 @@ def _ready_port(proc) -> int:
 
 
 def _wait_warm(port):
-    """The real voice engine warms up after READY (health: loading_model → ready)."""
+    """Start-up work runs after READY (health: loading_model while a required model downloads → ready)."""
     deadline = time.monotonic() + 120
     while True:
         status, body = _get(f"http://127.0.0.1:{port}/api/health", "s3cret")
@@ -85,16 +111,20 @@ def test_engine_process_ready_line_auth_and_exit_with_parent(tmp_path):
 
 
 def test_sigterm_after_real_work_shuts_down_cleanly(tmp_path):
-    """S4 stops the engine by signalling its process group. After real work (Kokoro and the rack ran on worker
-    threads), SIGTERM must shut down gracefully: no crash, and the library closed rather than abandoned."""
+    """S4 stops the engine by signalling its process group. After real work (a song analysed on a worker thread),
+    SIGTERM must shut down gracefully: no crash, and the library closed rather than abandoned."""
     proc = _spawn(tmp_path)
     try:
         port = _ready_port(proc)
         status, body = _wait_warm(port)
         assert status == 200 and body["state"] == "ready", body
         api = f"http://127.0.0.1:{port}/api"
-        src = _post(f"{api}/sources/tts", "s3cret", {"script": "WE ARE GUY FVWKS", "voice_id": "kokoro:am_fenrir"})
-        _post(f"{api}/render", "s3cret", {"source_id": src["id"], "preset_id": "pact", "arrange": {"bars": 4}})
+        song = _upload(f"{api}/songs", "s3cret", _song_wav())  # its analysis runs on a worker thread
+        deadline = time.monotonic() + 60
+        while song["analysis_state"] in ("queued", "running") and time.monotonic() < deadline:
+            time.sleep(0.1)
+            song = _get(f"{api}/songs/{song['id']}", "s3cret")[1]
+        assert song["analysis_state"] == "done", song
         proc.send_signal(signal.SIGTERM)
         _assert_clean_exit(proc, proc.wait(timeout=30))
         assert not (tmp_path / "data" / "library.sqlite3-wal").exists()  # SQLite drops the WAL on a clean close

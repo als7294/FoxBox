@@ -7,7 +7,6 @@
  * next phrase starts, or until shortly after its last word when a pause follows. It fades in and out around pauses
  * only (phrases that follow on swap), so nothing shows before the drop's first word or lingers after its last.
  */
-import type { RenderInfo } from '@/api/types'
 import { WORD_HOLD_S } from '@/visuals/wordLabels'
 
 /** A word on the drop's own timeline (s), its clean text, and whether a new phrase starts with it. */
@@ -47,31 +46,7 @@ interface Phrase {
   fadeOut: boolean
 }
 
-// Script markup never shows, should any reach a word: *throws*, [0.5] pauses, | beat breaks.
-const clean = (text: string) => text.replace(/\[[^\]]*\]|[*|]/g, '').trim()
 const chars = (words: readonly SubWord[]) => words.reduce((n, w) => n + w.w.length, 0) + Math.max(0, words.length - 1)
-
-const fromRender = new WeakMap<RenderInfo, SubWord[]>()
-
-/** The render's words for the subtitles, on the drop's timeline, each segment starting a phrase. */
-export function subtitleWords(r: RenderInfo | null | undefined): SubWord[] {
-  if (!r) return []
-  let out = fromRender.get(r)
-  if (!out) {
-    out = []
-    for (const seg of r.segments) {
-      let brk = true
-      for (const word of seg.words ?? []) {
-        const w = clean(word.text)
-        if (!w) continue
-        out.push({ t0: word.start_s, t1: word.end_s, w, brk })
-        brk = false
-      }
-    }
-    fromRender.set(r, out)
-  }
-  return out
-}
 
 /** Where a phrase's second line starts: one line when it fits, else the most even break. */
 function lineBreak(words: readonly SubWord[]): number {

@@ -13,6 +13,7 @@ import type { BodyPt, Pt } from '@/components/camera/camMath'
 import type { StageHands } from '@/components/camera/smartCamera'
 import { stemLevels } from '@/audio/live/soundMap'
 import type { AudioFrame } from '@/visuals/live/registry'
+import { liveTokens, mix, rgba } from './stringTokens'
 
 export type StringId = 'mix' | 'drums' | 'bass' | 'vocals' | 'other'
 export type Finger = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky'
@@ -51,7 +52,7 @@ export const KNOBS: { id: keyof StringsKnobs; label: string; value: number }[] =
   { id: 'swing', label: 'SWING', value: 0.6 },
   { id: 'glow', label: 'GLOW', value: 0.6 },
   { id: 'pluck', label: 'PLUCK', value: 0.5 },
-  { id: 'trails', label: 'TRAILS', value: 0.2 },
+  { id: 'trails', label: 'TRAILS', value: 0 },
 ]
 export const DEFAULT_KNOBS = Object.fromEntries(KNOBS.map((k) => [k.id, k.value])) as unknown as StringsKnobs
 
@@ -136,9 +137,8 @@ const PULL_S = 0.25 // a PINCH + PULL's ring
 
 export interface StringsInstance {
   /** Draw one frame (`dt` ms) for these hands; returns the layout and each string's level. `cuts`: FINGER FILTERS,
-   *  each string's finger curl 0 (out) … 1 (folded): it fades and thins as it curls, SNAPS away on a full fold (a whip,
-   *  then gone) and is re-strung with a pluck when the finger comes back up. Undefined: not playing them as filters
-   *  (folded strings come back quietly, no pluck). */
+   *  each string's finger curl 0 (out) … 1 (folded): a full fold SNAPS it (a whip) to its cut look, and it's re-strung
+   *  with a pluck when the finger comes back up. Undefined: not playing them as filters (no cuts). */
   frame(a: AudioFrame, dt: number, hands: StageHands, pulledAt?: number, cuts?: readonly number[]): { layout: Layout; levels: number[] }
   setParams(p: Partial<StringsKnobs>): void
   resize(width: number, height: number): void
@@ -150,22 +150,20 @@ const SAG_DEADBAND = 0.012 // the droop moves only past this (picture heights): 
 const FOLD = 0.85 // FINGER FILTERS: a finger curled past this has folded its string away …
 const UNFOLD = 0.5 // … and back under this, it's re-strung (hysteresis: no flicker between)
 const WHIP_S = 0.16 // the snap's whip, then the string is gone
-const BONE = '#efe6d2'
-const EMBER = '#ff4b2b'
 const SHIMMER = 5 // lines across a vibrating string's swing (it reads as a blurred spindle, as a real string does)
 const follow = (y: number, x: number, dtS: number, tauS: number) => y + (x - y) * (1 - Math.exp(-dtS / tauS))
 
-const rgb = (hex: string): number[] => [16, 8, 0].map((sh) => (parseInt(hex.slice(1), 16) >> sh) & 255)
-const toward = (p: number[], q: number[], k: number): number[] => p.map((v, j) => v + (q[j]! - v) * k)
-const rgba = (c: number[], al: number): string => `rgba(${c.map(Math.round).join(', ')}, ${al})`
+/** REMIX's strings' labels, thumb to pinky (the design's bands). */
+export const BAND_LABELS = ['SUB', 'LOW', 'MID', 'HI-MID', 'HIGH'] as const
 
 /**
- * The strings on `canvas` (2D, transparent), in FoxBox's own look: thin crisp strings with a soft halo, each in its own
- * stem's colour (the legend's), glowing as loud as the stem plays now (its level times what the fingers let
- * through: S2's stemLevels), eased so they never flicker. At rest a string is still and taut: the level lights it, it
- * doesn't move it; a kick or snare rings it a little (a damped shimmer, gone in ~150 ms), a PINCH + PULL more; slack
- * strings droop, a held sag (no bob from the tracker's jitter); each fingertip is a small point of
- * light. A drop warms them toward ember (held, never strobed).
+ * The strings on `canvas` (2D, transparent), in the design's look (§2; `--strings-remix-*`, stringTokens.ts): thin
+ * white strings with an orange glow, each labelled with its band in a pill (SUB … HIGH), a dot at each fingertip. The
+ * glow follows its stem's level (S2's stemLevels: what the fingers let through), eased so it never flickers. At rest a
+ * string is still and taut; a kick or snare rings it a little (a damped shimmer, gone in ~150 ms), a PINCH + PULL more;
+ * slack strings droop, a held sag (no bob from the tracker's jitter). A drop warms the glow toward ember (held, never
+ * strobed). FINGER FILTERS: a folded finger cuts its band: one short whip, then the string is dashed at 40% white,
+ * its label "· CUT"; re-strung, it plucks once.
  */
 export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boolean } = {}): StringsInstance {
   const ctx = canvas.getContext('2d')
@@ -175,7 +173,8 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
   const sags = STRINGS.map(() => -1) // each string's held droop (-1: none yet)
   const folded = STRINGS.map(() => false) // FINGER FILTERS: its finger folded (its band cut)
   const foldAt = STRINGS.map(() => -Infinity)
-  const shown = STRINGS.map(() => 1) // how much of the string shows (curl fades and thins it), eased
+  const restrungAt = STRINGS.map(() => -Infinity)
+  const tokens = liveTokens('remix')
   let clock = 0 // seconds, this instance's own (the whip's age)
   return {
     frame(a, dt, hands, pulledAt = -Infinity, cuts) {
@@ -191,10 +190,10 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
         const was = folded[i]!
         folded[i] = cuts ? (was ? c > UNFOLD : c > FOLD) : false
         if (!was && folded[i]) foldAt[i] = clock // SNAP
-        if (was && !folded[i] && cuts) rings[i] = 1 // re-strung: a quick pluck
-        const whipping = folded[i] && clock - foldAt[i]! < WHIP_S
-        const want = folded[i] ? (whipping ? 1 - 0.8 * FOLD : 0) : 1 - 0.8 * c
-        shown[i] = follow(shown[i]!, want, dt / 1000, want > shown[i]! ? 0.08 : 0.05)
+        if (was && !folded[i] && cuts) {
+          rings[i] = 1 // re-strung: a quick pluck
+          restrungAt[i] = clock
+        }
       })
       levels.forEach((v, i) => (glow[i] = follow(glow[i]!, v, dt / 1000, v > glow[i]! ? 0.06 : 0.35)))
       const t = a.time
@@ -213,16 +212,15 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
         ctx.fillStyle = `rgba(0, 0, 0, ${1 - keep})`
         ctx.fillRect(0, 0, w, hgt)
       }
-      const px = hgt / 720 // sizes in 720p pixels
+      const px = hgt / 620 // the design stage's units
+      const tk = tokens(performance.now())
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
-      ctx.globalCompositeOperation = 'lighter'
       const index = (id: StringId) => STRINGS.findIndex((s) => s.id === id)
+      const pills: { at: Pt; i: number }[] = []
       for (const s of layout.strands) {
         const i = index(s.id)
         const g = glow[i]!
-        const vis = shown[i]!
-        if (vis < 0.01) continue // folded away
         const a0 = s.points[0]!
         const b0 = s.points[s.points.length - 1]!
         const dx = (b0.x - a0.x) * aspect
@@ -234,12 +232,14 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
         const want = 0.3 * Math.max(0, SLACK - l)
         if (sags[i]! < 0 || Math.abs(want - sags[i]!) > SAG_DEADBAND) sags[i] = sags[i]! < 0 ? want : follow(sags[i]!, want, dt / 1000, 0.2)
         const sag = sags[i]!
-        // the swing: only a hit's ring (SWING its size, PLUCK its harmonic) or a PINCH + PULL; the drop doubles it
-        const amp = (0.003 * rings[i]! * (0.3 + 0.7 * k.swing) + 0.012 * pulled) * (1 + drop) * l // a hint: "super subtle"
-        const pl = (0.002 * rings[i]! * (0.4 + 1.2 * k.pluck) + 0.02 * pulled) * (1 + drop) * l
+        const cut = folded[i]!
+        // the swing: only a hit's ring (SWING its size, PLUCK its harmonic) or a PINCH + PULL; the drop doubles it; a cut
+        // band is still
+        const amp = cut ? 0 : (0.003 * rings[i]! * (0.3 + 0.7 * k.swing) + 0.012 * pulled) * (1 + drop) * l // a hint: "super subtle"
+        const pl = cut ? 0 : (0.002 * rings[i]! * (0.4 + 1.2 * k.pluck) + 0.02 * pulled) * (1 + drop) * l
         // a fold's SNAP: one short whip across the string (geometry, no flash) as it goes
         const age = clock - foldAt[i]!
-        const whip = folded[i] && age < WHIP_S ? 0.025 * Math.exp(-age / 0.05) * Math.sin(age * 40) * l : 0
+        const whip = cut && age < WHIP_S ? 0.025 * Math.exp(-age / 0.05) * Math.sin(age * 40) * l : 0
         const at = (u: number, off: number) => ({
           x: (a0.x * aspect + dx * u + nx * off) / aspect,
           y: a0.y + dy * u + ny * off + sag * Math.sin(Math.PI * u),
@@ -252,50 +252,68 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
             else ctx.moveTo(p.x * w, p.y * hgt)
           }
         }
-        // bone white, the stem's colour by `accent`, warmed toward ember in a drop
-        const tone = (al: number, accent: number) => rgba(toward(toward(rgb(BONE), rgb(STRINGS[i]!.colour), accent), rgb(EMBER), 0.55 * drop), al * vis)
-        const thin = 0.35 + 0.65 * vis // a curling finger thins its string
         const bow = (u: number) => whip * Math.sin(Math.PI * u)
+        pills.push({ at: at(0.2 + i * 0.13, 0), i })
+        if (cut) {
+          line(bow)
+          ctx.setLineDash(tk.cutDash.map((d) => d * px))
+          ctx.strokeStyle = rgba(tk.cut, 1)
+          ctx.lineWidth = tk.weight * px
+          ctx.stroke()
+          ctx.setLineDash([])
+          continue
+        }
+        // re-strung: the glow to full and the core wide, back over the flash's time
+        const flash = opts.reduced ? 0 : Math.max(0, 1 - (clock - restrungAt[i]!) / (tk.flashMs / 1000)) ** 2
         const shape = (u: number, ph: number) => amp * Math.sin(Math.PI * u) * Math.cos(ph) + pl * Math.sin(3 * Math.PI * u) * Math.cos(2 * ph + i)
-        // the halo: soft and restrained
+        ctx.globalCompositeOperation = 'lighter'
+        // the glow: orange, as loud as its stem plays now, warmed in a drop
         line(bow)
-        ctx.strokeStyle = tone(0.06 + 0.18 * g, 1)
-        ctx.lineWidth = (5 + 9 * k.glow) * px * thin
+        const lit = Math.min(1, tk.glowAlpha * (0.6 + 0.8 * g))
+        ctx.strokeStyle = rgba(mix(tk.glowColor, tk.drop, 0.55 * drop), lit + (1 - lit) * flash)
+        ctx.lineWidth = tk.glow * (0.5 + 0.85 * k.glow) * px
         ctx.stroke()
         // the shimmer: faint lines across the swing, a blurred spindle while it rings
         if (amp + pl > 0.0008) {
           for (let n = 0; n < SHIMMER; n++) {
             const ph = (Math.PI * (n + 0.5)) / SHIMMER + t * 40 * (STRINGS[i]!.speed / 50)
             line((u) => shape(u, ph) + bow(u))
-            ctx.strokeStyle = tone((0.05 + 0.12 * g) * (1 + drop * 0.5), 0.9)
-            ctx.lineWidth = 0.8 * px * thin
+            ctx.strokeStyle = rgba(tk.core, (0.05 + 0.12 * g) * (1 + drop * 0.5))
+            ctx.lineWidth = 0.55 * tk.weight * px
             ctx.stroke()
           }
         }
-        // the core: thin and crisp, brighter as it plays
+        ctx.globalCompositeOperation = 'source-over'
+        // the core: thin, crisp white
         line(bow)
-        ctx.strokeStyle = tone(0.55 + 0.45 * g, 0.85 - 0.25 * g) // its colour, a little whiter as it gets loud
-        ctx.lineWidth = (0.9 + 0.8 * k.glow) * px * thin
+        ctx.strokeStyle = rgba(tk.core, 1)
+        ctx.lineWidth = (tk.weight + (tk.pluckWeight - tk.weight) * flash) * px
         ctx.stroke()
       }
-      // the fingertips: a small point of light each, a tight halo
+      ctx.globalCompositeOperation = 'source-over'
+      // the fingertips: a dot each (a cut band's in its dashes' colour)
       for (const b of layout.beads) {
-        const i = index(b.id)
-        const x = b.at.x * w
-        const y = b.at.y * hgt
-        const r = 3.5 * px
-        const halo = ctx.createRadialGradient(x, y, 0, x, y, r)
-        const c = toward(rgb(BONE), rgb(STRINGS[i]!.colour), 0.85)
-        halo.addColorStop(0, rgba(c, 0.35 + 0.35 * glow[i]!))
-        halo.addColorStop(1, rgba(c, 0))
-        ctx.fillStyle = halo
-        ctx.fillRect(x - r, y - r, 2 * r, 2 * r)
         ctx.beginPath()
-        ctx.arc(x, y, 1.2 * px, 0, Math.PI * 2)
-        ctx.fillStyle = rgba(toward(rgb(BONE), rgb(EMBER), 0.5 * drop), 0.95)
+        ctx.arc(b.at.x * w, b.at.y * hgt, tk.tipSize * px, 0, Math.PI * 2)
+        ctx.fillStyle = rgba(folded[index(b.id)] ? tk.cut : tk.core, 1)
         ctx.fill()
       }
-      ctx.globalCompositeOperation = 'source-over'
+      // the bands' pills, a little above their strings
+      const lb = tk.label
+      ctx.font = `${lb.weight} ${(lb.size * px).toFixed(1)}px ${lb.font}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      for (const { at, i } of pills) {
+        const text = BAND_LABELS[i]! + (folded[i] ? ' · CUT' : '')
+        const pw = ctx.measureText(text).width + 20 * px
+        const [x, y] = [at.x * w, at.y * hgt - 20 * px]
+        ctx.beginPath()
+        ctx.roundRect(x - pw / 2, y - 12 * px, pw, 24 * px, 12 * px)
+        ctx.fillStyle = rgba(lb.bg, 1)
+        ctx.fill()
+        ctx.fillStyle = rgba(lb.color, 1)
+        ctx.fillText(text, x, y + 0.5 * px)
+      }
       return { layout, levels }
     },
     setParams(p) {

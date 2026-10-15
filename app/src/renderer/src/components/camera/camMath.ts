@@ -156,6 +156,8 @@ export function fingersUp(h: readonly Pt[]): number {
   return n
 }
 
+const dist3 = (a: Pt3, b: Pt3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+
 export function handSignal(h: readonly Pt[], near: number): HandSignal {
   const p = palm(h) || 1e-6
   const pinch = 1 - smoothstep(0.25, 0.6, dist(h[4]!, h[8]!) / p)
@@ -177,6 +179,8 @@ export interface HandShape {
   world?: Pt3[]
   /** Pinching, with hysteresis: on above 0.7, off below 0.4. */
   pinched: boolean
+  /** A FRAME's L (isAnL), with hysteresis: made on its limits, kept on looser ones while this side's last was one. */
+  isL: boolean
   /** TWIST, a pinch dial: how far the hand has turned since the pinch began (the knuckle line, 5 to 17, unwrapped),
    *  -1..1 over -90..90 degrees, clockwise on screen positive; 0 when not pinched. */
   twist: number
@@ -212,6 +216,33 @@ export const FRAME_HOLD_MS = 150
 const SIDE_MARGIN = 0.1
 const NO_FRAME: HandShapes['frame'] = { held: false, x0: 0, y0: 0, x1: 0, y1: 0, corners: [], size: 0, since: 0, seen: -1e9 }
 
+const fingerOut = (q: Pt[], i: number, by = 1.45) => dist(q[TIPS[i]!]!, q[WRIST]!) > by * dist(q[KNUCKLES[i]!]!, q[WRIST]!)
+/** An L's limits, and looser ones to stay one (a hand that was an L last result: a dim room's landmarks wobble). */
+const L_IN = { reach: 0.5, out: 1.45, cos3: 0.85, cos2: 0.65, folded: 1.45 }
+const L_STAY = { reach: 0.4, out: 1.3, cos3: 0.92, cos2: 0.75, folded: 1.6 }
+
+/** An L's thumb and index: the thumb out from the palm and apart from the index (a natural L's, about 55-70 degrees,
+ *  in 3D where the tracker gives it: the picture flattens it to 45), the index out, whatever the other three do (the
+ *  picture's points; `aspect` its width over its height). Its other three folded make the L (isAnL). */
+export function isLPose(h: HandShape, aspect: number, stay = false): boolean {
+  const k = stay ? L_STAY : L_IN
+  const q = h.points.map((p) => ({ x: p.x * aspect, y: p.y }))
+  const w = h.world
+  const [u, v] = w
+    ? [[w[4]!.x - w[2]!.x, w[4]!.y - w[2]!.y, w[4]!.z - w[2]!.z], [w[8]!.x - w[5]!.x, w[8]!.y - w[5]!.y, w[8]!.z - w[5]!.z]]
+    : [[q[4]!.x - q[2]!.x, q[4]!.y - q[2]!.y, 0], [q[8]!.x - q[5]!.x, q[8]!.y - q[5]!.y, 0]]
+  const cos = (u[0]! * v[0]! + u[1]! * v[1]! + u[2]! * v[2]!) / (Math.hypot(...u) * Math.hypot(...v) || 1)
+  return dist(q[4]!, q[5]!) > k.reach * palm(q) && fingerOut(q, 0, k.out) && Math.abs(cos) < (w ? k.cos3 : k.cos2)
+}
+
+/** A FRAME's L: thumb and index out and apart (isLPose), the rest folded; `stay`: on the looser limits that keep one
+ *  (HandShape.isL). */
+export function isAnL(h: HandShape, aspect: number, stay = false): boolean {
+  const q = h.points.map((p) => ({ x: p.x * aspect, y: p.y }))
+  const by = (stay ? L_STAY : L_IN).folded
+  return isLPose(h, aspect, stay) && !fingerOut(q, 1, by) && !fingerOut(q, 2, by) && !fingerOut(q, 3, by)
+}
+
 /**
  * The hands' shapes from the recognizer's hands (0-1 of the camera frame, `aspect` its width over height), computed
  * once for the signals (S2's sound) and TouchDesigner (S3). `prev`: last time's, for the sides and FRAME's hold;
@@ -227,7 +258,9 @@ export function handShapes(
   const sq = (h: readonly Pt[]) => h.map((p) => ({ x: p.x * aspect, y: p.y }))
   const shaped: HandShape[] = hands.slice(0, 2).map((h) => {
     const s = handSignal(sq(h.points), 0)
-    return { pinch: s.pinch, open: s.open, fingers: s.fingers, gesture: h.gesture, points: h.points.map((p) => ({ x: p.x, y: p.y })), ...(h.world ? { world: [...h.world] } : {}), pinched: false, twist: 0, angle: 0, turn: 0 }
+    // The pinch in 3D where the tracker gives it: a hand turned side-on shrinks the picture's palm, not the real one.
+    if (h.world) s.pinch = 1 - smoothstep(0.25, 0.6, dist3(h.world[4]!, h.world[8]!) / (dist3(h.world[0]!, h.world[9]!) || 1e-6))
+    return { pinch: s.pinch, open: s.open, fingers: s.fingers, gesture: h.gesture, points: h.points.map((p) => ({ x: p.x, y: p.y })), ...(h.world ? { world: [...h.world] } : {}), pinched: false, twist: 0, angle: 0, turn: 0, isL: false }
   })
   // Sides: last time's (the closer hand, all 21 points; for two, the closer pairing) unless its wrist crossed the
   // middle by the margin; else by where it is.
@@ -256,21 +289,14 @@ export function handShapes(
     const angle = Math.atan2(q[17]!.y - q[5]!.y, q[17]!.x - q[5]!.x)
     const pinched = was?.pinched ? h.pinch > 0.4 : h.pinch > 0.7
     const turn = pinched && was?.pinched ? was.turn + wrap(angle - was.angle) : 0
-    return { ...h, pinched, angle, turn, twist: pinched ? Math.max(-1, Math.min(1, turn / (Math.PI / 2))) : 0 }
+    return { ...h, pinched, angle, turn, twist: pinched ? Math.max(-1, Math.min(1, turn / (Math.PI / 2))) : 0, isL: isAnL(h, aspect, !!was?.isL) }
   }
   left = twisted(left, prev?.left)
   right = twisted(right, prev?.right)
   const apart = left && right ? Math.hypot((right.points[WRIST]!.x - left.points[WRIST]!.x) * aspect, right.points[WRIST]!.y - left.points[WRIST]!.y) / aspect : 0
 
-  // FRAME: an L each, and the tips' rect open at least half a palm each way.
-  const isL = (h: HandShape) => {
-    const q = sq(h.points)
-    const u = { x: q[4]!.x - q[2]!.x, y: q[4]!.y - q[2]!.y }
-    const v = { x: q[8]!.x - q[5]!.x, y: q[8]!.y - q[5]!.y }
-    const cos = (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y) || 1)
-    const out = (i: number) => dist(q[TIPS[i]!]!, q[WRIST]!) > 1.45 * dist(q[KNUCKLES[i]!]!, q[WRIST]!)
-    return dist(q[4]!, q[5]!) > 0.6 * palm(q) && out(0) && !out(1) && !out(2) && !out(3) && Math.abs(cos) < 0.65
-  }
+  // FRAME: an L each (isL), and the tips' rect open at least half a palm each way.
+  const isL = (h: HandShape) => h.isL
   let frame = prev && now - prev.frame.seen <= FRAME_HOLD_MS ? prev.frame : NO_FRAME
   if (left && right && isL(left) && isL(right)) {
     const tips = [left.points[4]!, left.points[8]!, right.points[4]!, right.points[8]!]

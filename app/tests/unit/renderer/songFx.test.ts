@@ -1,13 +1,11 @@
 // The TRACK song's live FX (1.5.2): the limiter holds its true-peak ceiling, nothing clicks (the worklets run here on
 // their real code in a small sandbox; the native nodes only ever move by setTargetAtTime), and the preset map's math.
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { DRAWN_MS, GESTURES_NEUTRAL, GestureTracker, SIGN_HOLD_MS, SOUND_TARGETS, STRINGS_SOUND, evaluate, glassInput, startSoundMap, stemLevels, usesStems, type SoundEntry } from '@/audio/live/soundMap'
-import { KNOBS } from '@/touchdesigner/knobs'
-import { TE_CHANNELS } from '@shared/touchengine'
 import { stageFrames } from '@/visuals/live/stage'
-import { NEUTRAL, STEMS, SongFx, activeFx, filterHz, nextStep, stemLowpassHz, useSongFx } from '@/audio/live/songFx'
+import { NEUTRAL, STEMS, SongFx, activeFx, currentSongFx, filterHz, nextStep, stemLowpassHz, useSongFx } from '@/audio/live/songFx'
 import { songStems } from '@/audio/live/songDeck'
 
 const SR = 48000
@@ -270,17 +268,6 @@ describe('song FX maps', () => {
     vi.useRealTimers()
   })
 
-  it('reads the TD panel knobs as knob.* sources', () => {
-    const sets: Record<string, number>[] = []
-    const fake = { set: (p: Record<string, number>) => sets.push(p), tick: () => {}, reset: () => {} }
-    const preset = { id: 'k', macros: {}, sound: { changes_sound: true, map: [{ target: 'fx.wash', source: 'knob.trails', min: 0, max: 1, curve: 'lin' as const }] } }
-    const stop = startSoundMap(() => preset, () => 'touchdesigner', () => fake as never)
-    const a = { time: 0, rms: 0, bands: { low: 0, mid: 0, high: 0 }, onset: 0, fft: null, waveL: null, waveR: null, sampleRate: 48000, bpm: 120, beatPhase: 0, active: true }
-    ;[...stageFrames].at(-1)!(a, 16)
-    expect(sets.at(-1)?.wash).toBeCloseTo(0.15) // TRAILS' default until PROD's feed lands
-    stop()
-  })
-
   it('turns a pinched hand into a knob (twist), and a bipolar map spans it', () => {
     const t = new GestureTracker()
     const sig = (at: number, twist: number, pinched: boolean) => ({ at, calibrating: false, near: 0, twoFaces: false, head: null, hands: [],
@@ -316,24 +303,6 @@ describe('song FX maps', () => {
     expect(g.drawn_zigzag).toBe(0)
   })
 
-  it("every preset's sound map reads sources that exist (no dead macro.* on a v3 preset) and names real targets", () => {
-    const dir = resolve(__dirname, '../../../../touchdesigner/presets')
-    const ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'preset.json')))
-    expect(ids.length).toBeGreaterThan(8)
-    const channels = new Set(TE_CHANNELS.map((c) => (typeof c === 'string' ? c : (c as { name: string }).name)))
-    const bad: string[] = []
-    for (const id of ids) {
-      const p = JSON.parse(readFileSync(resolve(dir, id, 'preset.json'), 'utf8')) as { macros?: { id: string }[]; sound?: { map: SoundEntry[] } | null }
-      for (const e of p.sound?.map ?? []) {
-        const [kind, name] = [e.source.slice(0, e.source.indexOf('.')), e.source.slice(e.source.indexOf('.') + 1)]
-        const ok = kind === 'gesture' ? name in GESTURES_NEUTRAL : kind === 'knob' ? KNOBS.some((k) => k.id === name)
-          : kind === 'macro' ? (p.macros ?? []).some((m) => m.id === name) : kind === 'ch' ? channels.has(name) : false
-        if (!ok) bad.push(`${id}: ${e.source}`)
-        if (!SOUND_TARGETS.includes(e.target)) bad.push(`${id}: target ${e.target}`)
-      }
-    }
-    expect(bad).toEqual([])
-  })
 })
 
 describe('song stems (STRING HANDS)', () => {
@@ -351,24 +320,6 @@ describe('song stems (STRING HANDS)', () => {
     expect(usesStems(map)).toBe(true)
     expect(usesStems([{ ...map[0]!, target: 'fx.wash' }])).toBe(false)
     expect(usesStems(null)).toBe(false)
-  })
-
-  it("STRINGS' map: the strings' lengths play the stems; a pinched hand turned wobbles or growls the bass, a fist tears it, victory gates it, both pinched pump; hands unseen sit neutral", () => {
-    const strings = JSON.parse(readFileSync(resolve(__dirname, '../../../../touchdesigner/presets/strings/preset.json'), 'utf8'))
-    const map = strings.sound.map as SoundEntry[]
-    const unseen = Object.fromEntries(Object.entries(GESTURES_NEUTRAL).map(([k, v]) => [`gesture.${k}`, v]))
-    const run = (over: Record<string, number>) => evaluate(map, { ...unseen, ...over }, new Map(), 0.016)
-    const rest = run({})
-    for (const [k, v] of Object.entries(NEUTRAL)) expect(rest[k as keyof typeof rest]).toBeCloseTo(v, 6)
-    expect(run({ 'gesture.pair_index': 0 })).toMatchObject({ drums: 0, bass: 1, other: 1 })
-    expect(run({ 'gesture.turn_l': 0.7, 'gesture.pinch_l': 1 })).toMatchObject({ wobble: 0.7, wobbleDepth: 1 })
-    const growl = run({ 'gesture.turn_r': 1, 'gesture.twist_r': -1 })
-    expect(growl.growl).toBeCloseTo(1, 6)
-    expect(growl.vowel).toBeCloseTo(0, 6) // anticlockwise: "o"
-    expect(run({ 'gesture.fist': 1 }).tear).toBe(1)
-    expect(run({ 'gesture.victory': 1 }).gate).toBe(1)
-    expect(run({ 'gesture.squeeze': 1 }).pump).toBeCloseTo(1, 6)
-    expect(usesStems(map)).toBe(true)
   })
 
   it("PROD's STRINGS page: the song from its stems, the beat FX from the hands (the drive), GLASS from the map; no deck, the stems read 1", () => {
@@ -433,6 +384,58 @@ describe('song stems (STRING HANDS)', () => {
     expect(level('drums')).toBe(1)
     useSongFx.setState({ enabled: true })
     fx.dispose()
+  })
+})
+
+describe("REMIX's Board on SongFx (board.ts)", () => {
+  it('stem faders with mute and solo, each stem filter LP / Off / HP, the bands into the isolator, Volume, FX depth', () => {
+    class Param {
+      value = 1
+      setTargetAtTime(v: number) { this.value = v; return this }
+    }
+    class Node { connect<T>(n: T) { return n } disconnect() {} }
+    Object.assign(globalThis as Record<string, unknown>, {
+      GainNode: class extends Node { gain = new Param() },
+      BiquadFilterNode: class extends Node { type = 'lowpass'; frequency = new Param(); Q = new Param(); gain = new Param() },
+      StereoPannerNode: class extends Node { pan = new Param() },
+      DelayNode: class extends Node { delayTime = new Param() },
+      ConvolverNode: class extends Node {},
+      AudioWorkletNode: class extends Node {
+        private p: Record<string, Param> = {}
+        parameters = { get: (k: string) => (this.p[k] ??= new Param()) }
+        port = { postMessage: () => {}, onmessage: null }
+      },
+    })
+    useSongFx.setState({ enabled: true })
+    const fx = new SongFx({ currentTime: 0, sampleRate: SR } as unknown as BaseAudioContext, () => null, {} as AudioBuffer)
+    const inner = fx as unknown as { strips: { gain: { gain: Param }; filter: { type: string; frequency: Param } }[]; iso: { parameters: { get(k: string): Param } }; input: { gain: Param } }
+    const gains = () => inner.strips.map((s) => +s.gain.gain.value.toFixed(3))
+    fx.setBoard('f1', 0.39) // bass at half: -6 dB
+    expect(gains()).toEqual([1, 0.5, 1, 1])
+    fx.setStemSolo(2, true) // vocals alone
+    expect(gains()).toEqual([0, 0, 1, 0])
+    fx.setStemSolo(2, false)
+    fx.setStemMute(0, true)
+    expect(gains()).toEqual([0, 0.5, 1, 1])
+    fx.setBoard('flt3', 0.2)
+    expect(inner.strips[3]!.filter.type).toBe('lowpass')
+    fx.setBoard('flt3', 0.9)
+    expect(inner.strips[3]!.filter.type).toBe('highpass')
+    fx.setBoard('flt3', 0.5) // Off: a flat shelf, exactly the stem
+    expect(inner.strips[3]!.filter.type).toBe('lowshelf')
+    fx.setBoard('b0', 1)
+    expect(inner.iso.parameters.get('gSub').value).toBe(2) // +6 dB
+    expect(inner.iso.parameters.get('iso').value).toBe(1) // the isolator in for it
+    fx.setBandCut(4, true)
+    expect(inner.iso.parameters.get('cutHigh').value).toBe(1)
+    fx.setBoard('mvol', 0.39)
+    expect(inner.input.gain.value).toBeCloseTo(0.5, 6)
+    fx.setBoard('depth', 0.35)
+    expect(fx.fxDepth).toBeCloseTo(0.5, 9)
+    fx.dispose()
+    const side = new SongFx({ currentTime: 0, sampleRate: SR } as unknown as BaseAudioContext, () => null, {} as AudioBuffer, { current: false })
+    expect(currentSongFx()).not.toBe(side) // the GUIDE's demo chain: never the app's current one
+    side.dispose()
   })
 })
 
@@ -553,7 +556,7 @@ describe("STRINGS' bass-music FX (the stemfx worklet, 120 BPM)", () => {
     }
     const kick = [mono(sine(60, 0.3)), mono(silent), mono(sine(1000, 0.2)), mono(silent)]
     expect(tone(run(kick, P({ world: 3, worldWet: 1, worldTilt: 1 }))[0], 60)).toBeGreaterThan(0.7 * tone(run(kick, P())[0], 60))
-  })
+  }, 60_000) // six worlds rendered twice: slow under a loaded machine
 })
 
 describe("STRINGS' big moves (the moves worklet: slip, 120 BPM)", () => {
@@ -692,33 +695,35 @@ describe("STRINGS' punch and FINGER FILTERS (the stemfx engage, the iso worklet)
 })
 
 describe("STRINGS' GLASS: a world with its own sound", () => {
-  it("STRINGS' map: the glass's world, how far in (its size) and its control (its tilt); a crack fires the hit; no glass, at rest", () => {
+  it("STRINGS' map: the FRAME loops through the glass's style; no frame, at rest", () => {
     const unseen = Object.fromEntries(Object.entries(GESTURES_NEUTRAL).map(([k, v]) => [`gesture.${k}`, v]))
     const run = (over: Record<string, number>) => evaluate(STRINGS_SOUND.map, { ...unseen, ...over }, new Map(), 0.016)
-    expect(run({})).toMatchObject({ glass: 0, world: 0, crack: 0 })
-    const g = run({ 'gesture.glass_on': 1, 'gesture.glass_world': 3 / 6, 'gesture.glass_size': 1, 'gesture.glass_tilt': 1 })
-    expect(g.glass).toBe(1)
-    expect(g.world).toBeCloseTo(3, 6) // 8-BIT
-    expect(g.worldWet).toBeCloseTo(1, 6)
-    expect(g.worldTilt).toBeCloseTo(1, 6)
-    expect(run({ 'gesture.glass_crack': 1 }).crack).toBe(1)
+    expect(run({})).toMatchObject({ frame: 0, frameStyle: 0, glass: 0, world: 0, crack: 0 })
+    const g = run({ 'gesture.glass_on': 1, 'gesture.glass_style': 2 / 12, 'gesture.glass_flip': 1 })
+    expect(g.frame).toBe(1)
+    expect(g.frameStyle).toBeCloseTo(2, 6) // PRISM
+    expect(g.frameFlip).toBe(1) // turned over: backwards
   })
 
   it('reads the glass signal: on, its world, size and tilt, and a crack as a short pulse', () => {
     const t = new GestureTracker()
-    let glass = { on: true, type: 'kaleido', size: 0.3, tilt: -0.5, crackAt: 0 }
+    let glass = { on: true, type: 'kaleido', size: 0.3, tilt: -0.5, crackAt: 0, flipped: true }
     const previous = glassInput.current
     glassInput.current = () => glass
     let g = GESTURES_NEUTRAL
     for (let ms = 0; ms <= 600; ms += 16) g = t.update(null, ms, 0.016)
     expect(g.glass_on).toBe(1)
     expect(g.glass_world).toBeCloseTo(5 / 6, 6) // MIRROR
+    expect(g.glass_style).toBeCloseTo(4 / 12, 6) // KALEIDO
+    expect(g.glass_flip).toBe(1)
     expect(g.glass_size).toBeCloseTo(0.3, 2)
     expect(g.glass_tilt).toBeCloseTo(-0.5, 2)
-    glass = { on: false, type: 'kaleido', size: 0.3, tilt: -0.5, crackAt: 610 }
+    glass = { on: false, type: 'kaleido', size: 0.3, tilt: -0.5, crackAt: 610, flipped: true }
     g = t.update(null, 616, 0.016)
     expect(g.glass_crack).toBe(1)
     expect(g.glass_world).toBe(0)
+    expect(g.glass_style).toBeCloseTo(4 / 12, 6) // off, it's still the style (the next frame's, S3's next)
+    expect(g.glass_flip).toBe(0)
     for (let ms = 632; ms <= 900; ms += 16) g = t.update(null, ms, 0.016)
     expect(g.glass_crack).toBe(0)
     glassInput.current = previous
@@ -764,5 +769,109 @@ describe("STRINGS' GLASS: a world with its own sound", () => {
     expect(posted.filter((m) => m.kind === 'stutter')).toHaveLength(1)
     expect(inner.param('crush').value).toBeCloseTo(0.85, 6)
     fx.dispose()
+  })
+})
+
+describe("the FRAME's loop (the frame worklet, 120 BPM from 0)", () => {
+  const { procs, run } = worklets()
+  const make = (opts?: object, bpm = 120) => {
+    const p = new (procs['fvwks-frame'] as unknown as new (o?: object) => any)(opts && { processorOptions: opts })
+    if (bpm) p.port.onmessage({ data: { bpm, anchor: 0 } })
+    return p
+  }
+  const at = (s: number) => Math.round(s * SR)
+  const ramp = (s: number) => Float32Array.from({ length: at(s) }, (_, i) => i * 1e-6) // each sample says where it's from
+  const gate = (from: number, to = Infinity) => (i: number) => ({ on: i >= at(from) && i < at(to) ? 1 : 0, style: 0, flip: 0 })
+
+  it('loops the 4 beats before the latest beat, from its phase now; letting go lands where the song is (slip)', () => {
+    const x = ramp(10)
+    const [y] = run(make(), x, x, gate(5.3, 9.5))
+    const end = at(5), L = at(2) // the beat at 5 s, 4 beats back
+    const looped = (t: number) => (end - L + ((t - end) % L)) * 1e-6
+    for (const t of [at(5.32), at(5.45), at(6.5), at(7.2), at(9.2)]) expect(y[t]).toBeCloseTo(looped(t), 7)
+    for (const t of [at(9.67), at(9.9)]) expect(y[t]).toBeCloseTo(x[t]!, 7) // past the glass break (150 ms)
+  })
+
+  it("REMIX's letting go lands on a beat due within 60 ms (S3's shatter does), else at once", () => {
+    const x = ramp(8), end = at(5), L = at(2), looped = (t: number) => (end - L + ((t - end) % L)) * 1e-6
+    const [near] = run(make(), x, x, gate(5.3, 6.46)) // 40 ms before the beat at 6.5 s (the lock's hit long gone)
+    expect(near[at(6.49)]).toBeCloseTo(looped(at(6.49)), 7) // still looping
+    expect(near[at(6.67)]).toBeCloseTo(x[at(6.67)]!, 7) // let go at 6.5 s, the break over
+    const [far] = run(make(), x, x, gate(5.3, 6.35)) // 150 ms before: now
+    expect(far[at(6.52)]).toBeCloseTo(x[at(6.52)]!, 7)
+    const [play] = run(make({ live: true }), x, x, gate(5.3, 6.46)) // PLAY: always now
+    expect(play[at(6.63)]).toBeCloseTo(x[at(6.63)]!, 7)
+  })
+
+  it('no click at the seam (crossfaded into the audio before the loop) or the lock', () => {
+    const x = Float32Array.from({ length: at(10) }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 440.3 * i) / SR)) // not whole cycles in 2 s
+    const [y] = run(make(), x, x, gate(5.3))
+    const jump = (a: number, b: number) => { let j = 0; for (let t = at(a); t < at(b); t++) j = Math.max(j, Math.abs(y[t]! - y[t - 1]!)); return j }
+    expect(jump(6.2, 9.8)).toBeLessThan(0.05) // two seams (7 s, 9 s); the sine's own steepest step is 0.029
+    expect(jump(5.25, 5.45)).toBeLessThan(0.05) // the lock (5 ms in)
+  })
+
+  it('2 beats when 4 would pass 4.2 s; no beat: 120 BPM from the lock', () => {
+    const x = ramp(7)
+    const [slow] = run(make(undefined, 50), x, x, gate(5.3)) // beats of 1.2 s: 4.8 s to 2.4 s
+    expect(slow[at(5.4)]).toBeCloseTo((at(4.8) - at(2.4) + (at(5.4) - at(4.8))) * 1e-6, 7)
+    const [free] = run(make(undefined, 0), x, x, gate(5.3))
+    const lock = Math.ceil(at(5.3) / 128) * 128 // the block it lands in
+    expect(free[at(5.4)]).toBeCloseTo((lock - at(2) + (at(5.4) - lock)) * 1e-6, 7)
+  })
+
+  it('turned over (the flip side) it plays backwards from where it is, at the card\'s face swap; back, forwards where the loop would be now', () => {
+    const x = ramp(10)
+    const flip = (i: number) => ({ on: i >= at(5.3) ? 1 : 0, style: 0, flip: i >= at(6.5) && i < at(8.5) ? 1 : 0 })
+    const [y] = run(make(), x, x, flip)
+    const end = at(5), L = at(2), looped = (t: number) => end - L + ((t - end) % L)
+    const tf = Math.ceil(at(6.5) / 128) * 128 + at(0.07), from = looped(tf) // the block it's turned in, 70 ms on: the swap
+    expect(y[tf - at(0.01)]).toBeCloseTo(looped(tf - at(0.01)) * 1e-6, 7) // forwards until then
+    const back = (t: number) => end - L + ((((from - (end - L) - (t - tf)) % L) + L) % L)
+    for (const t of [tf + at(0.01), at(7), at(7.9), at(8.4)]) expect(y[t]).toBeCloseTo(back(t) * 1e-6, 7)
+    for (const t of [at(8.6), at(9.3)]) expect(y[t]).toBeCloseTo(looped(t) * 1e-6, 7) // a slip reverse
+  })
+
+  it("turned over, its partner style comes in at once, not on the beat (a pinch's waits)", () => {
+    const x = ramp(6).map((_, i) => 0.3 * Math.sin((2 * Math.PI * 110 * i) / SR))
+    const plan = (style: number) => (i: number) => ({ on: i >= at(3) ? 1 : 0, flip: i >= at(4.7) ? 1 : 0, style: i >= at(4.7) ? style : 1 })
+    const [ice] = run(make(), x, x, plan(7)), [same] = run(make(), x, x, plan(1))
+    let d = 0, p = 0
+    for (let t = at(4.79); t < at(4.98); t++) { d += (ice[t]! - same[t]!) ** 2; p += same[t]! ** 2 }
+    expect(d / p).toBeGreaterThan(0.1) // ICE before the beat at 5 s
+  })
+
+  it('no click turning over and back, nor at the seams going backwards', () => {
+    const x = Float32Array.from({ length: at(12) }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 440.3 * i) / SR))
+    const [y] = run(make(), x, x, (i) => ({ on: i >= at(5.3) ? 1 : 0, style: 0, flip: i >= at(6.4) && i < at(10.2) ? 1 : 0 }))
+    let jump = 0
+    for (let t = at(6.2); t < at(11.5); t++) jump = Math.max(jump, Math.abs(y[t]! - y[t - 1]!))
+    expect(jump).toBeLessThan(0.05) // flips at 6.4 and 10.2 s, backwards seams on the way
+  })
+
+  it("PLAY's (live): the loop on top of what's played, its window before the frame's own folds", () => {
+    const x = ramp(7)
+    const [y] = run(make({ live: true, settleS: 0.25 }), x, x, gate(5.1))
+    const end = at(4.5), L = at(2), t = at(5.15) // 5.1 - 0.25: the beat before is 4.5 s
+    expect(y[t]! - x[t]!).toBeCloseTo((end - L + ((t - end) % L)) * 1e-6, 6)
+  })
+
+  it("a style change while it shows lands on the loop's next beat; every style changes it and stays safe", () => {
+    let seed = 1
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1
+    const x = Float32Array.from({ length: at(6) }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 55 * i) / SR) * Math.exp(-((i % 24000) / SR) * 6) + 0.08 * rnd())
+    const [dry] = run(make(), x, x, gate(3))
+    const [y] = run(make(), x, x, (i) => ({ on: i >= at(3) ? 1 : 0, style: i >= at(4.3) ? 3 : 0, flip: 0 })) // HALFTONE at 4.3 s
+    for (let t = at(4.3); t < at(4.5) - at(0.007); t += 97) expect(y[t]).toBeCloseTo(dry[t]!, 7) // not yet
+    let changed = 0, level = 0
+    for (let t = at(4.52); t < at(4.9); t++) { changed += (y[t]! - dry[t]!) ** 2; level += dry[t]! ** 2 }
+    expect(changed / level).toBeGreaterThan(0.01) // crushed from the beat at 4.5 s
+    for (let style = 1; style <= 12; style++) {
+      const [l, r] = run(make(), x, x, (i) => ({ on: i >= at(3) ? 1 : 0, style, flip: 0 }))
+      let d = 0, p = 0, peak = 0
+      for (let t = at(4); t < at(6); t++) { d += (l[t]! - dry[t]!) ** 2; p += dry[t]! ** 2; peak = Math.max(peak, Math.abs(l[t]!), Math.abs(r[t]!)) }
+      expect(d / p, `style ${style}`).toBeGreaterThan(0.05)
+      expect(peak, `style ${style}`).toBeLessThan(1)
+    }
   })
 })

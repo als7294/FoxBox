@@ -1,0 +1,135 @@
+/* The dock (app/design/foxbox-2 README §4 and its markup). */
+.dock {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  width: 840px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 40%), rgba(24, 18, 14, 0.82);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    0 24px 60px -18px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    bottom 0.5s var(--fb-ease-inout),
+    width 0.5s var(--fb-ease-inout);
+  z-index: 7;
+  overflow: hidden;
+  font-family: var(--fb-font);
+}
+.dock[data-board] {
+  bottom: 360px;
+}
+.holo {
+  position: absolute;
+  inset: 0;
+  border-radius: 32px;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 77, 46, 0) 0%,
+    rgba(255, 120, 40, 0.16) 18%,
+    rgba(255, 190, 120, 0.1) 30%,
+    rgba(255, 90, 140, 0.1) 42%,
+    rgba(255, 140, 40, 0.15) 56%,
+    rgba(255, 77, 46, 0) 70%,
+    rgba(255, 170, 90, 0.12) 86%,
+    rgba(255, 77, 46, 0) 100%
+  );
+  background-size: 300% 100%;
+  mix-blend-mode: screen;
+  animation: fbHolo 48s linear infinite;
+}
+.holoEdge {
+  position: absolute;
+  inset: 0;
+  border-radius: 32px;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 150, 80, 0.18);
+  animation: fbHoloEdge 14s ease-in-out infinite;
+}
+.btn {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 68px;
+  padding: 0 16px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0);
+  color: var(--fb-ink);
+  transition:
+    background 0.25s,
+    box-shadow 0.25s,
+    transform 0.2s;
+}
+.btn[data-on] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 6px 18px -6px rgba(0, 0, 0, 0.5);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+.value {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* REMIX's Song: "❚❚ Bar 127" fits at both sizes (FOXBOX2_COMPACT.md) */
+.btn[data-key='song'] {
+  flex: 1.2;
+}
+
+/* Compact (FOXBOX2_COMPACT.md): below 1440 wide or 900 tall */
+@media (max-width: 1439px), (max-height: 899px) {
+  .dock {
+    bottom: 20px;
+    width: 720px;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 28px;
+  }
+  .dock[data-board] {
+    bottom: 356px;
+  }
+  .holo,
+  .holoEdge {
+    border-radius: 28px;
+  }
+  .btn {
+    height: 56px;
+    padding: 0 12px;
+    border-radius: 21px;
+  }
+  .label {
+    font-size: 11px;
+  }
+  .value {
+    font-size: 16px;
+  }
+}

@@ -76,25 +76,40 @@ describe('STRINGS (PROD)', () => {
 describe('STRINGS: a folded finger', () => {
   const canvas = () => {
     const calls: string[] = []
-    const ctx = new Proxy({}, { get: (_t, k) => (k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : typeof k === 'string' && /^(beginPath|moveTo|lineTo|stroke|fill|fillRect|clearRect|arc)$/.test(k) ? () => calls.push(k) : undefined), set: () => true })
-    return { c: { width: 1280, height: 720, getContext: () => ctx } as unknown as HTMLCanvasElement, calls }
+    const text: string[] = []
+    const ctx = new Proxy({}, {
+      get: (_t, k) =>
+        k === 'createRadialGradient' ? () => ({ addColorStop() {} })
+        : k === 'measureText' ? (s: string) => ({ width: s.length * 8 })
+        : k === 'fillText' ? (s: string) => text.push(s)
+        : k === 'setLineDash' ? (d: number[]) => d.length && calls.push('dash')
+        : typeof k === 'string' && /^(beginPath|moveTo|lineTo|stroke|fill|fillRect|clearRect|arc|roundRect)$/.test(k) ? () => calls.push(k)
+        : undefined,
+      set: () => true,
+    })
+    return { c: { width: 1280, height: 720, getContext: () => ctx } as unknown as HTMLCanvasElement, calls, text }
   }
-  it('snaps its string away (a whip, then gone) and re-strings it with a pluck when raised', () => {
-    const { c, calls } = canvas()
+  it('cuts its band (a whip, then dashed, "· CUT") and re-strings it with a pluck when raised; the bands are labelled', () => {
+    const { c, calls, text } = canvas()
     const s = createStrings(c)
     const { hands } = synthHands(0)
     const at = (cut: number, n = 1) => {
       let out = 0
       for (let i = 0; i < n; i++) {
-        calls.length = 0
+        calls.length = text.length = 0
         s.frame(frame({ time: 1 }), 16, hands, -Infinity, [0, 0, 0, cut, 0])
         out = calls.filter((k) => k === 'stroke').length
       }
       return out
     }
     const all = at(0, 3)
-    expect(at(0.95, 40)).toBeLessThan(all) // folded: its string's strokes are gone after the whip
-    expect(at(0.7, 3)).toBeLessThan(all) // still held folded under the raise threshold (hysteresis)
+    expect(text).toEqual(['SUB', 'LOW', 'MID', 'HI-MID', 'HIGH'])
+    expect(calls).not.toContain('dash')
+    expect(at(0.95, 40)).toBe(all - 1) // folded: one dashed line for its glow and core
+    expect(calls).toContain('dash')
+    expect(text).toContain('HI-MID · CUT')
+    expect(at(0.7, 3)).toBe(all - 1) // still held folded under the raise threshold (hysteresis)
     expect(at(0.2, 40)).toBe(all) // raised: re-strung
+    expect(text).toContain('HI-MID')
   })
 })

@@ -1,18 +1,17 @@
 <div align="center">
 
-<img src="app/design/brand/foxbox-banner.png" alt="FoxBox: the toolkit for bass producers who'd rather stay anonymous" width="100%"/>
+<img src="app/design/brand/foxbox-banner.png" alt="FoxBox Strings: an instrument for your hands" width="100%"/>
 
 <br/>
 
-### Stay stealthy.
+### An instrument for your hands.
 
-**The toolkit for bass producers who'd rather stay anonymous.**
+**Hold your hands up to the camera and play.**
 
-VOICE MASK · REMIX · VISUALS
+SAUCE · REMIX
 
-Mask your voice into a deep, distorted drop that locks to your grid. Remix your own tracks into VIPs, mashups and genre flips,
-with tons of takes and no generative AI. Then turn them into stem-reactive visuals and promo clips, with your face masked on
-camera. Everything runs on your Mac.
+Curve your hands into a C and strings of light stretch between your fingertips. Pluck them to make sounds, or load a song
+and remix it with hand shapes locked to its beat. Everything runs on your Mac.
 
 <br/>
 
@@ -27,329 +26,107 @@ camera. Everything runs on your Mac.
 
 <br/>
 
-## The toolkit
-
-<table>
-<tr>
-<th width="33%">🎙 VOICE MASK</th>
-<th width="33%">🎛 REMIX</th>
-<th width="33%">🎆 VISUALS</th>
-</tr>
-<tr>
-<td valign="top"><img src="app/docs/screens/readme/01-studio.png" alt="The Studio, playing a drop on the PACT preset" width="100%"/></td>
-<td valign="top"><img src="app/docs/screens/readme/16-remix.png" alt="REMIX: three takes of a VIP, playing the first drop, with BASS DNA open" width="100%"/></td>
-<td valign="top"><img src="app/docs/screens/readme/17-visuals.png" alt="VISUALS at 9:16: a Milkdrop preset over the waveform, AUTO-VJ on" width="100%"/></td>
-</tr>
-<tr>
-<td valign="top">
-
-- Type a line or record your own voice
-- A 12-module mask rack, locked to your grid
-- Club-loud drops for Rekordbox, CDJs and your DAW
-
-</td>
-<td valign="top">
-
-- VIPs, mashups and genre flips of your own tracks
-- ROLL for takes, rate them, shape one on a lite-DAW timeline
-- AIFF with rekordbox cues, MP3, an Ableton set
-
-</td>
-<td valign="top">
-
-- Stem-reactive visuals that follow builds and drops
-- Your face masked on camera: fox, low-poly, your own
-- Promo clips at 9:16, and a projector output for live sets
-
-</td>
-</tr>
-</table>
-
-## How it works
-
-```text
-  TYPE / RECORD  ─▶  MASK  ─▶  LOCK TO GRID  ─▶  MASTER  ─▶  EXPORT / CLIP
-  Kokoro TTS         12-module   AUTO bars,        −7 LUFS      AIFF + rekordbox.xml,
-  or your own mic    FX rack     last word on      short-term,  or a face-masked
-                                 the beat          −1 dBTP      video
-```
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 🎙 Source
-- **Kokoro-82M TTS** on the Apple GPU (MLX): 28 voices, faster than real time.
-- **Record or import** your own voice. **DeepFilterNet3** cleans it, and **Whisper + a forced aligner** give word-level timing.
-- **Persona designer** (optional, Qwen3-TTS): describe a voice once and reuse it on every line.
-- **Markup** for timing: `|` beat break · `[0.5]` / `[2b]` pause · `*word*` echo throw.
-
-</td>
-<td width="50%" valign="top">
-
-### 🎛 Mask
-- **WORLD** vocoder resynthesis: pitch and formant moved **independently**, plus monotone and scale-lock.
-- **Layers:** a sub octave, a ghost whisper, and a **stacked-voice robotic collage** aligned word by word.
-- **Machine:** channel vocoder, **LPC talkbox** in key, ring mod, frequency shifter.
-- **Colour:** Airwindows **ToTape9 / Tube2 / DeRez4 / Galactic3**, drive, crush, 3-band OTT.
-- **Four macros:** DEPTH · GRIT · MACHINE · SPACE.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-### 📐 Grid
-- **Exact length:** 4 bars at 140 BPM is exactly 302,400 samples at 44.1 kHz.
-- **AUTO bars** picks the length that fits the phrase and its FX tail.
-- **END → BEAT / BAR:** the last word is warped onto the grid (Rubber Band R3, ≤ 8%).
-- **Beat-Lock** puts every `|` chunk on a beat. Speech and tails are never cut.
-
-</td>
-<td valign="top">
-
-### 💿 Master + export
-- **CLUB:** −7 LUFS short-term max, true peak ≤ −1 dBTP. **BAKE-IN:** −6 dBFS peaks, no limiting.
-- **AIFF 24-bit / 44.1 kHz** with ID3 BPM, key and cover art. CDJ-safe **PCM WAV** (format tag 1).
-- Dry and wet variants, and alternate presets in one export.
-- **rekordbox.xml:** beatgrid, **hot cue A on the first word**, a memory cue at voice-out.
-- Drag the output cartridge straight into Rekordbox or your DAW.
-
-</td>
-</tr>
-</table>
-
-## 🔊 Hear it
-
-### [▶ Play the 35-second demo](https://github.com/als7294/FoxBox/raw/main/docs/audio/foxbox-demo.mp3)
-
-One line, typed once: **`WHAT THE FUCK IS UP *GITHUB*`**, rendered by FoxBox at 140 BPM with the last word on the beat and an
-echo throw on *GITHUB*, through each voice in turn:
-
-**0:00** Dry TTS · **0:02** SIGNAL · **0:04** PACT · **0:10** LEGION · **0:15** ABYSS · **0:20** UNIT · **0:25** GHOST · **0:33** RAW
-
-These are straight exports; only the silence between clips was trimmed.
+> **Looking for STUDIO, VISUALS, MASKS or the voice mask?** FoxBox 2.0 is the hands instrument only. The full 1.5 toolkit
+> stays available as [FoxBox 1.5.5](https://github.com/als7294/FoxBox/releases/tag/v1.5.5).
 
-## Presets
+## 🎸 SAUCE: make sounds
 
-| | Preset | What it does |
-|:-:|---|---|
-| 🜂 | **PACT** | Deep entity. Pitch −9 st and formant −5 set separately, sub −12 st, a faint robotic stack, tube into hard clip, a dark plate. |
-| 📡 | **LEGION** | An intercepted broadcast. A monotone voice chorus, 60 Hz ring mod, GSM codec, a radio band-pass, squelch. |
-| 🕳 | **ABYSS** | Pit-demon. Growl subharmonics, detuned doubles, heavy tube drive, a 2.5 s dark hall. |
-| 🤖 | **UNIT** | Robot in key. A talkbox on the key root, ring mod, hard clip, a 1/16 slap. |
-| 👻 | **GHOST** | Whisper transmission. Breath resynthesis, a reverse swell into Galactic tails. |
-| ⚡ | **SIGNAL** | Glitch. A 6-bit DeRez crush, a +200 Hz shift, stutter, tape-stop. |
-| ◯ | **RAW** | An anonymizer base for your own voice: formant shift plus McAdams. |
+<img src="docs/readme/sauce.jpg" alt="SAUCE: two hands in a C with strings of light between the fingertips, a note popping up at the plucking finger" width="100%"/>
 
-A **mask-strength badge** (SYNTHETIC · WEAK · MEDIUM · STRONG) tells you plainly when a chain is only pitch-shifted, and so reversible.
+FoxBox opens here. No song, no setup: your first note plays within seconds.
 
-## 🎛 REMIX <sup>new in 1.5</sup>
+- **The pose:** both hands curved into a C, turned a little toward the camera, thumbs in front.
+- **Pick a note** by raising or lowering a hand. The notes stay in key, and each hand shows its note.
+- **Curl a finger to pluck.** Faster is louder; keep it curled to hold the note. Two hands play two notes.
+- **Twist your wrists** to bend, **shake** for vibrato, and **point up or down** to change octave.
+- **Hand shapes add effects:** ✊ DRIVE · 🤏 WOBBLE · ✌️ ECHO · 🤘 SPACE.
+- **Seven sounds:** 808, REESE, GROWL and WOBBLE basses, and PLUCK, LEAD and KEYS (keys 1–7). Any key and scale.
+- **Melodies:** pick one and pluck to play it in your own rhythm (FOLLOW), or let it guide your notes (FIT). 🎲 rolls a new one.
+- **FLOW:** your right hand sets the pitch and your left makes the shapes.
 
-> **1.5.2:** REMIX is back in the workshop (greyed out) while its sound is rebuilt. Your saved remixes are kept.
+## 🎛 REMIX: remix any song
 
-Remix your own tracks into bass-music edits, on your Mac. Pick a recipe, press **BUILD**, and **ROLL** for as many takes as you like.
+<img src="docs/readme/remix-beatfx.jpg" alt="REMIX: a peace sign holds RIDDIM CHOPS, locked to the beat, over the song’s waveform" width="100%"/>
 
-- **VIP / DROP SWAP:** keep the track and rebuild its drops. **HYBRID** keeps the held 808 and answers it with designed growls, **RESAMPLE** re-sequences the track's own bass, and **ONE PATCH** puts the drops on a single sound.
-- **MASHUP:** A's build or vocals into B's drop, key and tempo matched. **MASH RADAR** finds partners for A among your own tracks.
-- **GENRE FLIP:** the same track as trap-hybrid, riddim, half-time, 140, four-on-the-floor or DnB, on a kit of your choice.
-- **TAKES:** every BUILD and ROLL is a take. Rate it **+ / −** (ROLL leans toward what you like), keep it, name it, A/B two of them.
-- **A lite DAW, not a toy:** move, duplicate, split and cut sections, **SWAP SOUND** on one clip or a whole lane, mute, solo and gain per lane, snap, zoom, loop, undo. The drop's anatomy (GAP, FIRST HIT, PAUSE, SWITCH) is marked on the ruler.
-- **BASS DNA:** see how the bass moves (notes, 808 glides, wobble, growl), audition sounds for 2 s, and compare the old bass with the new.
-- **EXPORT:** AIFF with rekordbox cues at every drop, MP3 320, an Ableton LIVE SET (beta), and straight into VISUALS.
+Load a track from your library, drop one on the window, or try the test beat. FoxBox splits it into stems on your Mac and
+starts two bars before the drop.
 
-## 🎆 VISUALS <sup>new in 1.5</sup>
+- **Hold a hand shape** and its effect plays, locked to the beat. Let go and the song snaps back in time.
+  ✊ **TEAROUT** · ✌️ **RIDDIM CHOPS** · 🤏 **WOBBLE** · 🤘 **HALFTIME** · 👇 **SUB DROP** · ☝️ **BUILD ROLL** (let go: the drop).
+  Raise your hand for more. Two hands play two effects.
+- **Fold a finger to cut its band:** SUB · LOW · MID · HI-MID · HIGH.
+- **Stretch** the strings for tension, **tilt** them to slide the 808, and **shake** them for vibrato.
+- **Jump between sections** (INTRO, BUILD, DROP…). Every jump lands on the bar.
 
-Make visuals and **promo videos for your music**, or run them live behind your set. Pick what the visuals listen to, what sits
-underneath, and stack effects on top. Every layer can react to its own **stem**.
+## 🪟 Frames
 
-<img src="app/docs/screens/readme/11-visuals.png" alt="VISUALS: the voice core with the feedback tunnel reacting to the bass and an RGB split reacting to the drums" width="100%"/>
+<img src="docs/readme/frame.jpg" alt="A frame made with both hands, looping the last 4 beats in the ECHO TRAIL style" width="100%"/>
 
-### 🎚 The new VISUALS console <sup>new in 1.5.2</sup>
+Make a frame with your thumbs and index fingers. **The last 4 beats loop inside it, picture and sound.**
 
-<img src="app/docs/screens/readme/19-visuals-152.png" alt="The new VISUALS console: LAYERS beside the stage, AUTO-VJ counting down to the build, the VOICE strip under the stage" width="100%"/>
+- **Pinch and hold for a moment** to change the effect, each style with its own sound: ECHO TRAIL, PRISM, HALFTONE, KALEIDO, DATAMOSH and THERMAL.
+- **Turn both hands over, like turning a card,** for the style's flip side: a different look and sound, with the loop played backwards.
+- **Let go** (REMIX) or **frame again** (SAUCE) and it shatters back to live.
 
-- **The stage is the hero.** A header strip holds the audio source, latency and a live level meter; the layers sit beside the stage as a visible stack.
-- **LAYERS:** drag to reorder, an opacity knob, mute and solo, what each layer **reacts to**, and **LOCK** for AUTO-VJ. Face hiding is always the top layer, and turning it off takes two clicks.
-- **Effect browser:** hover a tile to preview it on the stage, click to add.
-- **PERFORM** (press **P**): the stage full screen with 8 scene pads, AUTO-VJ, BLACKOUT, FREEZE, DROP FX and a hold-to-talk **VOICE** pad.
-- **AUTO-VJ new looks:** at each new part of the track the unlocked layers change, with a countdown to the next one.
-- **FACE CHECK:** OUTPUT, REC LIVE and SAVE CLIP ask first whenever your real face could show.
-- **VOICE strip:** the live voice mask folds into one row under the stage, with PUSH always in reach.
+## 💿 The library wheel
 
-### 🧠 Smart visuals <sup>new in 1.5</sup>
+<img src="docs/readme/library-wheel.jpg" alt="The library wheel: a half-dome of record sleeves rising out of the waveform, the right index finger as the dial" width="100%"/>
 
-- **AUTO-VJ:** the visuals read the song's structure. Builds tighten, the breath before the drop goes still, and the drop hits. **LOCK** the layers you want to keep as they are.
-- **Made for bass music:** held subs, stabs, wobbles and 808 glides each move the picture their own way, and half-time sections slow it down.
-- **The preview is the output:** pick **9:16**, 16:9 or 1:1, and the stage, the projector window, SAVE CLIP and REC LIVE all match exactly.
-- **Camera:** 12 face-hiding styles and **AUTO-FRAME**. Lean in or reach out and you break through the effects, still hidden.
-- **TEXT:** your lyrics or drop line decrypt, slam and shatter on the drop. MILKDROP cuts on the drop too.
-- **Safe flashes:** strobing is held to 3 flashes a second (WCAG 2.3.1).
+Hold the shaka 🤙 (or press **L**) and your music fans up out of the waveform as a dome of record sleeves.
 
-<img src="app/docs/screens/readme/14-visuals-auto.png" alt="VISUALS at 9:16 mid-drop: AUTO-VJ on, beat rings and the feedback tunnel over the waveform" width="100%"/>
+- **Your right index finger is the dial.**
+- **Close your left hand** to pull a sleeve out and hear a preview. **Hold** it to load the track.
+- It reads a music folder, a **Rekordbox** XML export or your **Serato** library, with search, playlists and crates.
 
-| | |
-|---|---|
-| **Audio source** | **TRACK:** your song. **SPLIT STEMS** separates drums, bass, vocals and other on your Mac (HT-Demucs on MLX, about 15× real time). **LIVE INPUT:** your DJ output from an audio interface (e.g. your mixer's USB record out) or Mac system audio. **MIC:** the live voice mask. |
-| **Base** | Nothing, the track's waveform, the voice core, your camera (faces hidden), a photo, or a video |
-| **Effects** | Stack styles and filters, each with its own opacity, blend mode and the stem it reacts to (kick → drums, sub → bass, …) |
-| **Sync** | **Ableton Link** locks tempo and beat to rekordbox's decks (Performance mode) |
-| **Output** | The stage, a full-screen **output window** for a projector or LED wall, **SAVE CLIP** and **REC LIVE** |
-
-| Family | What it is |
-|---|---|
-| **FOXBOX** | FoxBox's own WebGL styles: the voice core, feedback tunnel, point cloud, spectral terrain, scope, datamosh, flow field. All react to builds, drops and the bass line |
-| **MILKDROP** | 100 classic Milkdrop presets via Butterchurn, with AUTO cycling on the bar and a cut to a high-energy preset on the drop |
-| **SHADERS** | 16 original ISF shaders, all driven by build, drop and bass, plus your own `.fs` files |
-| **FILTERS** | 15 effects that work on the picture beneath: RGB split, datamosh, kaleidoscope, pixel sort, halftone, VHS, trails, thermal, edge glow, zoom pulse, plus the smart ones: depth focus, motion trails, palette from image, beat strobe and bass wobble |
-| **TEXT** | 5 styles for the words before the drop: sharp GPU text that decrypts, slams and shatters |
-
-<img src="app/docs/screens/readme/12-visuals-camera.png" alt="The camera as the base, face hidden, with a filter on top" width="100%"/>
-
-### 🦊 Face masks <sup>new in 1.5</sup>
-
-With the camera as the base, your face is always covered, on the Mac, before anything is drawn or recorded. Pick how:
-
-- **FOX MASK:** a lit 3D fox face that moves like a face rig. It follows your head turns, blinks, brows and open jaw,
-  its ears sit on your head, and the far ear folds away when you turn. If tracking is lost for 300 ms, your face falls back
-  to a pixel blur, so it's never shown.
-- **LOW-POLY:** your face as a coarse, lit polygon mesh in privacy colours. The shape moves with you but your features don't show.
-- **Your own mask:** press **TEMPLATE** for a 1024 × 1024 drawing guide laid out on the face (eyes, brows, nose, mouth,
-  jaw), draw over it, then **+ MASK** to import it as SVG, PNG or WebP. It wraps onto your face like the fox and stays with you.
-- **Ten more:** MOSAIC, BLUR, SOLID, GLITCH, DEPTH GLITCH (beta), ASCII, REDACTED, STATIC, HALFTONE and THERMAL VOID, each
-  with a STRENGTH and an optional pulse from the mix or a stem.
-
-Lean in or reach out and you break through the effects on top, with the mask still on. It all runs on MediaPipe's face and
-hand tracking on your Mac; nothing is uploaded.
-
-### 🎭 MASKS <sup>new in 1.5.1</sup>
-
-A character creator for your mask. Start from one of eight masks in the **LINEUP**, then swap any part: the shell, eyes,
-mouth and jaw, ears and horns, material, colours, pattern, glow and effects. **RANDOMIZE** rolls every part you haven't
-locked. Try it on the head model or on your camera, save it to **MY MASKS**, and **WEAR** it in VISUALS.
-
-<img src="app/docs/screens/readme/18-masks.png" alt="MASKS: the LINEUP of eight starting masks, with SUBWOOFER open on the head model" width="100%"/>
-
-### 📹 SAVE CLIP
-
-Render **the drop, the whole song or a bar range** as a **9:16, 16:9 or 1:1 MP4** (H.264 + AAC) for Reels, TikTok and Shorts.
-It's rendered frame by frame from the stems (faster than real time, with picture and sound in sync), carries the fox watermark,
-and lands in your exports folder, ready to drag. Hit **CLIP** on a finished drop in the Studio to start from it. **REC LIVE**
-records the stage as you play. Set it to **THE DROP** with the CAMERA base and it films you through the drop. The camera hides your face with MediaPipe **on the Mac**, and nothing is uploaded.
-
-<img src="app/docs/screens/readme/13-save-clip.png" alt="SAVE CLIP after a render" width="100%"/>
-
-### 🎙 Voice panel
-
-The live mask is still on the page: every Studio preset and the four macros on your mic, push-to-talk (hold, latch or mute), FX pads
-(THROW · STUTTER · SWELL · TAPE STOP · DROP OUT, landing on the song's grid), MIDI learn, **REC SET** for the whole performance,
-and **TAKE → STUDIO** for a dry take to finish as a drop.
-
-### 🛠 Also fixed in 1.5
-
-- **Drag in your tracks:** drop WAV, AIFF, FLAC, MP3 or M4A on the Studio or on VISUALS' TRACK strip. Anything else gets
-  a clear "can't read this file".
-- **Nothing personal on screen:** exports, errors and settings show `~` instead of your home folder, so a stream never shows it.
-- **The projector window matches the stage exactly**, in every format.
-- **Safe mid-set:** the projector keeps playing when you switch pages, the display stays awake while it's on, and FoxBox
-  asks before it quits while the output is live.
-- **Updates install before you start**, and never lock you out: offline or a slow server means you just CONTINUE.
-- **Easier to read:** no text under 11 px, bigger click targets, calmer headers.
-
-## 🎸 STRINGS <sup>new in 1.5.5</sup>
-
-### [▶ Watch the one-minute STRINGS explainer](https://github.com/als7294/FoxBox/releases/download/v1.5.5/foxbox-strings-1.5.5.mp4)
-
-A **bass-remix instrument you play with your hands** in front of the camera. Load any track (or press **▶ TEST BEAT**): FoxBox
-splits it into stems and starts two bars before the drop. Glowing strings stretch between your fingers, and every move remixes the song.
-
-- **Hand shapes fire beat FX** while you hold them, locked to the grid. Let go and the song snaps back in time.
-  ✊ **TEAROUT** · ✌️ **RIDDIM CHOPS** · 🤏 **WOBBLE** · 🖐 **GROWL** · 🤘 **HALFTIME** · 👇 **SUB DROP** · ☝️ **BUILD ROLL** (let go: the DROP).
-  Raise your hand for more; one effect per hand, two at once.
-- **Play the strings:** stretch them taut to open the song up (slack is a dark build), tilt them for an **808 slide** on the bass,
-  and shake them for **vibrato**.
-- **GLASS:** frame a window with your thumbs and index fingers and look into another world: **THERMAL, X-RAY, HALFTONE, PRISM,
-  KALEIDO** or **DATAMOSH**, each with its own sound. Let go and it shatters.
-- **The strings perform each effect:** they fray, gate, wobble, sag and snap, and the cheat sheet on the right lights up what you're doing.
-- **Scrub the track:** tap a section (INTRO · BUILD · DROP · BREAK …), drag the waveform, or press ←/→ to jump by section; every jump lands on the bar.
-- **Cleaner stems:** the splitter keeps 808 subs on the bass and stops synth leftovers from leaking into the vocals.
-- **Your face, your call:** the raw camera shows by default with **▲ FACE VISIBLE**. One click on **FACE HIDING** masks it, and
-  RECORD and SEND TO OUTPUT ask first.
-- **RECORD** films it; **SEND TO OUTPUT** puts it on the projector. Tracking runs on your Mac with MediaPipe; nothing is uploaded.
-- **Also in 1.5.5:** tracking no longer freezes when the room goes dark, so face hiding keeps following you when the club lights drop.
-
-> **TouchDesigner is paused for now.** STRINGS is all FoxBox, and the TouchDesigner looks are greyed out while we focus here.
-
-## Tour
-
-<table>
-<tr>
-<td width="50%"><img src="app/docs/screens/readme/02-rack-open.png" alt="The open rack"/><br/><sub><b>RACK:</b> 12 modules, each bypassable, with its real parameters.</sub></td>
-<td width="50%"><img src="app/docs/screens/readme/03-presets.png" alt="The voice core"/><br/><sub><b>VOICE CORE:</b> reacts to each render's pitch, words and tails, differently per preset.</sub></td>
-</tr>
-<tr>
-<td><img src="app/docs/screens/readme/04-takes.png" alt="A take in the Studio"/><br/><sub><b>TAKES:</b> record from the VOICE panel with a count-in; clean-up and a word-level transcript you can edit.</sub></td>
-<td><img src="app/docs/screens/readme/05-vault.png" alt="The Vault"/><br/><sub><b>VAULT:</b> every take, searchable and draggable, exportable as a Rekordbox playlist.</sub></td>
-</tr>
-<tr>
-<td><img src="app/docs/screens/readme/07-voices-models.png" alt="Voices and models"/><br/><sub><b>VOICES:</b> auditions, the persona designer, the lexicon, and optional model downloads.</sub></td>
-<td><img src="app/docs/screens/readme/15-whats-new.png" alt="The WHAT'S NEW screen"/><br/><sub><b>WHAT'S NEW:</b> after each update, what changed and why it matters.</sub></td>
-</tr>
-</table>
-
-## Script markup
-
-| Markup | Effect |
-|---|---|
-| `\|` | **Beat break:** the next part starts on the next beat |
-| `[0.5]` · `[2b]` | **Pause** in seconds, or in beats at the session tempo |
-| `*word*` | **Echo throw:** a delay/reverb send on exactly that word |
-
-```text
-GUY FVWKS IS IN THE BUILDING | MAKE SOME *NOISE*
-```
-
-A pronunciation lexicon (e.g. `FVWKS → Fawkes`) and ALL-CAPS handling keep names and acronyms right. 🎲 gives you a new hype line.
+## ✨ Make it yours
+
+<img src="docs/readme/board.jpg" alt="The Board: knobs for tone, shape and motion under the playing hands" width="100%"/>
+
+- **Board:** knobs and faders for the sound (tone, envelope, motion) or the song (stems, bands, master).
+- **Visuals:** Bars, Halo, Silk, Grain or Scope. In SAUCE they play over the camera; in REMIX they wrap around the waveform.
+- **Edit shapes** (in Hands or Beat FX): choose what each hand shape does.
+- **NOTE PICKING** by height or by the space between your hands, and **pluck sensitivity** (Settings → Playing).
+- **Left-handed layout** (Settings → Playing): in FLOW your left hand plays and your right makes the shapes, and the library dial is your left index.
+- **Record:** WAV takes in SAUCE, video with sound in REMIX. Drag them straight into Ableton, Rekordbox or Finder.
+- **Send to output:** the picture full screen on a projector or a stream.
+- **Face hiding** is there if you want it (off by default).
+- **The GUIDE** walks you through every move with your own camera. Press **G** to replay it.
 
 ## Install
 
-> **Requires:** Apple silicon (M1 or newer) · macOS 14+ · about 2 GB free · internet for the first launch only.
+> **Requires:** Apple silicon (M1 or newer) · macOS 14+ · a camera (built in or USB).
 
 1. Download the **`.dmg`** from [**Releases**](https://github.com/als7294/FoxBox/releases/latest), open it, and drag **FoxBox** into **Applications**.
 2. **First open only:** FoxBox isn't notarized by Apple yet, so macOS asks once.
    - **macOS 14:** right-click FoxBox → **Open** → **Open**.
    - **macOS 15+:** open it once and click **Done**, then go to **System Settings → Privacy & Security → Open Anyway**.
-3. **Setup** downloads the voices and the denoiser (about 365 MB) with live progress. The persona designer (9.1 GB), transcripts (2.9 GB) and the stem splitter (84 MB) are optional.
-4. **Updates install at startup:** FoxBox checks GitHub Releases on the boot screen, verifies each download's SHA-256, and restarts into the new version. After an update, **WHAT'S NEW** shows what changed.
+3. **Allow the camera** when macOS asks. SAUCE needs no downloads. REMIX downloads the stem splitter (84 MB) the first time you split a song.
+4. **Updates install at startup:** FoxBox checks GitHub Releases, verifies each download's SHA-256, and restarts into the new version. **WHAT'S NEW** then shows what changed.
 
-**Privacy:** audio, video and text never leave the Mac. The only network use is the model download (Hugging Face), the update check (GitHub) and, when you turn it on, Ableton Link on your local network.
+**Already on 1.5?** FoxBox updates itself to 2.0. Your files stay where they are, and 1.5.5 is still on the
+[Releases](https://github.com/als7294/FoxBox/releases/tag/v1.5.5) page.
 
-<div align="center">
-<img src="app/docs/screens/readme/09-boot.png" alt="The FoxBox boot screen" width="80%"/>
-</div>
+**Privacy:** the camera, your hands and your music never leave the Mac. The only network use is the update check (GitHub)
+and the one-time stem splitter download.
 
 ## Under the hood
 
 ```
-Electron app (React · TypeScript)       IPC proxy · vbx:// audio · drag-out · camera · updater
-   ├── VISUALS          compositor · AUTO-VJ director · three.js · Butterchurn (Milkdrop) · ISF shaders + filters · troika text · output window · WebCodecs clips
-   ├── camera           MediaPipe (face, gestures, segmentation) in a worker · face styles · pass-through · AUTO-FRAME
-   ├── STRINGS          hand shapes → beat FX · string tension, tilt + shake · GLASS worlds (WebGL2) · slip-FX worklet · live stems
-   ├── live audio       AudioWorklet mask · Signalsmith Stretch · song deck · live input · stem estimation · MIDI
-   └── link-helper      Ableton Link (tempo + beat sync)
+Electron app (React · TypeScript)       camera · updater · drag-out · output window
+   ├── hand tracking    MediaPipe hands in a worker · hand shapes · plucks · frames
+   ├── strings          three.js / WebGL2 strings, frames, visuals and the library wheel
+   ├── SAUCE            Tone.js instruments · melodies · the Board
+   └── REMIX            song deck · beat-locked FX · live stems · the library (folder, Rekordbox XML, Serato)
         │  token-authenticated, loopback only
-Python engine (FastAPI · uv)            library (SQLite) · jobs · exports · rekordbox.xml · songs
-   ├── fvwks_voice      Kokoro-MLX · Qwen3-TTS · DeepFilterNet3 · Whisper + forced aligner · HT-Demucs stems
-   ├── fvwks_fx         WORLD mask · layers · vocoder/talkbox · Airwindows · arrange · master · song, structure + bass-line analysis
-   └── fvwks_contracts  the shared models and seams every package agrees on
+Python engine (FastAPI · uv)            songs · structure and beat analysis · HT-Demucs stems on MLX
 ```
 
 <details>
 <summary><b>Build from source</b></summary>
 
 ```bash
-cd engine && uv sync --all-packages      # Python 3.12; compiles the small Airwindows module once
-scripts/check.sh all                     # engine tests (contracts, voice, fx, server) + app tests
+cd engine && uv sync --all-packages      # Python 3.12
+scripts/check.sh all                     # engine tests + app tests
 scripts/dev.sh                           # run the app against the local engine
 ```
 </details>
@@ -360,10 +137,10 @@ scripts/dev.sh                           # run the app against the local engine
 
 **Designed by [SmittyTech](https://github.com/als7294)**
 
-Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). **The drops you make are yours.**
+Built on open-source work by many people; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). **What you play is yours.**
 
-<sub>[GPL-3.0](LICENSE). FoxBox links GPL components (pedalboard, espeak-ng, mutagen), so the app is GPL-3.0 as a whole.
+<sub>[GPL-3.0](LICENSE). FoxBox ships mutagen (GPL-2.0-or-later) to read your music's tags and artwork, so the app is GPL-3.0 as a whole.
 Model weights download at runtime under their own licenses; the stem splitter's weights (Demucs, by Meta) are provided for scientific
-use only, as Setup says before the download. TouchDesigner is Derivative's and isn't included.</sub>
+use only, as FoxBox says before the download.</sub>
 
 </div>

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from math import gcd
 from typing import Any
 
 import numpy as np
@@ -328,3 +329,14 @@ def audio_hash(x: np.ndarray, sr: int) -> str:
     h = hashlib.sha1(a.tobytes())
     h.update(f"{a.shape}|{sr}".encode())
     return h.hexdigest()
+
+
+def resample(x: np.ndarray, sr_in: int, sr_out: int) -> np.ndarray:
+    """(channels, n) float32 from ``sr_in`` to ``sr_out`` (polyphase)."""
+    a = as2d(x)
+    if sr_in == sr_out:
+        return a
+    if sr_in == 48000 and sr_out == 44100:
+        return signal.resample_poly(a, 147, 160, axis=-1).astype(np.float32)
+    g = gcd(int(sr_in), int(sr_out))
+    return signal.resample_poly(a, sr_out // g, sr_in // g, axis=-1).astype(np.float32)

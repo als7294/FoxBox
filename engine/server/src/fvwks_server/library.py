@@ -24,7 +24,7 @@ from typing import Any, Iterable, Iterator
 
 import numpy as np
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _SCHEMA_V1 = """
 CREATE TABLE sources (
@@ -175,7 +175,47 @@ CREATE TABLE remix_prefs (                     -- v0.11.8: per style (id = the s
 );
 """
 
-_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, 4: _SCHEMA_V4, 5: _SCHEMA_V5, 6: _SCHEMA_V6, 7: _SCHEMA_V7}
+_SCHEMA_V8 = """
+CREATE TABLE lib_sources (                     -- 2.0 (v1.1): the library wheel's libraries (music_library.py)
+  id             TEXT PRIMARY KEY,
+  kind           TEXT NOT NULL,                -- folder | rekordbox | serato
+  created_at     TEXT NOT NULL,
+  config         TEXT NOT NULL,                -- where it reads, and its files' mtimes (never sent to the app)
+  info           TEXT NOT NULL                 -- LibrarySource JSON
+);
+CREATE TABLE lib_tracks (
+  id             TEXT PRIMARY KEY,             -- stable across rescans (source + path)
+  source_id      TEXT NOT NULL REFERENCES lib_sources(id) ON DELETE CASCADE,
+  seq            INTEGER NOT NULL,             -- the source's own order
+  path           TEXT NOT NULL,
+  title TEXT, artist TEXT, album TEXT, genre TEXT, bpm REAL, key TEXT, duration_s REAL, added_at TEXT,
+  has_art        INTEGER,                      -- NULL: not looked at yet
+  missing        INTEGER NOT NULL DEFAULT 0,
+  mtime REAL, size INTEGER,                    -- folder sources: unchanged files keep their tags on a rescan
+  search         TEXT NOT NULL DEFAULT '',     -- casefolded title, artist, album, genre, file name
+  extra          TEXT                          -- Rekordbox TEMPO and POSITION_MARK JSON
+);
+CREATE INDEX lib_tracks_source ON lib_tracks(source_id, seq);
+CREATE TABLE lib_playlists (
+  id             TEXT PRIMARY KEY,
+  source_id      TEXT NOT NULL REFERENCES lib_sources(id) ON DELETE CASCADE,
+  seq            INTEGER NOT NULL,
+  name           TEXT NOT NULL,
+  parent_id      TEXT,
+  kind           TEXT NOT NULL,                -- folder | playlist | crate
+  track_count    INTEGER NOT NULL
+);
+CREATE INDEX lib_playlists_source ON lib_playlists(source_id, seq);
+CREATE TABLE lib_playlist_tracks (
+  playlist_id    TEXT NOT NULL REFERENCES lib_playlists(id) ON DELETE CASCADE,
+  pos            INTEGER NOT NULL,
+  track_id       TEXT NOT NULL,
+  PRIMARY KEY (playlist_id, pos)
+);
+"""
+
+_MIGRATIONS = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, 4: _SCHEMA_V4, 5: _SCHEMA_V5, 6: _SCHEMA_V6, 7: _SCHEMA_V7,
+               8: _SCHEMA_V8}
 
 # Columns stored as JSON text, per table, with their empty value.
 _JSON_COLUMNS: dict[str, dict[str, Any]] = {
@@ -304,6 +344,11 @@ class Library:
                 statement = ""
         if statement.strip():
             raise ValueError(f"incomplete SQL statement in migration: {statement.strip()[:60]}")
+
+    def query(self, sql: str, params: Iterable[Any] = ()) -> list[sqlite3.Row]:
+        """A raw read (the library wheel's index, music_library.py, which writes through transaction())."""
+        with self._lock:
+            return self._conn.execute(sql, tuple(params)).fetchall()
 
     @property
     def schema_version(self) -> int:

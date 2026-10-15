@@ -16,6 +16,9 @@ import type { AudioFrame } from '@/visuals/live/registry'
 import { StrokeShapes, type Drawn } from './drawnShapes'
 import { FxShapes, type FxSignals } from './fxShapes'
 import { HandGestures, type HandGestureEvent, type Rect as PullRect } from './handGestures'
+import { NO_PLAY, PlayGestures, type PlaySignals, type PluckEvent, type ReleaseEvent } from './playGestures'
+import { NO_WHEEL, WheelGestures, type WheelSignals } from './wheelGestures'
+import { FrameGestures, NO_FRAME_SIGNAL, type FrameSignal } from './frameGestures'
 import {
   autoFrame,
   Calibration,
@@ -44,7 +47,7 @@ import { coverCrop, mapBox, maskRegion, type FaceMask, type MaskReact, type Rect
 import { detectFacesDetailed, loadFaceDetector, type DetectedFace } from './faceDetector'
 import { doubles, onMesh } from './faceStyles'
 import { FacePicker, iou, mergeBoxes, onePerHead, step, type Box, type People, type Track } from './faceTrack'
-import { Vision, type FaceShapes, type HandGesture, type Seen } from './vision'
+import { darkRoom, Vision, type FaceShapes, type HandGesture, type Seen } from './vision'
 import type { FaceDetector } from '@/vendor/mediapipe/vision_bundle.mjs'
 
 export interface NearMask {
@@ -104,6 +107,19 @@ export interface CameraSignals {
   /** FINGER FILTERS: each hand's fingers' curls [thumb … pinky] 0 straight … 1 folded, and STRINGS MODE (fxShapes.ts). */
   fingers: FxSignals['fingers']
   stringsMode: boolean
+  /** 2.0's PLAY: FLOW's signals and each hand's PLAY shape (playGestures.ts; its plucks come by onPluck). */
+  play: PlaySignals
+  /** Too dark to track the hands well (the coach's "Hard to see your hands"), with hysteresis (vision.ts darkRoom). */
+  tooDark: boolean
+  /** The room's light as the tracker sees it (0-1, its running mean; -1 before the first frame). A dim, pink bedroom
+   *  reads about 0.19: hands track, but a frame's second hand often goes unseen under about 0.25. */
+  light: number
+  /** REMIX's library wheel: the shaka toggle, the dial, the grab and loads (wheelGestures.ts). While it's open,
+   *  fxShapes and fingers read null and stringsMode false: REMIX's shapes and finger filters are suspended. */
+  wheel: WheelSignals
+  /** The FRAME (frameGestures.ts): formed, its corners in the stage's 0-1 (clockwise from the top-left) and size,
+   *  cycles (pinches), flipped / flips, and PLAY's latch. */
+  frame: FrameSignal
 }
 
 export interface StageHands {
@@ -130,10 +146,13 @@ export interface DrawOptions {
   body?: boolean
   /** The person matte every Nth worker frame (default 2; TouchDesigner's presets are fine at 3, about 10 Hz). */
   matteEvery?: number
-  /** An instrument played with the hands (PROD's STRINGS): the hands every frame (the camera's rate), the body and the
-   *  matte one frame in four (the shoulders now and then); the face too, but only while no face is hidden (`body`, or
-   *  hideFaces off): a hidden face is tracked every frame. */
+  /** STRINGS (REMIX, and 1.5.5's PROD): since 2.0 as handsOnly, the hands alone at the camera's rate: nothing on its
+   *  stage needs the pose or the matte (the finger pairs and tension scale by palms, GLASS draws on the picture).
+   *  Faces hidden: the hands every frame, the body and matte one frame in four, the face every frame (fails closed). */
   handsFirst?: boolean
+  /** 2.0's PLAY: the hands alone, every camera frame (no face, body or matte models, no face finder on this thread),
+   *  unless faces are hidden (hideFaces true: then as handsFirst). */
+  handsOnly?: boolean
   /**
    * 1.5.2, VISUALS' FACE ENCRYPTION switch: false shows the faces (tracking, nearMask and the signals still run).
    * Default true; only the VISUALS camera base passes it, from cameraStore's hideFaces (never saved: every launch
@@ -164,12 +183,36 @@ export const MASK_DOWN = 4
 const HIDE_AFTER_ERROR_MS = 600
 const MAX_ERRORS = 8
 
-const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false, shapes: handShapes([], 0), drawn: null, gesture: null, pull: null, stage: { left: null, right: null, body: null }, fxShapes: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false }
+const NO_SIGNALS: CameraSignals = { at: 0, calibrating: true, near: 0, head: null, hands: [], twoFaces: false, shapes: handShapes([], 0), drawn: null, gesture: null, pull: null, stage: { left: null, right: null, body: null }, fxShapes: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false, play: NO_PLAY, tooDark: false, light: -1, wheel: NO_WHEEL, frame: NO_FRAME_SIGNAL }
 let latest: CameraSignals = NO_SIGNALS
 const live = new Set<SmartCamera>()
 
 /** The latest signals from the camera that's running (for effects and the director), or all-quiet. */
 export const cameraSignals = (): CameraSignals => latest
+
+const plucks = new Set<(e: PluckEvent) => void>()
+const releases = new Set<(e: ReleaseEvent) => void>()
+/** PLAY's plucks as they fire: on the hands result itself, not the next drawn frame. Returns the unsubscribe. */
+export function onPluck(cb: (e: PluckEvent) => void): () => void {
+  plucks.add(cb)
+  return () => void plucks.delete(cb)
+}
+/** A plucked finger straightened again (or its hand was lost): its held note ends. Returns the unsubscribe. */
+export function onRelease(cb: (e: ReleaseEvent) => void): () => void {
+  releases.add(cb)
+  return () => void releases.delete(cb)
+}
+/** Each listener gets each event; a listener's error is its own (the tracking goes on). */
+const emit = <E>(to: Set<(e: E) => void>, events: readonly E[]) =>
+  events.forEach((e) =>
+    to.forEach((cb) => {
+      try {
+        cb(e)
+      } catch {
+        // its own
+      }
+    }),
+  )
 /** Dev only (the web mock's scripted hands, STRINGS' ?strings-hands=1): stand in for the camera's signals. */
 export const mockSignals = (s: Partial<CameraSignals>): void => void (import.meta.env.DEV && (latest = { ...latest, ...s }))
 let latestNear: NearMask | null = null
@@ -314,6 +357,10 @@ export function createSmartCamera(): SmartCamera {
   /** The latest camera frame's capture time (requestVideoFrameCallback), the one being tracked, and the detector's faces
    *  for the last few frames by it (a mesh's anchor pairs it with the detection on its own frame). */
   let lastCapture = 0
+  /** Frames the watched camera has presented, and the count at the last one tracked: a live stream's currentTime runs on
+   *  between frames, so the draw (60 Hz) would send a 30 fps camera's frames twice, a repeat read as a new result. */
+  let presented = 0
+  let tracked = -1
   let frameAt = 0
   let watched: HTMLVideoElement | null = null
   const byFrame = new Map<number, DetectedFace[]>()
@@ -322,11 +369,30 @@ export function createSmartCamera(): SmartCamera {
   let pitchZero = 0
   /** The hands' shapes, from each new hands result. */
   let shapes = NO_SIGNALS.shapes
-  let shapedFrom: Seen['hands'] | null = null
   const strokes = new StrokeShapes()
   const gestures = new HandGestures()
   const fx = new FxShapes()
   let fxNow: FxSignals = { hands: null, spread: 0, tension: 0, tilt: 0, shake: 0, fingers: null, stringsMode: false }
+  const play = new PlayGestures()
+  const wheel = new WheelGestures()
+  const frames = new FrameGestures()
+  let frameNow = NO_FRAME_SIGNAL
+  const dark = { dark: false, since: -1 }
+  /** Each new hands result: the shapes, the beat FX and PLAY's gestures, stepped as it arrives (a pluck doesn't wait for
+   *  the next drawn frame; the draw's own `seen` can be a result behind). */
+  const stepHands = (hands: Seen['hands'], body: Seen['body'], now: number) => {
+    const aspect = lastVW / lastVH
+    shapes = handShapes(hands, now, shapes, aspect, body)
+    fxNow = fx.step(shapes, now, aspect)
+    const ev = play.step(shapes, fxNow, now, aspect, frameNow)
+    frameNow = frames.step(shapes, now, aspect, play.taps())
+    emit(releases, ev.releases) // a re-pluck's release goes first
+    emit(plucks, ev.plucks)
+    wheel.step(shapes, now, aspect)
+    strokes.step(shapes, now, aspect)
+    gestures.step(shapes, now)
+  }
+  vision.onHands = (seen) => stepHands(seen.hands, seen.body, performance.now())
 
   /** Each presented camera frame's capture time (the camera's clock where it gives one, else when it was shown). */
   const watch = (video: HTMLVideoElement) => {
@@ -336,6 +402,7 @@ export function createSmartCamera(): SmartCamera {
     watched = video
     const cb = (now: number, meta: { captureTime?: number; expectedDisplayTime?: number }) => {
       lastCapture = meta.captureTime ?? meta.expectedDisplayTime ?? now
+      presented++
       if (alive && watched === video) rvfc.call(video, cb)
     }
     rvfc.call(video, cb)
@@ -349,24 +416,35 @@ export function createSmartCamera(): SmartCamera {
     return x >= 0 && y >= 0 && x < pm.width && y < pm.height && pm.data[y * pm.width + x]! > 0.5
   }
 
-  loadFaceDetector().then(
-    (d) => {
-      if (alive) detector = d
-    },
-    () => undefined, // stays null: the whole picture is hidden
-  )
+  /** The face finder here, loaded the first time a frame needs faces (PLAY with no face hidden never does). */
+  let finding = false
+  const findFaces = () => {
+    if (finding) return
+    finding = true
+    loadFaceDetector().then(
+      (d) => {
+        if (alive) detector = d
+      },
+      () => (finding = false), // stays null (the whole picture is hidden while faces are): the next frame asks again
+    )
+  }
 
   /** A new camera frame: find faces (detector and landmarker), hands, the body's head and the person. */
   const track = (video: HTMLVideoElement, now: number, o: DrawOptions) => {
-    if (!detector || video.currentTime === lastVideoT || now <= lastDetect) return
+    // PLAY and REMIX with no face hidden: the hands alone (no face finder here or in the worker; nothing waits for it).
+    const faces = !(o.handsOnly || o.handsFirst) || o.hideFaces === true
+    if (faces && !detector) findFaces()
+    const fresh = watched === video ? presented !== tracked : video.currentTime !== lastVideoT
+    if ((faces && !detector) || !fresh || now <= lastDetect) return
     lastVideoT = video.currentTime
+    tracked = presented
     lastDetect = now
     // This frame's capture time: every result is stamped by the frame it came from, not when it arrived.
     frameAt = Math.max(frameAt + 0.001, lastCapture > now - 200 ? lastCapture : now)
     try {
       // TouchDesigner's loop with nothing to hide face by face (the whole frame is covered): the main-thread detector
       // only finds faces to mask, so it's skipped (its CPU is the tracking's). MASK FIRST draws faces: it runs.
-      detected = o.body && o.wholeFrame ? [] : detectFacesDetailed(detector, video, now)
+      detected = !faces || (o.body && o.wholeFrame) ? [] : detectFacesDetailed(detector!, video, now)
       errors = 0
     } catch {
       detected = []
@@ -380,7 +458,7 @@ export function createSmartCamera(): SmartCamera {
     const vh = video.videoHeight
     // A lost face is looked for round the body's head (0-1 of the frame).
     const hint = head && head.score >= 0.5 ? { x: head.box.x / vw, y: head.box.y / vh, w: head.box.w / vw, h: head.box.h / vh } : null
-    seen = vision.run(video, now, frameAt, hint, o.people, o.body, o.matteEvery, o.handsFirst, !!o.handsFirst && (!!o.body || o.hideFaces === false))
+    seen = vision.run(video, now, frameAt, hint, o.people, o.body, o.matteEvery, o.handsFirst || o.handsOnly, !!o.handsFirst && (!!o.body || o.hideFaces === false), !faces)
     head = headFromPose(seen.body, vw, vh)
     smooth()
     followDetector(vw, vh)
@@ -710,13 +788,8 @@ export function createSmartCamera(): SmartCamera {
     near = drawNear(dst, crop, face, hands)
     latestNear = near
 
-    if (seen.hands !== shapedFrom) {
-      shapedFrom = seen.hands
-      shapes = handShapes(seen.hands, now, shapes, vw / vh, seen.body)
-      fxNow = fx.step(shapes, now, vw / vh)
-      strokes.step(shapes, now, vw / vh)
-      gestures.step(shapes, now)
-    }
+    const wheelNow = wheel.signals()
+    const wheeling = wheelNow.open
     // Signals, in the drawn frame's 0-1 space.
     const toFrame = (x: number, y: number) => ({ x: clamp01((x - crop.x) / crop.w), y: clamp01((y - crop.y) / crop.h) })
     const toStage = (p: Pt) => ({ x: (p.x * vw - crop.x) / crop.w, y: (p.y * vh - crop.y) / crop.h }) // 0-1 of the camera frame
@@ -742,13 +815,22 @@ export function createSmartCamera(): SmartCamera {
       drawn: strokes.last,
       gesture: gestures.last,
       pull: gestures.pull,
-      fxShapes: fxNow.hands,
+      fxShapes: wheeling || frameNow.formed ? null : fxNow.hands, // a pinch at a frame's corner is the frame's, not WOBBLE
       spread: fxNow.spread,
       tension: fxNow.tension,
       tilt: fxNow.tilt,
       shake: fxNow.shake,
-      fingers: fxNow.fingers,
-      stringsMode: fxNow.stringsMode,
+      fingers: wheeling ? null : fxNow.fingers,
+      stringsMode: !wheeling && fxNow.stringsMode,
+      play: play.signals(),
+      tooDark: darkRoom(dark, vision.light(), now),
+      light: vision.light(),
+      wheel: wheelNow,
+      frame: {
+        ...frameNow,
+        corners: frameNow.corners?.map(toStage) ?? null,
+        size: frameNow.size * (vw / crop.w), // of the picture's width: of the stage's
+      },
       stage: {
         left: shapes.left?.points.map(toStage) ?? null,
         right: shapes.right?.points.map(toStage) ?? null,

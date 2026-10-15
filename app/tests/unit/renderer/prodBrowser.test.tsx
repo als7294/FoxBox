@@ -1,30 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { TdPreset } from '@shared/tdPresets'
 import { SectionTimeline, stepSection } from '@/components/prod/SectionTimeline'
 import { BeatFxSheet, StringControls } from '@/components/prod/StringsPanel'
-import { TdEffectBrowser } from '@/components/prod/TdEffectBrowser'
 import { useProd } from '@/components/prod/prodStore'
-import { useTdPresets } from '@/touchdesigner/presets'
 import type { SongDeck } from '@/audio/live'
 import { useLiveDeck } from '@/state/liveDeck'
 import { useUi } from '@/state/ui'
-
-const preset = (id: string, order: number, mode: TdPreset['mode'], changes_sound = false): TdPreset => ({
-  id,
-  label: id.toUpperCase(),
-  title: '',
-  how: '',
-  order,
-  tracks: ['body', 'hands'],
-  mode,
-  macros: [],
-  reacts_to: 'kick',
-  palette: [],
-  feedback: false,
-  sound: { changes_sound, map: [] },
-})
 
 describe("STRINGS' BEAT FX cheat sheet (1.5.5)", () => {
   afterEach(cleanup)
@@ -78,7 +60,7 @@ describe("STRINGS' SECTION TIMELINE (1.5.5)", () => {
     const seek = vi.fn()
     const deck = { durationS: 64, positionS: () => 20, isPlaying: true, sections: () => parts, peaks: () => new Float32Array(4), seek }
     useLiveDeck.setState({ deck: deck as unknown as SongDeck })
-    useUi.setState({ screen: 'prod' })
+    useUi.setState({ mode: 'remix' })
     render(<SectionTimeline />)
     fireEvent.click(screen.getByRole('button', { name: 'BREAK' }))
     expect(seek).toHaveBeenLastCalledWith(48)
@@ -96,38 +78,5 @@ describe('STRINGS opens at 16:9 (1.5.5)', () => {
     localStorage.setItem('foxbox-prod', JSON.stringify({ state: { aspect: '9:16' }, version: 1 }))
     await useProd.persist.rehydrate()
     expect(useProd.getState().aspect).toBe('9:16')
-  })
-})
-
-describe('the PROD effect browser', () => {
-  afterEach(cleanup)
-
-  it('lists the looks of the active mode, picks, favourites and marks the ones that change the sound', () => {
-    useTdPresets.setState({
-      presets: [preset('plexus', 0, 'body'), preset('tape', 1, 'body', true), preset('fwindows', 2, 'hands')],
-      active: 'plexus',
-    })
-    render(<TdEffectBrowser collapsed={false} onExpand={() => {}} />)
-    expect(screen.getByRole('radio', { name: 'BODY 2 LOOKS' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('radio', { name: 'HANDS 1 LOOK' })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.queryByRole('radio', { name: 'FWINDOWS' })).toBeNull()
-
-    const tape = screen.getByRole('radio', { name: 'TAPE ♪ SOUND' })
-    expect(screen.getByText('♪ SOUND')).toHaveAttribute('title', expect.stringContaining('Changes the sound'))
-    fireEvent.click(tape)
-    expect(useTdPresets.getState().active).toBe('tape')
-    expect(tape).toHaveAttribute('aria-checked', 'true')
-    expect(useProd.getState().lastFxByMode.body).toBe('tape')
-
-    const fav = screen.getByRole('button', { name: 'Favourite TAPE' })
-    fireEvent.click(fav)
-    expect(useProd.getState().favs.tape).toBe(true)
-    expect(fav).toHaveAttribute('aria-pressed', 'true')
-
-    // HANDS picks its first look; BODY comes back to TAPE
-    fireEvent.click(screen.getByRole('radio', { name: 'HANDS 1 LOOK' }))
-    expect(useTdPresets.getState().active).toBe('fwindows')
-    fireEvent.click(screen.getByRole('radio', { name: 'BODY 2 LOOKS' }))
-    expect(useTdPresets.getState().active).toBe('tape')
   })
 })

@@ -13,11 +13,13 @@
  * fist pumped at 180 BPM isn't shake).
  *
  * FINGER FILTERS: each finger's curl (its joints' bends added up, in 3D), and STRINGS MODE (both hands open, no FX
- * shape held but the open palm) when a folding finger cuts its string's band rather than making a shape.
+ * shape held) when a folding finger cuts its string's band rather than making a shape.
+ *
+ * An open hand is no FX shape (2.0): open hands are how the strings are played, in PLAY and REMIX alike.
  */
-import { follow, palm, WRIST, type HandShape, type HandShapes, type Pt } from './camMath'
+import { follow, isLPose, palm, WRIST, type HandShape, type HandShapes, type Pt } from './camMath'
 
-export type FxShape = 'fist' | 'peace' | 'pinch' | 'open_palm' | 'horns' | 'point_up' | 'point_down'
+export type FxShape = 'fist' | 'peace' | 'pinch' | 'horns' | 'point_up' | 'point_down'
 
 export interface FxHand {
   /** Held (in after HOLD_MS of the same shape, out HOLD_MS after it's gone); null: the hand's seen, no FX shape. */
@@ -46,7 +48,7 @@ export interface FxSignals {
   /** Each hand's fingers [thumb, index, middle, ring, pinky], 0 straight (a relaxed finger too) … 1 folded, smoothed a
    *  frame; null: no hands. */
   fingers: { left: number[] | null; right: number[] | null } | null
-  /** Both hands up with STRINGS_UP fingers or more each and no FX shape held but OPEN_PALM: a fold cuts a band. */
+  /** Both hands up with STRINGS_UP fingers or more each and no FX shape held: a fold cuts a band. */
   stringsMode: boolean
 }
 
@@ -69,6 +71,11 @@ const BEND_RELAXED = 75 // degrees, a finger's joints' bends added up: an open h
 const BEND_FOLDED = 165 // a fold's (1): a finger held down by the thumb 160-170, a fist's 230-270
 const THUMB_OUT = 1.3 // the thumb's tip from the pinky's knuckle, in knuckle lines (5 to 17): out 1.8-2.1 (0) …
 const THUMB_IN = 0.9 // … tucked 0.67-0.9 (1)
+// And its tip from the middle knuckle, in palm lengths: out 0.79-0.86 (0) … a fist's 0.35, tucked 0.48-0.51 (1). The
+// thumb's curl is the lesser of the two: on a hand seen side-on (a C) each jumps for a result or two on its own, a fold
+// moves both.
+const THUMB_TIP_OUT = 0.8
+const THUMB_TIP_IN = 0.4
 const CURL_MS = 30 // the curls' smoothing: about a frame
 const STRINGS_UP = 3 // fingers up (curl under a half) on each hand for STRINGS MODE
 const CHAINS = [[5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]] as const
@@ -91,43 +98,45 @@ export function rawShape(h: HandShape, aspect: number): FxShape | null {
   const [thumb, index, middle, ring, pinky] = fingersOut(q)
   const p = palm(q) || 1e-6
   const g = h.gesture
-  if (g === 'fist') return 'fist' // the recognizer's surest sign (a fist's thumb sits on the index: it'd read as a pinch)
-  // A pinch: thumb on index tip, the index not curled into the palm (that's a fist).
+  // A pinch: thumb on index tip, the index not curled into the palm (a fist's thumb sits on the curled index). Before
+  // the recognizer's fist: a pinch with the other fingers curled reads Closed_Fist to it (PINCH on the first try).
   const indexReach = Math.hypot(q[8]!.x - q[0]!.x, q[8]!.y - q[0]!.y) / (Math.hypot(q[5]!.x - q[0]!.x, q[5]!.y - q[0]!.y) || 1e-6)
   if (h.pinched && indexReach > 1.15) return 'pinch'
-  if (g === 'love') return 'horns'
+  if (g === 'fist') return 'fist'
+  if (g === 'love' && index) return 'horns' // ILoveYou has its index up: a shaka 🤙 (the library wheel's) doesn't
   if (g === 'victory') return 'peace'
   if (g === 'thumbs-down') return 'point_down'
-  if (g === 'open') return 'open_palm'
+  if (g === 'open') return null // the playing pose: never an FX
   if (g === 'thumbs-up') return null // no FX: a fist with the thumb up isn't a FIST
   // The rules: what the recognizer doesn't know or missed.
   const down = (tip: number, base: number) => q[tip]!.y > q[base]!.y + 0.3 * p // y down: the tip well under its base
   if (index && pinky && !middle && !ring) return 'horns' // 🤘 (the thumb in) and ILoveYou (out)
   if (index && middle && !ring && !pinky) return 'peace'
-  if (index && !middle && !ring && !pinky) return down(8, 5) ? 'point_down' : q[8]!.y < q[5]!.y - 0.3 * p ? 'point_up' : null
-  if (g === 'point') return 'point_up'
+  // The index alone: a point; with the thumb out too it's an L, FRAME's half (HandShapes.frame), no FX.
+  if (index && !middle && !ring && !pinky) return thumb || isLPose(h, aspect) ? null : down(8, 5) ? 'point_down' : q[8]!.y < q[5]!.y - 0.3 * p ? 'point_up' : null
+  if (g === 'point' && !thumb) return 'point_up'
   if (thumb && !index && !middle && !ring && !pinky && down(4, 2)) return 'point_down' // a thumb down
   if (thumb && !index && !middle && !ring && !pinky && q[4]!.y < q[2]!.y - 0.3 * p) return null // a thumb up
   if (!index && !middle && !ring && !pinky) return 'fist'
-  if (index && middle && ring && pinky) return 'open_palm'
   return null
 }
 
 /** Each finger's curl, thumb first, 0 straight (or relaxed) … 1 folded: a finger's joints' bends added up (the
  *  knuckle's against the line from the wrist); the thumb's tip tucked toward the pinky's knuckle. The world landmarks
  *  (3D) where the tracker gives them, so a hand facing any way reads the same; else the picture's points. */
-export function fingerCurls(h: HandShape, aspect: number): number[] {
+export function fingerCurls(h: HandShape, aspect: number, folded = BEND_FOLDED): number[] {
   const q = h.world ?? h.points.map((p) => ({ x: p.x * aspect, y: p.y, z: 0 }))
   const v = (a: number, b: number) => [q[b]!.x - q[a]!.x, q[b]!.y - q[a]!.y, q[b]!.z - q[a]!.z]
   const angle = (u: number[], w: number[]) =>
     Math.acos(Math.max(-1, Math.min(1, (u[0]! * w[0]! + u[1]! * w[1]! + u[2]! * w[2]!) / (Math.hypot(...u) * Math.hypot(...w) || 1))))
   const unit = (x: number) => Math.max(0, Math.min(1, x))
   const reach = Math.hypot(...v(4, 17)) / (Math.hypot(...v(5, 17)) || 1e-6)
+  const tip = Math.hypot(...v(4, 9)) / (Math.hypot(...v(WRIST, 9)) || 1e-6)
   return [
-    unit((THUMB_OUT - reach) / (THUMB_OUT - THUMB_IN)),
+    Math.min(unit((THUMB_OUT - reach) / (THUMB_OUT - THUMB_IN)), unit((THUMB_TIP_OUT - tip) / (THUMB_TIP_OUT - THUMB_TIP_IN))),
     ...CHAINS.map(([a, b, c, d]) => {
       const bend = ((angle(v(WRIST, a), v(a, b)) + angle(v(a, b), v(b, c)) + angle(v(b, c), v(c, d))) * 180) / Math.PI
-      return unit((bend - BEND_RELAXED) / (BEND_FOLDED - BEND_RELAXED))
+      return unit((bend - BEND_RELAXED) / (folded - BEND_RELAXED))
     }),
   ]
 }
@@ -221,7 +230,7 @@ export class FxShapes {
   signals(): FxSignals {
     const out = (s: Slot | null): FxHand | null => (s ? { shape: s.held, height: s.height, x: s.x, since: s.since } : null)
     const { left, right } = this.slots
-    const strings = (s: Slot | null) => !!s && s.curl.filter((c) => c < 0.5).length >= STRINGS_UP && (!s.held || s.held === 'open_palm')
+    const strings = (s: Slot | null) => !!s && s.curl.filter((c) => c < 0.5).length >= STRINGS_UP && !s.held
     return {
       hands: left || right ? { left: out(left), right: out(right) } : null,
       spread: this.spread,

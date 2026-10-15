@@ -6,7 +6,7 @@ import type { UpdateState, UpdatesBridge } from '../../../src/shared/bridge'
 import { DEFAULT_FEED_URL } from '../../../src/shared/updates'
 import { agoText, clockText, errorText, failureDetail, rateText, transferText } from '../../../src/renderer/src/components/updates/format'
 import { UpdateBanner } from '../../../src/renderer/src/components/updates/UpdateBanner'
-import { UpdatesCard } from '../../../src/renderer/src/screens/SettingsScreen'
+import { UpdatesCard } from '../../../src/renderer/src/components/fb/Settings'
 import { useUi } from '../../../src/renderer/src/state/ui'
 
 // The update bar and SETTINGS → UPDATES against a fake `window.fvwks.updates` (main's Updater is tested in main).
@@ -161,7 +161,7 @@ describe('UpdateBanner', () => {
     expect(screen.queryByRole('button')).toBeNull()
 
     push({ phase: 'ready' })
-    expect(screen.getByRole('status')).toHaveTextContent('FoxBox 1.0.1 is ready')
+    expect(screen.getByRole('status')).toHaveTextContent('Update ready · FoxBox 1.0.1')
     fireEvent.click(screen.getByRole('button', { name: 'Restart to update' }))
     expect(api.install).toHaveBeenCalledTimes(1)
     await act(async () => {})
@@ -174,7 +174,7 @@ describe('UpdateBanner', () => {
   it("says why this copy can't install instead of offering the restart", async () => {
     fakeUpdates({ phase: 'ready', latest: '1.0.1', installBlocked: 'Move FoxBox to your Applications folder, open it from there, then update.' })
     await show(<UpdateBanner />)
-    expect(screen.getByRole('status')).toHaveTextContent('FoxBox 1.0.1 is ready · Move FoxBox to your Applications folder')
+    expect(screen.getByRole('status')).toHaveTextContent('Update ready · FoxBox 1.0.1 · Move FoxBox to your Applications folder')
     expect(screen.queryByRole('button', { name: 'Restart to update' })).toBeNull()
   })
 

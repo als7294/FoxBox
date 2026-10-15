@@ -19,7 +19,7 @@ import {
 } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, realpath, rename, stat, statfs, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rename, statfs, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,44 +31,29 @@ import {
   type DisplayInfo,
   type EngineResponse,
   type EngineStatus,
-  type MicAccess,
-  type SamplePackAddResult,
-  type SetupCompleteResult,
-  type SetupInfo,
-  type TdMessage,
-  type TdSettings,
   type UpdateState,
   type VisualsOutputState,
 } from '../shared/bridge'
 import {
   bundledEngineDir,
-  bundledModelsDir,
   clearEngineQuarantine,
   isTranslocated,
   MOVE_TO_APPLICATIONS,
   resolveEngineLaunch,
   type QuarantineResult,
 } from './engine/command'
-import { tdPaths, TouchDesignerSession } from './bridge/tdSession'
-import { TD_ENABLED } from '../shared/tdPresets'
-import { TouchDesignerBridge } from './bridge/touchdesigner'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
 import { bootSkipReason, BootUpdateGate } from './bootUpdate'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
 import { ExportGuard, isInside } from './exportGuard'
+import { underNotch } from './notch'
 import { buildMenu } from './menu'
 import { cartridgePng } from './png'
-import { hasSetupMarker, requiredMissing, shouldShowSetup, writeSetupMarker } from './setup'
-import { importShaderFiles, listShaders, removeShader, shadersDir } from './shaders'
-import { LinkSession, linkHelperPath } from './link'
 import { Updater } from './updater'
 
 // Dev only: a packaged app launched with FVWKS_MOCK must never silently talk to mocks and play fake audio.
 const MOCK = process.env.FVWKS_MOCK === '1' && !app.isPackaged
-// Tests only (never in packaged builds): report the mic as granted without asking macOS. The e2e test feeds
-// getUserMedia a synthetic tone, so the OS microphone permission is never involved.
-const FAKE_MIC = process.env.FVWKS_FAKE_MIC === '1' && !app.isPackaged
 // electron-vite's dev server. Never in packaged builds: an environment variable must not be able to point the
 // window (and its preload bridge) at another page.
 const RENDERER_URL = (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) || null
@@ -241,6 +226,10 @@ function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+function atNotch(win: BrowserWindow): boolean {
+  return process.platform === 'darwin' && !win.isDestroyed() && underNotch(win.isFullScreen(), screen.getDisplayMatching(win.getBounds()))
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1512,
@@ -264,6 +253,20 @@ function createWindow(): void {
   })
   mainWindow = win
   win.once('ready-to-show', () => win.show())
+  // the island's shape follows the notch: told on full screen, moves, resizes and display changes
+  let notched = false
+  const pushNotch = () => {
+    const now = atNotch(win)
+    if (now === notched || win.isDestroyed()) return
+    notched = now
+    win.webContents.send(IPC.notch, now)
+  }
+  win.on('enter-full-screen', pushNotch)
+  win.on('leave-full-screen', pushNotch)
+  win.on('move', pushNotch)
+  win.on('resize', pushNotch)
+  screen.on('display-metrics-changed', pushNotch)
+  win.on('closed', () => screen.off('display-metrics-changed', pushNotch))
   // ⌘W or the red button mid-set: the output (a projector) goes with this window, so ask first.
   win.on('close', (event) => {
     if (!confirmStopOutput(win)) event.preventDefault()
@@ -277,46 +280,6 @@ function createWindow(): void {
   })
   if (RENDERER_URL) void win.loadURL(RENDERER_URL)
   else void win.loadFile(join(RENDERER_DIR, 'index.html'))
-}
-
-/**
- * First-run Setup: the same renderer bundle and preload, `index.html?window=setup`. It watches the engine (which
- * starts as usual and installs the required models), offers the optional ones, and hands over to the main window
- * through IPC.setupComplete. Closing it before that quits the app; setup resumes on the next launch.
- */
-function createSetupWindow(): void {
-  const win = new BrowserWindow({
-    width: 900,
-    height: 620,
-    resizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    show: false,
-    title: 'FoxBox Setup',
-    backgroundColor: '#0b0b0c',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      webSecurity: true,
-      spellcheck: false,
-    },
-  })
-  setupWindow = win
-  win.once('ready-to-show', () => win.show())
-  win.on('closed', () => {
-    if (setupWindow === win) setupWindow = null
-  })
-  if (RENDERER_URL) {
-    const url = new URL(RENDERER_URL)
-    url.searchParams.set('window', 'setup')
-    void win.loadURL(url.toString())
-  } else {
-    void win.loadFile(join(RENDERER_DIR, 'index.html'), { query: { window: 'setup' } })
-  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -457,46 +420,6 @@ function openOutput(displayId: number | null): VisualsOutputState {
   return { open: true, displayId: target.id, unplugged: false }
 }
 
-/** Required models still missing, per the engine itself (so the marker is only written once they're installed). */
-async function setupCheck(): Promise<{ missing: string[]; healthState: string | null; error: string | null }> {
-  if (!supervisor?.isReady) return { missing: [], healthState: null, error: 'The engine is not running yet.' }
-  try {
-    const missing = requiredMissing(await supervisor.getJson('/api/models', 15_000))
-    if (!missing) return { missing: [], healthState: null, error: 'The engine answered with an unexpected model list.' }
-    const health = (await supervisor.getJson('/api/health', 5_000).catch(() => null)) as { state?: unknown } | null
-    return { missing, healthState: typeof health?.state === 'string' ? health.state : null, error: null }
-  } catch (err) {
-    return { missing: [], healthState: null, error: `The engine did not answer: ${(err as Error).message}` }
-  }
-}
-
-/** How long a first run waits for the engine to answer before it opens Setup anyway (Setup watches it from there). */
-const FIRST_RUN_WAIT_MS = 20_000
-
-/**
- * First run: the engine starts before any window, because the models may already be on this Mac. When it answers
- * with no required model missing, Setup is skipped and the Studio opens on its boot screen; otherwise (models to
- * download, or an engine that is slow, blocked or failing) Setup opens as before.
- */
-async function openFirstRunWindow(): Promise<void> {
-  await startEngine()
-  if (!MOCK && supervisor && (await supervisor.waitUntilReady(FIRST_RUN_WAIT_MS))) {
-    const check = await setupCheck()
-    if (!check.error && check.missing.length === 0) {
-      try {
-        writeSetupMarker(USER_DATA, { version: app.getVersion(), bundled: Boolean(BUNDLED_ENGINE) })
-        log('first run: the required models are already on this Mac; skipping Setup')
-        createWindow()
-        return
-      } catch (err) {
-        log(`setup marker not written: ${(err as Error).message}`)
-      }
-    }
-  }
-  log(`first run: opening Setup (bundled engine: ${BUNDLED_ENGINE ?? 'no'})`)
-  createSetupWindow()
-}
-
 /** A native yes/no the renderer can't answer for the user (update source changes, installing an update). */
 async function confirmDialog(o: { message: string; detail: string; ok: string }): Promise<boolean> {
   const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? setupWindow
@@ -593,14 +516,18 @@ const bootClear = (): BootUpdateState => ({
 })
 
 /** The only sites a link in the app may open in the browser (the uv install hint). */
-const EXTERNAL_HOSTS = new Set(['docs.astral.sh'])
+const EXTERNAL_HOSTS = new Set(['docs.astral.sh', 'github.com']) // github.com: WHAT'S NEW 2.0's link to FoxBox 1.5.5
 /** The only mail link: the designer credit (CreditLink). Its address is injected at build time, never committed. */
 const MAIL_TO = new Set(__CREDIT_EMAIL__ ? [__CREDIT_EMAIL__.toLowerCase()] : [])
 const CREDIT = __CREDIT_EMAIL__ ? `Designed by SmittyTech (${__CREDIT_EMAIL__})` : 'Designed by SmittyTech'
 
+/** Exact pages a link may open: WHAT'S NEW 2.0's FoxBox Voice card. */
+const EXTERNAL_URLS = new Set(['https://foxbox.tech/voice/'])
+
 function isExternalLink(url: string): boolean {
   try {
     const u = new URL(url)
+    if (EXTERNAL_URLS.has(u.href)) return true
     if (u.protocol === 'mailto:') return MAIL_TO.has(decodeURIComponent(u.pathname).toLowerCase()) && !u.search
     return u.protocol === 'https:' && EXTERNAL_HOSTS.has(u.hostname)
   } catch {
@@ -687,13 +614,16 @@ function registerAudioProtocol(): void {
     const url = new URL(request.url)
     const id = decodeURIComponent(url.pathname.replace(/^\//, ''))
     const cors = { 'Access-Control-Allow-Origin': '*' }
-    if (url.hostname !== 'audio' || !/^[A-Za-z0-9_-]{1,160}$/.test(id)) {
+    // vbx://audio/<id>, and (2.0) vbx://art|preview/<library track id>: the wheel's covers and previews
+    const lib = `/api/library/tracks/${encodeURIComponent(id)}`
+    const route = { audio: `/api/audio/${encodeURIComponent(id)}`, art: `${lib}/art`, preview: `${lib}/preview` }[url.hostname]
+    if (!route || !/^[A-Za-z0-9_-]{1,160}$/.test(id)) {
       return new Response('not found', { status: 404, headers: cors })
     }
     if (!supervisor?.isReady) return new Response('engine offline', { status: 503, headers: cors })
     try {
       const range = request.headers.get('range')
-      const upstream = await supervisor.request(`/api/audio/${encodeURIComponent(id)}`, {
+      const upstream = await supervisor.request(route, {
         headers: range ? { Range: range } : {},
         signal: AbortSignal.timeout(60_000),
       })
@@ -708,49 +638,6 @@ function registerAudioProtocol(): void {
       return new Response(`engine unreachable: ${(err as Error).message}`, { status: 502, headers: cors })
     }
   })
-}
-
-// ---------------------------------------------------------------------------------------------
-// Ableton Link (1.4): one session for the app; its states go to the main and output windows.
-
-let link: LinkSession | null = null
-function linkSession(): LinkSession {
-  link ??= new LinkSession(
-    linkHelperPath(app.isPackaged, process.resourcesPath, app.getAppPath()),
-    (state) => {
-      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(IPC.linkState, state)
-    },
-    log,
-  )
-  return link
-}
-
-// TouchDesigner (1.3): OSC to and from a TouchDesigner project; controls go to the main window's renderer.
-
-let td: TouchDesignerBridge | null = null
-function touchDesigner(): TouchDesignerBridge {
-  td ??= new TouchDesignerBridge(USER_DATA, (msg) => mainWindow?.webContents.send(IPC.tdControl, msg))
-  return td
-}
-
-// TouchDesigner as a VISUALS base (1.6): its picture over Syphon to the stage and the output window.
-let tdSession: TouchDesignerSession | null = null
-let tdLogged = ''
-function touchDesignerSession(): TouchDesignerSession {
-  const windows = () => [mainWindow, outputWindow].filter((w): w is BrowserWindow => !!w && !w.isDestroyed())
-  tdSession ??= new TouchDesignerSession(
-    join(USER_DATA, 'touchdesigner'),
-    tdPaths(app.isPackaged, process.resourcesPath, app.getAppPath()),
-    touchDesigner(),
-    () => (mainWindow && !mainWindow.isDestroyed() ? [mainWindow.webContents] : []), // OUTPUT shows the stage's frames
-    (status) => {
-      for (const w of windows()) w.webContents.send(IPC.tdSessionState, status)
-      const line = `${status.state}${status.message ? `: ${status.message}` : ''}` // state changes only, not the fps
-      if (line !== tdLogged) log(`touchdesigner ${(tdLogged = line)}`)
-    },
-    log,
-  )
-  return tdSession
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -879,26 +766,27 @@ function registerIpc(): void {
     return null
   })
 
-  // SAVE CLIP / REC LIVE: the renderer made the MP4; main writes it into <exports>/Clips/ (never a Save panel), like
-  // the audio exports, and lets it be dragged and revealed.
+  // RECORD: the renderer made the MP4 clip (or the WAV take, 2.0); main writes it into <exports>/Clips/ (Takes/)
+  // (never a Save panel), like the audio exports, and lets it be dragged and revealed.
   ipcMain.handle(IPC.saveClip, async (event, rawName: unknown, raw: unknown) => {
     if (!trusted(event)) throw new Error('not allowed')
     const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : null
     if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 4 * 1024 ** 3) throw new Error('That clip is empty or too large.')
-    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.mp4$/i, '') : ''
+    const ext = typeof rawName === 'string' && /\.wav$/i.test(rawName) ? '.wav' : '.mp4'
+    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.(mp4|wav)$/i, '') : ''
     const safe =
       base
-        .replace(/[^\w .()+-]/g, '')
+        .replace(/[^\w .()+#-]/g, '')
         .replace(/^[.\s]+/, '')
         .slice(0, 100)
         .trim() || 'FoxBox clip'
     const root = exportGuard.root ?? EXPORT_DIR
-    const dir = join(root, 'Clips')
+    const dir = join(root, ext === '.wav' ? 'Takes' : 'Clips')
     await mkdir(dir, { recursive: true })
     const realRoot = await realpath(root)
     if (!isInside(realRoot, await realpath(dir))) throw new Error('The Clips folder is outside the export folder.')
-    let target = join(dir, `${safe}.mp4`)
-    for (let n = 2; existsSync(target); n++) target = join(dir, `${safe} ${n}.mp4`)
+    let target = join(dir, `${safe}${ext}`)
+    for (let n = 2; existsSync(target); n++) target = join(dir, `${safe} ${n}${ext}`)
     const tmp = `${target}.part`
     await writeFile(tmp, bytes)
     await rename(tmp, target)
@@ -907,87 +795,63 @@ function registerIpc(): void {
     return target
   })
 
-  ipcMain.handle(IPC.chooseFolder, async (event, raw: unknown) => {
-    if (!trusted(event)) return null
-    const opts = raw && typeof raw === 'object' ? (raw as { title?: unknown; defaultPath?: unknown }) : {}
-    const win = BrowserWindow.fromWebContents(event.sender)
-    const dialogOptions: Electron.OpenDialogOptions = {
-      title: typeof opts.title === 'string' ? opts.title : 'Choose a folder',
-      properties: ['openDirectory', 'createDirectory', 'promptToCreate'],
-      ...(typeof opts.defaultPath === 'string' ? { defaultPath: opts.defaultPath } : {}),
-    }
-    const result = win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions)
-    return result.canceled ? null : (result.filePaths[0] ?? null)
-  })
-
-  // v0.15 sample packs: main POSTs the folder itself, so the page only ever gets the scan job's ids (and nothing logs
-  // the path). The picker, or a folder dropped on SAMPLE LAYERS (its path resolved by the preload, never the page).
-  const addSamplePack = async (folder: string): Promise<SamplePackAddResult> => {
-    if (!supervisor?.isReady) return { error: { code: 'engine_offline', message: 'The engine is not running.' } }
-    try {
-      const res = await supervisor.request('/api/sample-packs', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: Buffer.from(JSON.stringify({ folder })),
-      })
-      const body = (await res.json()) as Record<string, unknown>
-      if (res.ok) return { job: body as { id: string; state: string; progress: number } }
-      const err = (body.error ?? {}) as { code?: unknown; message?: unknown; hint?: unknown }
-      return {
-        error: {
-          code: String(err.code ?? 'error'),
-          message: String(err.message ?? 'The folder could not be added.'),
-          hint: typeof err.hint === 'string' ? err.hint : null,
-        },
-      }
-    } catch {
-      return { error: { code: 'engine_unreachable', message: 'The engine did not answer.' } }
-    }
-  }
-  ipcMain.handle(IPC.samplePackAdd, async (event) => {
-    if (!trusted(event)) return null
-    const win = BrowserWindow.fromWebContents(event.sender)
-    const opts: Electron.OpenDialogOptions = { title: 'Choose a folder of drum one-shots', properties: ['openDirectory'] }
-    const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
-    const folder = result.canceled ? null : (result.filePaths[0] ?? null)
-    return folder ? addSamplePack(folder) : null
-  })
-  ipcMain.handle(IPC.samplePackDrop, async (event, raw: unknown) => {
-    if (!trusted(event) || typeof raw !== 'string' || !raw) return null
-    try {
-      if (!(await stat(raw)).isDirectory()) return { error: { code: 'not_a_folder', message: 'Drop a folder of one-shots, not a file.' } }
-    } catch {
-      return { error: { code: 'missing', message: "That folder isn't there." } }
-    }
-    return addSamplePack(raw)
-  })
-
-  ipcMain.handle(IPC.askMic, async (event) => {
-    if (!trusted(event)) return false
-    if (FAKE_MIC || process.platform !== 'darwin') return true
-    return systemPreferences.askForMediaAccess('microphone')
-  })
-
   // The camera clip (1.1): asked explicitly, because a getUserMedia request macOS never answers just hangs.
   ipcMain.handle(IPC.askCamera, async (event) => {
     if (!trusted(event)) return false
     if (process.platform !== 'darwin') return true
+    // Chromium's fake camera (packaged smokes): no real camera, so no macOS prompt
+    if (app.commandLine.hasSwitch('use-fake-device-for-media-stream')) return true
     return systemPreferences.askForMediaAccess('camera')
   })
 
-  ipcMain.handle(IPC.micStatus, (event): MicAccess => {
-    if (!trusted(event)) return 'unknown'
-    if (FAKE_MIC) return 'granted'
-    if (process.platform !== 'darwin' && process.platform !== 'win32') return 'unknown'
-    return systemPreferences.getMediaAccessStatus('microphone') as MicAccess
-  })
-
-  // Fixed URL: the Microphone pane of Privacy & Security (for the RECORD tab's "mic access denied" state).
-  ipcMain.handle(IPC.openMicSettings, async (event) => {
-    if (trusted(event) && process.platform === 'darwin') {
-      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+  // 2.0 library wheel: a source picked in the native dialog, handed to the engine by main (X-FoxBox-Main: the engine
+  // takes a path from main only; the renderer never sends one, and gets no path back)
+  ipcMain.handle(IPC.addLibrarySource, async (event, kind: unknown): Promise<{ added: boolean; error?: string }> => {
+    if (!trusted(event) || (kind !== 'folder' && kind !== 'rekordbox' && kind !== 'serato')) return { added: false, error: 'Not allowed.' }
+    if (!supervisor?.isReady) return { added: false, error: 'The engine is starting.' }
+    const opts: Electron.OpenDialogOptions =
+      kind === 'rekordbox'
+        ? {
+            title: 'Pick the Rekordbox XML',
+            message: 'In Rekordbox: File → Export Collection in xml format.',
+            properties: ['openFile'],
+            filters: [{ name: 'Rekordbox XML', extensions: ['xml'] }],
+          }
+        : { title: kind === 'serato' ? 'Pick the _Serato_ folder' : 'Pick a music folder', properties: ['openDirectory'] }
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const pick = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    const path = pick.filePaths[0]
+    if (pick.canceled || !path) return { added: false }
+    try {
+      const res = await supervisor.request('/api/library/sources', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-FoxBox-Main': supervisor.token },
+        body: JSON.stringify({ kind, path }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (res.ok) return { added: true }
+      const body = (await res.json().catch(() => null)) as { error?: { message?: string; hint?: string | null } } | null
+      return {
+        added: false,
+        error: [body?.error?.message, body?.error?.hint].filter(Boolean).join(' ') || `The engine said ${res.status}.`,
+      }
+    } catch (err) {
+      return { added: false, error: `The engine did not answer: ${(err as Error).message}` }
     }
   })
+
+  ipcMain.handle(IPC.notch, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return trusted(event) && win ? atNotch(win) : false
+  })
+
+  // 2.0: the permission without asking, so the stage waits for "Turn on the camera" instead of prompting at launch
+  ipcMain.handle(IPC.cameraStatus, (event) => {
+    if (!trusted(event)) return 'denied'
+    if (process.platform !== 'darwin' || app.commandLine.hasSwitch('use-fake-device-for-media-stream')) return 'granted'
+    return systemPreferences.getMediaAccessStatus('camera')
+  })
+
   // The same for the Camera pane (RECORD's "camera access is off" line).
   ipcMain.handle(IPC.openCameraSettings, async (event) => {
     if (trusted(event) && process.platform === 'darwin') {
@@ -1017,111 +881,6 @@ function registerIpc(): void {
     unpluggedDisplayId = null // closed on purpose: nothing to reopen
     if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
     return { open: false, displayId: null }
-  })
-
-  // Ableton Link (1.4): the helper runs only while the user has sync on --------------------
-  ipcMain.handle(IPC.linkSet, (event, on: unknown) => {
-    if (!trusted(event)) return { running: false, error: 'Refused.' }
-    if (on === true) linkSession().start()
-    else linkSession().stop()
-    const { running, error } = linkSession().state()
-    return { running, error }
-  })
-  ipcMain.on(IPC.linkTempo, (event, bpm: unknown) => {
-    if (trusted(event) && typeof bpm === 'number') linkSession().setTempo(bpm)
-  })
-
-  // SHADERS: the user's .fs files (1.3) ------------------------------------------------------
-  ipcMain.handle(IPC.shadersList, (event) => (trusted(event) ? listShaders(shadersDir(DATA_DIR)) : []))
-  ipcMain.handle(IPC.shadersImport, async (event) => {
-    if (!trusted(event)) return 0
-    const win = BrowserWindow.fromWebContents(event.sender)
-    const opts: Electron.OpenDialogOptions = {
-      title: 'Import ISF shaders',
-      properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'ISF shaders', extensions: ['fs'] }],
-    }
-    const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
-    return result.canceled ? 0 : importShaderFiles(shadersDir(DATA_DIR), result.filePaths)
-  })
-  ipcMain.handle(IPC.shadersRemove, (event, file: unknown) => trusted(event) && removeShader(shadersDir(DATA_DIR), file))
-
-  // TouchDesigner (1.3) ----------------------------------------------------------------------
-  // 1.5.5: paused (TD_ENABLED): every handler answers null / [] and does nothing
-  const tdOk = (event: IpcMainEvent | IpcMainInvokeEvent) => TD_ENABLED && trusted(event)
-  ipcMain.handle(IPC.tdGet, (event) => (tdOk(event) ? touchDesigner().settings() : null))
-  ipcMain.handle(IPC.tdSet, (event, patch: unknown) =>
-    tdOk(event) && patch && typeof patch === 'object' ? touchDesigner().setSettings(patch as Partial<TdSettings>) : null,
-  )
-  ipcMain.handle(IPC.tdStatus, (event) => (tdOk(event) ? touchDesigner().status() : null))
-  ipcMain.on(IPC.tdSend, (event, messages: unknown) => {
-    if (event.sender === mainWindow?.webContents && tdOk(event)) touchDesigner().send(messages as TdMessage[])
-  })
-  ipcMain.handle(IPC.tdSessionStart, (event, setup: unknown) =>
-    event.sender === mainWindow?.webContents && tdOk(event) ? touchDesignerSession().start(setup === true) : null,
-  )
-  ipcMain.handle(IPC.tdSessionStop, (event) =>
-    event.sender === mainWindow?.webContents && tdOk(event) ? touchDesignerSession().stop() : null,
-  )
-  ipcMain.handle(IPC.tdSessionGet, (event) => (tdOk(event) ? touchDesignerSession().status() : null))
-  ipcMain.on(IPC.tdOpenDownload, (event) => {
-    if (tdOk(event)) void shell.openExternal('https://derivative.ca/download')
-  })
-  ipcMain.on(IPC.tdOpenApp, (event) => {
-    if (tdOk(event)) touchDesignerSession().openApp()
-  })
-  ipcMain.handle(IPC.tdPresets, (event) => (tdOk(event) ? touchDesignerSession().presets() : []))
-  // The camera's frames to TouchDesigner on their own MessagePort, posted from a worker (renderer/touchdesigner/
-  // camera.worker.ts): the page's main thread neither reads them back nor copies them into an IPC message.
-  ipcMain.on(IPC.tdCameraPort, (event) => {
-    if (event.sender !== mainWindow?.webContents || !tdOk(event)) return
-    const { port1, port2 } = new MessageChannelMain()
-    port1.on('message', ({ data }) => {
-      const d = data as { rgba?: unknown; width?: unknown; height?: unknown } | null
-      const rgba = d?.rgba
-      if ((rgba instanceof ArrayBuffer || ArrayBuffer.isView(rgba)) && typeof d?.width === 'number' && typeof d.height === 'number') {
-        tdSession?.publishCamera(rgba, d.width, d.height)
-      }
-    })
-    port1.start()
-    event.sender.postMessage(IPC.tdCameraPort, null, [port2])
-  })
-
-  // First-run Setup -------------------------------------------------------------------------
-  ipcMain.handle(IPC.setupInfo, async (event): Promise<SetupInfo | null> => {
-    if (!trusted(event)) return null
-    return {
-      bundled: Boolean(BUNDLED_ENGINE),
-      modelsDir: BUNDLED_ENGINE ? bundledModelsDir(DATA_DIR) : process.env.HF_HOME || join(homedir(), '.cache', 'huggingface'),
-      dataDir: DATA_DIR,
-      home: homedir(),
-      // Both mean "Move FoxBox to Applications, then open it again".
-      translocated: TRANSLOCATED || (await engineQuarantine()) === 'blocked',
-    }
-  })
-
-  ipcMain.handle(IPC.setupComplete, async (event): Promise<SetupCompleteResult> => {
-    const setup = setupWindow
-    if (!trusted(event) || !setup || event.sender !== setup.webContents) return { ok: false, error: 'Refused.' }
-    let restartEngine = false
-    if (!MOCK) {
-      const check = await setupCheck()
-      if (check.error) return { ok: false, error: check.error }
-      if (check.missing.length) return { ok: false, error: `Still installing: ${check.missing.join(', ')}.`, missing: check.missing }
-      // A first-run download that failed and was retried leaves the engine reporting that error until it restarts.
-      restartEngine = check.healthState === 'error'
-    }
-    try {
-      writeSetupMarker(USER_DATA, { version: app.getVersion(), bundled: Boolean(BUNDLED_ENGINE) })
-    } catch (err) {
-      log(`setup marker not written: ${(err as Error).message}`)
-      return { ok: false, error: `Could not save the setup state: ${(err as Error).message}` }
-    }
-    log(`setup complete; opening the studio${restartEngine ? ' (restarting the engine to load the new models)' : ''}`)
-    if (restartEngine) void supervisor?.restart()
-    if (!mainWindow) createWindow()
-    setup.close()
-    return { ok: true }
   })
 
   // App updates (all network and file work happens in the Updater) ---------------------------
@@ -1216,9 +975,7 @@ async function startEngine(): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 // Lifecycle
 
-// macOS 14.2+ system-audio loopback (Core Audio taps) for VISUALS' LIVE INPUT "System audio" (1.4, S2).
-app.commandLine.appendSwitch('enable-features', 'MacCatapLoopbackAudioForScreenShare')
-// VISUALS' OUTPUT must keep drawing when a window covers it (or it covers FoxBox, one display): no occluded or background
+// The OUTPUT window must keep drawing when a window covers it (or it covers FoxBox, one display): no occluded or background
 // renderer is paused (backgroundThrottling: false alone leaves macOS occlusion's paused frames).
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
@@ -1227,7 +984,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const win = mainWindow ?? setupWindow
+    const win = mainWindow
     if (!win) return
     if (win.isMinimized()) win.restore()
     win.focus()
@@ -1263,24 +1020,14 @@ if (!app.requestSingleInstanceLock()) {
     updater = createUpdater()
     // An update that kept failing to start: put the previous app back (it relaunches) before anything else runs.
     if (updater.needsRollback && updater.rollback()) return
-    if (TRANSLOCATED) log(`running translocated (${process.execPath}); Setup asks to move the app to Applications`)
-    const firstRun = shouldShowSetup({
-      packaged: app.isPackaged,
-      bundled: Boolean(BUNDLED_ENGINE),
-      forceEnv: devEnv('FVWKS_FORCE_SETUP'),
-      markerExists: hasSetupMarker(USER_DATA),
-    })
-    // After the rollback above, never in front of Setup; it holds the boot screen only (the engine starts as usual).
-    bootGate = createBootGate(updater, firstRun)
-    if (firstRun) {
-      await openFirstRunWindow()
-    } else {
-      createWindow()
-    }
+    if (TRANSLOCATED) log(`running translocated (${process.execPath})`)
+    // 2.0: no first-run Setup window; the boot screen holds the update check (the engine starts as usual)
+    bootGate = createBootGate(updater, false)
+    createWindow()
     // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
-    ;(mainWindow ?? setupWindow)?.webContents.once('did-finish-load', () => void updater?.confirmLaunch())
+    mainWindow?.webContents.once('did-finish-load', () => void updater?.confirmLaunch())
     void bootGate.run()
-    if (!firstRun) await startEngine()
+    await startEngine()
   })
 
   app.on('window-all-closed', () => app.quit())
@@ -1288,9 +1035,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', (event) => {
     if (!confirmStopOutput(mainWindow)) return event.preventDefault()
     updater?.dispose()
-    link?.stop()
-    tdSession?.stop(true) // its TouchDesigner quits now: the socket closes next and no timer outlives the app
-    td?.close()
     if (quitting || !supervisor) return
     event.preventDefault()
     quitting = true

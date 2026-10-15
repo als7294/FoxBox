@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#0B0806;color:#F6EFE6;font-family:'Geist',sans-serif}a{color:#FFB27A}a:hover{color:#FF9C5C}</style>
+<script>window.OM_SCENES = '[{"name":"Welcome","dur":4,"desc":"The fox mark assembles and FoxBox says hello"},{"name":"Raise","dur":4.5,"desc":"Raise your hands: big wireframe hands rise and wiggle"},{"name":"PointIn","dur":5,"desc":"Hands curve into a C facing each other; strings snap on and the camera fades in"},{"name":"Keys","dur":6,"desc":"Each hand’s height picks its note on the note ladder; L and R markers light"},{"name":"Fold","dur":7,"desc":"Curl any finger to pluck; two hands play two notes; trail fills"},{"name":"Hold","dur":5,"desc":"Keeping a finger folded holds its note; a ring shows the hold"},{"name":"Shapes","dur":7.5,"desc":"Fist drives, pinch wobbles; a frame loops the last 4 beats, pinch changes its style, release shatters"},{"name":"Remix","dur":6,"desc":"Switch to REMIX: a full-width glass waveform and a fist plays TEAROUT on the beat"},{"name":"Glass","dur":6.5,"desc":"Hands frame a window: a lit edge draws, THERMAL blooms inside, locks on the beat, then shatters on release"},{"name":"Outro","dur":4,"desc":"The fox returns: Let’s play."}]';</script>
+<script>window.OM_PLAYBACK = '{"mode":"loop"}';</script>
+<script>window.TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"motionEditor":true}/*EDITMODE-END*/;</script>
+</helmet>
+<div style="position:fixed;inset:0;background:#0B0806">
+<x-import component-from-global-scope="FoxOnboarding" from="./animations-v3.jsx ./foxbox-onboarding.jsx" style="position:absolute;inset:0;width:100%;height:100%" hint-size="100%,100%"></x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;motionEditor&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}"></script>
+</body>
+</html>

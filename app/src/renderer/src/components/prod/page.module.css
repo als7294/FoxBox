@@ -1,4 +1,4 @@
-/* PROD · TOUCHDESIGNER: the header, the live grid, the preview and the confirm strip (app/design/visuals-td §B). */
+/* STRINGS (the 'prod' screen; PROD · TOUCHDESIGNER's page until 1.5.5): the header, the grid and the preview. */
 
 /* ---- header (48px) */
 .head {
@@ -8,6 +8,12 @@
   height: 48px;
   flex: none;
   min-width: 0;
+  /* 2.0, no rail: the window's buttons sit at the header's left, and the header moves the window */
+  padding-left: 64px;
+  -webkit-app-region: drag;
+}
+.head :is(button, [role='status']) {
+  -webkit-app-region: no-drag;
 }
 .title {
   margin: 0;
@@ -414,59 +420,6 @@
   border-radius: 2px;
   background: rgba(255, 178, 62, 0.08);
   color: var(--vb-amber);
-  font: 700 11px var(--vb-font-mono);
-}
-
-/* ---- confirm strip (inline, amber) */
-.confirm {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 8px 8px 14px;
-  border: 1px solid rgba(255, 178, 62, 0.55);
-  border-radius: 3px;
-  background: rgba(255, 178, 62, 0.06);
-}
-.confirmGlyph {
-  color: var(--vb-amber);
-  font: 700 14px var(--vb-font-mono);
-}
-.confirmText {
-  flex: 1;
-  min-width: 0;
-  font: 500 11px/1.45 var(--vb-font-mono);
-}
-.confirmText b {
-  color: var(--vb-amber);
-  letter-spacing: 0.12em;
-}
-.confirmMask,
-.confirmFace {
-  flex: none;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 2px;
-  font: 800 14px/1 var(--vb-font-display);
-  letter-spacing: 0.12em;
-}
-.confirmMask {
-  border: 0;
-  background: var(--vb-ok);
-  color: var(--vb-well);
-}
-.confirmFace {
-  border: 1px solid rgba(255, 178, 62, 0.55);
-  background: none;
-  color: var(--vb-amber);
-}
-.confirmCancel {
-  flex: none;
-  height: 30px;
-  padding: 0 10px;
-  border: 0;
-  background: none;
-  color: var(--vb-dim);
   font: 700 11px var(--vb-font-mono);
 }
 

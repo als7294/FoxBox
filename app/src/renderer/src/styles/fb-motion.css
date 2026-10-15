@@ -1,0 +1,35 @@
+/* The 2.0 design's motion (app/design/foxbox-2, its prototype's keyframes, verbatim). Global: the CSS modules name
+   them. Reduced motion: no animation, transitions instant (the design's rule). */
+@keyframes fbFlash{0%{opacity:1}100%{opacity:.4}}
+@keyframes fbCore{0%{stroke-width:7px}100%{stroke-width:3px}}
+@keyframes fbTilt{0%,100%{transform:perspective(1200px) rotateX(6deg) rotateY(-10deg) rotate(-3deg) translateY(0)}50%{transform:perspective(1200px) rotateX(-4deg) rotateY(8deg) rotate(2.5deg) translateY(-8px) translateZ(30px)}}
+@keyframes fbEdge{0%{clip-path:inset(0 100% 100% 0)}50%{clip-path:inset(0 0 100% 0)}100%{clip-path:inset(0 0 0 0)}}
+@keyframes fbBloom{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}
+@keyframes fbLoopPulse{0%{filter:brightness(1.6) saturate(1.4)}40%{filter:brightness(1)}100%{filter:brightness(1)}}
+@keyframes fbLoopReplay{0%{transform:translate(0,0)}25%{transform:translate(-6px,3px)}50%{transform:translate(4px,-4px)}75%{transform:translate(-3px,-2px)}}
+@keyframes fbSweep{0%{left:0}100%{left:100%}}
+@keyframes fbNotePop{0%{opacity:0;transform:translateY(8px) scale(.92);filter:blur(6px)}22%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}70%{opacity:1;transform:translateY(-6px) scale(1);filter:blur(0)}100%{opacity:0;transform:translateY(-16px) scale(.98);filter:blur(4px)}}
+@keyframes fbLaunchOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.04);visibility:hidden}}
+@keyframes fbGlow{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
+@keyframes fbEnso{0%{opacity:0;transform:scale(.6) rotate(-40deg);clip-path:inset(0 0 100% 0)}100%{opacity:1;transform:scale(1) rotate(0);clip-path:inset(0 0 0 0)}}
+@keyframes fbFoxIn{0%{opacity:0;transform:scale(.6) rotate(-12deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes fbChev{0%{opacity:0;transform:translateY(80px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes fbRise{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes fbLoad{0%{width:0}35%{width:38%}70%{width:72%}100%{width:100%}}
+@keyframes fbStep{0%{opacity:0;transform:translateY(8px)}20%,80%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-8px)}}
+@keyframes fbStepLast{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes fbNotchGlow{0%,100%{opacity:.22;transform:scaleX(.96)}50%{opacity:.34;transform:scaleX(1)}}
+@keyframes fbSlash{0%{transform:skewX(-18deg) translateX(-160%)}40%{transform:skewX(-18deg) translateX(0)}58%{transform:skewX(-18deg) translateX(0)}100%{transform:skewX(-18deg) translateX(170%)}}
+@keyframes fbWord{0%,30%{opacity:0}36%{opacity:1}64%{opacity:1}72%,100%{opacity:0}}
+@keyframes fbWordIn{0%,30%{clip-path:inset(0 100% 0 0);transform:skewX(-8deg) translateX(-40px)}44%{clip-path:inset(0 0 0 0);transform:skewX(-8deg) translateX(0)}64%{clip-path:inset(0 0 0 0);transform:skewX(-8deg) translateX(10px)}74%,100%{clip-path:inset(0 0 0 100%);transform:skewX(-8deg) translateX(40px)}}
+@keyframes fbSplit{0%,34%{transform:translate(-14px,0)}40%{transform:translate(6px,0)}46%{transform:translate(-3px,0)}52%,100%{transform:translate(0,0);opacity:0}}
+@keyframes fbUnder{0%,36%{transform:skewX(-18deg) scaleX(0)}50%,64%{transform:skewX(-18deg) scaleX(1)}74%,100%{transform:skewX(-18deg) scaleX(0)}}
+@keyframes fbHolo{0%{background-position:0% 0}100%{background-position:300% 0}}
+@keyframes fbHoloEdge{0%,100%{box-shadow:inset 0 0 0 1px rgba(255,150,80,.14)}50%{box-shadow:inset 0 0 0 1px rgba(255,170,100,.32)}}
+@keyframes fbRec{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion: reduce) {
+  [data-fb] *, [data-fb] {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}

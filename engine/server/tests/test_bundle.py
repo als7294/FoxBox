@@ -2,7 +2,6 @@
 
     FVWKS_TEST_BUNDLE=1 uv run --all-packages pytest server/tests/test_bundle.py
 """
-import importlib.util
 import json
 import os
 import re
@@ -18,13 +17,8 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "bundle_engine.sh"
 TOKEN = "tok"
-# An install folder deep enough that espeak-ng's data path (…/site-packages/espeakng_loader/espeak-ng-data/phontab)
-# passes the ~160 characters espeak-ng silently truncates at (docs/sessions/README.md, Open issues).
-DEEP = "an-install-folder-deliberately-long-enough-to-push-espeak-ng-data-past-its-160-character-limit"
-ESPEAK_XFAIL = ("espeak-ng truncates data paths longer than ~160 characters; waiting for S1's short-path fix in "
-                "fvwks_voice configure()/warm_up() (docs/sessions/README.md, Open issues)")
-# S1's fix (session/s1-voice db1bb79) adds fvwks_voice.espeak_path; once it's merged this test must pass.
-HAS_ESPEAK_FIX = importlib.util.find_spec("fvwks_voice.espeak_path") is not None
+# A deep install folder, as a user's Applications folder can be: nothing in the bundle may depend on a short path.
+DEEP = "an-install-folder-deliberately-long-enough-to-push-the-bundles-paths-past-160-characters"
 
 
 def test_refuses_to_replace_a_foreign_folder(tmp_path):
@@ -50,14 +44,14 @@ def app_engine(tmp_path_factory):
     shutil.rmtree(root, ignore_errors=True)  # don't leave 0.7 GB in pytest's kept tmp dirs
 
 
-def _call(port, method, path, body=None, token=TOKEN):
+def _call(port, method, path, body=None, token=TOKEN, headers=None, raw=False):
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Content-Type": "application/json",
+                                 headers={"Content-Type": "application/json", **(headers or {}),
                                           **({"Authorization": f"Bearer {token}"} if token else {})})
     try:
         with urllib.request.urlopen(req, timeout=180) as res:
-            return res.status, json.loads(res.read())
+            return res.status, res.read() if raw else json.loads(res.read())
     except urllib.error.HTTPError as err:
         return err.code, json.loads(err.read())
     except (ConnectionError, urllib.error.URLError) as err:  # the engine process died
@@ -91,26 +85,6 @@ def test_bundle_is_relocatable(app_engine, tmp_path):
         assert _call(port, "GET", "/api/health", token=None)[0] == 401
         proc.stdin.close()  # the parent went away
         assert proc.wait(timeout=10) == 0
-
-
-@pytest.mark.xfail(not HAS_ESPEAK_FIX, reason=ESPEAK_XFAIL, strict=False)
-def test_tts_espeak_fallback_from_a_deep_install_path(app_engine, tmp_path):
-    phontab = next((app_engine / "runtime" / "venv").rglob("espeakng_loader/espeak-ng-data/phontab"))
-    assert len(str(phontab)) > 160, "the scenario must really be past espeak-ng's limit"
-    with _running(app_engine, tmp_path) as (port, proc):
-        deadline = time.monotonic() + 180
-        while (health := _call(port, "GET", "/api/health")[1])["state"] == "loading_model":
-            assert time.monotonic() < deadline, "voice warm-up never finished"
-            time.sleep(0.25)
-        if health["state"] == "dead":
-            proc.wait(timeout=10)
-            pytest.fail(f"engine died during warm-up (exit {proc.returncode}): {proc.stderr.read()[-1500:]}")
-        assert health["state"] == "ready", health
-        # A word no lexicon knows, so G2P falls back to espeak-ng (reading its data from the deep path).
-        status, src = _call(port, "POST", "/api/sources/tts",
-                            {"script": "WE ARE XYLOQUENDRAX | EXPECT *US*", "voice_id": "kokoro:am_fenrir"})
-        assert status == 200, src
-        assert src["duration_s"] > 1.0 and len(src["segments"]) == 2
 
 
 def _tree(root: Path) -> dict[str, tuple[int, int]]:
@@ -152,9 +126,54 @@ def _settled(port, timeout=300):
     return health
 
 
+def _upload(port, path, data: bytes, name="song.wav", token=TOKEN):
+    boundary = "fvwks-bundle-test"
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\n"
+            "Content-Type: audio/wav\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=body, method="POST", headers={
+        "Authorization": f"Bearer {token}", "Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req, timeout=180) as res:
+        return res.status, json.loads(res.read())
+
+
+def _song_wav(seconds=16.0, sr=44100, bpm=124.0) -> bytes:
+    """Four-on-the-floor over a bass line with a break: enough for a tempo, a key and sections."""
+    import io
+    import wave
+
+    import numpy as np
+
+    n = int(seconds * sr)
+    t = np.arange(n) / sr
+    beat = 60.0 / bpm
+    phase = (t % beat) / beat
+    kick = np.exp(-phase * 30) * np.sin(2 * np.pi * 50 * t)
+    bass = 0.3 * np.sin(2 * np.pi * 55 * t) * (t % (4 * beat) < 3 * beat)
+    x = 0.7 * kick + bass
+    x[int(8 * sr):int(10 * sr)] *= 0.1  # a break
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes((np.clip(x, -1, 1) * 30000).astype("<i2").tobytes())
+    return buf.getvalue()
+
+
+def _wait(port, path, field, timeout=300):
+    deadline = time.monotonic() + timeout
+    while True:
+        status, body = _call(port, "GET", path)
+        assert status == 200, body
+        if body.get(field) not in ("queued", "running") or time.monotonic() > deadline:
+            return body
+        time.sleep(0.25)
+
+
 def test_packaged_layout_as_the_app_spawns_it(app_engine, tmp_path):
-    """Resources/engine/bin/fvwks-engine with no uv: marker, token from the environment, HF_HOME under the data dir
-    (pointed at this Mac's model cache, so nothing downloads), a line rendered, and a clean SIGTERM."""
+    """FoxBox 2.0's bundle smoke: Resources/engine/bin/fvwks-engine with no uv: marker, token from the environment,
+    HF_HOME under the data dir (pointed at this Mac's model cache, so nothing downloads); health, a song uploaded,
+    analysed and sectioned, its stems split (when the stems model is in that cache), and a clean SIGTERM."""
     import signal
 
     assert (app_engine / ".fvwks-engine-bundle").is_file()
@@ -168,11 +187,23 @@ def test_packaged_layout_as_the_app_spawns_it(app_engine, tmp_path):
     with _packaged(app_engine, tmp_path) as (port, proc):
         health = _settled(port)
         assert health["state"] == "ready" and health["required_missing"] == [], health
-        status, src = _call(port, "POST", "/api/sources/tts", {"script": "WE ARE GUY FVWKS"})
-        assert status == 200, src
-        status, r = _call(port, "POST", "/api/render", {"source_id": src["id"], "preset_id": "pact",
-                                                       "arrange": {"bpm": 140, "bars": 4}})
-        assert status == 200 and r["bars"] == 4, r
+        status, song = _upload(port, "/api/songs", _song_wav())
+        assert status == 200, song
+        song = _wait(port, f"/api/songs/{song['id']}", "analysis_state")
+        assert song["analysis_state"] == "done" and abs(song["analysis"]["bpm"] - 124) < 2, song
+        assert song["structure"] and song["structure"]["sections"], song
+        status, models = _call(port, "GET", "/api/models")
+        stems_model = next(m for m in models if m["id"] == "stems-htdemucs")
+        if stems_model["installed"]:
+            status, job = _call(port, "POST", f"/api/songs/{song['id']}/stems", {})
+            assert status == 200, job
+            job = _wait(port, f"/api/jobs/{job['id']}", "state")
+            assert job["state"] == "done", job
+            song = _call(port, "GET", f"/api/songs/{song['id']}")[1]
+            assert song["stems_state"] == "done" and [s["name"] for s in song["stems"]] == [
+                "drums", "bass", "vocals", "other"]
+            status, feats = _call(port, "GET", f"/api/songs/{song['id']}/stems/features")
+            assert status == 200 and feats["frames"] > 0, feats
         proc.send_signal(signal.SIGTERM)
         assert proc.wait(timeout=30) in (0, -signal.SIGTERM)
         assert not (tmp_path / "data" / "library.sqlite3-wal").exists()  # closed, not abandoned
@@ -180,20 +211,19 @@ def test_packaged_layout_as_the_app_spawns_it(app_engine, tmp_path):
 
 
 def test_packaged_first_launch_on_a_fresh_mac_offline(app_engine, tmp_path):
-    """A fresh Mac: no models under HF_HOME, and no network. The engine tries the required downloads, says why they
-    failed, lists what's missing, and keeps running (never a crash)."""
+    """A fresh Mac: no models under HF_HOME, and no network. FoxBox 2.0 needs none at boot (the stems model downloads
+    on the first split), so the engine is ready at once, lists the stems model as not installed, and writes nothing
+    into the bundle."""
     before = _tree(app_engine)
     with _packaged(app_engine, tmp_path, HF_HUB_OFFLINE="1") as (port, proc):
         health = _settled(port)
-        assert health["state"] == "error" and health["required_missing"] == ["kokoro-82m", "deepfilternet3"], health
-        assert "Couldn't install Kokoro 82M" in health["message"] and "network" in health["message"], health
-        assert proc.poll() is None
+        assert health["state"] == "ready" and health["required_missing"] == [], health
         status, models = _call(port, "GET", "/api/models")
-        assert status == 200 and not any(m["installed"] for m in models if m["required"])
+        # installed only when another cache on this Mac already holds it (adopted by an APFS clone, no download)
+        assert status == 200 and [(m["id"], m["required"], m["install_job_id"]) for m in models] == [
+            ("stems-htdemucs", False, None)]
         proc.stdin.close()
         assert proc.wait(timeout=10) == 0
-    # The model downloader it started is a separate interpreter without -B: it must not write .pyc files into the
-    # bundle either (it did, and broke the app's code signature).
     assert _unchanged(before, _tree(app_engine)) == []
 
 
@@ -236,14 +266,58 @@ def test_components_runtime_hash_only_moves_with_dependencies(app_engine, tmp_pa
     copy = tmp_path / "engine"
     shutil.copytree(engine, copy, symlinks=True, ignore=shutil.ignore_patterns(
         ".venv", "__pycache__", "*.egg-info", ".pytest_cache", "tests"))
-    writer = copy / "server" / "src" / "fvwks_server" / "writer.py"
-    writer.write_text(writer.read_text() + "\n# a code-only change\n")
+    changed = copy / "server" / "src" / "fvwks_server" / "service.py"
+    changed.write_text(changed.read_text() + "\n# a code-only change\n")
     built = tmp_path / "build" / "engine"
     subprocess.run([str(copy / "server" / "scripts" / "bundle_engine.sh"), str(built)], check=True,
                    capture_output=True, text=True)
     first, second = (json.loads((b / "components.json").read_text()) for b in (app_engine, built))
     assert first["runtime"] == second["runtime"] and first["code"] != second["code"]
     loaded = subprocess.run([str(built / "runtime" / "venv" / "bin" / "python"), "-I", "-B", "-c",
-                             "import fvwks_server.writer as w; print(w.__file__)"],
+                             "import fvwks_server.service as m; print(m.__file__)"],
                             capture_output=True, text=True, check=True)
-    assert Path(loaded.stdout.strip()) == built / "code" / "fvwks_server" / "writer.py"
+    assert Path(loaded.stdout.strip()) == built / "code" / "fvwks_server" / "service.py"
+
+
+def test_packaged_library_wheel(app_engine, tmp_path):
+    """2.0's library wheel in the packaged engine (mutagen from code/, macOS's afconvert and sips): a music folder, a
+    rekordbox.xml (added by main) and Serato's standard library (found under HOME), each listed, previewed and loaded."""
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_music_library import music_folder, rekordbox_xml, serato_library
+
+    home = tmp_path / "home"
+    files = music_folder(home / "Music" / "Tunes")
+    xml = rekordbox_xml(tmp_path / "rekordbox.xml", [("1", files["mp3"].as_posix(), {
+        "Name": "RB Tune", "Artist": "Guy", "_kids": [("TEMPO", {"Inizio": "0.25", "Bpm": "140.00", "Battito": "1"})]})])
+    serato_library(home / "Music", [files["m4a"], files["flac"]])
+    main = {"X-FoxBox-Main": TOKEN}
+    with _packaged(app_engine, tmp_path, HOME=str(home)) as (port, _):
+        _settled(port)
+        assert _call(port, "POST", "/api/library/sources", {"kind": "folder", "path": "/tmp"})[0] == 403  # not main
+        added = [_call(port, "POST", "/api/library/sources", {"kind": "folder", "path": str(home / "Music" / "Tunes")},
+                       headers=main)[1],
+                 _call(port, "POST", "/api/library/sources", {"kind": "rekordbox", "path": str(xml)}, headers=main)[1],
+                 _call(port, "POST", "/api/library/sources/serato")[1]]
+        assert [a["kind"] for a in added] == ["folder", "rekordbox", "serato"], added
+        deadline = time.monotonic() + 60
+        while any(s["state"] == "scanning" for s in _call(port, "GET", "/api/library/sources")[1]):
+            assert time.monotonic() < deadline
+            time.sleep(0.2)
+        sources = {s["kind"]: s for s in _call(port, "GET", "/api/library/sources")[1]}
+        assert [sources[k]["tracks"] for k in ("folder", "rekordbox", "serato")] == [4, 1, 2], sources
+        for kind, src in sources.items():
+            page = _call(port, "GET", f"/api/library/tracks?source_id={src['id']}&sort=title")[1]
+            track = next(t for t in page["items"] if t["format"] in ("m4a", "mp3"))
+            status, wav = _call(port, "GET", f"/api/library/tracks/{track['id']}/preview", raw=True)
+            assert status == 200 and wav[:4] == b"RIFF" and len(wav) > 44100 * 2 * 2 * 15, kind
+            status, song = _call(port, "POST", f"/api/library/tracks/{track['id']}/song")
+            assert status == 200 and abs(song["duration_s"] - 30) < 0.3, (kind, song)
+            if kind == "rekordbox":
+                assert song["analysis"]["source"] == "rekordbox" and song["analysis"]["bpm"] == 140
+        art = next(t for t in _call(port, "GET", f"/api/library/tracks?source_id={sources['folder']['id']}")[1]["items"]
+                   if t["has_art"])
+        status, jpeg = _call(port, "GET", f"/api/library/tracks/{art['id']}/art", raw=True)
+        assert status == 200 and jpeg[:2] == b"\xff\xd8"
+

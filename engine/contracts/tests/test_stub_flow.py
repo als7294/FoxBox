@@ -1,6 +1,9 @@
-"""End-to-end smoke of the HTTP flow the app uses: tts → render(final) → export → rekordbox.xml → audio."""
+"""End-to-end smoke of the HTTP flow FoxBox 2.0's REMIX uses (contracts v1.0): health → upload a song → its
+analysis → settings → audio, behind the token."""
+import io
+import math
+import time
 import wave
-import xml.etree.ElementTree as ET
 
 from fastapi.testclient import TestClient
 
@@ -12,28 +15,43 @@ def _client(tmp_path, token=None):
     return TestClient(create_app(Config.from_env(str(tmp_path / "data"), str(tmp_path / "exports"), token)))
 
 
-def test_full_flow(tmp_path):
-    c = _client(tmp_path)
-    assert c.get("/api/health").json()["state"] == "ready"
-    assert len(c.get("/api/rack").json()["modules"]) >= 10
-    src = c.post("/api/sources/tts", json={"script": "WE ARE GUY FVWKS | EXPECT *US*", "voice_id": "kokoro:am_fenrir"}).json()
-    assert len(src["segments"]) == 2 and src["segments"][1]["flags"]["throw"]
-    r = c.post("/api/render", json={"source_id": src["id"], "preset_id": "pact", "quality": "final",
-                                    "arrange": {"bpm": 140, "bars": 4, "key": "Am"}}).json()
-    assert r["n_samples"] == 302400 and r["sample_rate"] == 44100 and r["export"]["filename"].endswith(".aiff")
-    assert r["mask"]["level"] == "synthetic"
-    wav = c.post("/api/exports", json={"render_ids": [r["id"]], "format": "wav", "variants": ["wet", "dry"]}).json()["files"]
-    assert len(wav) == 2
-    with open(wav[0]["path"], "rb") as fh:
-        head = fh.read(22)
-    assert head[20:22] == b"\x01\x00", "WAV must be integer PCM (fmt tag 1), not WAVE_FORMAT_EXTENSIBLE"
-    xml = c.post("/api/exports/rekordbox", json={"export_ids": [r["export"]["id"], wav[0]["id"]]}).json()
-    root = ET.parse(xml["path"]).getroot()
-    assert len(root.find("COLLECTION")) == 2
-    audio = c.get(f"/api/audio/{r['audio_id']}")
-    assert audio.headers["content-type"] == "audio/wav"
-    lib = c.get("/api/library").json()
-    assert lib["total"] == 1
+def _wav(seconds=4.0, sr=44100, bpm=120.0) -> bytes:
+    """A click on every beat over a low hum: a song the analysis can read."""
+    n, beat = int(seconds * sr), int(sr * 60 / bpm)
+    frames = bytearray()
+    for i in range(n):
+        v = 0.2 * math.sin(2 * math.pi * 55 * i / sr) + (0.8 if i % beat < 200 else 0.0)
+        frames += int(max(-1, min(1, v)) * 30000).to_bytes(2, "little", signed=True)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(bytes(frames))
+    return buf.getvalue()
+
+
+def test_song_flow(tmp_path):
+    with _client(tmp_path) as c:
+        assert c.get("/api/health").json()["state"] in ("ready", "loading_model")
+        song = c.post("/api/songs", files={"file": ("beat.wav", _wav(), "audio/wav")}, data={"name": "Beat"}).json()
+        assert song["name"] == "Beat" and song["sample_rate"] == 44100 and song["stems_state"] == "none"
+        deadline = time.monotonic() + 30
+        while song["analysis_state"] in ("queued", "running") and time.monotonic() < deadline:
+            time.sleep(0.1)
+            song = c.get(f"/api/songs/{song['id']}").json()
+        assert song["analysis_state"] == "done" and abs(song["analysis"]["bpm"] - 120) < 2
+        assert [s["id"] for s in c.get("/api/songs").json()] == [song["id"]]
+        patched = c.patch(f"/api/songs/{song['id']}", json={"bpm_override": 121.0}).json()
+        assert patched["bpm_override"] == 121.0
+        audio = c.get(f"/api/audio/{song['audio_id']}")
+        assert audio.status_code == 200 and audio.headers["content-type"] == "audio/wav"
+        settings = c.get("/api/settings").json()
+        assert c.put("/api/settings", json=settings).status_code == 200
+        models = c.get("/api/models").json()
+        assert [m["id"] for m in models] == ["stems-htdemucs"] and not models[0]["required"]
+        assert c.delete(f"/api/songs/{song['id']}").status_code == 204
+        assert c.get(f"/api/songs/{song['id']}").status_code == 404
 
 
 def test_token_required(tmp_path):
@@ -43,28 +61,7 @@ def test_token_required(tmp_path):
     assert c.get("/api/health", headers={"Authorization": "Bearer s3cret"}).status_code == 200
 
 
-def test_upload_recording(tmp_path):
+def test_removed_routes_are_gone(tmp_path):
     c = _client(tmp_path)
-    with open(tmp_path / "x.wav", "wb") as fh:
-        w = wave.open(fh, "wb")
-        w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100)
-        import math, struct
-        w.writeframes(b"".join(struct.pack("<h", int(8000 * math.sin(i / 20))) for i in range(44100)))
-        w.close()
-    with open(tmp_path / "x.wav", "rb") as fh:
-        src = c.post("/api/sources/upload", files={"file": ("x.wav", fh, "audio/wav")}, data={"kind": "recording"}).json()
-    assert src["kind"] == "recording" and src["sample_rate"] == 48000
-    r = c.post("/api/render", json={"source_id": src["id"], "preset_id": "raw", "arrange": {"bars": 4}}).json()
-    assert r["mask"]["level"] in ("weak", "medium", "strong")
-
-
-def test_v01_routes(tmp_path):
-    c = _client(tmp_path)
-    prev = c.post("/api/script/preview", json={"script": "WE ARE GUY FVWKS | EXPECT *US*", "bpm": 140})
-    assert prev.status_code == 200, prev.text
-    body = prev.json()
-    assert len(body["segments"]) == 2 and body["segments"][1]["flags"]["throw"]
-    missing = c.get("/api/personas/candidates/cand_000000000000")
-    assert missing.status_code == 404 and missing.json()["error"]["code"] == "not_found"
-    lex = c.get("/api/lexicon").json()["entries"]
-    assert any(e["word"] == "DJ" and e["acronym"] for e in lex)
+    for path in ("/api/voices", "/api/rack", "/api/presets", "/api/library", "/api/lexicon", "/api/remixes"):
+        assert c.get(path).status_code == 404, path

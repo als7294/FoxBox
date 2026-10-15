@@ -7,6 +7,7 @@ import type { SongDeck } from '@/audio/live'
 import { isTextTarget } from '@/lib/shortcuts'
 import { useLiveDeck } from '@/state/liveDeck'
 import { useSong } from '@/state/song'
+import { useGuide } from '@/components/guide/guideStore'
 import { useUi } from '@/state/ui'
 import { reducedMotion } from '@/visuals/motion'
 import { clock } from './prodActions'
@@ -51,12 +52,12 @@ export function SectionTimeline() {
     deck?.seek(Math.max(0, Math.min(s, deck.durationS - 0.05)))
   }
 
-  // ←/→ by section on STRINGS (not while typing, or while a knob, a switch row or tabs have the keys)
+  // ←/→ by section on REMIX (not while the GUIDE has them, while typing, or while a knob, a switch row or tabs have the keys)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
       if (!dir || !deck || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-      if (useUi.getState().screen !== 'prod' || isTextTarget(e.target)) return
+      if (useUi.getState().mode !== 'remix' || useGuide.getState().open || isTextTarget(e.target)) return
       if ((e.target as Element | null)?.closest?.('[role="slider"], [role="radiogroup"], [role="tablist"]')) return
       const to = stepSection(sections, deck.positionS(), dir)
       if (!to) return

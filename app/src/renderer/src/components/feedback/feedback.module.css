@@ -176,89 +176,94 @@
 }
 
 /* ---------------------------------------------------------------- toast */
-.toast {
-  position: absolute;
-  right: 24px;
-  /* Top right, below the SIGNAL header row: clear of the transport (PLAY, A/B, LOOP) and the OUTPUT actions (UX #12, #14). */
-  top: calc(var(--vb-top-h) + 64px);
+/* The 2.0 design's toast (README §11): a glass pill under the notch, Geist 600 15px; one with a detail, a file or
+   actions opens into a rounded card. The update's pill sits above it. */
+.notch {
+  position: fixed;
+  left: 50%;
+  translate: -50% 0;
   z-index: 80;
-  width: 380px;
-  background: var(--vb-raise);
-  --col: var(--vb-amber);
-  border: 1px solid rgba(var(--vb-amber-rgb), 0.4);
-  border-left: 0;
-  border-radius: var(--vb-r2);
-  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+  transition: top 0.4s;
+}
+.notch > * {
+  pointer-events: auto;
+}
+.toast {
+  max-width: min(560px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   gap: 6px;
-  box-shadow: var(--vb-pop);
+  padding: 10px 14px 10px 18px;
+  border-radius: 999px;
+  background: rgba(28, 22, 18, 0.74);
+  backdrop-filter: blur(30px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+  color: var(--fb-ink);
+  font: 600 15px var(--fb-font);
 }
-.toast[data-tone='error'] {
-  --col: var(--vb-accent);
-  border-color: rgba(var(--vb-accent-rgb), 0.55);
-}
-.toast[data-tone='info'] {
-  --col: var(--vb-ink);
-  border-color: var(--vb-line-3);
+.toast:has(.toastBody, .toastDrag, .toastActions) {
+  border-radius: 20px;
+  padding: 12px 14px 14px 18px;
 }
 .toastHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
 }
 .toastTitle {
   flex: 1;
   min-width: 0;
-  font: var(--vb-display-weight) 17px/1.05 var(--vb-font-display);
-  letter-spacing: 0.16em;
-  color: var(--col);
-  text-transform: uppercase;
   overflow-wrap: anywhere;
+}
+.toast[data-tone='error'] .toastTitle {
+  color: #ff8a78;
 }
 .toastClose {
   flex: none;
-  width: 24px;
-  height: 24px;
-  margin: -6px -8px 0 0;
+  width: 22px;
+  height: 22px;
   border: 0;
-  background: none;
-  color: var(--vb-dim);
-  font: 700 13px var(--vb-font-mono);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fb-ink-2);
+  font: 600 12px var(--fb-font);
   padding: 0;
 }
 .toastBody {
-  font: 400 var(--vb-text-min)/1.5 var(--vb-font-mono);
-  word-break: break-all;
+  font: 500 13px/1.45 var(--fb-font);
+  color: var(--fb-ink-2);
+  overflow-wrap: anywhere;
 }
 .toastDrag {
-  margin-top: 2px;
-  padding: 7px 9px;
-  border: 1px dashed rgba(var(--vb-amber-rgb), 0.45);
-  border-radius: var(--vb-r1);
+  padding: 8px 10px;
+  border: 1px dashed rgba(242, 112, 31, 0.5);
+  border-radius: 12px;
   cursor: grab;
-  font: 500 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
-  color: var(--vb-amber);
+  font: 600 12px var(--fb-mono);
+  letter-spacing: 0.08em;
+  color: var(--fb-accent);
 }
 .toastActions {
   display: flex;
   gap: 6px;
-  margin-top: 2px;
 }
 .toastActions button {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--vb-line-2);
-  border-radius: var(--vb-r1);
-  background: none;
-  color: var(--vb-ink);
-  font: 700 var(--vb-text-min) var(--vb-font-mono);
-  letter-spacing: 0.12em;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fb-ink);
+  font: 600 13px var(--fb-font);
 }
 .toastActions button:hover {
-  border-color: var(--vb-amber);
-  color: var(--vb-amber);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 /* ---------------------------------------------------------------- scrim + dialogs */

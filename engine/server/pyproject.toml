@@ -1,7 +1,7 @@
 [project]
 name = "fvwks-server"
 version = "0.1.0"
-description = "Engine HTTP server, library, caches, jobs, file writing, rekordbox.xml (owned by S3)."
+description = "Engine HTTP server for FoxBox 2.0 REMIX: songs, stems, jobs, models, library and caches (owned by S3)."
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "fvwks-contracts",
@@ -11,10 +11,9 @@ dependencies = [
   "uvicorn>=0.30",
   "python-multipart>=0.0.9",
   "numpy>=1.26",
-  "scipy>=1.13",
   "soundfile>=0.12",
-  "mutagen>=1.47",
   "cryptography>=45",  # ed25519 verification of signed model-update manifests (P9)
+  "mutagen>=1.47,<2",  # the library wheel's tags and artwork (GPL-2.0+); shipped in engine-code, not the runtime
 ]
 
 [project.scripts]
@@ -23,8 +22,3 @@ fvwks-engine = "fvwks_server.main:main"
 [build-system]
 requires = ["uv_build>=0.8,<0.13"]
 build-backend = "uv_build"
-
-[dependency-groups]
-# Tests only: reads our rekordbox.xml back the way Rekordbox tooling does. Never shipped (the bundle exports
-# --no-dev), and never used to write Rekordbox's own databases.
-dev = ["pyrekordbox==0.4.4"]

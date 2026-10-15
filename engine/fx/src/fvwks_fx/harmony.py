@@ -198,7 +198,7 @@ def _bass_roots(bass: np.ndarray, sr: int, bpm: float, downbeat_s: float, cents:
     pickup into the next: neither votes."""
     from fvwks_contracts.models import SongAnalysis
 
-    from .remix.groove import extract_groove
+    from .groove import extract_groove
 
     notes = extract_groove(bass, sr, SongAnalysis(bpm=bpm, downbeat_s=downbeat_s)).notes
     w = np.zeros((2 * bars, 12))

@@ -2,39 +2,13 @@ import type { components } from './schema'
 
 type S = components['schemas']
 
+// contracts v1.0 (2.0: songs, stems, jobs, models, health, settings, audio)
 export type ApiErrorBody = S['ApiError']
-export type Arrange = S['Arrange']
-export type BatchLine = S['BatchLine']
-export type BatchRequest = S['BatchRequest']
-export type Chain = S['Chain']
-export type ExportedFile = S['ExportedFile']
-export type ExportRequest = S['ExportRequest']
-export type FitReport = S['FitReport']
 export type Health = S['Health']
 export type Job = S['Job']
 export type JobItem = S['JobItem']
-export type Lexicon = S['Lexicon']
-export type LexiconEntry = S['LexiconEntry']
-export type LibraryPage = S['LibraryPage']
-export type Loudness = S['Loudness']
-export type MacroMap = S['MacroMap']
-export type MacroSpec = S['MacroSpec']
-export type MacroTarget = S['MacroTarget']
-export type Macros = S['Macros']
-export type MaskStrength = S['MaskStrength']
-export type Master = S['Master']
 export type ModelInfo = S['ModelInfo']
-export type ModuleSpec = S['ModuleSpec']
-export type ModuleState = S['ModuleState']
-export type ParamSpec = S['ParamSpec']
 export type Peaks = S['Peaks']
-export type PersonaDesignRequest = S['PersonaDesignRequest']
-export type Preset = S['Preset']
-export type RackDescriptor = S['RackDescriptor']
-export type RekordboxResult = S['RekordboxResult']
-export type RenderInfo = S['RenderInfo']
-export type RenderRequest = S['RenderRequest']
-export type Segment = S['Segment']
 export type Settings = S['Settings']
 /**
  * v0.10's structure. `builds` is (build start s, drop hit s) pairs, typed number[][] rather than the schema's tuple:
@@ -43,28 +17,4 @@ export type Settings = S['Settings']
 export type SongStructure = Omit<S['SongStructure'], 'builds'> & { builds?: number[][] }
 export type Song = Omit<S['Song'], 'structure'> & { structure?: SongStructure | null }
 export type SongAnalysis = S['SongAnalysis']
-export type SongPlacement = S['SongPlacement']
 export type SongUpdate = S['SongUpdate']
-export type MixInfo = S['MixInfo']
-export type MixRequest = S['MixRequest']
-export type SourceInfo = S['SourceInfo']
-export type StackVoice = S['StackVoice']
-export type Take = S['Take']
-export type TakePatch = S['TakePatch']
-export type TTSRequest = S['TTSRequest']
-export type Voice = S['Voice']
-
-export type MacroId = keyof Macros
-export type ParamValue = ParamSpec['default']
-export type BarsChoice = 1 | 2 | 4 | 8 | 16
-/** v0.2: "auto" = the standard bar count nearest the phrase that it fits; RenderInfo.bars reports the count used. */
-export type BarsSetting = BarsChoice | 'auto'
-export type MaskLevel = MaskStrength['level']
-/** v0.4.1: where the phrase's last word lands (the phrase is warped within max_stretch; nothing is cut). */
-export type SnapEnd = Arrange['snap_end']
-/** v0.8 ARRANGE chop: the mode, and one piece's placement (beats from bar 1's downbeat). */
-export type ChopMode = Arrange['chop']
-export type ChopSlot = S['ChopSlot']
-
-export const MACRO_IDS: readonly MacroId[] = ['depth', 'grit', 'machine', 'space']
-export const BARS_CHOICES: readonly BarsChoice[] = [1, 2, 4, 8, 16]

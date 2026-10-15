@@ -1,8 +1,0 @@
-{
-  "error": {
-    "code": "not_found",
-    "message": "source 'src_000000000000' not found",
-    "hint": null,
-    "retryable": false
-  }
-}

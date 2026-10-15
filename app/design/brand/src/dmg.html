@@ -1,25 +1,40 @@
-<!doctype html><html><head><meta charset="utf-8"><style>
-@font-face{font-family:BSD;font-weight:800;src:url(../../../src/renderer/src/assets/fonts/big-shoulders-display-latin-800-normal.woff2)}
-@font-face{font-family:JBM;font-weight:500;src:url(../../../src/renderer/src/assets/fonts/jetbrains-mono-latin-500-normal.woff2)}
-html,body{margin:0}
-.w{position:relative;width:660px;height:420px;overflow:hidden;background:radial-gradient(90% 110% at 50% 45%,#16100e 0%,#0e0c0c 45%,#0b0b0c 80%)}
-.w::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.016) 0 1px,transparent 1px 3px)}
-.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(233,229,218,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(233,229,218,.035) 1px,transparent 1px);background-size:30px 30px}
-.top{position:absolute;left:0;right:0;top:30px;text-align:center;font:800 30px/1 BSD;letter-spacing:.06em;color:#e9e5da}
-.top b{color:#ff4b2b}
-.sub{position:absolute;left:0;right:0;top:66px;text-align:center;font:500 11px/1 JBM;letter-spacing:.28em;color:#8d8a82}
-.arrow{position:absolute;left:262px;top:176px;width:136px;height:40px}
-.hint{position:absolute;left:0;right:0;top:246px;text-align:center;font:500 11px/1 JBM;letter-spacing:.3em;color:#ff4b2b}
-.slot{position:absolute;top:130px;width:150px;height:150px;border:1px dashed rgba(233,229,218,.10);border-radius:22px}
-.foot{position:absolute;left:0;right:0;bottom:20px;text-align:center;font:500 10px/1.8 JBM;letter-spacing:.1em;color:#6f6c66}
-.foot span{color:#ffb23e}
+<!doctype html>
+<!-- The DMG window's background (660×420; @2x at deviceScaleFactor 2), FoxBox 2.0, in the 2.0 design's language.
+     electron-builder (app/electron-builder.config.cjs, dmg): icons 128 px, centred at (180, 205) and (480, 205). -->
+<html><head><meta charset="utf-8"><style>
+@font-face { font-family: 'Geist'; font-weight: 100 900; src: url('../../../src/renderer/src/assets/fonts/geist-variable.woff2') format('woff2'); }
+@font-face { font-family: 'Geist Mono'; font-weight: 100 900; src: url('../../../src/renderer/src/assets/fonts/geist-mono-variable.woff2') format('woff2'); }
+html, body { margin: 0; }
+.w { position: relative; width: 660px; height: 420px; overflow: hidden; background: #0B0806; font-family: 'Geist', sans-serif; color: #F6EFE6; }
+/* the launch screen's light: a warm glow and a thin ensō ring around the move */
+.glow { position: absolute; left: 30px; top: -90px; width: 600px; height: 600px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 77, 46, 0.2), rgba(255, 77, 46, 0.05) 60%, rgba(255, 77, 46, 0)); }
+.enso { position: absolute; left: 30px; top: -95px; width: 600px; height: 600px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 77, 46, 0.24); }
+/* the two icon places: the design's glass tiles */
+.slot { position: absolute; top: 123px; width: 168px; height: 184px; border-radius: 38px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.wm { height: 34px; width: auto; display: block; }
+.head { position: absolute; left: 0; right: 0; top: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.mark { width: 28px; height: 28px; color: #FF4D2E; filter: drop-shadow(0 0 10px rgba(255, 77, 46, 0.5)); }
+.word { font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -0.04em; }
+.ver { padding: 4px 8px 3px; border-radius: 999px; font: 600 13px/1 'Geist Mono', monospace; color: #0B0806; background: #F2701F; }
+.sub { position: absolute; left: 0; right: 0; top: 72px; text-align: center; font-weight: 500; font-size: 13px; color: #B5A798; }
+.arrow { position: absolute; left: 266px; top: 186px; width: 128px; height: 38px; }
+.hint { position: absolute; left: 0; right: 0; top: 232px; text-align: center; font-weight: 600; font-size: 13px; letter-spacing: 0.02em; color: #FFB27A; }
+.foot { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font: 500 11px/1.75 'Geist Mono', monospace; color: #8F8275; }
+.foot b { font-weight: 500; color: #F6EFE6; }
 </style></head><body>
-<div class="w"><div class="grid"></div>
-<div class="top">FOX<b>BOX</b></div>
-<div class="sub">VOICE MASK STUDIO</div>
-<div class="slot" style="left:105px"></div><div class="slot" style="left:405px"></div>
-<svg class="arrow" viewBox="0 0 136 40"><defs><linearGradient id="a" gradientUnits="userSpaceOnUse" x1="4" y1="0" x2="120" y2="0"><stop offset="0" stop-color="#ff4b2b" stop-opacity=".15"/><stop offset="1" stop-color="#ff4b2b"/></linearGradient></defs>
-<path d="M4 20 H118" stroke="url(#a)" stroke-width="3" stroke-dasharray="7 6"/><path d="M110 9 L128 20 L110 31" fill="none" stroke="#ff4b2b" stroke-width="3.2" stroke-linejoin="miter"/></svg>
-<div class="hint">DRAG TO APPLICATIONS</div>
-<div class="foot">FIRST OPEN · <span>RIGHT-CLICK → OPEN</span><br/>macOS 15+ · <span>SETTINGS → PRIVACY &amp; SECURITY → OPEN ANYWAY</span></div>
-</div></body></html>
+<div class="w">
+  <div class="glow"></div><div class="enso"></div>
+  <div class="slot" style="left: 96px"></div><div class="slot" style="left: 396px"></div>
+  <div class="head"><img class="wm" src="../foxbox-strings-wordmark.svg" alt="FoxBox Strings"></div>
+  <div class="sub">2.0 · An instrument for your hands</div>
+  <svg class="arrow" viewBox="0 0 128 38"><defs><linearGradient id="a" gradientUnits="userSpaceOnUse" x1="4" y1="0" x2="112" y2="0">
+    <stop offset="0" stop-color="#F2701F" stop-opacity="0.1"/><stop offset="1" stop-color="#F2701F"/></linearGradient></defs>
+    <path d="M4 19 H112" stroke="url(#a)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M102 8 L120 19 L102 30" fill="none" stroke="#F2701F" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <div class="hint">Drag to Applications</div>
+  <div class="foot">First open: <b>right-click FoxBox → Open</b><br/>macOS 15+: <b>System Settings → Privacy &amp; Security → Open Anyway</b></div>
+</div>
+</body></html>

@@ -1,45 +1,40 @@
 /*
- * The update bar: a 34 px row across the shell, under the top bar (layout.module.css adds the row while it shows,
- * so the screens shrink by 34 px instead of being covered). The dot sits over the rail; the text lines up with the
- * screens' 12 px inset. Tone: amber offer / busy, ok ready, ember failure.
+ * The update pill (2.0 design §11): glass under the notch, Geist 600 15px, a dot for its tone (orange offer / busy,
+ * green ready, red failure), the download a thin orange line along the bottom.
  */
 .bar {
-  --tone: var(--vb-amber);
-  grid-column: 1 / -1;
-  grid-row: 2;
+  --tone: var(--fb-accent);
   position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 34px;
-  min-width: 0;
-  padding-right: 14px;
-  border-bottom: 1px solid var(--vb-line);
-  background: var(--vb-chrome);
-  color: var(--vb-ink);
-  font: 500 12px/1 var(--vb-font-mono);
+  max-width: min(640px, calc(100vw - 32px));
+  min-height: 44px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(28, 22, 18, 0.74);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+  color: var(--fb-ink);
+  font: 600 15px var(--fb-font);
 }
 .bar[data-tone='ready'] {
-  --tone: var(--vb-ok);
+  --tone: #7bd69a;
 }
 .bar[data-tone='failed'] {
-  --tone: var(--vb-accent);
+  --tone: #ff6a55;
 }
 .lead {
   flex: none;
-  align-self: stretch;
-  width: var(--vb-rail-w);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid var(--vb-line);
+  display: grid;
+  place-items: center;
 }
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--tone);
-  box-shadow: 0 0 calc(8px * var(--vb-glow)) var(--tone);
 }
 .bar[data-tone='busy'] .dot {
   animation: updatePulse 1.2s ease-in-out infinite;
@@ -58,15 +53,18 @@
   text-overflow: ellipsis;
   line-height: 1.4;
 }
-.head {
-  color: var(--tone);
-  font-weight: 700;
+.bar[data-tone='failed'] {
+  border-radius: 22px;
 }
-.bar[data-tone='busy'] .head {
-  color: var(--vb-ink);
+.bar[data-tone='failed'] .msg {
+  white-space: normal;
+}
+.bar:not(:has(.actions)) .msg {
+  padding-right: 10px;
 }
 .note {
-  color: var(--vb-dim);
+  font-weight: 500;
+  color: var(--fb-ink-2);
 }
 .actions {
   flex: none;
@@ -75,70 +73,55 @@
   gap: 6px;
 }
 .btn {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--vb-line-3);
-  border-radius: var(--vb-r1);
-  background: none;
-  color: var(--vb-ink);
-  font: 700 12px/1 var(--vb-font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fb-ink);
+  font: 700 13px var(--fb-font);
   white-space: nowrap;
-  transition:
-    background var(--vb-fast),
-    border-color var(--vb-fast),
-    color var(--vb-fast);
+  transition: background 0.15s;
 }
 .btn:hover:not(:disabled) {
-  border-color: rgba(var(--vb-ink-rgb), 0.4);
-  background: var(--vb-fill-2);
+  background: rgba(255, 255, 255, 0.16);
 }
 .btn[data-kind='solid'] {
-  border-color: var(--vb-ink);
-  background: var(--vb-ink);
-  color: var(--vb-bg);
-}
-.btn[data-kind='solid']:hover:not(:disabled) {
-  border-color: rgba(var(--vb-ink-rgb), 0.85);
-  background: rgba(var(--vb-ink-rgb), 0.85);
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
 }
 .btn[data-kind='accent'] {
-  border-color: var(--vb-accent);
-  background: var(--vb-accent);
-  color: var(--vb-bg);
-  box-shadow: var(--vb-accent-glow);
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
 }
+.btn[data-kind='solid']:hover:not(:disabled),
 .btn[data-kind='accent']:hover:not(:disabled) {
-  border-color: var(--vb-accent);
-  background: var(--vb-accent);
-  box-shadow: 0 0 26px rgba(var(--vb-accent-rgb), calc(0.45 * var(--vb-glow)));
+  filter: brightness(1.08);
 }
 .btn[data-kind='quiet'] {
-  border-color: transparent;
-  color: var(--vb-dim);
+  background: none;
+  color: var(--fb-ink-2);
 }
 .btn[data-kind='quiet']:hover:not(:disabled) {
-  border-color: transparent;
   background: none;
-  color: var(--vb-ink);
+  color: var(--fb-ink);
 }
 
-/* Download progress: replaces the bar's bottom hairline. */
+/* Download progress: along the pill's bottom edge. */
 .track {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
   height: 2px;
-  background: rgba(var(--vb-amber-rgb), 0.14);
+  border-radius: 1px;
+  background: rgba(242, 112, 31, 0.18);
   pointer-events: none;
 }
 .fill {
   display: block;
   height: 100%;
-  background: var(--vb-amber);
-  box-shadow: 0 0 calc(6px * var(--vb-glow)) var(--vb-amber);
+  background: var(--fb-accent);
   transform-origin: left;
-  transition: transform 0.25s linear;
+  transition: transform 0.3s;
 }

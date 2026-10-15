@@ -1,0 +1,112 @@
+/* The stage (app/design/foxbox-2 README §2): full-bleed camera, the mode's grade, the bottom scrim, the coach. */
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(120% 100% at 50% 0%, #6e5c50 0%, #3d312a 60%, #271f1b 100%);
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.grade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background 0.8s ease;
+}
+.stage[data-mode='play'] .grade {
+  background: radial-gradient(60% 50% at 80% 110%, rgba(255, 140, 50, 0.35), rgba(0, 0, 0, 0) 70%);
+}
+.stage[data-mode='remix'] .grade {
+  background: linear-gradient(180deg, rgba(255, 120, 40, 0.06), rgba(255, 90, 20, 0.26));
+}
+.scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 300px;
+  background: linear-gradient(0deg, rgba(15, 10, 6, 0.6), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.coachWrap {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.coachWrap[data-small] {
+  place-items: end center;
+  padding-bottom: 180px;
+}
+.coachWrap[data-interactive] {
+  pointer-events: auto;
+}
+.coach {
+  padding: 18px 30px;
+  border-radius: 22px;
+  background: var(--fb-glass);
+  backdrop-filter: blur(30px) saturate(1.8);
+  font: 600 36px/1.2 var(--fb-font);
+  letter-spacing: -0.02em;
+  color: var(--fb-ink);
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  max-width: 900px;
+}
+.coachWrap[data-small] .coach {
+  font-size: 22px;
+  padding: 12px 22px;
+}
+
+.ask {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px 40px;
+  border-radius: 30px;
+  background: var(--fb-glass);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: var(--fb-shadow-pop);
+  color: var(--fb-ink);
+  text-align: center;
+  max-width: 560px;
+}
+.askTitle {
+  font: 700 28px/1.15 var(--fb-font);
+  letter-spacing: -0.02em;
+}
+.askText {
+  font: 500 17px/1.4 var(--fb-font);
+  color: var(--fb-ink-2);
+}
+.askNote {
+  font: 500 13px var(--fb-font);
+  color: var(--fb-ink-2);
+}
+.askRow {
+  display: flex;
+  gap: 10px;
+}
+.askBtn {
+  height: 52px;
+  padding: 0 24px;
+  border-radius: 18px;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font: 700 17px var(--fb-font);
+  transition: transform 0.2s;
+}
+.askBtn[data-quiet] {
+  background: var(--fb-fill-2);
+  color: var(--fb-ink);
+}
+.askBtn:active {
+  transform: scale(0.97);
+}

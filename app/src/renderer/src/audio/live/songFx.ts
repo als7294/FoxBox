@@ -15,6 +15,7 @@
  * tails. The UI reads `useSongFx` (enabled, the FX engaged, the limiter's gain reduction).
  */
 import { create } from 'zustand'
+import { bandGain, boardDefaults, depthScale, faderGain, REMIX_BOARD, stemFilter } from '../board'
 import type { BeatClock } from './songDeck'
 
 export interface SongFxParams {
@@ -76,6 +77,16 @@ export interface SongFxParams {
    *  stutter hit. Its sound is the world's (above). */
   glass: number
   crack: number
+  /** The FRAME (the frame worklet): on at 0.5 the song's last 4 beats loop (slip: letting go lands where the song is
+   *  now), through `frameStyle` (frameLoop.ts: 1 ECHO TRAIL … 12 ICE; a change while it shows lands on the beat);
+   *  `frameFlip` (on at 0.5: the frame turned over) plays it backwards. */
+  frame: number
+  frameStyle: number
+  frameFlip: number
+  /** ECHO OUT: the dry song dipped under the echo (0 … 0.95; the echo's send and time are `echo` / `echoBeats`). */
+  echoOut: number
+  /** LOOP 1 BAR (on at 0.5): the frame's loop, quiet (no lock, no break), no style; a frame takes it over. */
+  loopBar: number
   /** FINGER FILTERS (the iso worklet, on the whole song): `iso` on at 0.5 (STRINGS while it shows), each band's cut
    *  0 open … 1 killed: SUB < 60 Hz, LOW 60-250, MID 250-1k, HIGH-MID 1-4k, HIGH > 4k. */
   iso: number
@@ -91,7 +102,8 @@ export const STEM_FX = ['wobble', 'wobbleDepth', 'wobbleRate', 'growl', 'vowel',
   'vibrato', 'world', 'worldWet', 'worldTilt'] as const
 export const MOVES = ['halftime', 'buildroll', 'octave', 'rewind', 'reverse', 'brake'] as const
 export const CUTS = ['cutSub', 'cutLow', 'cutMid', 'cutHiMid', 'cutHigh'] as const
-const RANGE: Partial<Record<keyof SongFxParams, [number, number]>> = { wobbleRate: [0.25, 8], gateRate: [0.25, 8], bassSemi: [-24, 24], world: [0, 6] }
+const BAND_GAINS = ['gSub', 'gLow', 'gMid', 'gHiMid', 'gHigh'] as const
+const RANGE: Partial<Record<keyof SongFxParams, [number, number]>> = { echoOut: [0, 0.95], wobbleRate: [0.25, 8], gateRate: [0.25, 8], bassSemi: [-24, 24], world: [0, 6], frameStyle: [0, 12] }
 
 export const STEMS = ['drums', 'bass', 'vocals', 'other'] as const
 export type StemName = (typeof STEMS)[number]
@@ -100,7 +112,7 @@ export const NEUTRAL: SongFxParams = Object.freeze({
   filter: 0, resonance: 0, echo: 0, echoBeats: 0.75, stutter: 0, stutterDiv: 8, tape: 0, crush: 0, wash: 0, pan: 0,
   drums: 1, bass: 1, vocals: 1, other: 1, wobble: 0, wobbleDepth: 0, wobbleRate: 2, growl: 0, vowel: 0.5, tear: 0, gate: 0, gateRate: 3,
   pump: 0, subdrop: 0, bassSemi: 0, vibrato: 0, world: 0, worldWet: 0, worldTilt: 0, halftime: 0, buildroll: 0, octave: 0, rewind: 0,
-  reverse: 0, brake: 0, glass: 0, crack: 0, iso: 0, cutSub: 0, cutLow: 0, cutMid: 0, cutHiMid: 0, cutHigh: 0,
+  reverse: 0, brake: 0, glass: 0, crack: 0, frame: 0, frameStyle: 0, frameFlip: 0, echoOut: 0, loopBar: 0, iso: 0, cutSub: 0, cutLow: 0, cutMid: 0, cutHiMid: 0, cutHigh: 0,
 })
 
 /** A stem's lowpass for its level: open (20 kHz) at 1, closing exponentially to 250 Hz at 0, so a fading stem dulls. */
@@ -144,7 +156,7 @@ export function nextStep(clock: BeatClock | null, div: number, now: number): num
 
 /** Where the deck's song comes from: the mix; splitting its stems (started for a look that wants them); decoding them;
  *  playing from them; or the split failed (the mix plays on). */
-export type DeckStems = 'mix' | 'splitting' | 'loading' | 'on' | 'failed'
+export type DeckStems = 'mix' | 'splitting' | 'loading' | 'on' | 'failed' | 'declined'
 
 /**
  * `wantStems`: the active preset's map moves a stem (soundMap.ts sets it): the deck plays the song from its stems,
@@ -191,7 +203,23 @@ export class SongFx {
   private readonly stemLp: Record<StemName, BiquadFilterNode>
   private readonly stemFx: AudioWorkletNode
   private readonly moves: AudioWorkletNode
+  private readonly frameLoop: AudioWorkletNode
   private readonly iso: AudioWorkletNode
+  /** The Board (board.ts' REMIX_BOARD): each stem's strip (fader, filter, mute / solo; its meter made when first read). */
+  private readonly strips: { gain: GainNode; filter: BiquadFilterNode }[]
+  private meters: AnalyserNode[] | null = null
+  private readonly meterBuf = new Float32Array(512)
+  private stemPeaks = [0, 0, 0, 0]
+  private readonly board: Record<string, number> = boardDefaults(REMIX_BOARD)
+  private readonly mute = [false, false, false, false]
+  private readonly solo = [false, false, false, false]
+  private readonly bandCut = [false, false, false, false, false]
+  /** The Board's FX depth: how deep the hands' height takes the Beat FX (beatFx reads it), 1 as made. */
+  fxDepth = 1
+  /** The song's tempo now (120 without a clock): FILTER SWEEP's bar. */
+  get bpm(): number {
+    return this.clock()?.bpm ?? 120
+  }
   private glassOn = false
   private glassAt = -Infinity
   private cracked = false
@@ -219,7 +247,9 @@ export class SongFx {
   private lastActive = -Infinity
   private readonly offStore: () => void
 
-  constructor(private readonly ctx: BaseAudioContext, private readonly clock: () => BeatClock | null, ir: AudioBuffer) {
+  /** `opts.current` false: a side chain (the GUIDE's demo) that never becomes the app's current one (the sound map's
+   *  driver and the limiter readout stay on the deck's). */
+  constructor(private readonly ctx: BaseAudioContext, private readonly clock: () => BeatClock | null, ir: AudioBuffer, opts: { current?: boolean } = {}) {
     const stereo = { channelCount: 2, channelCountMode: 'explicit' as const }
     this.input = new GainNode(ctx, { gain: 1, ...stereo })
     this.output = new GainNode(ctx, { gain: 1, ...stereo })
@@ -249,9 +279,10 @@ export class SongFx {
       ins[name] = new GainNode(ctx, { gain: 1, ...stereo })
       lps[name] = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: stemLowpassHz(1), Q: 0 })
     }
-    // the stems summed through STRINGS' bass-music FX (each a straight pass at 0)
+    this.strips = STEMS.map(() => ({ gain: new GainNode(ctx, { gain: 1, ...stereo }), filter: new BiquadFilterNode(ctx, { type: 'lowshelf', frequency: 1000, gain: 0 }) }))
+    // the stems (each through its Board strip) summed through STRINGS' bass-music FX (each a straight pass at 0)
     this.stemFx = new AudioWorkletNode(ctx, 'fvwks-stemfx', { numberOfInputs: 4, numberOfOutputs: 1, outputChannelCount: [2] })
-    STEMS.forEach((name, i) => ins[name].connect(lps[name]).connect(this.stemFx, 0, i))
+    STEMS.forEach((name, i) => ins[name].connect(lps[name]).connect(this.strips[i]!.gain).connect(this.strips[i]!.filter).connect(this.stemFx, 0, i))
     this.stemFx.connect(this.stemOutput)
     this.stemInputs = ins
     this.stemLp = lps
@@ -259,7 +290,8 @@ export class SongFx {
     this.moves = new AudioWorkletNode(ctx, 'fvwks-moves', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] })
     // FINGER FILTERS ahead of the bypass split: a cut sounds the same through either way, no swish as the route turns
     this.iso = new AudioWorkletNode(ctx, 'fvwks-iso', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] })
-    this.input.connect(this.iso).connect(this.moves).connect(this.pre).connect(this.lp).connect(this.hp).connect(this.trim).connect(this.pan)
+    this.frameLoop = new AudioWorkletNode(ctx, 'fvwks-frame', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] })
+    this.input.connect(this.iso).connect(this.moves).connect(this.frameLoop).connect(this.pre).connect(this.lp).connect(this.hp).connect(this.trim).connect(this.pan)
     this.pan.connect(this.dry).connect(this.limit)
     this.pan.connect(this.echoSend).connect(this.delay)
     this.delay.connect(fbHp).connect(fbLp).connect(this.feedback).connect(this.delay) // the loop, filtered and capped
@@ -269,10 +301,10 @@ export class SongFx {
     this.iso.connect(align).connect(this.bypass).connect(this.output)
     this.limit.port.onmessage = (e: MessageEvent<{ gr?: number }>) => {
       const gr = Math.round((e.data?.gr ?? 0) * 10) / 10
-      if (gr !== useSongFx.getState().grDb) useSongFx.setState({ grDb: gr })
+      if (current === this && gr !== useSongFx.getState().grDb) useSongFx.setState({ grDb: gr })
     }
     this.enabled = useSongFx.getState().enabled
-    current = this
+    if (opts.current !== false) current = this
     this.offStore = useSongFx.subscribe((s) => {
       if (s.enabled === this.enabled) return
       this.enabled = s.enabled
@@ -299,10 +331,10 @@ export class SongFx {
     p.wash = clamp(p.wash, 0, 1)
     p.pan = clamp(p.pan, -1, 1)
     for (const name of STEMS) p[name] = clamp(p[name], 0, 1)
-    for (const name of [...STEM_FX, ...MOVES, ...CUTS, 'iso', 'glass', 'crack'] as const) p[name] = clamp(p[name], ...(RANGE[name] ?? [0, 1]))
+    for (const name of [...STEM_FX, ...MOVES, ...CUTS, 'iso', 'glass', 'crack', 'frame', 'frameStyle', 'frameFlip', 'echoOut', 'loopBar'] as const) p[name] = clamp(p[name], ...(RANGE[name] ?? [0, 1]))
     const t = this.ctx.currentTime
     const ramp = (a: AudioParam, v: number, tau = TAU_S) => a.setTargetAtTime(v, t, tau)
-    ramp(this.input.gain, this.enabled && p.iso >= 0.5 ? STRINGS_TRIM : 1, 0.05)
+    ramp(this.input.gain, (this.enabled && p.iso >= 0.5 ? STRINGS_TRIM : 1) * faderGain(this.board.mvol!), 0.05) // and the Board's Volume
     for (const name of STEMS) {
       const level = this.enabled ? p[name] : 1 // AUDIO FX off: the stems as in the mix
       ramp(this.stemInputs[name].gain, level)
@@ -335,7 +367,7 @@ export class SongFx {
     const bpm = this.clock()?.bpm ?? 120
     ramp(this.delay.delayTime, Math.min(4, (p.echoBeats * 60) / Math.max(40, bpm)), 0.05)
     ramp(this.washSend.gain, 0.8 * p.wash, 0.05)
-    ramp(this.dry.gain, 1 - 0.3 * p.wash, 0.05) // the wash takes over a little
+    ramp(this.dry.gain, (1 - 0.3 * p.wash) * (1 - p.echoOut), 0.05) // the wash takes over a little; ECHO OUT dips it under the echo
     ramp(this.param('tape'), p.tape, 0.005)
     ramp(this.param('crush'), t < this.crackUntil ? Math.max(p.crush, 0.85) : p.crush, 0.005)
     const want = p.stutter >= 0.5
@@ -348,7 +380,14 @@ export class SongFx {
     this.p = p
     for (const name of STEM_FX) ramp(this.stemFx.parameters.get(name)!, this.enabled ? p[name] : NEUTRAL[name], 0.005) // the worklet snaps them in
     for (const name of MOVES) ramp(this.moves.parameters.get(name)!, this.enabled ? p[name] : 0, 0.005)
-    for (const name of ['iso', ...CUTS] as const) ramp(this.iso.parameters.get(name)!, this.enabled ? p[name] : 0, 0.005)
+    const framed = p.frame >= 0.5, barLoop = !framed && p.loopBar >= 0.5 // LOOP 1 BAR: the same loop, quiet
+    ramp(this.frameLoop.parameters.get('on')!, this.enabled && (framed || barLoop) ? 1 : 0, 0.005)
+    ramp(this.frameLoop.parameters.get('quiet')!, barLoop ? 1 : 0, 0.005)
+    ramp(this.frameLoop.parameters.get('style')!, framed ? Math.round(p.frameStyle) : 0, 0.005) // the worklet rounds it; a change waits for the beat
+    ramp(this.frameLoop.parameters.get('flip')!, framed && p.frameFlip >= 0.5 ? 1 : 0, 0.005)
+    const bands = this.bandsMoved()
+    ramp(this.iso.parameters.get('iso')!, (this.enabled && p.iso >= 0.5) || bands ? 1 : 0, 0.005) // the Board's bands need it too
+    CUTS.forEach((name, i) => ramp(this.iso.parameters.get(name)!, Math.max(this.enabled ? p[name] : 0, this.bandCut[i] ? 1 : 0), 0.005))
     const clock = this.clock()
     if (clock && clock.playing && clock.bpm > 0) {
       const anchor = t - (clock.beat * 60) / clock.bpm // the context time of beat 0: the worklet's grid
@@ -356,15 +395,74 @@ export class SongFx {
         this.beatAt = { bpm: clock.bpm, anchor }
         this.stemFx.port.postMessage(this.beatAt)
         this.moves.port.postMessage(this.beatAt)
+        this.frameLoop.port.postMessage(this.beatAt)
         this.iso.port.postMessage(this.beatAt)
       }
     }
     const active = activeFx(p)
     // through the chain (its limiter, its soft ceiling) whenever an FX is engaged, the bass's included; and all the time
     // while STRINGS shows (its FINGER FILTERS on): the song already limited, so engaging never drops a hot master's level
-    if (active.length || stemFxOn(p) || p.iso >= 0.5 || since < 0.5 || t < this.crackUntil) this.lastActive = t
+    if (active.length || stemFxOn(p) || p.iso >= 0.5 || p.frame >= 0.5 || p.loopBar >= 0.5 || p.echoOut > 0.02 || this.bandsMoved() || faderGain(this.board.mvol!) > 1.001 || since < 0.5 || t < this.crackUntil) this.lastActive = t
     this.route()
-    if (active.join() !== useSongFx.getState().active.join()) useSongFx.setState({ active })
+    if (current === this && active.join() !== useSongFx.getState().active.join()) useSongFx.setState({ active })
+  }
+
+  /** A Board knob or fader (board.ts' REMIX_BOARD, 0-1): f0-f3, flt0-flt3, b0-b4, depth, mvol (tempo: the deck's). */
+  setBoard(id: string, v: number): void {
+    if (!(id in this.board) || id === 'tempo') return
+    this.board[id] = clamp(v, 0, 1)
+    const t = this.ctx.currentTime
+    const i = Number(id.replace(/\D/g, ''))
+    if (id.startsWith('flt')) {
+      const f = stemFilter(this.board[id]!), node = this.strips[i]!.filter
+      node.type = f.type === 'off' ? 'lowshelf' : f.type // a 0 dB shelf: exactly the stem
+      node.gain.setTargetAtTime(0, t, 0.01)
+      if (f.type !== 'off') node.frequency.setTargetAtTime(f.hz, t, 0.02)
+    } else if (id.startsWith('f')) this.applyStrips()
+    else if (id.startsWith('b')) this.iso.parameters.get(BAND_GAINS[i]!)!.setTargetAtTime(bandGain(this.board[id]!), t, 0.01)
+    else if (id === 'depth') this.fxDepth = depthScale(this.board.depth!)
+    this.set({}) // the volume, and the chain in while a band or a boost wants it
+  }
+
+  setStemMute(i: number, on: boolean): void {
+    this.mute[i] = on
+    this.applyStrips()
+  }
+
+  setStemSolo(i: number, on: boolean): void {
+    this.solo[i] = on
+    this.applyStrips()
+  }
+
+  /** The Board's Cut toggles: a band killed as the hands' fold kills it (either does). */
+  setBandCut(i: number, on: boolean): void {
+    this.bandCut[i] = on
+    this.set({})
+  }
+
+  /** Each stem's peak now (after its strip), 0-1, falling back gently: the Board's meters (made on the first read). */
+  stemMeters(): number[] {
+    this.meters ??= this.strips.map((s) => {
+      const a = new AnalyserNode(this.ctx, { fftSize: 512 })
+      s.filter.connect(a)
+      return a
+    })
+    this.stemPeaks = this.meters.map((a, i) => {
+      a.getFloatTimeDomainData(this.meterBuf)
+      let m = 0
+      for (const x of this.meterBuf) m = Math.max(m, Math.abs(x))
+      return Math.max(m, this.stemPeaks[i]! * 0.85)
+    })
+    return [...this.stemPeaks]
+  }
+
+  private applyStrips(): void {
+    const t = this.ctx.currentTime, soloed = this.solo.some(Boolean)
+    this.strips.forEach((s, i) => s.gain.gain.setTargetAtTime(this.mute[i] || (soloed && !this.solo[i]) ? 0 : faderGain(this.board[`f${i}`]!), t, 0.01))
+  }
+
+  private bandsMoved(): boolean {
+    return this.bandCut.some(Boolean) || [0, 1, 2, 3, 4].some((i) => Math.abs(this.board[`b${i}`]! - 0.5) > 0.002)
   }
 
   /** The stems take over from the mix at context time `t`: at 1 there (their sum is the mix: no step), then to their
@@ -405,6 +503,7 @@ export class SongFx {
     this.input.disconnect()
     this.output.disconnect()
     for (const name of STEMS) this.stemInputs[name].disconnect()
+    for (const s of this.strips) s.filter.disconnect()
     this.stemFx.disconnect()
     this.stemOutput.disconnect()
   }

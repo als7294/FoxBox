@@ -1,0 +1,89 @@
+/* FoxBox 2.0 design tokens. Use with CSS Modules: var(--token). */
+:root {
+  /* colour */
+  --fb-ink: #F6EFE6;
+  --fb-ink-2: #B5A798;
+  --fb-ink-on-accent: #1C1611;
+  --fb-accent: #F2701F;
+  --fb-accent-soft: #FFB27A;
+  --fb-fox: #FF4D2E;
+  --fb-bg: #15100D;
+  --fb-glass: rgba(28, 22, 18, .74);
+  --fb-glass-strong: rgba(26, 20, 16, .88);
+  --fb-hairline: rgba(255, 255, 255, .12);
+  --fb-fill-1: rgba(255, 255, 255, .06);
+  --fb-fill-2: rgba(255, 255, 255, .12);
+  --fb-ok: #7BD69A;
+  --fb-rec: #FF453A;
+
+  /* type */
+  --fb-font: "Geist", "Helvetica Neue", sans-serif;
+  --fb-mono: "Geist Mono", ui-monospace, monospace;
+  --fb-t-11: 11px; --fb-t-13: 13px; --fb-t-15: 15px; --fb-t-17: 17px; --fb-t-20: 20px; --fb-t-28: 28px; --fb-t-44: 44px; --fb-t-104: 104px;
+
+  /* space + radii */
+  --fb-s-1: 4px; --fb-s-2: 8px; --fb-s-3: 12px; --fb-s-4: 16px; --fb-s-5: 20px; --fb-s-6: 24px; --fb-s-8: 32px;
+  --fb-r-chip: 10px; --fb-r-btn: 14px; --fb-r-pop: 26px; --fb-r-sheet: 30px; --fb-r-notch: 16px;
+
+  /* shadow + blur */
+  --fb-blur: blur(40px) saturate(1.8);
+  --fb-shadow-pop: 0 30px 70px -20px rgba(0, 0, 0, .6), inset 0 0 0 .5px var(--fb-hairline);
+
+  /* motion */
+  --fb-ease-out: cubic-bezier(.2, .8, .2, 1);
+  --fb-ease-inout: cubic-bezier(.65, 0, .25, 1);
+  --fb-ease-spring: cubic-bezier(.3, 1.2, .4, 1);
+  --fb-d-fast: 180ms; --fb-d-base: 350ms; --fb-d-sheet: 500ms; --fb-d-mode: 800ms;
+
+  /* strings (WebGL renderer reads these) */
+  --string-play-core: #FFF1DE;
+  --string-play-glow: #FF7A1F;
+  --string-play-width: 3px;
+  --string-play-pluck-flash: 900ms;
+  --string-remix-core: #FFFFFF;
+  --string-remix-glow: #FF9A3C;
+  --string-remix-width: 1.8px;
+  --string-cut: rgba(255, 255, 255, .4);
+  --string-cut-dash: 4 12;
+  --string-label-bg: rgba(20, 14, 10, .62);
+  --string-label-ink: #FFFFFF;
+
+  /* frames (loop pane) */
+  --frame-edge: #FFFFFF;
+  --frame-edge-width: 3px;
+  --frame-glow-play: #FFB27A;
+  --frame-glow-remix: #F2701F;
+  --frame-glow-blur: 24px;
+  --frame-radius: 6px;
+  --frame-label-bg: var(--frame-glow-play);
+  --frame-label-ink: #1C1611;
+  --frame-sweep: rgba(255, 255, 255, .85);
+  --frame-loop-beats: 4;
+  --frame-edge-draw: 450ms;
+  --frame-bloom: 700ms;
+  --frame-bloom-delay: 350ms;
+  --frame-shatter: 850ms;
+  --frame-shatter-shards: 6;
+  --frame-tilt-max: 10deg;
+
+  /* library wheel */
+  --wheel-cards: 96;
+  --wheel-r-inner: 170px;
+  --wheel-r-outer: 470px;
+  --wheel-tilt: 52deg;
+  --wheel-card-fan: 58deg;
+  --wheel-card-edge: rgba(255, 255, 255, .18);
+  --wheel-card-selected: #FFFFFF;
+  --wheel-card-neutral: #3A302A;
+  --wheel-depth-shade: rgba(12, 8, 5, .55);
+  --wheel-label: rgba(255, 243, 230, .88);
+  --wheel-label-line: rgba(255, 243, 230, .3);
+  --wheel-pointer: #F2701F;
+  --wheel-scrim: rgba(12, 8, 5, .7);
+  --wheel-snap: spring(140, 2.0);
+  --wheel-open: 420ms;
+  --wheel-grab-full: .7;
+  --wheel-load-hold: 800ms;
+  --wheel-preview-start: 40%;
+  --wheel-preview-len: 20s;
+}

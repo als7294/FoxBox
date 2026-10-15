@@ -1,12 +1,7 @@
-"""Installable voice models: what's on disk, how big it is, and how to fetch, update or remove it.
+"""Installable voice models: what's on disk, how big it is, and how to fetch, update or remove it. FoxBox 2.0 has one:
 
-- kokoro-82m (required): Kokoro-82M on MLX, the config, weights and the 28 English voices.
-- deepfilternet3 (required, 8.7 MB): denoises recordings at ingest.
-- whisper-aligner (opt-in): word timings for recordings (Whisper large-v3-turbo + Qwen3-ForcedAligner).
-- qwen3-tts-voicedesign (opt-in): the persona designer. It is two repos installed together: VoiceDesign 1.7B
-  (describe a voice) and Base 1.7B (clone the chosen candidate for every line). The id matches the server's
-  fallback list and the app's VOICES screen, which gates the designer on the first `engine == "qwen3"` model.
-- stems-htdemucs (opt-in, 84 MB): splits a song into drums, bass, vocals and other for the visuals (v0.9).
+- stems-htdemucs (opt-in, 84 MB): splits a song into drums, bass, vocals and other for STRINGS' REMIX. Never
+  required at boot: it downloads on the first split.
 
 Revisions are pinned, so an install is reproducible and ENGINE_VERSION means something. A pinned snapshot that is
 already complete elsewhere on this Mac (the standard Hugging Face cache, another FoxBox data dir) is cloned into ours
@@ -75,48 +70,14 @@ class ModelSpec:
         return sum(r.size_bytes for r in self.repos)
 
 
-KOKORO_REPO = Repo(
-    "mlx-community/Kokoro-82M-bf16", "a71e4d38b236d968966a2002c4c895dbd12b1c3c", 341_742_463,
-    ("config.json", "kokoro-v1_0.safetensors", "voices/am_fenrir.safetensors", "voices/bm_george.safetensors"),
-    ("config.json", "kokoro-v1_0.safetensors", "voices/a*.safetensors", "voices/b*.safetensors"))
-QWEN3_FILES = ("config.json", "model.safetensors", "speech_tokenizer/model.safetensors")
-QWEN3_DESIGN_REPO = Repo("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
-                         "7d3824abff87e49756bb0f83fb5411de75d160c4", 4_520_194_992, QWEN3_FILES)
-QWEN3_BASE_REPO = Repo("mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
-                       "a6eb4f68e4b056f1215157bb696209bc82a6db48", 4_544_212_739, QWEN3_FILES)
-
-KOKORO = ModelSpec(
-    "kokoro-82m", "Kokoro 82M", "kokoro", True, "Apache-2.0",
-    "Default fast TTS on the Apple GPU: 28 English voices.", (KOKORO_REPO,))
-QWEN3 = ModelSpec(
-    "qwen3-tts-voicedesign", "Qwen3-TTS persona designer", "qwen3", False, "Apache-2.0",
-    "Describe a voice and get 3 candidates (VoiceDesign 1.7B); the one you save speaks every line "
-    "(Base 1.7B voice clone).", (QWEN3_DESIGN_REPO, QWEN3_BASE_REPO))
-DF3_REPO = Repo("mlx-community/DeepFilterNet-mlx", "220d5dfb7266352272d74c2a7d2025c59e07b391", 8_683_690,
-                ("v3/config.json", "v3/model.safetensors"), ("v3/*",))
-DENOISE = ModelSpec(
-    "deepfilternet3", "DeepFilterNet3 denoiser", "denoise", True, "MIT",
-    "Cleans recordings before the mask: room noise, hum and hiss. 8.7 MB.", (DF3_REPO,))
-WHISPER_REPO = Repo("mlx-community/whisper-large-v3-turbo", "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
-                    1_613_979_758, ("config.json", "weights.safetensors"))
-# The MLX conversion ships no tokenizer; Whisper's own (MIT) is loaded next to it.
-WHISPER_TOKENIZER_REPO = Repo("openai/whisper-large-v3-turbo", "41f01f3fe87f28c78e2fbf8b568835947dd65ed9",
-                              4_618_475, ("tokenizer.json", "preprocessor_config.json", "tokenizer_config.json",
-                                          "vocab.json", "merges.txt"), ("*.json", "*.txt"))
-ALIGNER_REPO = Repo("mlx-community/Qwen3-ForcedAligner-0.6B-8bit", "0e1a68e91d815300c7c9754b2a7639378b23db15",
-                    1_276_475_979, ("config.json", "model.safetensors"))
-ASR = ModelSpec(
-    "whisper-aligner", "Recording transcription", "asr", False, "MIT (Whisper) + Apache-2.0 (Qwen3-ForcedAligner)",
-    "Transcribes recordings (Whisper large-v3-turbo) and places every word (Qwen3-ForcedAligner), so throws "
-    "hit exact words and the transcript can be edited.", (WHISPER_REPO, WHISPER_TOKENIZER_REPO, ALIGNER_REPO))
 # Meta's HT-Demucs, converted to MLX (fp16) from the official checkpoint; only the one model of the repo's eight.
 STEMS_FILES = ("htdemucs_config.json", "htdemucs.safetensors")
 STEMS_REPO = Repo("mlx-community/demucs-mlx-fp16", "908d2d05cf3035bf4017fc0f52be64163689a61f", 84_038_036,
                   STEMS_FILES, STEMS_FILES)
 STEMS = ModelSpec(
     "stems-htdemucs", "HT-Demucs stem splitter", "stems", False, "MIT",
-    "Splits a song into drums, bass, vocals and other, so the visuals can follow each one. 84 MB.", (STEMS_REPO,))
-MODELS: dict[str, ModelSpec] = {m.id: m for m in (KOKORO, DENOISE, QWEN3, ASR, STEMS)}
+    "Splits a song into drums, bass, vocals and other, so STRINGS can play them. 84 MB.", (STEMS_REPO,))
+MODELS: dict[str, ModelSpec] = {m.id: m for m in (STEMS,)}
 
 _lock = threading.RLock()
 _pins: dict[str, ModelSpec] = {}  # model id -> the spec a manifest moved it to

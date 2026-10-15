@@ -14,7 +14,7 @@ export function contentSecurityPolicy(mode: 'build' | 'serve'): string {
     // 'wasm-unsafe-eval' lets WebAssembly compile (the camera clip's on-device face detector); it is not JS eval.
     'script-src': ["'self'", "'wasm-unsafe-eval'", ...(dev ? ["'unsafe-inline'"] : [])],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:'],
+    'img-src': ["'self'", 'data:', 'blob:', 'vbx:'], // vbx: (2.0) the library wheel's covers, vbx://art/<track id>
     'font-src': ["'self'", 'data:'],
     'media-src': ["'self'", 'blob:', 'data:', 'vbx:'],
     // blob: (1.5): the TEXT styles hand troika their bundled fonts as blob: URLs it fetches (same-origin, in-memory).

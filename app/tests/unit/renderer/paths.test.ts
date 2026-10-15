@@ -18,7 +18,7 @@ describe('on-screen paths never show the home folder', () => {
 
 describe('dropped song files', () => {
   it('takes WAV, AIFF, FLAC, MP3 and M4A/AAC (by type or extension), not other files', async () => {
-    const { isSongFile } = await import('../../../src/renderer/src/components/song/SongStrip')
+    const { isSongFile } = await import('../../../src/renderer/src/components/song/songFile')
     for (const name of ['a.wav', 'b.AIFF', 'c.aif', 'd.flac', 'e.mp3', 'f.m4a', 'g.aac']) expect(isSongFile({ name, type: '' })).toBe(true)
     expect(isSongFile({ name: 'x', type: 'audio/mpeg' })).toBe(true)
     for (const name of ['notes.txt', 'cover.png', 'set.xml']) expect(isSongFile({ name, type: '' })).toBe(false)

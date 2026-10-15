@@ -1,0 +1,586 @@
+/* The Board (app/design/foxbox-2 README §7 and its markup). */
+.board {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  height: 344px;
+  border-radius: 36px;
+  background:
+    radial-gradient(80% 140% at 0% 0%, rgba(242, 112, 31, 0.26), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 22%), rgba(22, 17, 13, 0.86);
+  backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transform: translateY(calc(100% + 40px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1),
+    opacity 0.35s;
+  z-index: 6;
+  color: var(--fb-ink);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 16px;
+  box-sizing: border-box;
+  gap: 12px;
+  font-family: var(--fb-font);
+}
+.board[data-open] {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 4px 0 8px;
+  flex: none;
+}
+.headText {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.sub {
+  font-size: 13px;
+  color: var(--fb-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.presets {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.presets button {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.2s;
+}
+.presets button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.presets button[aria-checked='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.reset {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.07);
+}
+.reset:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.close {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(246, 239, 230, 0.85);
+  font-size: 18px;
+  flex: none;
+}
+.close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sauceGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 360px repeat(3, minmax(0, 1fr)) 150px;
+  gap: 10px;
+}
+.remixGrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 430px minmax(0, 1fr) 330px 210px;
+  gap: 10px;
+}
+.card {
+  padding: 16px 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.cardTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.cardHint {
+  font-size: 12px;
+  color: #8f8275;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* knobs: 60px, a conic value arc over 270° from 225°, a domed cap with a glowing pointer */
+.knobs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: center;
+  row-gap: 6px;
+  justify-items: center;
+}
+.knobWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.valRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.valStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.knob,
+.knobSmall {
+  position: relative;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: ns-resize;
+  touch-action: none;
+  transition: transform 0.15s;
+}
+.knob:hover {
+  transform: scale(1.04);
+}
+.cap {
+  width: 74%;
+  height: 74%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #6a5c52 0%, #3a2f28 45%, #1e1814 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+.pointer {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 3px;
+  height: 27%;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--fb-ink);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+.capSmall {
+  width: 76%;
+  height: 76%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #6a5c52, #2a221d);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+.pointerSmall {
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--fb-ink);
+}
+.knobName {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.value {
+  font: 11px var(--fb-mono);
+  color: var(--fb-ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* the hand that also drives it (≥ 11px: the compact pass) */
+.tag {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fb-accent-soft);
+  background: rgba(242, 112, 31, 0.12);
+  white-space: nowrap;
+}
+.tagDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ff8a3d;
+  box-shadow: 0 0 6px #ff8a3d;
+}
+
+/* faders: a 6px track with ticks, a gradient fill, a 32×20 cap with its line */
+.fader {
+  width: 44px;
+  position: relative;
+  cursor: ns-resize;
+  touch-action: none;
+  flex: none;
+}
+.ticks {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.ticks span {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.track {
+  position: absolute;
+  left: 19px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.fill {
+  position: absolute;
+  left: 19px;
+  bottom: 0;
+  width: 6px;
+  border-radius: 3px;
+  background: linear-gradient(0deg, var(--fb-accent), var(--fb-accent-soft));
+}
+.capF {
+  position: absolute;
+  left: 6px;
+  width: 32px;
+  height: 20px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #5a4c43, #2a221d);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.capLine {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 9px;
+  height: 2px;
+  background: var(--fb-ink);
+  border-radius: 1px;
+}
+
+/* SAUCE's SOURCE and OUT */
+.scope {
+  position: relative;
+  height: 64px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  flex: none;
+}
+.scopeCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.scopeName {
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.scopeStyle {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  font: 600 11px var(--fb-mono);
+  color: var(--fb-accent-soft);
+}
+.sounds {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.soundBtn {
+  height: 36px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.2s;
+}
+.soundBtn[aria-pressed='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.sourceRow {
+  display: flex;
+  gap: 6px;
+}
+.miniSeg {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.miniSeg button {
+  height: 34px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.miniSeg button[aria-checked='true'] {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.oct {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.oct button {
+  width: 32px;
+  height: 40px;
+  font-size: 18px;
+}
+.oct span {
+  font-size: 13px;
+  font-weight: 800;
+  min-width: 46px;
+  text-align: center;
+}
+.frame {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.frame[data-on] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.out {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+.outMeter {
+  width: 16px;
+  height: 180px;
+  border-radius: 4px;
+}
+
+/* REMIX */
+.strips {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 6px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.stripName {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.stripMain {
+  display: flex;
+  gap: 4px;
+}
+.stripMeter {
+  width: 6px;
+  height: 100px;
+}
+.ms {
+  display: flex;
+  gap: 3px;
+}
+.m,
+.s {
+  width: 28px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.07);
+}
+.m[aria-pressed='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.s[aria-pressed='true'] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.bands {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+}
+.band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+.cut {
+  width: 62px;
+  height: 30px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.07);
+}
+.cut[aria-pressed='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.pads {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 6px;
+}
+.pad {
+  padding: 10px 12px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 2px;
+  background: var(--fb-fill-1);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -18px 30px -20px rgba(0, 0, 0, 0.4);
+  transition: background 0.12s;
+}
+.pad[data-on] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.pad[data-selected] {
+  background: rgba(242, 112, 31, 0.3);
+  box-shadow: inset 0 0 0 2px var(--fb-accent);
+}
+.padShape {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.padName {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.master {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+.masterKnobs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Compact (FOXBOX2_COMPACT.md): REMIX's BEAT FX card folds away (the dock's Beat FX has the same pads), BANDS gets the room */
+@media (max-width: 1439px), (max-height: 899px) {
+  .remixGrid {
+    grid-template-columns: 430px minmax(0, 1fr) 210px;
+  }
+  .fxCard {
+    display: none;
+  }
+}

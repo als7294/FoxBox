@@ -47,60 +47,77 @@ async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>, name
   }
 }
 
+/** The hands first (PLAY plays as soon as they're up); the face, body and matte models (and the far face finder)
+ *  only when a frame first asks for more than the hands (loadOthers): PLAY with no face hidden never loads them. */
 async function load(u: Urls): Promise<void> {
+  urls = u
   const files = { wasmLoaderPath: u.loader, wasmBinaryPath: u.wasm }
-  far = await FaceDetector.createFromOptions(files, {
-    baseOptions: { modelAssetPath: u.far, delegate: 'CPU' }, // its sparse model: CPU (the GPU delegate rejects it)
-    runningMode: 'VIDEO',
-    minDetectionConfidence: 0.4,
-  }).catch(() => null)
-  ;[face, hands, seg, pose] = await Promise.all([
-    gpuThenCpu((delegate) =>
-      FaceLandmarker.createFromOptions(files, {
-        baseOptions: { modelAssetPath: u.face, delegate },
-        // VIDEO: it tracks from where the face was in the last image. One face: its graph then skips its own detector
-        // while it tracks and runs MediaPipe's One Euro (scaled by the face's size); PEOPLE 2 asks for two (setOptions).
-        runningMode: 'VIDEO',
-        numFaces: 1,
-        // Stricter than the face detector (which hides faces at 0.35) to find a face; kept while present at 0.25 (a
-        // pitched face at the decks stays tracked, wobbly but placed: the main thread drops one off the body's head).
-        minFaceDetectionConfidence: 0.5,
-        minFacePresenceConfidence: 0.25,
-        minTrackingConfidence: 0.3,
-        outputFacialTransformationMatrixes: true,
-        outputFaceBlendshapes: true,
-      }),
-      'face',
-    ),
-    gpuThenCpu((delegate) =>
+  hands = await gpuThenCpu(
+    (delegate) =>
       GestureRecognizer.createFromOptions(files, {
         baseOptions: { modelAssetPath: u.hands, delegate },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        // Lower than MediaPipe's 0.5: a dim, tinted room's hands score 0.3-0.5 and were never found (PLAY's rules,
+        // not the tracker's confidence, keep a doubtful hand from plucking).
+        minHandDetectionConfidence: 0.3,
+        minHandPresenceConfidence: 0.35,
+        minTrackingConfidence: 0.35,
       }),
-      'hands',
-    ),
-    gpuThenCpu((delegate) =>
-      ImageSegmenter.createFromOptions(files, {
-        baseOptions: { modelAssetPath: u.seg, delegate },
-        runningMode: 'VIDEO',
-        outputConfidenceMasks: true,
-        outputCategoryMask: false,
-      }),
-      'seg',
-    ),
-    gpuThenCpu((delegate) =>
-      PoseLandmarker.createFromOptions(files, {
-        baseOptions: { modelAssetPath: u.pose, delegate },
-        runningMode: 'VIDEO',
-        numPoses: 1,
-      }),
-      'pose',
-    ),
-  ])
+    'hands',
+  )
+}
+
+let urls: Urls | null = null
+let others: Promise<void> | null = null
+function loadOthers(): void {
+  const u = urls
+  if (others || !u) return
+  const files = { wasmLoaderPath: u.loader, wasmBinaryPath: u.wasm }
+  others = (async () => {
+    far = await FaceDetector.createFromOptions(files, {
+      baseOptions: { modelAssetPath: u.far, delegate: 'CPU' }, // its sparse model: CPU (the GPU delegate rejects it)
+      runningMode: 'VIDEO',
+      minDetectionConfidence: 0.4,
+    }).catch(() => null)
+    ;[face, seg, pose] = await Promise.all([
+      gpuThenCpu((delegate) =>
+        FaceLandmarker.createFromOptions(files, {
+          baseOptions: { modelAssetPath: u.face, delegate },
+          // VIDEO: it tracks from where the face was in the last image. One face: its graph then skips its own detector
+          // while it tracks and runs MediaPipe's One Euro (scaled by the face's size); PEOPLE 2 asks for two (setOptions).
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          // Stricter than the face detector (which hides faces at 0.35) to find a face; kept while present at 0.25 (a
+          // pitched face at the decks stays tracked, wobbly but placed: the main thread drops one off the body's head).
+          minFaceDetectionConfidence: 0.5,
+          minFacePresenceConfidence: 0.25,
+          minTrackingConfidence: 0.3,
+          outputFacialTransformationMatrixes: true,
+          outputFaceBlendshapes: true,
+        }),
+        'face',
+      ),
+      gpuThenCpu((delegate) =>
+        ImageSegmenter.createFromOptions(files, {
+          baseOptions: { modelAssetPath: u.seg, delegate },
+          runningMode: 'VIDEO',
+          outputConfidenceMasks: true,
+          outputCategoryMask: false,
+        }),
+        'seg',
+      ),
+      gpuThenCpu((delegate) =>
+        PoseLandmarker.createFromOptions(files, {
+          baseOptions: { modelAssetPath: u.pose, delegate },
+          runningMode: 'VIDEO',
+          numPoses: 1,
+        }),
+        'pose',
+      ),
+    ])
+    ;(self as unknown as Worker).postMessage({ type: 'models', delegates })
+  })()
 }
 
 /** The few blendshapes a mask follows (of 52). */
@@ -154,11 +171,58 @@ function runFace(crop: ImageBitmap, frame: ImageBitmap): Pick<Seen, 'faces' | 'h
   return out
 }
 
+/** A very dark frame for the hands (a dim bedroom, a pink light: "it should detect them regardless"): one gain for all
+ *  three channels, so the brightest channel's HI percentile lands at TOP, at most MAX (the hands, the brightest thing
+ *  in a dark room, never clip flat; a starved channel isn't stretched into noise). Over LIT (the frame's mean luma;
+ *  a pink room the app reads as 0.20 is about 0.12 here) the hands are found as they are, and any gain only costs. */
+const LEVELS = { LIT: 0.09, HI: 0.98, TOP: 230, MAX: 2.5, GAMMA: 1 }
+let probe: OffscreenCanvasRenderingContext2D | null = null
+let work: OffscreenCanvas | null = null
+function levelled(frame: ImageBitmap): ImageBitmap | OffscreenCanvas {
+  probe ??= new OffscreenCanvas(64, 36).getContext('2d', { willReadFrequently: true })
+  if (!probe) return frame
+  probe.drawImage(frame, 0, 0, 64, 36)
+  const d = probe.getImageData(0, 0, 64, 36).data
+  const hist = new Uint32Array(256) // the brightest channel's
+  let luma = 0
+  for (let i = 0; i < d.length; i += 4) {
+    hist[Math.max(d[i]!, d[i + 1]!, d[i + 2]!)]!++
+    luma += 0.2126 * d[i]! + 0.7152 * d[i + 1]! + 0.0722 * d[i + 2]!
+  }
+  const px = d.length / 4
+  if (luma / px / 255 >= LEVELS.LIT) return frame
+  let c = 0
+  let hi = 255
+  for (let v = 0; v < 256; v++) if ((c += hist[v]!) >= LEVELS.HI * px) {
+    hi = v
+    break
+  }
+  const gain = Math.min(LEVELS.MAX, LEVELS.TOP / Math.max(24, hi))
+  if (gain <= 1.05) return frame
+  const lut = new Uint8ClampedArray(256)
+  for (let v = 0; v < 256; v++) lut[v] = 255 * Math.min(1, (v * gain) / 255) ** LEVELS.GAMMA
+  work ??= new OffscreenCanvas(frame.width, frame.height)
+  if (work.width !== frame.width || work.height !== frame.height) Object.assign(work, { width: frame.width, height: frame.height })
+  const g = work.getContext('2d', { willReadFrequently: true })
+  if (!g) return frame
+  g.drawImage(frame, 0, 0)
+  const img = g.getImageData(0, 0, work.width, work.height)
+  const p = img.data
+  for (let i = 0; i < p.length; i += 4) {
+    p[i] = lut[p[i]!]!
+    p[i + 1] = lut[p[i + 1]!]!
+    p[i + 2] = lut[p[i + 2]!]!
+  }
+  g.putImageData(img, 0, 0)
+  return work
+}
+
 /** The extras on the whole frame (640 px), alternating so a cycle stays under a camera frame: hands on even frames,
  *  the body and the person on odd ones (the rest keep their last). `body` (TouchDesigner: nothing to mask, the body and
  *  hands drive the picture): hands and the body every frame, the person on odd ones. Never throws. */
-function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst = false): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> {
-  const out: Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> = { hands: last.hands, person: null, body: last.body, ms: { face: 0, hands: 0, seg: 0 } }
+function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst = false, handsOnly = false): Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> & { fresh: boolean } {
+  // `fresh`: the hands were run on this frame (else they're the last frame's, carried over: not a new result).
+  const out: Pick<Seen, 'hands' | 'person' | 'body' | 'ms'> & { fresh: boolean } = { hands: last.hands, person: null, body: last.body, ms: { face: 0, hands: 0, seg: 0 }, fresh: false }
   const t0 = performance.now()
   const k = n++
   const even = k % 2 === 0
@@ -166,10 +230,11 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst
   // each one frame in four, so a frame is the hands and one more model at most (all of them: ~15 hands a second).
   const quarter = k % 4
   if (handsFirst) body = true
-  if (even || body) {
+  if (even || body || handsOnly) {
+    out.fresh = true
     try {
       if (hands) {
-        const r = hands.recognizeForVideo(frame, ts)
+        const r = hands.recognizeForVideo(levelled(frame), ts)
         out.hands = r.landmarks.map((pts, i) => {
           const g = r.gestures[i]?.[0]
           const world = r.worldLandmarks[i]?.map((p) => ({ x: p.x, y: p.y, z: p.z }))
@@ -180,7 +245,7 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst
       out.hands = []
     }
     out.ms!.hands = performance.now() - t0
-    if (even && !body) return out
+    if (handsOnly || (even && !body)) return out
   }
   const t1 = performance.now()
   if (handsFirst && quarter !== 1 && quarter !== 2) return out // the face's frame (0), the hands' alone (3)
@@ -214,7 +279,7 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number; handsFirst?: boolean; faceLight?: boolean }
+  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap | null; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number; handsFirst?: boolean; faceLight?: boolean; handsOnly?: boolean }
   if (m.type === 'init') {
     void load(m.urls).then(() =>
       (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates }),
@@ -231,13 +296,17 @@ self.onmessage = (e: MessageEvent) => {
   const post = (msg: object, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(msg, transfer)
   // faceLight (handsFirst, no face hidden): the face one frame in four (n % 4 === 0: runExtras counts n), its last
   // result posted between. A hidden face is tracked every frame.
-  const f = !m.faceLight || n % 4 === 0 || !lastFace ? runFace(m.face, m.scene) : lastFace
-  lastFace = f
-  last = { ...last, faces: f.faces }
-  post({ type: 'face', seen: f, roi: m.roi, at: m.at })
-  const x = runExtras(m.scene, !!m.body, m.matteEvery ?? 2, !!m.handsFirst)
+  // handsOnly (PLAY, no face hidden): no face crop, no face, and their models never loaded.
+  if (!m.handsOnly) loadOthers()
+  if (m.face) {
+    const f = !m.faceLight || n % 4 === 0 || !lastFace ? runFace(m.face, m.scene) : lastFace
+    lastFace = f
+    last = { ...last, faces: f.faces }
+    post({ type: 'face', seen: f, roi: m.roi, at: m.at })
+  }
+  const { fresh, ...x } = runExtras(m.scene, !!m.body, m.matteEvery ?? 2, !!m.handsFirst, !!m.handsOnly)
   last = { ...last, hands: x.hands, body: x.body }
-  m.face.close()
+  m.face?.close()
   m.scene.close()
-  post({ type: 'extras', seen: x, at: m.at }, x.person ? [x.person.data.buffer as ArrayBuffer] : [])
+  post({ type: 'extras', seen: x, at: m.at, fresh }, x.person ? [x.person.data.buffer as ArrayBuffer] : [])
 }

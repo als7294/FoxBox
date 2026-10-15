@@ -1,0 +1,202 @@
+/* The GUIDE (2.0): a glass card at the right, above the dock (the design's glass, Geist), the stage live under it. Each
+   step's demo enters behind the onboarding film's orange slash. */
+.card {
+  position: fixed;
+  inset: auto 28px 116px auto;
+  z-index: 40;
+  width: 380px;
+  margin: 0;
+  padding: 18px;
+  border: 0;
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 40%), rgba(28, 22, 18, 0.8);
+  backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 24px 60px -20px rgba(0, 0, 0, 0.6);
+  color: var(--fb-ink);
+  font-family: var(--fb-font);
+  animation: guideIn 0.55s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.card:not([open]) {
+  display: none;
+}
+@keyframes guideIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+}
+.chapter {
+  font: 600 12px var(--fb-mono);
+  letter-spacing: 0.14em;
+  color: var(--fb-accent);
+}
+.count {
+  flex: 1;
+  font: 500 12px var(--fb-mono);
+  color: var(--fb-ink-2);
+}
+.skip {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fb-ink-2);
+  background: rgba(255, 255, 255, 0.07);
+}
+.skip:hover {
+  color: var(--fb-ink);
+}
+.demo {
+  position: relative;
+  height: 222px;
+  border-radius: 20px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(80% 90% at 50% 100%, rgba(242, 112, 31, 0.16), rgba(0, 0, 0, 0) 70%), #140c08;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.icon {
+  font-size: 72px;
+  line-height: 1;
+  color: var(--fb-accent);
+}
+/* the onboarding film's orange slash, across the demo as a step comes in */
+.slash {
+  position: absolute;
+  inset: -20% auto -20% 0;
+  width: 46%;
+  background: linear-gradient(90deg, rgba(255, 77, 46, 0), #ff4d2e 40%, #ffb27a 60%, rgba(255, 178, 122, 0));
+  transform: translateX(-130%) skewX(-18deg);
+  animation: guideSlash 0.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+  pointer-events: none;
+}
+@keyframes guideSlash {
+  to {
+    transform: translateX(330%) skewX(-18deg);
+  }
+}
+.title {
+  margin: 4px 2px 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.text {
+  margin: 0 2px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--fb-ink-2);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.try {
+  flex: 1;
+  margin: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 12px var(--fb-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9c5c;
+}
+.tryDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff8a3d;
+  box-shadow: 0 0 8px #ff8a3d;
+  animation: fbRec 1.6s ease-in-out infinite;
+}
+.try[data-done] {
+  color: #7bd69a;
+}
+.try[data-done] .tryDot {
+  background: #7bd69a;
+  box-shadow: 0 0 10px #7bd69a;
+  animation: none;
+}
+.action {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+}
+.action:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.dots {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  transition:
+    width 0.3s,
+    background 0.3s;
+}
+.dots span[data-past] {
+  background: rgba(242, 112, 31, 0.5);
+}
+.dots span[data-on] {
+  width: 22px;
+  background: var(--fb-accent);
+}
+.foot {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+}
+.back,
+.next {
+  height: 46px;
+  border-radius: 15px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.back {
+  background: rgba(255, 255, 255, 0.08);
+}
+.back:disabled {
+  opacity: 0.4;
+}
+.next {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .slash,
+  .tryDot {
+    animation: none;
+  }
+  .slash {
+    display: none;
+  }
+}

@@ -6,8 +6,12 @@
  * the layer goes through untouched). Premultiplied in and out. The user: "should be super subtle": clean, taut lines
  * that shimmer, not wave; every move a hint of a few px, WOBBLE shown mostly by the glow and colour pulsing at the
  * LFO's rate. No flashes; RIDDIM gates by segment so the light stays about the same.
+ * 2.0's restraint (the tokens' fx-*): it never touches the camera picture (only the strings' layer); no move takes the
+ * strings more than fx-string-displace; RIDDIM's gate is fx-gate deep; WOBBLE's light pulses only while its LFO runs at
+ * 3 Hz or slower (faster, a steady warm glow: at most 3 flashes a second).
  */
 import type { FxFrame, StringFeel } from './beatFx'
+import { liveTokens } from './stringTokens'
 
 const VERT = `#version 300 es
 in vec2 aPos;
@@ -22,6 +26,9 @@ uniform ivec2 uMode;      // per slot: 0 none, 1 tearout, 2 riddim, 3 wobble, 4 
 uniform vec2 uAmt, uPhase, uStep, uBuild;
 uniform float uSnap, uTime;
 uniform vec4 uFeel;       // tension 0-1, tilt -1..1 (clockwise +), shake 0-1, on (both hands seen)
+uniform vec2 uPulse;      // per slot: 1 WOBBLE may pulse its light (its LFO at 3 Hz or slower), 0 a steady glow
+uniform float uDisp;      // the most a move takes the strings, picture heights
+uniform float uGate;      // RIDDIM's gate depth
 out vec4 o;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -56,17 +63,17 @@ vec2 warp(vec2 uv, int mode, float amt, float ph, float st, float build) {
   return uv;
 }
 
-vec4 shade(vec4 c, vec2 uv, int mode, float amt, float st, float ph) {
+vec4 shade(vec4 c, vec2 uv, int mode, float amt, float st, float ph, float pulse) {
   if (mode == 2) {                       // RIDDIM: segments gated in the chop pattern
     float on = step(0.42, hash(vec2(floor(uv.x * 14.0), st + 3.0)));
-    c *= mix(1.0, on, amt);
+    c *= mix(1.0, on, amt * uGate);
   } else if (mode == 1) {                // TEAROUT: crushed
     float lv = mix(48.0, 3.0, amt);
     c = floor(c * lv + 0.5) / lv;
   } else if (mode == 5) {                // HALFTIME: heavier
     c.rgb *= 1.0 + 0.25 * amt;
   } else if (mode == 3) {                // WOBBLE: the glow and the colour pulse at the LFO's rate (warmer on its peaks)
-    float lfo = 0.5 + 0.5 * sin(6.28318 * ph);
+    float lfo = 0.5 + 0.5 * pulse * sin(6.28318 * ph);
     c.rgb = mix(c.rgb, c.rgb * vec3(1.25, 0.95, 0.75), 0.6 * amt * lfo) * (1.0 + 0.3 * amt * lfo);
   }
   return c;
@@ -74,6 +81,7 @@ vec4 shade(vec4 c, vec2 uv, int mode, float amt, float st, float ph) {
 
 void main() {
   vec2 uv = vec2(gl_FragCoord.x / uRes.x, 1.0 - gl_FragCoord.y / uRes.y);
+  vec2 uv0 = uv;
   // BUILD ROLL's SNAP: a burst outward that settles, and a ring
   if (uSnap > 0.0) {
     vec2 d = uv - uC;
@@ -88,6 +96,9 @@ void main() {
   }
   uv = warp(uv, uMode.y, uAmt.y, uPhase.y, uStep.y, uBuild.y);
   uv = warp(uv, uMode.x, uAmt.x, uPhase.x, uStep.x, uBuild.x);
+  vec2 moved = uv - uv0;
+  float ml = length(moved);
+  if (ml > uDisp) uv = uv0 + moved * (uDisp / ml);
   vec4 c = texture(uSrc, uv);
   // HALFTIME: thicker (the strings dilated)
   float thick = (uMode.x == 5 ? uAmt.x : 0.0) + (uMode.y == 5 ? uAmt.y : 0.0);
@@ -104,8 +115,8 @@ void main() {
                         texture(uSrc, uv + up + vec2(0.0, r.y)) + texture(uSrc, uv + up - vec2(0.0, r.y)));
     c += glow * 0.35 * abs(uFeel.y);
   }
-  c = shade(c, uv, uMode.x, uAmt.x, uStep.x, uPhase.x);
-  c = shade(c, uv, uMode.y, uAmt.y, uStep.y, uPhase.y);
+  c = shade(c, uv, uMode.x, uAmt.x, uStep.x, uPhase.x, uPulse.x);
+  c = shade(c, uv, uMode.y, uAmt.y, uStep.y, uPhase.y, uPulse.y);
   // Reduced motion (mode 0 with an amount): a held dim, no moves
   float dim = (uMode.x == 0 ? uAmt.x : 0.0) + (uMode.y == 0 ? uAmt.y : 0.0);
   c *= 1.0 - 0.35 * clamp(dim, 0.0, 1.0);
@@ -142,7 +153,8 @@ export function createBeatFxPass(width: number, height: number) {
     gl.texParameteri(gl.TEXTURE_2D, k, v)
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true) // the 2D layer as it's stored: premultiplied
   const u = (n: string) => gl.getUniformLocation(prog, n)
-  const U = Object.fromEntries(['uRes', 'uC', 'uMode', 'uAmt', 'uPhase', 'uStep', 'uBuild', 'uSnap', 'uTime', 'uFeel'].map((n) => [n, u(n)]))
+  const U = Object.fromEntries(['uRes', 'uC', 'uMode', 'uAmt', 'uPhase', 'uStep', 'uBuild', 'uSnap', 'uTime', 'uFeel', 'uPulse', 'uDisp', 'uGate'].map((n) => [n, u(n)]))
+  const tokens = liveTokens('remix')
   gl.uniform1i(u('uSrc'), 0)
   gl.uniform2f(U.uRes!, width, height)
   return {
@@ -162,6 +174,10 @@ export function createBeatFxPass(width: number, height: number) {
       gl.uniform1f(U.uSnap!, f.snap)
       gl.uniform1f(U.uTime!, time)
       gl.uniform4f(U.uFeel!, feel?.tension ?? 0, feel?.tilt ?? 0, feel?.shake ?? 0, feel ? 1 : 0)
+      const fx = tokens(performance.now()).fx
+      gl.uniform2f(U.uPulse!, a.pulse, b.pulse)
+      gl.uniform1f(U.uDisp!, fx.stringDisplace / 720)
+      gl.uniform1f(U.uGate!, fx.gate)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
       return canvas
     },

@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "1.1.0"  # FoxBox 2.0: contracts v1.1 (v1.0, the REMIX-only engine, plus the library wheel)
 
 # The packaged app's data folder, and the default export folder that goes with it.
 APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "FoxBox"

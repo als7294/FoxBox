@@ -1,11 +1,9 @@
 /**
- * SongDeck: the attached song (the Studio SONG strip's Song, streamed from /api/audio/{audio_id}) playing inside
- * the LIVE AudioContext into the master with the voice, so the mix tap, the master FX (tape-stop, drop-out) and the
- * SetRecorder all hear it.
+ * SongDeck: REMIX's song (streamed from /api/audio/{audio_id}) playing in the engine's AudioContext (engine.ts) into
+ * its songInput, so the bus's mix tap and RECORD hear it.
  *
- *   level      setLevel(db)
- *   ducking    setDuck(db | null): under the masked voice (a sidechain worklet keyed on the voice), off with null
- *   tap        the song alone (after level and duck): analyser, rms, bands, onOnset, fft
+ *   level      setLevel(db); duck(db | null) under the library wheel's preview
+ *   tap        the song alone (after its level): analyser, rms, bands, onOnset, fft
  *   clock      the beat clock at the playhead from the song's grid (bpm / downbeat / beats per bar, overrides
  *              included): bpm, beat, beatPhase, bar, barPhase. While the deck plays, the engine's quantized FX and
  *              delay times follow it (engine.followClock).
@@ -14,16 +12,17 @@
  *   scrub      seek(s) (STRINGS' strip): to the nearest bar line; playing, on the song's next beat (the beat runs on:
  *              slip FX stay in time). sections() (INTRO, BUILD, DROP 1…; the TEST BEAT's own) and peaks(n) for the
  *              strip's waveform. Every start, jump and stop fades over 5 ms (no click); the stems start on one sample.
- *   fx         the song's live FX (songFx.ts, 1.5.2: TouchDesigner presets' `sound` maps), after the duck: the tap and
- *              the master hear them, the voice never passes through them.
+ *   fx         the song's live FX (songFx.ts: STRINGS' sound map), after the level: the tap and the speakers hear them.
+ *   stems      split and decoded on demand (useSongFx.wantStems); the first split waits on the stems model's notice
+ *              (setStemsGate: S4's StemsNotice), 'declined' if the user says not now; retryStems() asks again.
  */
-import { api, unwrap } from '@/api/client'
-import { waitJob } from '@/api/remix'
+import { api, unwrap, waitJob } from '@/api/client'
 import type { Song } from '@/api/types'
 import { barAt, barTime, decodeSong, findBeatDrop, lowEnd, songGrid, useSong, type SongGrid } from '@/state/song'
 import { loadAudioBytes } from '../cache'
 import { AudioTapImpl, type AudioTap } from './bus'
 import { impulse, type LiveEngine } from './engine'
+import { tempoRate } from '../board'
 import { SongFx, STEMS, useSongFx, type DeckStems, type StemName } from './songFx'
 import { renderTestBeat, TEST_BEAT, TEST_BEAT_SECTIONS } from './testBeat'
 
@@ -147,9 +146,15 @@ interface Segment {
   startedAt: number
   /** song time at startedAt */
   offset: number
+  /** song seconds per second (the Board's Tempo) */
+  rate: number
 }
 
 const stemsState = (stems: DeckStems, progress: number | null = null) => useSongFx.setState({ stems, stemsProgress: progress })
+
+let stemsGate: () => Promise<boolean> = async () => true
+/** What a split waits on before it can download the stems model (S4's StemsNotice: true on Continue, false on Not now). */
+export const setStemsGate = (fn: () => Promise<boolean>): void => void (stemsGate = fn)
 
 /** The song's four stems' audio ids once its stem split is done (all four), else null: the deck then plays the mix. */
 export function songStems(song: Pick<Song, 'stems_state' | 'stems'>): Record<StemName, string> | null {
@@ -182,24 +187,24 @@ export class SongDeck {
   private wave: Float32Array = new Float32Array(0)
   /** The cue was placed (a scrub while stopped): ▶'s before-drop cue leaves it; a new song re-arms it. */
   private placed = false
-  private seg: Segment = { startedAt: 0, offset: 0 }
+  private seg: Segment = { startedAt: 0, offset: 0, rate: 1 }
+  /** The Board's Tempo: the song's speed (its pitch with it). */
+  private rate = 1
   private prev: Segment | null = null
   private cue = 0
   private playing = false
   private readonly gain: GainNode
-  private readonly duck: AudioWorkletNode
+  private readonly ducker: GainNode
   private readonly tapImpl: AudioTapImpl
   private readonly offStems: () => void
 
   constructor(private readonly engine: LiveEngine) {
     const ctx = engine.ctx
     this.gain = new GainNode(ctx, { gain: 1, channelCount: 2, channelCountMode: 'explicit' })
-    this.duck = new AudioWorkletNode(ctx, 'fvwks-duck', { numberOfInputs: 2, numberOfOutputs: 1, outputChannelCount: [2] })
     const analyser = new AnalyserNode(ctx, { fftSize: 2048 })
     this.fx = new SongFx(ctx, () => this.clock(), impulse(ctx, 3.5, 0.4))
-    this.gain.connect(this.duck, 0, 0)
-    engine.duckKey.connect(this.duck, 0, 1)
-    this.duck.connect(this.fx.input)
+    this.ducker = new GainNode(ctx, { gain: 1, channelCount: 2, channelCountMode: 'explicit' })
+    this.gain.connect(this.ducker).connect(this.fx.input)
     this.fx.output.connect(analyser)
     this.fx.output.connect(engine.songInput)
     this.tapImpl = new AudioTapImpl(ctx, analyser)
@@ -362,16 +367,26 @@ export class SongDeck {
     else if (this.dropAtS != null && !this.playing) this.cue = this.dropAtS
   }
 
+  /** Ducks the song by `db` (the library wheel's preview playing over it); null brings it back. 150 ms either way. */
+  duck(db: number | null): void {
+    this.ducker.gain.setTargetAtTime(db == null ? 1 : Math.pow(10, Math.max(-60, Math.min(0, db)) / 20), this.engine.ctx.currentTime, 0.05)
+  }
+
   setLevel(db: number): void {
     this.gain.gain.setTargetAtTime(Math.pow(10, db / 20), this.engine.ctx.currentTime, 0.015)
   }
 
-  /** Ducks the song by `db` while the voice is present (release: half a beat of the song); null turns it off. */
-  setDuck(db: number | null): void {
-    const t = this.engine.ctx.currentTime
-    this.duck.parameters.get('duckDb')!.setValueAtTime(db == null ? 0 : Math.max(-24, Math.min(0, db)), t)
-    const beat = this.grid ? 60 / this.grid.bpm : 0.5
-    this.duck.parameters.get('releaseMs')!.setValueAtTime(Math.min(400, Math.max(120, 500 * beat)), t)
+  /** The Board's Tempo (board.ts, 0-1: ±8 %, vinyl): from now, the playhead running on from where it is. */
+  setTempo(v: number): void {
+    const rate = tempoRate(v)
+    if (rate === this.rate) return
+    const now = this.engine.ctx.currentTime, pos = this.positionS(now)
+    this.rate = rate
+    if (!this.playing) return
+    for (const s of this.sources) s.src.playbackRate.setValueAtTime(rate, now)
+    this.prev = this.seg
+    this.seg = { startedAt: now, offset: pos, rate }
+    this.follow()
   }
 
   /** Song time at context time `at` (now by default). */
@@ -379,18 +394,18 @@ export class SongDeck {
     if (!this.playing) return this.cue
     const s = at < this.seg.startedAt && this.prev ? this.prev : this.seg
     if (at < s.startedAt) return s.offset
-    const p = s.offset + (at - s.startedAt)
+    const p = s.offset + (at - s.startedAt) * s.rate
     return this.beat ? p % Math.max(1e-6, this.durationS) : Math.min(this.durationS, p) // the test beat loops
   }
 
   /** The beat clock at the playhead; null without a grid (no analysis and no overrides). */
   clock(at?: number): BeatClock | null {
-    return this.grid ? clockAt(this.grid, this.positionS(at), this.playing) : null
+    return this.grid ? { ...clockAt(this.grid, this.positionS(at), this.playing), bpm: this.grid.bpm * this.rate } : null
   }
 
   /** Context time of the song's bar 1 on the running grid (the engine's anchor while playing); null when stopped. */
   downbeatCtxTime(): number | null {
-    return this.grid && this.playing ? this.seg.startedAt + (this.grid.downbeatS - this.seg.offset) : null
+    return this.grid && this.playing ? this.seg.startedAt + (this.grid.downbeatS - this.seg.offset) / this.seg.rate : null
   }
 
   dispose(): void {
@@ -398,8 +413,6 @@ export class SongDeck {
     this.stop()
     this.dropStems()
     this.tapImpl.dispose()
-    this.engine.duckKey.disconnect(this.duck)
-    this.duck.disconnect()
     this.fx.dispose()
     this.gain.disconnect()
   }
@@ -419,7 +432,7 @@ export class SongDeck {
     if (!plan.length) return
     const ctx = this.engine.ctx
     const srcs = plan.map(([buffer, to]) => {
-      const src = new AudioBufferSourceNode(ctx, { buffer, loop: Boolean(this.beat) })
+      const src = new AudioBufferSourceNode(ctx, { buffer, loop: Boolean(this.beat), playbackRate: this.rate })
       const fade = new GainNode(ctx, { gain: 0 })
       fade.gain.setValueAtTime(0, t)
       fade.gain.linearRampToValueAtTime(1, t + FADE_S)
@@ -437,10 +450,15 @@ export class SongDeck {
       this.engine.followClock(null)
     }
     this.prev = this.playing ? this.seg : null
-    this.seg = { startedAt: t, offset }
+    this.seg = { startedAt: t, offset, rate: this.rate }
     this.sources = srcs
     this.playing = true
     this.follow()
+  }
+
+  /** REMIX's Try again: asks for the stems again after a 'declined' or a 'failed' (while they're wanted). */
+  retryStems(): void {
+    if (this.stemsWanted && !this.stems) void this.loadStems()
   }
 
   private wantStems(on: boolean): void {
@@ -473,8 +491,15 @@ export class SongDeck {
     try {
       let song = this.song
       if (!songStems(song)) {
+        const split = song.stems_state === 'none' || song.stems_state === 'error'
+        // the first split downloads the stems model: its notice first (S4's StemsNotice), never past a "not now"
+        if (split && !(await stemsGate())) {
+          if (live()) stemsState('declined')
+          return
+        }
+        if (!live()) return
         stemsState('splitting', 0)
-        if (song.stems_state === 'none' || song.stems_state === 'error') {
+        if (split) {
           const job = await unwrap(api.POST('/api/songs/{song_id}/stems', { params: { path: { song_id: song.id } } }))
           await waitJob(job, (j) => live() && stemsState('splitting', j.progress), 500)
         }
@@ -542,8 +567,8 @@ export class SongDeck {
     if (!this.grid) return now + 0.02
     const pos = this.positionS(now), g = this.grid, beatS = 60 / g.bpm
     let next = g.downbeatS + Math.ceil((pos - g.downbeatS) / beatS + 1e-9) * beatS
-    if (next - pos < 0.02) next += beatS
-    return now + (next - pos)
+    if (next - pos < 0.02 * this.rate) next += beatS
+    return now + (next - pos) / this.rate
   }
 
   /** Context time of the song's next bar line (at least 20 ms away). */
@@ -553,12 +578,12 @@ export class SongDeck {
     const pos = this.positionS(now)
     const g = this.grid
     let next = g.downbeatS + Math.ceil((pos - g.downbeatS) / g.barS + 1e-9) * g.barS
-    if (next - pos < 0.02) next += g.barS
-    return now + (next - pos)
+    if (next - pos < 0.02 * this.rate) next += g.barS
+    return now + (next - pos) / this.rate
   }
 
   private follow(): void {
     const anchor = this.downbeatCtxTime()
-    if (this.grid && anchor != null) this.engine.followClock({ bpm: this.grid.bpm, anchor })
+    if (this.grid && anchor != null) this.engine.followClock({ bpm: this.grid.bpm * this.rate, anchor })
   }
 }

@@ -1,0 +1,361 @@
+/* Popovers and their shared parts (app/design/foxbox-2 README §5 and its markup). */
+.pop {
+  position: absolute;
+  left: 50%;
+  bottom: 110px; /* the dock's 28 + 82 */
+  width: 840px;
+  box-sizing: border-box;
+  padding: 28px;
+  border-radius: 34px;
+  background:
+    radial-gradient(110% 120% at 0% 0%, rgba(var(--tint), 0.26), rgba(0, 0, 0, 0) 62%),
+    radial-gradient(90% 90% at 100% 100%, rgba(var(--tint), 0.1), rgba(0, 0, 0, 0) 70%), rgba(28, 22, 18, 0.78);
+  backdrop-filter: blur(40px) saturate(1.8);
+  box-shadow:
+    0 30px 70px -20px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--fb-ink);
+  z-index: 8;
+  font-family: var(--fb-font);
+  max-height: calc(100vh - 52px - 110px); /* under the Island; ponytail: the whole popover scrolls, × included */
+  overflow-y: auto;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) translateY(40px) scale(0.96);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.5s var(--fb-ease-inout),
+    opacity 0.35s,
+    bottom 0.5s var(--fb-ease-inout);
+}
+.pop[data-open] {
+  transform: translateX(-50%) translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+.close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(246, 239, 230, 0.8);
+  font-size: 17px;
+  line-height: 1;
+  z-index: 2;
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+.close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.close:active {
+  transform: scale(0.92);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-right: 40px;
+}
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sub {
+  font-size: 14px;
+  color: var(--fb-ink-2);
+}
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.keyChip {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font: 600 12px var(--fb-mono);
+  color: var(--fb-ink-2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+}
+.sectionRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: -8px;
+}
+.section {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fb-ink-2);
+}
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* a tile: idle glass, selected cream */
+.tile {
+  height: 64px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 18px;
+  background: var(--fb-fill-1);
+  color: var(--fb-ink);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  transition:
+    background 0.2s,
+    box-shadow 0.2s,
+    transform 0.12s;
+  text-align: left;
+}
+.tile[data-on] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 8px 20px -8px rgba(0, 0, 0, 0.6);
+}
+.tile:active {
+  transform: scale(0.97);
+}
+.tileName {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.tileKey {
+  font: 600 12px var(--fb-mono);
+  opacity: 0.55;
+}
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.grid5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* segmented: OFF / FOLLOW / FIT, PLUCK / FLOW */
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.segBtn {
+  height: 40px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--fb-ink);
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s;
+}
+.segBtn[aria-checked='true'] {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.segBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* the key picker row and the octave stepper */
+.keyRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+.picker {
+  position: relative;
+  height: 56px;
+  padding: 0 18px;
+  border-radius: 18px;
+  background: var(--fb-fill-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.picker:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.pickerLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fb-ink-2);
+}
+.pickerValue {
+  font-size: 17px;
+  font-weight: 700;
+}
+/* the native menu over the whole picker (it opens the system list) */
+.pickerSelect {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 18px;
+  background: var(--fb-fill-1);
+}
+.stepBtn {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.stepBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.stepMid {
+  min-width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stepLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fb-ink-2);
+}
+.stepValue {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* buttons: the orange primary and the glass secondary */
+.primary {
+  height: 54px;
+  border-radius: 18px;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.primary:active {
+  transform: scale(0.98);
+}
+.secondary {
+  height: 54px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.2s;
+}
+.secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Melody */
+.preset {
+  height: 68px;
+  padding: 0 16px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+.presetName {
+  font-size: 16px;
+  font-weight: 800;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presetSub {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+.seq {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.seqNote {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fb-ink);
+  transition: background 0.25s;
+}
+.seqNote[data-next] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+.seqNote[data-past] {
+  opacity: 0.5;
+}
+
+/* Compact (FOXBOX2_COMPACT.md): the dock's width, 76 above its bottom */
+@media (max-width: 1439px), (max-height: 899px) {
+  .pop {
+    bottom: 96px;
+    width: 720px;
+    padding: 22px;
+    gap: 14px;
+    border-radius: 30px;
+    max-height: calc(100vh - 52px - 96px);
+  }
+}

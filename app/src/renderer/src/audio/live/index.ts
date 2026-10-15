@@ -1,10 +1,6 @@
-/** FoxBox LIVE voice mask: the real-time chain (engine), the studio-preset mapping (presets) and the shared bus. */
-export { LiveEngine, type LatencyMode, type LiveEngineOptions, type LiveInputChoice, type TriggerOptions } from './engine'
-export { liveParams, resolveLiveChain, keyRootHz, noteSeconds, type LiveParams, type LivePresetInput } from './presets'
+/** FoxBox's live audio (2.0: REMIX's TRACK): the engine, the shared bus, the song deck and its stems. */
+export { LiveEngine, type LiveEngineOptions } from './engine'
 export type { LiveBus, LiveBands, LiveOnset, LiveTrigger, LiveTriggerEvent, Quantize } from './bus'
-export { SetRecorder, saveToLibrary, type SetRecording } from './recorder'
-export { MidiMap, MIDI_TARGETS, type MidiAction, type MidiBinding, type MidiTarget } from './midi'
 export { SongDeck, clockAt, type BeatClock } from './songDeck'
 export type { AudioTap } from './bus'
-export { openLiveInput, listAudioInputs, LiveInput, LiveInputError, type LiveInputSpec, type AudioInputDevice } from './input'
 export { StemTrack, StemTrackReader, LiveStems, type StemFeaturesJson, type StemsFrame } from './stems'

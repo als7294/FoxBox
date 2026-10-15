@@ -33,7 +33,7 @@ describe('AIR DRAW shapes ($Q)', () => {
   it('one event a stroke: pinch, draw, release', () => {
     const hand = (pinched: boolean, tip: Pt): HandShape => {
       const points = Array.from({ length: 21 }, () => ({ ...tip }))
-      return { pinch: pinched ? 1 : 0, open: 0, fingers: 1, gesture: null, points, pinched, twist: 0, angle: 0, turn: 0 }
+      return { pinch: pinched ? 1 : 0, open: 0, fingers: 1, gesture: null, points, pinched, twist: 0, angle: 0, turn: 0, isL: false }
     }
     const frame = (h: HandShape | null): HandShapes => ({
       left: null,

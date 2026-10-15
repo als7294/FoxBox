@@ -37,7 +37,8 @@ bundled: the app downloads them at first run or on request, under each model's o
 |---|---|---|
 | [FastAPI](https://github.com/fastapi/fastapi) · [Uvicorn](https://github.com/encode/uvicorn) · [pydantic](https://github.com/pydantic/pydantic) | Local engine API and contracts | MIT / BSD-3-Clause |
 | [python-soundfile](https://github.com/bastibe/python-soundfile) + libsndfile | AIFF/WAV writing | BSD-3-Clause / LGPL-2.1 |
-| [mutagen](https://github.com/quodlibet/mutagen) | ID3 tags | GPL-2.0-or-later |
+| [mutagen](https://github.com/quodlibet/mutagen) | The REMIX library wheel's tags and cover art (MP3, M4A, FLAC, AIFF, WAV, Ogg); shipped in engine-code | GPL-2.0-or-later |
+| [serato-dj-mcp](https://github.com/Venut-Technologies/serato-dj-mcp) | Its notes on Serato DJ 4's library layout (table and column names): facts only, our own reader, no code used | MIT |
 | [pyrekordbox](https://github.com/dylanljones/pyrekordbox) | Test-only rekordbox.xml read-back (not shipped) | MIT |
 
 ## App
@@ -51,6 +52,7 @@ bundled: the app downloads them at first run or on request, under each model's o
 | [waveform-playlist](https://github.com/naomiaro/waveform-playlist) (Naomi Aro) · @waveform-playlist/playout | REMIX: the multitrack timeline | MIT |
 | [styled-components](https://github.com/styled-components/styled-components) | Styling inside waveform-playlist | MIT |
 | [dnd-kit](https://github.com/clauderic/dnd-kit) (@dnd-kit/react, dom, abstract) | Dragging clips on the REMIX timeline | MIT |
+| [Geist · Geist Mono](https://vercel.com/font) (Vercel, with basement.studio) | Bundled fonts (2.0) | SIL OFL 1.1 |
 | [Big Shoulders Display](https://fonts.google.com/specimen/Big+Shoulders+Display) · [JetBrains Mono](https://www.jetbrains.com/lp/mono/) | Bundled fonts | SIL OFL 1.1 |
 
 ## Camera
@@ -63,7 +65,6 @@ bundled: the app downloads them at first run or on request, under each model's o
 ## LIVE and visuals (1.3–1.5)
 | Project | Use | License |
 |---|---|---|
-| [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (Geraint Luff / Signalsmith Audio) | LIVE: real-time pitch and formant shift (vendored in `audio/live/vendor`) | MIT |
 | [Airwindows](https://github.com/airwindows/airwindows) Density and DeRez2 (Chris Johnson) | STRINGS' TEAROUT: the drive and the rate and bit crush, ported to JavaScript in `audio/live/worklets/live-processors.js` | MIT |
 | [three.js](https://github.com/mrdoob/three.js) | FOXBOX visual styles (WebGL) | MIT |
 | [postprocessing](https://github.com/pmndrs/postprocessing) | The stage's bloom, grain and vignette | Zlib |
