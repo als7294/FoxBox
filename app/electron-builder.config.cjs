@@ -26,6 +26,7 @@ module.exports = {
   // Component updates (1.2): record each part's hash in Contents/Resources/components.json before signing
   // (src/main/components.ts). The fuses are applied after this hook, so they go into the electron part's hash.
   afterPack: async (context) => {
+    if (context.electronPlatformName !== 'darwin') return // the parts are the Mac's .app layout (W1: Windows uses NSIS + blockmap)
     const { hashComponents, writeComponentsFile } = await import('./src/main/components.ts')
     const app = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
     const electron = require('electron/package.json').version
@@ -37,7 +38,7 @@ module.exports = {
     target: [{ target: 'dir', arch: ['arm64'] }],
     artifactName: '${productName}-${version}-${arch}.${ext}',
     category: 'public.app-category.music',
-    // The FoxBox app icon (design/brand/foxbox-icon-1024.png, built into an .icns with iconutil).
+    // The FoxBox Strings icon (the user's pick, S3's design/brand/icons/*/foxbox-strings-a-*.png, built into an .icns with iconutil).
     icon: 'build-resources/icon.icns',
     // Ad-hoc signature (no Developer ID). Hardened runtime would reject Electron's pre-signed frameworks.
     identity: '-',
@@ -53,9 +54,25 @@ module.exports = {
         'FoxBox uses the camera for camera clips. Faces are pixelated on this Mac, and the video never leaves it unless you share it.',
       // An iPhone as a Continuity Camera webcam is listed (and macOS stops logging that the key is missing).
       NSCameraUseContinuityCameraDeviceType: true,
+      // 2.1: Ableton Link finds Live and other Link apps on the local network (asked once, when Link is turned on).
+      NSLocalNetworkUsageDescription: 'FoxBox uses your local network for Ableton Link, to keep its tempo in sync with Live and other Link apps.',
       // The engine's wheels (mlx, mlx-metal, numpy, scipy) are macosx_14_0_arm64: macOS 14 on Apple silicon only.
       LSMinimumSystemVersion: '14.0',
     },
+  },
+  // W1, the Windows beta (SAUCE only): an x64 NSIS installer, per user, no admin; electron-updater reads latest.yml and
+  // the blockmap from the GitHub release (so an asar-only change is a small delta). Unsigned for now (the user's call).
+  win: {
+    target: [{ target: 'nsis', arch: ['x64'] }],
+    icon: 'build-resources/icon.png',
+    artifactName: '${productName}-Setup-${version}-${arch}.${ext}',
+    publish: [{ provider: 'github', owner: 'als7294', repo: 'FoxBox', releaseType: 'release' }],
+  },
+  nsis: {
+    oneClick: true,
+    perMachine: false,
+    differentialPackage: true,
+    shortcutName: 'FoxBox',
   },
   // The branded install window (design/brand/dmg-background*.png as one HiDPI TIFF, built with tiffutil): the app and
   // the Applications link sit on the art's dashed slots; the first-open steps are printed on it, so the note file

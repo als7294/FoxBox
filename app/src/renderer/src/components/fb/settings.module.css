@@ -71,7 +71,7 @@
 .navFoot {
   margin-top: auto;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: #8f8275;
 }
@@ -108,7 +108,7 @@
   gap: 10px;
 }
 .label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--fb-ink-2);
@@ -142,7 +142,7 @@
   color: #ff8a78;
 }
 .note {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
   color: var(--fb-ink-2);
   padding: 0 4px;
@@ -228,7 +228,7 @@
   padding: 0 16px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   flex: none;
 }
@@ -265,7 +265,7 @@
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 8px, rgba(255, 255, 255, 0.02) 8px 16px);
   display: grid;
   place-items: center;
-  font: 500 12px var(--fb-mono);
+  font: 500 14px var(--fb-mono);
   color: #8f8275;
   flex: none;
 }
@@ -299,7 +299,7 @@
   font-weight: 700;
 }
 .guideSub {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--fb-ink-2);
 }
 .input {
@@ -314,7 +314,7 @@
   font: 500 14px var(--fb-mono);
 }
 .error {
-  font-size: 14px;
+  font-size: 16px;
   color: #ff8a78;
   padding: 0 4px;
 }
@@ -339,4 +339,67 @@
   font: 800 44px var(--fb-font);
   color: var(--fb-accent);
   font-variant-numeric: tabular-nums;
+}
+
+/* 2.1: MIDI & Ableton (S5's mock) */
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin-right: auto;
+}
+.rowSub {
+  font-size: 16px;
+  color: var(--fb-ink-2);
+}
+.mono {
+  font-family: var(--fb-mono);
+  font-size: 16px;
+  color: var(--fb-ink-2);
+  white-space: nowrap;
+}
+.navNew {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #f2701f;
+  color: #1a120c;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  vertical-align: 2px;
+}
+.ccGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.cc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.ccName {
+  font-size: 16px;
+  font-weight: 600;
+}
+.ccLine {
+  font-family: var(--fb-mono);
+  font-size: 14px;
+  color: #f7a35c;
+}
+.learn {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.learn:disabled {
+  color: var(--fb-ink-2);
+  text-decoration: none;
 }

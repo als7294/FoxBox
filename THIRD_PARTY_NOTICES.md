@@ -114,6 +114,14 @@ TouchDesigner itself is the user's own install and is never bundled.
 | [mir-lab/touchdesigner-instancing-examples](https://github.com/mir-lab/touchdesigner-instancing-examples) | TOP-driven instancing (POINT CLOUD, DOT SCREEN, LINE SCAN's fills) | MIT |
 | Derivative's documentation: [Time Machine TOP](https://docs.derivative.ca/Time_Machine_TOP), [Feedback TOP](https://docs.derivative.ca/Feedback_TOP) | The slit-scan and feedback techniques | Documentation |
 
+## MIDI & Ableton (2.1)
+| Project | Use | License |
+|---|---|---|
+| [Ableton Link](https://github.com/Ableton/link) 4.1, vendored in `app/native/link/link` (headers, unmodified) | Tempo sync with Live and other Link apps (`foxbox_link.node`, built by `app/scripts/build-native.sh`) | GPL-2.0-or-later |
+| [asio](https://github.com/chriskohlhoff/asio) (standalone, Link's pinned commit 8806a68), vendored in `app/native/link/asio` | Link's networking | BSL-1.0 |
+| [@julusian/midi](https://github.com/Julusian/node-midi) 3.8.1, its darwin-arm64 N-API prebuild | The virtual MIDI port "FoxBox" | MIT |
+| [RtMidi](https://github.com/thestk/rtmidi) (Gary P. Scavone), inside that prebuild | CoreMIDI access | MIT-style (RtMidi license) |
+
 The Milkdrop presets are community works by the authors named in each preset's title (Geiss, Flexi, Martin,
 Aderrasi, Rovastar, …), collected from the Milkdrop preset community and published in butterchurn-presets under that
 package's MIT license; the individual presets carry no licenses of their own.

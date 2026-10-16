@@ -49,8 +49,8 @@ export const PHRASES: Record<GuideDemoId, Phrase> = {
   shake: { mode: 'sauce', sound: 'lead', period: 2.4, steps: [[0, pluck('right', 0.5, true)], [0.4, (i) => i.holdAction('vibrato', 0.8)], [1.6, (i) => i.releaseAction('vibrato')], [1.8, lift('right')]] },
   octave: { mode: 'sauce', sound: 'pluck', period: 2.6, steps: [...plucks(0, 0.3, [0.5, 0.6, 0.5, 0.4]), [1.1, (i) => i.holdAction('octave')], ...plucks(1.2, 0.3, [0.5, 0.6, 0.5, 0.4]), [2.3, (i) => i.releaseAction('octave')]] },
   preset: {
-    mode: 'sauce', sound: 'keys', period: 3.2, setup: (i) => { i.setMelodyMode('follow'); i.setPreset('night-hook') },
-    steps: [[0, (i) => i.reset()], ...plucks(0.01, 0.35, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])],
+    mode: 'sauce', sound: 'keys', period: 4, setup: (i) => { i.setPreset('night-hook'); i.setMelodyMode('loop') }, // 2.1: it plays by itself
+    steps: [[0, (i) => i.reset()]],
   },
   frame: {
     mode: 'sauce', sound: 'pluck', period: 11,
@@ -62,7 +62,7 @@ export const PHRASES: Record<GuideDemoId, Phrase> = {
       [10, (i) => { i.frame(true); i.frame(false); i.setFrameStyle('echo') }], // made again: it breaks
     ],
   },
-  record: { mode: 'sauce', sound: 'keys', period: 3, setup: (i) => { i.setMelodyMode('follow'); i.setPreset('kitsune') }, steps: [[0, (i) => i.reset()], ...plucks(0.01, 0.3, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])] },
+  record: { mode: 'sauce', sound: 'keys', period: 3, steps: plucks(0.01, 0.3, [0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4]) },
   tearout: { mode: 'remix', period: 4, steps: [[0, (b) => b.play(DROP[0], DROP)], [1, fx({ tear: 0.9 })], [3, fx({ tear: 0 })]] },
   bands: { mode: 'remix', period: 4, steps: [[0, (b) => b.play(DROP[0], DROP)], [1, fx({ cutLow: 1 })], [2, fx({ cutLow: 0, cutHigh: 1 })], [3, fx({ cutHigh: 0 })]] },
   drop: { mode: 'remix', period: 6, steps: [[0, (b) => b.play(4)], [2, (b) => b.play(DROP[0], DROP)]] }, // the build, then on the bar the drop
@@ -109,7 +109,7 @@ async function beatStage(ctx: BaseAudioContext, out: AudioNode): Promise<Beat & 
 async function stage(id: GuideDemoId, ctx: BaseAudioContext, out: AudioNode) {
   const p = PHRASES[id]
   if (p.mode === 'sauce') {
-    const inst = await createInstrument(ctx)
+    const inst = await createInstrument(ctx, { midi: false }) // never into the port or a take
     inst.setSound(p.sound)
     p.setup?.(inst)
     inst.output.connect(out)

@@ -1,13 +1,15 @@
 // REMIX's stems (2.0): StemsStatus (splitting DRUMS · BASS · VOCALS · OTHER, with progress) and StemsNotice, the
 // Demucs licence shown inline (never a modal) before the first split downloads the stem model; Continue or Not now.
 import { create } from 'zustand'
+import { t } from '@/i18n'
 import { api, unwrap, waitJob } from '@/api/client'
 import { useSongFx } from '@/audio/live/songFx'
 import { useLiveDeck } from '@/state/liveDeck'
 
 const OK_KEY = 'foxbox-stems-ok'
 const MODEL = 'stems-htdemucs'
-export const DEMUCS_NOTICE = "The stem splitter's weights are Meta's (Demucs), licensed for scientific use only."
+// ponytail: a module constant takes the language at load; make it a function if a live language switch must reach it.
+export const DEMUCS_NOTICE = t('stems.demucs', "The stem splitter's weights are Meta's (Demucs), licensed for scientific use only.")
 
 const accepted = (): boolean => {
   try {

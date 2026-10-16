@@ -123,7 +123,7 @@
   border: 1px solid var(--col);
   border-radius: 50%;
   color: var(--col);
-  font: 700 12px var(--vb-font-mono);
+  font: 700 14px var(--vb-font-mono);
 }
 .bannerText {
   flex: 1;
@@ -138,7 +138,7 @@
   color: var(--col);
 }
 .bannerBody {
-  font: 400 11px/1.45 var(--vb-font-mono);
+  font: 400 13px/1.45 var(--vb-font-mono);
   overflow-wrap: anywhere;
 }
 .bannerAction {
@@ -159,7 +159,7 @@
   border: 0;
   background: none;
   color: var(--vb-dim);
-  font: 700 14px var(--vb-font-mono);
+  font: 700 16px var(--vb-font-mono);
 }
 .bannerClose:hover {
   color: var(--vb-ink);
@@ -205,7 +205,7 @@
   backdrop-filter: blur(30px);
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
   color: var(--fb-ink);
-  font: 600 15px var(--fb-font);
+  font: 600 16px var(--fb-font);
 }
 .toast:has(.toastBody, .toastDrag, .toastActions) {
   border-radius: 20px;
@@ -232,11 +232,11 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   color: var(--fb-ink-2);
-  font: 600 12px var(--fb-font);
+  font: 600 14px var(--fb-font);
   padding: 0;
 }
 .toastBody {
-  font: 500 13px/1.45 var(--fb-font);
+  font: 500 14px/1.45 var(--fb-font);
   color: var(--fb-ink-2);
   overflow-wrap: anywhere;
 }
@@ -245,7 +245,7 @@
   border: 1px dashed rgba(242, 112, 31, 0.5);
   border-radius: 12px;
   cursor: grab;
-  font: 600 12px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   letter-spacing: 0.08em;
   color: var(--fb-accent);
 }
@@ -260,7 +260,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.1);
   color: var(--fb-ink);
-  font: 600 13px var(--fb-font);
+  font: 600 14px var(--fb-font);
 }
 .toastActions button:hover {
   background: rgba(255, 255, 255, 0.16);
@@ -305,7 +305,7 @@
   align-items: center;
   padding: 6px 0;
   border-bottom: 1px solid rgba(var(--vb-ink-rgb), 0.06);
-  font: 500 12px var(--vb-font-mono);
+  font: 500 14px var(--vb-font-mono);
 }
 .keysList dt {
   color: var(--vb-dim);
@@ -318,7 +318,7 @@
   padding: 3px 8px;
   border: 1px solid var(--vb-line-3);
   border-radius: var(--vb-r2);
-  font: 500 12px var(--vb-font-mono);
+  font: 500 14px var(--vb-font-mono);
 }
 .keysClose {
   align-self: flex-end;
@@ -355,7 +355,7 @@
   letter-spacing: 0.1em;
 }
 .stepsBody {
-  font: 500 11px var(--vb-font-mono);
+  font: 500 13px var(--vb-font-mono);
   color: var(--vb-dim);
   word-break: break-all;
 }
@@ -376,7 +376,7 @@
   display: grid;
   grid-template-columns: 30px 1fr;
   gap: 8px;
-  font: 400 12px/1.5 var(--vb-font-mono);
+  font: 400 14px/1.5 var(--vb-font-mono);
 }
 .stepN {
   font: 700 16px/1.2 var(--vb-font-display);
@@ -493,7 +493,7 @@
 }
 .bootKicker {
   margin-top: 12px;
-  font: 500 13px/1 var(--vb-font-mono);
+  font: 500 14px/1 var(--vb-font-mono);
   letter-spacing: 0.42em;
   margin-right: -0.42em;
   color: var(--vb-accent);
@@ -524,7 +524,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  font: 500 12px var(--vb-font-mono);
+  font: 500 14px var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-dim);
   font-variant-numeric: tabular-nums;
@@ -546,7 +546,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  font: 500 12px var(--vb-font-mono);
+  font: 500 14px var(--vb-font-mono);
   letter-spacing: 0.12em;
   color: var(--vb-ink);
   font-variant-numeric: tabular-nums;
@@ -569,7 +569,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font: 500 11px/1.4 var(--vb-font-mono);
+  font: 500 13px/1.4 var(--vb-font-mono);
   white-space: pre;
   color: rgba(var(--vb-ink-rgb), 0.7);
   overflow: hidden;
@@ -650,7 +650,7 @@
 }
 .bootErrorText {
   margin: 0;
-  font: 500 13px/1.5 var(--vb-font-mono);
+  font: 500 14px/1.5 var(--vb-font-mono);
   color: var(--vb-ink);
 }
 .bootFail {
@@ -669,7 +669,7 @@
   border-radius: var(--vb-r1);
   background: none;
   color: var(--vb-ink);
-  font: 700 12px var(--vb-font-mono);
+  font: 700 14px var(--vb-font-mono);
   letter-spacing: 0.14em;
 }
 .bootAction:hover,

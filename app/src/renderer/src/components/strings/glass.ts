@@ -99,6 +99,9 @@ export interface GlassSignal {
   crackAt: number
   /** The frame turned over: `type` is the flip side's, and the loop runs backwards. */
   flipped: boolean
+  /** FRAMES_SIMPLE (2.1): the effect's amount, 0-1 (S1's frame size against the size it was made at, from 0.5); null
+   *  when there's none (S2: the effect's depth). */
+  amount: number | null
 }
 
 /** The camera's past the frame loops: `length` ms ending on the beat at `end` (performance.now ms), so the loop at
@@ -134,10 +137,14 @@ export interface PaneFrame {
   flash: number
   /** GLASS: how far the shards have fallen, 0-1, once let go; -1 while it's held, or with no crack. */
   crack: number
-  /** Seconds since the pane formed (DATAMOSH's melt, ICE's shimmer, the pills' pop). */
+  /** Seconds since the pane formed (DATAMOSH's melt, ICE's shimmer). */
   age: number
+  /** Seconds since its current effect began (the pane formed, a restyle, a flip): its big name shows for ~1 s. */
+  styleAge: number
   /** Where the loop is (its sweep, beat pulse and the hint's dots), or null with no loop. */
   clock: LoopClock | null
+  /** FRAMES_SIMPLE: the effect's amount, 0-1 (its bar), or null. */
+  amount: number | null
 }
 
 export interface GlassFrame extends PaneFrame {
@@ -146,7 +153,7 @@ export interface GlassFrame extends PaneFrame {
   changed: boolean
 }
 
-const OFF: GlassSignal = { on: false, type: GLASS_TYPES[0]!, size: 0, tilt: 0, x: 0.5, y: 0.5, onAt: 0, crackAt: 0, flipped: false }
+const OFF: GlassSignal = { on: false, type: GLASS_TYPES[0]!, size: 0, tilt: 0, x: 0.5, y: 0.5, onAt: 0, crackAt: 0, flipped: false, amount: null }
 let latest: GlassSignal = OFF
 /** The glass as it is now (S2: the glass sound); off while STRINGS isn't drawing. */
 export const glassSignal = (): GlassSignal => latest
@@ -234,11 +241,24 @@ export function oneLCorners(at: Pt): FrameCorners {
 export const CENTRE_CORNERS: FrameCorners = [{ x: 0.22, y: 0.2 }, { x: 0.78, y: 0.2 }, { x: 0.78, y: 0.8 }, { x: 0.22, y: 0.8 }]
 
 /** The fallback keys (STRINGS_UX: F frame · P next style; S4 wires them). F: a pane at CENTRE_CORNERS while on (SAUCE:
- *  with inst.frame's latch; REMIX: held till F again). P: the next style, as a pinch (S1's cycles) would; the sound
- *  follows through glassSignal(). */
+ *  with inst.frame's latch; REMIX: held till F again). P: the next style, as a pinch (S1's cycles) would, while a pane
+ *  shows; with none, the next frame's effect moves on one instead. The sound follows through glassSignal(). */
 export const keyFrame = { on: false, cycles: 0 }
 export const setKeyFrame = (on: boolean): void => void (keyFrame.on = on)
-export const nextGlassStyle = (): void => void keyFrame.cycles++
+export function nextGlassStyle(): void {
+  if (latest.on) keyFrame.cycles++
+  else nextAt = (nextAt + 1) % GLASS_TYPES.length
+}
+
+/** The effect the next frame opens with (GLASS_TYPES' index), shared by both modes' panes: each new frame takes it,
+ *  and it then moves on past whatever that frame shows (S4's "Next frame: …" toast reads it). */
+let nextAt = 0
+/** The next frame's effect, read without moving it on. */
+export const nextGlassType = (): GlassType => GLASS_TYPES[nextAt]!
+/** …and as its pill names it ("Next frame: HALFTONE"). */
+export const nextGlassName = (): string => GLASS_LABEL[nextGlassType()]
+/** Back to ECHO TRAIL first (the tests' fresh start). */
+export const resetGlassOrder = (): void => void (nextAt = 0)
 
 const ease = (t: number) => t * t * (3 - 2 * t)
 const easeOut = (t: number) => 1 - (1 - t) ** 3 // the design's cubic-bezier(.2, .8, .2, 1), near enough
@@ -322,6 +342,8 @@ export interface FrameInput {
   oldest?: number
   /** S1's frame turned over (upside down) now: the flip side while it is. */
   turned?: boolean
+  /** FRAMES_SIMPLE: S1's frame.amount (0-1), while it's held. */
+  amount?: number | null
 }
 
 /**
@@ -339,6 +361,7 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
   let on = false
   let heldAt = -Infinity
   let index = -1 // GLASS_TYPES' index; the first frame is ECHO TRAIL
+  let styleAt = -Infinity // when the effect on show began (its big name)
   let prev = 0
   let restyleAt = -Infinity
   let cyclesSeen: number | undefined
@@ -362,12 +385,14 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
       let changed = false
       if (want && !on) {
         on = true
-        index = (index + 1) % GLASS_TYPES.length
+        index = nextAt
+        nextAt = (index + 1) % GLASS_TYPES.length
         prev = index
         restyleAt = -Infinity
         flipped = false
         flipAt = -Infinity
         onAt = now
+        styleAt = now
         offAt = crackAt = -Infinity
         flashFrom = reduced ? -Infinity : flashes.at(now + t.edgeMs)
         changed = true
@@ -384,13 +409,16 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
       if (on && input.cycles !== undefined && cyclesSeen !== undefined && input.cycles !== cyclesSeen && now - onAt > 0) {
         prev = index
         index = (index + 1) % GLASS_TYPES.length // on whichever side is showing
+        nextAt = (index + 1) % GLASS_TYPES.length
         restyleAt = now
+        styleAt = now
         changed = true
       }
       if (on && input.turned !== undefined && input.turned !== flipped && now - onAt > 0) { // turned over, or back
         flipFrom = styleOf(index, flipped)
         flipped = input.turned
         flipAt = now
+        styleAt = now
         restyleAt = -Infinity
         changed = true
       }
@@ -418,14 +446,15 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
       const restyle = reduced ? 1 : ease(clamp01((now - restyleAt) / RESTYLE_MS))
       const quad = corners ? quadOf(corners, aspect) : null
       const size = quad ? clamp01((Math.hypot(2 * quad.hw, 2 * quad.hh) / aspect - 0.08) / 0.62) : 0
+      const amount = on && typeof input.amount === 'number' && Number.isFinite(input.amount) ? clamp01(input.amount) : null
       latest = quad && on
-        ? { on: true, type, size, tilt: Math.max(-1, Math.min(1, quad.tilt / (Math.PI / 4))), x: quad.x, y: quad.y, onAt, crackAt: cracked, flipped }
+        ? { on: true, type, size, tilt: Math.max(-1, Math.min(1, quad.tilt / (Math.PI / 4))), x: quad.x, y: quad.y, onAt, crackAt: cracked, flipped, amount }
         : { ...OFF, type, onAt, crackAt: cracked, flipped }
       return {
         type, prev: reduced ? 'plain' : styleOf(prev, flipped), restyle, loop, corners, mix, edge, bloom,
         flipped, flip: reduced ? 1 : clamp01((now - flipAt) / FLIP_MS), flipFrom: reduced ? 'plain' : flipFrom,
-        flash: flashAt(now, flashFrom), crack, age: since / 1000, quad, changed,
-        clock: loop && !reduced ? loopClock(loop, now, flipped) : null,
+        flash: flashAt(now, flashFrom), crack, age: since / 1000, styleAge: (now - styleAt) / 1000, quad, changed,
+        clock: loop && !reduced ? loopClock(loop, now, flipped) : null, amount,
       }
     },
   }

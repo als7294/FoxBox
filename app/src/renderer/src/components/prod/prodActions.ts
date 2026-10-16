@@ -1,5 +1,6 @@
 // STRINGS' commits: RECORD A CLIP and SEND TO OUTPUT. And ▶ / TEST BEAT on REMIX's deck (state/liveDeck).
 import { create } from 'zustand'
+import { t } from '@/i18n'
 import { startLiveCapture, type LiveCapture } from '@/components/clips/liveCapture'
 import { useTakes } from '@/components/stage/takes'
 import { bridge } from '@/env'
@@ -28,12 +29,12 @@ export const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math
 export function startRecording(): void {
   const canvas = prodCanvas.current
   const sound = getClipAudio()
-  if (!canvas || !sound) return void toast.warn('PLAY THE TRACK FIRST', { detail: 'A clip records the picture with the playing track.' })
+  if (!canvas || !sound) return void toast.warn(t('rec.playFirst', 'PLAY THE TRACK FIRST'), { detail: t('rec.playFirst.clip', 'A clip records the picture with the playing track.') })
   try {
     capture = startLiveCapture(canvas, sound, { aspect: useProd.getState().aspect, watermark: useViewPrefs.getState().clipWatermark })
     useProdRec.setState({ t0: performance.now() })
   } catch (e) {
-    toast.error('NOT RECORDING', { detail: (e as Error).message })
+    toast.error(t('rec.failed', 'NOT RECORDING'), { detail: (e as Error).message })
   }
 }
 
@@ -50,9 +51,10 @@ export async function stopRecording(): Promise<void> {
     // into RECORD's takes list beside the WAVs (draggable, Show in Finder)
     useTakes.setState((t) => ({ recent: [{ name: path.split('/').pop() ?? clip.name, path, seconds: clip.seconds }, ...t.recent].slice(0, 3) }))
     // the file's name, never its path; a face tag only when face hiding is on
-    toast.success(`Clip saved · ${clock(clip.seconds)}${hidden ? ' · face hidden' : ''}`, { detail: path.split('/').pop(), dragPath: b ? path : undefined })
+    const saved = t('rec.clip.saved', 'Clip saved · {time}', { time: clock(clip.seconds) })
+    toast.success(hidden ? `${saved} · ${t('rec.clip.faceHidden', 'face hidden')}` : saved, { detail: path.split('/').pop(), dragPath: b ? path : undefined })
   } catch (e) {
-    toast.error('CLIP NOT SAVED', { detail: (e as Error).message })
+    toast.error(t('rec.clip.failed', 'CLIP NOT SAVED'), { detail: (e as Error).message })
   }
 }
 

@@ -19,7 +19,7 @@
   min-height: 32px;
 }
 .colLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--fb-ink-2);
@@ -62,7 +62,7 @@
   font-weight: 800;
 }
 .legendA {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fb-ink-2);
   white-space: nowrap;
   overflow: hidden;
@@ -72,7 +72,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 700 11px var(--fb-mono); /* ≥ 11px (FOXBOX2_COMPACT.md) */
+  font: 700 13px var(--fb-mono); /* ≥ 11px (FOXBOX2_COMPACT.md) */
   letter-spacing: 0.1em;
   color: #ff9c5c;
 }
@@ -88,7 +88,7 @@
   height: 32px;
   padding: 0 14px;
   border-radius: 11px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.08);
   transition: background 0.2s;
@@ -137,7 +137,7 @@
   position: absolute;
   left: 12px;
   top: 10px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   opacity: 0.7;
 }
@@ -154,7 +154,7 @@
   border-radius: 13px;
   display: grid;
   place-items: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.04em;
   background: rgba(255, 255, 255, 0.1);
@@ -208,12 +208,12 @@
   height: 100%;
 }
 .visOff {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: rgba(255, 243, 230, 0.85);
 }
 .visName {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   padding-left: 4px;
 }
@@ -267,7 +267,7 @@
   letter-spacing: -0.02em;
 }
 .recSub {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--fb-ink-2);
 }
 .recTime {
@@ -316,9 +316,22 @@
   white-space: nowrap;
 }
 .takeDur {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--fb-ink-2);
   font-variant-numeric: tabular-nums;
+}
+.mid {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(247, 163, 92, 0.16);
+  color: #f7a35c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: 0.04em;
+  cursor: grab;
+  flex: none;
 }
 .finder {
   margin-left: auto;
@@ -326,12 +339,12 @@
   padding: 0 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.07);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   flex: none;
 }
 .empty {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--fb-ink-2);
   padding: 4px;
 }
@@ -341,7 +354,7 @@
   height: 32px;
   padding: 0 14px;
   border-radius: 11px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.08);
   transition: background 0.2s;
@@ -376,7 +389,7 @@
   height: 32px;
   padding: 0 12px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #ffb27a;
   background: rgba(255, 178, 122, 0.1);
@@ -394,7 +407,7 @@
   align-items: center;
   gap: 8px;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 14px;
+  font-size: 16px;
 }
 .editChip:hover:not(:disabled) {
   filter: brightness(1.15);
@@ -404,11 +417,11 @@
   color: #1c1611;
 }
 .editChip span {
-  font-size: 12px;
+  font-size: 14px;
   opacity: 0.6;
 }
 .editHint {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   color: var(--fb-ink-2);
 }
@@ -424,4 +437,35 @@
   .handsGrid[data-edit] .shapes {
     grid-template-columns: repeat(6, 1fr);
   }
+}
+
+/* 2.1 LOOP (Melody mode): an edited preset's dot, the tempo stepper, the legend's extras */
+.editedDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #f7a35c;
+  vertical-align: 2px;
+}
+.tempo {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.tempoValue {
+  text-align: center;
+  font: 700 22px var(--fb-mono);
+  font-variant-numeric: tabular-nums;
+}
+.extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 10px 4px 0;
+  font-size: 16px;
+  color: var(--fb-ink-2);
 }

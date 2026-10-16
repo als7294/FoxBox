@@ -23,6 +23,7 @@ import { loadAudioBytes } from '../cache'
 import { AudioTapImpl, type AudioTap } from './bus'
 import { impulse, type LiveEngine } from './engine'
 import { tempoRate } from '../board'
+import { followDeck, onExternalClock, STALE_MS, type ExternalClock } from '../externalClock'
 import { SongFx, STEMS, useSongFx, type DeckStems, type StemName } from './songFx'
 import { renderTestBeat, TEST_BEAT, TEST_BEAT_SECTIONS } from './testBeat'
 
@@ -197,6 +198,12 @@ export class SongDeck {
   private readonly ducker: GainNode
   private readonly tapImpl: AudioTapImpl
   private readonly offStems: () => void
+  /** Link (externalClock): following it (its tempo within ±8 %, its bar) while it's on; else the Board's Tempo. */
+  private readonly offLink: () => void
+  private boardRate = 1
+  private following = false
+  private linkJumpAt = -Infinity
+  private linkLost: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly engine: LiveEngine) {
     const ctx = engine.ctx
@@ -213,6 +220,7 @@ export class SongDeck {
     const wanted = (s: ReturnType<typeof useSongFx.getState>) => s.wantStems && s.enabled
     this.stemsWanted = wanted(useSongFx.getState())
     this.offStems = useSongFx.subscribe((s) => this.wantStems(wanted(s)))
+    this.offLink = onExternalClock((c) => this.followLink(c))
   }
 
   /** Playing from the song's stems (each through SongFx's level and lowpass) rather than the mix. */
@@ -378,7 +386,31 @@ export class SongDeck {
 
   /** The Board's Tempo (board.ts, 0-1: ±8 %, vinyl): from now, the playhead running on from where it is. */
   setTempo(v: number): void {
-    const rate = tempoRate(v)
+    this.boardRate = tempoRate(v)
+    if (!this.following) this.setRate(this.boardRate) // Link on: it sets the speed
+  }
+
+  /** Following Link while it's on: its tempo (within ±8 %: past that the song keeps the Board's, there's no time-stretch)
+   *  and its bar (a jump on its next bar line when it's off by more than a quarter beat, then nudges). */
+  private followLink(c: ExternalClock | null): void {
+    if (this.linkLost) clearTimeout(this.linkLost)
+    const now = this.engine.ctx.currentTime, g = this.grid
+    const f = c && g && this.playing ? followDeck(g.bpm, clockAt(g, this.positionS(now)).beat, g.beatsPerBar, c) : null
+    if (!c || !f) {
+      if (this.following) { this.following = false; this.setRate(this.boardRate) } // gone, or out of range: the Board's
+      return
+    }
+    this.following = true
+    this.linkLost = setTimeout(() => this.followLink(null), STALE_MS) // no reading for a while: Link's gone
+    if (now < this.linkJumpAt) return // a jump on its way
+    this.setRate(f.rate)
+    if (!f.jump) return
+    const q = c.quantum, t = now + Math.max(0.02, (((q - c.phase) % q || q) * 60) / c.bpm) // its next bar line
+    this.startAt(t, this.positionS(t) + (f.jump * 60) / g!.bpm)
+    this.linkJumpAt = t + 0.05
+  }
+
+  private setRate(rate: number): void {
     if (rate === this.rate) return
     const now = this.engine.ctx.currentTime, pos = this.positionS(now)
     this.rate = rate
@@ -410,6 +442,8 @@ export class SongDeck {
 
   dispose(): void {
     this.offStems()
+    this.offLink()
+    if (this.linkLost) clearTimeout(this.linkLost)
     this.stop()
     this.dropStems()
     this.tapImpl.dispose()

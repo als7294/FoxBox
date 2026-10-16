@@ -41,7 +41,7 @@
 }
 .kicker {
   margin: 0;
-  font: 600 13px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   letter-spacing: 0.14em;
   color: var(--fb-accent);
 }
@@ -105,7 +105,7 @@
   font-weight: 700;
 }
 .cardBody {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.4;
   color: var(--fb-ink-2);
 }
@@ -151,7 +151,7 @@
 }
 .voiceLine {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.4;
   color: var(--fb-ink-2);
 }
@@ -161,7 +161,7 @@
   border-radius: 12px;
   display: inline-flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   text-decoration: none;
   color: #071514;
@@ -171,7 +171,7 @@
   filter: brightness(1.08);
 }
 .voiceSmall {
-  font-size: 13px;
+  font-size: 14px;
   color: #9aabc2;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -181,7 +181,7 @@
 }
 .all summary {
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--fb-ink-2);
 }
@@ -192,7 +192,7 @@
   margin: 0;
   padding-left: 18px;
   max-width: 620px;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   color: var(--fb-ink-2);
 }
@@ -221,12 +221,25 @@
 }
 .legacy {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fb-ink-2);
 }
 .legacy a {
   color: var(--fb-accent);
   text-underline-offset: 3px;
+}
+/* short windows (1280 × 800): less air above, smaller demos, so the CTAs clear the bottom even in Spanish */
+@media (max-height: 860px) {
+  .col {
+    padding: 40px 0 32px;
+    gap: 14px;
+  }
+  .demo {
+    height: 92px;
+  }
+  .demo canvas {
+    max-height: 92px;
+  }
 }
 @media (max-width: 1100px) {
   .col {
@@ -270,7 +283,7 @@
   font-weight: 700;
 }
 .itemBody {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--fb-ink-2);
 }

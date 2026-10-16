@@ -1,6 +1,7 @@
 # Build and test outputs (S4)
 out/
 release/
+build/native/
 test-results/
 playwright-report/
 *.tsbuildinfo

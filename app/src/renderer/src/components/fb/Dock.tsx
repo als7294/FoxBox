@@ -2,7 +2,7 @@
 // Melody · Hands · Visual · Board · Record · Settings; REMIX: Song · Beat FX · Library · Visual · Board · Record ·
 // Settings. A button opens its popover (or the Board, the wheel, Settings); the active one is cream.
 import { beatFxNow } from '@/audio/live/beatFx'
-import { SOUNDS, usePlay } from '@/components/play/playStore'
+import { playModeOf, SOUNDS, usePlay } from '@/components/play/playStore'
 import { clock, useProdRec } from '@/components/prod/prodActions'
 import { useProd } from '@/components/prod/prodStore'
 import { useTick } from '@/components/stage/StageControls'
@@ -11,9 +11,11 @@ import { closeWheel, openWheel, useWheelUi } from '@/components/wheel/WheelOverl
 import { useLiveDeck } from '@/state/liveDeck'
 import { useUi, type Mode } from '@/state/ui'
 import { closeAll, openSettings, toggleBoard, togglePop, useFb, type Pop, type VisualKind } from './fbStore'
+import { t } from '@/i18n'
 import s from './dock.module.css'
 
-const VISUAL_LABEL: Record<VisualKind, string> = { off: 'Off', bars: 'Bars', halo: 'Halo', silk: 'Silk', grain: 'Grain', scope: 'Scope' }
+/** The visuals' names (read as it renders: the language may change); the named visuals stay English. */
+const visualLabel = (): Record<VisualKind, string> => ({ off: t('dock.visual.off', 'Off'), bars: 'Bars', halo: 'Halo', silk: 'Silk', grain: 'Grain', scope: 'Scope' })
 const FX_LABEL: Record<string, string> = {
   tearout: 'TEAROUT',
   riddim: 'RIDDIM',
@@ -39,9 +41,9 @@ function useButtons(mode: Mode): DockButton[] {
   const settings = useUi((u) => u.settingsOpen)
   const wheel = useWheelUi((w) => w.open)
   const sound = usePlay((p) => p.sound)
-  const melody = usePlay((p) => p.melodyMode)
-  const style = usePlay((p) => p.style)
-  const takeT0 = useTakes((t) => t.t0)
+  const style = usePlay(playModeOf)
+  const preset = usePlay((p) => (p.melodyMode === 'loop' ? (p.preset?.name ?? 'LOOP') : t('dock.melody.presets', 'Presets')))
+  const takeT0 = useTakes((x) => x.t0)
   const clipT0 = useProdRec((r) => r.t0)
   const kind = useProd((p) => p.recordKind)
   const deck = useLiveDeck((d) => d.deck)
@@ -49,30 +51,30 @@ function useButtons(mode: Mode): DockButton[] {
   const rec = recAt != null ? `● ${clock((performance.now() - recAt) / 1000)}` : null
   const p = (key: Pop, label: string, value: string): DockButton => ({ key, label, value, on: pop === key, click: () => togglePop(key) })
   const shared = {
-    visual: p('visual', 'Visual', mode === 'remix' && visual === 'off' ? 'Camera' : VISUAL_LABEL[visual]),
-    board: { key: 'board', label: 'Board', value: board ? 'Hide' : 'Knobs', on: board, click: toggleBoard },
-    settings: { key: 'settings', label: 'Settings', value: '⋯', on: settings, click: openSettings },
+    visual: p('visual', t('dock.visual', 'Visual'), mode === 'remix' && visual === 'off' ? t('camera.aria', 'Camera') : visualLabel()[visual]),
+    board: { key: 'board', label: t('board.name', 'Board'), value: board ? t('dock.board.hide', 'Hide') : t('dock.board.knobs', 'Knobs'), on: board, click: toggleBoard },
+    settings: { key: 'settings', label: t('dock.settings', 'Settings'), value: '⋯', on: settings, click: openSettings },
   }
   if (mode === 'play')
     return [
-      p('sound', 'Sound', SOUNDS.find((x) => x.id === sound)!.label),
-      p('melody', 'Melody', melody === 'off' ? 'Off' : melody.toUpperCase()),
-      p('hands', 'Hands', style.toUpperCase()),
+      p('sound', t('dock.sound', 'Sound'), SOUNDS.find((x) => x.id === sound)!.label),
+      p('melody', t('dock.melody', 'Melody'), preset),
+      p('hands', t('dock.hands', 'Hands'), style.toUpperCase()),
       shared.visual,
       shared.board,
-      p('rec', 'Record', rec ?? 'Takes'),
+      p('rec', t('stage.record', 'Record'), rec ?? t('dock.rec.takes', 'Takes')),
       shared.settings,
     ]
   const c = deck?.clock() ?? null
   const bar = c && c.beat >= 0 ? Math.floor(c.beat / c.beatsPerBar) + 1 : 1
   const fx = beatFxNow().fx
   return [
-    p('song', 'Song', `${deck?.isPlaying ? '❚❚' : '▶'} Bar ${bar}`),
-    p('fx', 'Beat FX', fx && fx !== 'glass' ? (FX_LABEL[fx] ?? fx.toUpperCase()) : 'Hold'),
+    p('song', t('dock.song', 'Song'), `${deck?.isPlaying ? '❚❚' : '▶'} ${t('dock.bar', 'Bar {n}', { n: bar })}`),
+    p('fx', 'Beat FX', fx && fx !== 'glass' ? (FX_LABEL[fx] ?? fx.toUpperCase()) : t('dock.fx.hold', 'Hold')),
     {
       key: 'lib',
-      label: 'Library',
-      value: wheel ? 'Close' : 'Browse',
+      label: t('settings.tab.library', 'Library'),
+      value: wheel ? t('common.close', 'Close') : t('dock.lib.browse', 'Browse'),
       on: wheel,
       click: () => {
         if (wheel) return closeWheel()
@@ -82,7 +84,7 @@ function useButtons(mode: Mode): DockButton[] {
     },
     shared.visual,
     shared.board,
-    p('rec', 'Record', rec ?? (kind === 'wav' ? 'Audio' : 'Video')),
+    p('rec', t('stage.record', 'Record'), rec ?? (kind === 'wav' ? t('dock.rec.audio', 'Audio') : t('dock.rec.video', 'Video'))),
     shared.settings,
   ]
 }

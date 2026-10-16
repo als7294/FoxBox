@@ -105,10 +105,11 @@ describe('STRINGS: a folded finger', () => {
     const all = at(0, 3)
     expect(text).toEqual(['SUB', 'LOW', 'MID', 'HI-MID', 'HIGH'])
     expect(calls).not.toContain('dash')
-    expect(at(0.95, 40)).toBe(all - 1) // folded: one dashed line for its glow and core
+    // strings of light are filled ribbons (no strokes); a folded band is its one dashed line instead
+    expect(at(0.95, 40)).toBe(all + 1)
     expect(calls).toContain('dash')
     expect(text).toContain('HI-MID · CUT')
-    expect(at(0.7, 3)).toBe(all - 1) // still held folded under the raise threshold (hysteresis)
+    expect(at(0.7, 3)).toBe(all + 1) // still held folded under the raise threshold (hysteresis)
     expect(at(0.2, 40)).toBe(all) // raised: re-strung
     expect(text).toContain('HI-MID')
   })

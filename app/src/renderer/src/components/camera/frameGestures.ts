@@ -1,43 +1,41 @@
 /**
- * The FRAME (2.0, PLAY and REMIX): two hands making an L each, the frame between them.
+ * The FRAME (2.1, docs/FRAMES_SIMPLE.md): held, it is; let go, it isn't. Two hands making an L each, the frame between
+ * them (one-handed: one L, held Hold time), the same in PLAY and REMIX.
  * - Its geometry for S3's pane: a perspective quad (each L's corner, and where the hands' thumb and index tips meet),
- *   smoothed; its size.
+ *   smoothed; its size; its amount (S2's effect depth): its size against its size as it formed, 0.5 then.
  * - formed / formedAt: two Ls held (HandShapes.frame, camMath's FRAME_HOLD_MS); it stays formed until both hands are
- *   seen out of the L shape for RELEASE_MS (a corner's tap keeps one L; a hand lost a moment counts as last seen), or
- *   no hand is seen for LOST_MS.
- * - cycles: a tap at a corner while it's formed (one hand's L breaking, its thumb closing on its index, and coming back
- *   while the other's holds: the tracker's own pinch reading misfires where a thumb's hidden), or any PLAY pinch while
- *   PLAY's loop is latched: one each. PLAY doesn't play it as WOBBLE or pluck it (playGestures).
+ *   seen out of the L shape for RELEASE_MS (a hand lost a moment counts as last seen), or no hand is seen for LOST_MS.
+ *   A turn slow enough that its Ls go unread that long lets go too: no grace for hands seen edge-on, which is how a C
+ *   comes back to play (S3's P19).
  * - flipped / flips: turned like a card, the frame upright and both hands turned over in their corners (palms to backs
  *   to the camera), with hysteresis; turned back, the front again. Which way a palm faces comes from the hand's own
- *   landmarks (palmFacing), whichever hand it is: MediaPipe's handedness can name both hands the same.
- * - latched: PLAY's loop, on with a frame and off with the next.
+ *   landmarks (palmFacing), whichever hand it is: MediaPipe's handedness can name both hands the same. Untaught.
+ * - Melody's LOOP (2.1, setInwardFrames): any inward frame counts, the lenient test (inwardPair) in place of two Ls.
  */
-import { type HandShape, type HandShapes, type Pt } from './camMath'
+import { FRAME_HOLD_MS, isLPose, type HandShape, type HandShapes, type Pt } from './camMath'
 import { playingHand, SLOT } from './playGestures'
 import { usePlayPrefs, WOBBLE_MS } from './playPrefs'
 
 export interface FrameSignal {
+  /** Held now (one-handed's L included). */
   formed: boolean
-  /** performance.now() it formed (0 before the first). */
+  /** performance.now() it formed (0 before the first): how long it's been held. */
   formedAt: number
   /** Its corners clockwise from the top-left, smoothed (cameraSignals: the stage's 0-1; here the camera's); held
    *  through the grace, null before the first frame. */
   corners: Pt[] | null
   /** Its diagonal, 0-1 of the picture's width. */
   size: number
-  /** Pinches while formed (or while PLAY's loop is latched): one each. */
-  cycles: number
+  /** Its size against its size as it formed: 0.5 then, wider more (1 at twice), closer less. */
+  amount: number
   /** Turned over like a card (every hand seen facing the other way from how it formed), held FLIP_MS; false on a new
    *  frame. */
   flipped: boolean
   flips: number
-  /** PLAY's loop: on with a frame, off with the next. */
-  latched: boolean
   /** How long a hand has been an L with no frame formed (ms; 0 otherwise): a frame tried for and not found (the coach's
    *  "Frames need a little more light" in a dim room, where the second hand goes unseen). */
   lHeldMs: number
-  /** One-handed: the single L held toward opening (or releasing) the frame, 0 … 1 at Hold time; 0 once it fires. */
+  /** One-handed: the single L held toward the frame, 0 … 1 at Hold time; 0 once it's formed. */
   holdProgress: number
   /** One-handed: the L's corner (camera 0-1; cameraSignals maps it to the stage), where S3's pane opens from toward the
    *  picture's middle (glass oneLCorners); followed while the L's held, kept after; null with two hands. */
@@ -46,31 +44,48 @@ export interface FrameSignal {
 
 /** The frame's feel. */
 export const FRAME = {
-  /** Both hands seen out of the L shape this long: the frame's let go (PLAY: its next frame unlatches). */
+  /** Both hands seen out of the L shape this long: let go. */
   RELEASE_MS: 300,
   /** No hand seen this long: let go too. */
   LOST_MS: 2000,
-  /** A corner's tap: one hand's L broken this long (the other holding), then back. */
-  TAP_MIN_MS: 60,
-  TAP_MAX_MS: 800,
-  /** A tap's thumb-index gap closes under this share of the L's, and under TAP_GAP palm lengths (a corner's pinch closes
-   *  to 0.1-0.55; an L misread for a moment at a wobble's turn, about 1.2). */
-  TAP_CLOSE: 0.7,
-  TAP_GAP: 0.8,
-  /** A pinch counts once per this (its tap and its pinch reading are the same one). */
-  CYCLE_GAP_MS: 400,
   /** Turned over (or back) this long before it counts: a hand caught mid-turn isn't. */
   FLIP_MS: 150,
   /** One-handed's frame: its sides, palm lengths. */
   ONE_SIZE: 2.2,
-  /** Dropped and made again within this, every hand now facing the other way from its last L: the same frame turned
-   *  over (its Ls unread edge-on for RELEASE_MS, a slow turn or a loaded tracker), not a new one. */
-  REJOIN_MS: 1000,
   /** The corners' smoothing, each result. */
   SMOOTH: 0.45,
+  /** Melody's LOOP: an inward frame's four fingertips bound this much of the picture at least. */
+  INWARD_AREA: 0.02,
 }
 
-export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, size: 0, cycles: 0, flipped: false, flips: 0, latched: false, lHeldMs: 0, holdProgress: 0, corner: null }
+/** MELODY on LOOP (S2 sets it): any inward frame counts (inwardPair), not just two Ls. */
+let inwardOnly = false
+export const setInwardFrames = (on: boolean): void => void (inwardOnly = on)
+
+/** The lenient inward frame (Melody's LOOP, FRAMES_SIMPLE): each hand's thumb and index out and apart, its other
+ *  fingers anyhow (isLPose); each L's opening (between its thumb and index, from its corner) toward the other's corner;
+ *  their four fingertips bounding INWARD_AREA of the picture. Any rotation, either hand on top. */
+export function inwardPair(a: HandShape, b: HandShape, aspect: number): boolean {
+  if (!isLPose(a, aspect) || !isLPose(b, aspect)) return false
+  const sq = (p: Pt) => ({ x: p.x * aspect, y: p.y })
+  const opening = (h: HandShape) => {
+    const v = sq(lVertex(h, aspect))
+    const out = [4, 8].map((i) => {
+      const p = sq(h.points[i]!)
+      const n = Math.hypot(p.x - v.x, p.y - v.y) || 1
+      return { x: (p.x - v.x) / n, y: (p.y - v.y) / n }
+    })
+    return { v, d: { x: out[0]!.x + out[1]!.x, y: out[0]!.y + out[1]!.y } }
+  }
+  const [oa, ob] = [opening(a), opening(b)]
+  const faces = (o: typeof oa, at: Pt) => o.d.x * (at.x - o.v.x) + o.d.y * (at.y - o.v.y) > 0
+  if (!faces(oa, ob.v) || !faces(ob, oa.v)) return false
+  const q = clockwise([a.points[4]!, a.points[8]!, b.points[4]!, b.points[8]!].map((p) => ({ ...p })), aspect)
+  const area = Math.abs(q.reduce((s, p, i) => s + p.x * q[(i + 1) % 4]!.y - q[(i + 1) % 4]!.x * p.y, 0)) / 2
+  return area >= FRAME.INWARD_AREA
+}
+
+export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, size: 0, amount: 0.5, flipped: false, flips: 0, lHeldMs: 0, holdProgress: 0, corner: null }
 
 /** An L's corner (camera 0-1): where its thumb's line (2 to 4) meets its index's (5 to 8); the index's knuckle when the
  *  lines are near parallel. `aspect`: the frame's width over its height. */
@@ -109,6 +124,9 @@ export function oneQuad(h: HandShape, aspect: number): Pt[] {
   return clockwise([at(0, 0), at(1, 0), at(1, 1), at(0, 1)], aspect)
 }
 
+/** Two points' distance, of the picture's width. */
+const dist = (p: Pt, q: Pt, aspect: number) => Math.hypot(q.x - p.x, (q.y - p.y) / aspect)
+
 /** Four corners in order, clockwise from the top-left. */
 function clockwise(quad: Pt[], aspect: number): Pt[] {
   const c = { x: quad.reduce((s, p) => s + p.x, 0) / 4, y: quad.reduce((s, p) => s + p.y, 0) / 4 }
@@ -116,13 +134,6 @@ function clockwise(quad: Pt[], aspect: number): Pt[] {
   const sorted = quad.sort((p, q) => Math.atan2(p.y - c.y, (p.x - c.x) * aspect) - Math.atan2(q.y - c.y, (q.x - c.x) * aspect))
   const first = sorted.reduce((best, p, i) => (p.x * aspect + p.y < sorted[best]!.x * aspect + sorted[best]!.y ? i : best), 0)
   return [...sorted.slice(first), ...sorted.slice(0, first)]
-}
-
-/** A hand's thumb tip to its index tip in the picture, in palm lengths. */
-const thumbGap = (h: HandShape, aspect: number) => {
-  const p = (i: number) => ({ x: h.points[i]!.x * aspect, y: h.points[i]!.y })
-  const [t, i, w, m] = [p(4), p(8), p(0), p(9)]
-  return Math.hypot(t.x - i.x, t.y - i.y) / (Math.hypot(m.x - w.x, m.y - w.y) || 1e-6)
 }
 
 /** Which way a hand's palm faces: 1 the camera, -1 away, 0 unsure (edge-on). From its world landmarks, whichever hand
@@ -146,155 +157,98 @@ export class FrameGestures {
   private noL = -1 // since the first result with no L seen (no hand seen counts), -1 while one is
   private wasL = { left: false, right: false } // each hand as last seen: an L
   private anyAt = -1e9 // a hand last seen
-  private tap = -1 // since one hand's L broke (the other's holding)
-  private tapGap = { start: 0, least: 0 } // that hand's thumb-index gap (palm lengths) as it broke, and its least since
-  private tapFacing = { was: 0, turned: false } // that hand's palm facing as it broke, and whether it's turned since
-  private gaps = { left: 1, right: 1 } // each hand's thumb-index gap while it was last an L
-  private cycled = -1e9
+  private span = 0 // its span (amount's measure), smoothed
+  private span0 = 0 // …as it formed
   /** The flip: each hand's palm facing as it formed, a candidate's start. */
   private facing0 = { left: 0, right: 0 }
-  private lastFacing = { left: 0, right: 0 } // each hand's palm facing as last seen in its L
-  private dropped = { at: -1e9, facing: { left: 0, right: 0 } } // when it last dropped, its hands' last L facings then
   private flipSince = -1
-  private tapping = { left: false, right: false }
   private lSince = -1 // a hand an L, no frame formed, since
-  /** One-handed: the L's hold (since, last seen, fired: it toggles once per hold; its palm facing as it began, and
-   *  whether the hand's turned since: a turn is the flip side, not a toggle). */
-  private hold = { since: -1, seen: -1e9, fired: false, facing: 0, turned: false }
+  private inSince = -1 // Melody's LOOP: an inward pair since
+  /** One-handed: the L's hold (since, last seen). */
+  private hold = { since: -1, seen: -1e9 }
 
-  /** One hands result. `taps`: PLAY's quick pinch per performer hand (playGestures), for cycles while latched. */
-  step(shapes: HandShapes, now: number, aspect: number, taps: Record<'left' | 'right', boolean> = { left: false, right: false }): FrameSignal {
-    const { oneHanded, holdMs, wobble } = usePlayPrefs.getState()
-    if (oneHanded) return this.oneStep(shapes, now, aspect, taps, holdMs, WOBBLE_MS[wobble])
+  /** One hands result. */
+  step(shapes: HandShapes, now: number, aspect: number): FrameSignal {
+    const { controlStyle, holdMs, wobble } = usePlayPrefs.getState()
+    if (controlStyle === 'one') return this.oneStep(shapes, now, aspect, holdMs, WOBBLE_MS[wobble])
     const { left, right } = shapes
-    const detected = shapes.frame.held && shapes.frame.seen === now && !!left && !!right
+    // LOOP's lenient frame: an inward pair held FRAME_HOLD_MS, its hands out of it when out of their L pose.
+    const inward = inwardOnly && !!left && !!right && inwardPair(left, right, aspect)
+    this.inSince = inward ? (this.inSince < 0 ? now : this.inSince) : -1
+    const detected = inwardOnly ? inward && now - this.inSince >= FRAME_HOLD_MS : shapes.frame.held && shapes.frame.seen === now && !!left && !!right
     if (left || right) this.anyAt = now
-    const ls = { left: !!left && left.isL, right: !!right && right.isL }
+    const isL = (h: HandShape | null) => !!h && (inwardOnly ? isLPose(h, aspect) : h.isL)
+    const ls = { left: isL(left), right: isL(right) }
     // Out: both hands out of their L (a hand lost a moment as it was last seen), timed from the first result without an
     // L: hands leaving one fast are often lost a result or two on the way.
     if (left) this.wasL.left = ls.left
     if (right) this.wasL.right = ls.right
     if (ls.left || ls.right) this.noL = -1
     else if (this.noL < 0) this.noL = now
-    if (ls.left && left) this.lastFacing.left = palmFacing(left) || this.lastFacing.left
-    if (ls.right && right) this.lastFacing.right = palmFacing(right) || this.lastFacing.right
     const outNow = (!!left || !!right) && !this.wasL.left && !this.wasL.right
     this.out = outNow ? this.noL : -1
-    let { formed, cycles } = this.s
-    if (!formed && detected) {
+    let formed = this.s.formed
+    if (!formed && detected && left && right) {
+      // A new frame: the right way up, its corners where they are.
       formed = true
-      const now0 = { left: palmFacing(left), right: palmFacing(right) }
-      const d = this.dropped.facing
-      const turned = now - this.dropped.at <= FRAME.REJOIN_MS && !!d.left && !!d.right && now0.left === -d.left && now0.right === -d.right
-      if (turned) {
-        // The same frame, turned over while its Ls went unread: the latch stays; flipped as it now faces.
-        const flipped = now0.left === -this.facing0.left
-        this.s = { ...this.s, flipped, flips: this.s.flips + (flipped !== this.s.flipped ? 1 : 0) }
-      } else {
-        // A new frame: PLAY's loop toggles; it starts the right way up, its corners where they are.
-        this.s = { ...this.s, formedAt: now, latched: !this.s.latched, flipped: false }
-        this.facing0 = now0
-        this.tap = -1
-      }
+      this.facing0 = { left: palmFacing(left), right: palmFacing(right) }
       this.flipSince = -1
+      this.s = { ...this.s, formedAt: now, flipped: false, corners: null }
     } else if (formed && ((this.out >= 0 && now - this.out >= FRAME.RELEASE_MS) || now - this.anyAt > FRAME.LOST_MS)) {
       formed = false
-      this.dropped = { at: now, facing: { ...this.lastFacing } }
     }
-
     if (formed) {
-      if (detected) {
-        const quad = frameQuad(left, right, aspect)
-        const was4 = this.s.corners
-        const corners = was4 && this.s.formed ? was4.map((p, i) => ({ x: p.x + (quad[i]!.x - p.x) * FRAME.SMOOTH, y: p.y + (quad[i]!.y - p.y) * FRAME.SMOOTH })) : quad
-        this.s = { ...this.s, corners, size: Math.hypot(corners[2]!.x - corners[0]!.x, (corners[2]!.y - corners[0]!.y) / aspect) }
-      }
+      if (detected && left && right) this.place(frameQuad(left, right, aspect), aspect, dist(lVertex(left, aspect), lVertex(right, aspect), aspect))
       this.turnOver(ls.left ? left : null, ls.right ? right : null, now)
-      // A corner's tap: one L broken (the other holding) for a moment, then back...
-      // ... its thumb closing on its index (the gap under TAP_CLOSE of the L's and TAP_GAP): a wobble breaks an L, not
-      // that; nor a hand turning over (its palm facing changing on the way: a flip's start foreshortens the gap).
-      const side = ls.left && right && !ls.right ? 'right' : ls.right && left && !ls.left ? 'left' : null
-      if (side) {
-        const g = thumbGap(shapes[side]!, aspect)
-        const facing = palmFacing(shapes[side]!)
-        if (this.tap < 0) [this.tap, this.tapGap, this.tapFacing] = [now, { start: this.gaps[side], least: g }, { was: facing, turned: false }]
-        else {
-          this.tapGap.least = Math.min(this.tapGap.least, g)
-          if (facing !== this.tapFacing.was) this.tapFacing.turned = true
-        }
-      } else {
-        const lasted = this.tap < 0 ? 0 : now - this.tap
-        const closed = this.tapGap.least < Math.min(FRAME.TAP_CLOSE * this.tapGap.start, FRAME.TAP_GAP)
-        const tapped = closed && !this.tapFacing.turned && lasted >= FRAME.TAP_MIN_MS && lasted <= FRAME.TAP_MAX_MS
-        if (ls.left && ls.right && tapped) cycles = this.cycle(cycles, now)
-        this.tap = -1
-      }
-      if (ls.left && left) this.gaps.left = thumbGap(left, aspect)
-      if (ls.right && right) this.gaps.right = thumbGap(right, aspect)
-    }
-    // PLAY: a pinch while the loop's latched (the hands back to playing) is a cycle too.
-    for (const hand of ['left', 'right'] as const) {
-      if (!formed && this.s.latched && taps[hand] && !this.tapping[hand]) cycles = this.cycle(cycles, now)
-      this.tapping[hand] = taps[hand]
     }
     this.lSince = !formed && (ls.left || ls.right) ? (this.lSince < 0 ? now : this.lSince) : -1
-    this.s = { ...this.s, formed, cycles, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince, holdProgress: 0, corner: null }
+    this.s = { ...this.s, formed, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince, holdProgress: 0, corner: null }
     return this.s
   }
 
-  /** One-handed (2.0.1): the playing hand's L held Hold time opens the frame (PLAY's loop latches) with the L as its
-   *  corner, and held again lets it go; a misread shorter than Wobble tolerance doesn't break a hold. An L turned over
-   *  (palm to back) is the flip side instead, and back the front: a turning hand's hold never toggles. Back to playing,
-   *  a pinch while it's latched cycles it, as with two hands. */
-  private oneStep(shapes: HandShapes, now: number, aspect: number, taps: Record<'left' | 'right', boolean>, holdMs: number, wobbleMs: number): FrameSignal {
+  /** One-handed: the playing hand's L held Hold time is the frame, with the L as its corner, for as long as it's held
+   *  (a misread shorter than Wobble tolerance doesn't break the hold); let go as two hands' is. An L turned over (palm
+   *  to back) is the flip side, and back the front. */
+  private oneStep(shapes: HandShapes, now: number, aspect: number, holdMs: number, wobbleMs: number): FrameSignal {
     const hand = playingHand(shapes)
     const slot = hand ? SLOT[hand] : null
     const h = slot ? shapes[slot] : null
     if (h) this.anyAt = now
-    if (h?.isL) {
-      const facing = palmFacing(h)
-      if (this.hold.since < 0) this.hold = { since: now, seen: now, fired: false, facing, turned: false }
-      this.hold.seen = now
-      if (facing !== this.hold.facing) this.hold.turned = true
-    } else if (now - this.hold.seen > wobbleMs) this.hold = { since: -1, seen: this.hold.seen, fired: false, facing: 0, turned: false }
-    let { formed, cycles } = this.s
+    if (h?.isL) this.hold = { since: this.hold.since < 0 ? now : this.hold.since, seen: now }
+    const grace = this.s.formed ? Math.max(FRAME.RELEASE_MS, wobbleMs) : wobbleMs
+    if ((h && !h.isL && now - this.hold.seen > grace) || now - this.anyAt > FRAME.LOST_MS) this.hold = { since: -1, seen: this.hold.seen }
+    let formed = this.s.formed && this.hold.since >= 0
     let holdProgress = 0
-    if (this.hold.since >= 0 && !this.hold.fired && !this.hold.turned) {
+    if (!formed && this.hold.since >= 0 && h?.isL && slot) {
       holdProgress = Math.min(1, (now - this.hold.since) / holdMs)
-      if (holdProgress >= 1 && h && slot) {
-        this.hold.fired = true
-        holdProgress = 0
+      if (holdProgress >= 1) {
         formed = true
+        holdProgress = 0
         this.facing0 = { left: 0, right: 0, [slot]: palmFacing(h) }
         this.flipSince = -1
-        this.s = { ...this.s, formedAt: now, latched: !this.s.latched, flipped: false, corners: null, corner: null }
+        this.s = { ...this.s, formedAt: now, flipped: false, corners: null, corner: null }
       }
     }
-    if (formed && this.hold.since < 0) formed = false // the L let go
-    // Turned over in an L while it's latched: the flip side (and back: the front), however the hold began.
-    if (this.s.latched && !formed && h && slot && h.isL && this.hold.turned) this.turnOver(slot === 'left' ? h : null, slot === 'right' ? h : null, now)
     if (formed && h && slot && h.isL) {
       const quad = oneQuad(h, aspect)
-      const was4 = this.s.corners
-      const corners = was4 ? was4.map((p, i) => ({ x: p.x + (quad[i]!.x - p.x) * FRAME.SMOOTH, y: p.y + (quad[i]!.y - p.y) * FRAME.SMOOTH })) : quad
+      this.place(quad, aspect, dist(quad[0]!, quad[2]!, aspect))
       const v = lVertex(h, aspect)
       const was = this.s.corner
-      const corner = was ? { x: was.x + (v.x - was.x) * FRAME.SMOOTH, y: was.y + (v.y - was.y) * FRAME.SMOOTH } : v
-      this.s = { ...this.s, corners, corner, size: Math.hypot(corners[2]!.x - corners[0]!.x, (corners[2]!.y - corners[0]!.y) / aspect) }
+      this.s = { ...this.s, corner: was ? { x: was.x + (v.x - was.x) * FRAME.SMOOTH, y: was.y + (v.y - was.y) * FRAME.SMOOTH } : v }
       this.turnOver(slot === 'left' ? h : null, slot === 'right' ? h : null, now)
     }
-    for (const side of ['left', 'right'] as const) {
-      if (!formed && this.s.latched && taps[side] && !this.tapping[side]) cycles = this.cycle(cycles, now)
-      this.tapping[side] = taps[side]
-    }
-    this.s = { ...this.s, formed, cycles, lHeldMs: 0, holdProgress }
+    this.s = { ...this.s, formed, lHeldMs: 0, holdProgress }
     return this.s
   }
 
-  private cycle(cycles: number, now: number): number {
-    if (now - this.cycled < FRAME.CYCLE_GAP_MS) return cycles
-    this.cycled = now
-    return cycles + 1
+  /** The frame's quad this result: its corners smoothed (the first as they are) and its size; its amount from `span`
+   *  (two hands: corner to corner, the Ls' own; pulled apart, the tips' meeting points barely move). */
+  private place(quad: Pt[], aspect: number, span: number): void {
+    const was = this.s.corners
+    const corners = was ? was.map((p, i) => ({ x: p.x + (quad[i]!.x - p.x) * FRAME.SMOOTH, y: p.y + (quad[i]!.y - p.y) * FRAME.SMOOTH })) : quad
+    if (!was) this.span = this.span0 = span
+    else this.span += (span - this.span) * FRAME.SMOOTH
+    this.s = { ...this.s, corners, size: dist(corners[0]!, corners[2]!, aspect), amount: Math.min(1, (0.5 * this.span) / (this.span0 || 1e-9)) }
   }
 
   /** Every hand seen in its L facing the other way from how the frame formed (and none still the same): flipped; all

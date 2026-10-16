@@ -5,13 +5,16 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { REMIX_BOARD, REMIX_PRESETS, REMIX_STEMS, SAUCE_BOARD, SAUCE_PRESETS, type Knob as KnobSpec } from '@/audio/board'
 import { beatFxActive, beatFxPads } from '@/audio/live/beatFx'
+import { FOLLOW_RANGE } from '@/audio/externalClock'
+import { useLink } from '@/audio/midiOut'
 import type { FxShape } from '@/components/camera/fxShapes'
 import { ACTIONS, useShapeMap } from '@/components/camera/shapeMap'
 import { currentInstrument, playActions, SOUNDS, usePlay } from '@/components/play/playStore'
 import { useTick } from '@/components/stage/StageControls'
 import { useLiveDeck } from '@/state/liveDeck'
-import { useSong } from '@/state/song'
+import { songGrid, useSong } from '@/state/song'
 import { useUi } from '@/state/ui'
+import { t } from '@/i18n'
 import { board, useBoard, type RemixPreset, type SaucePreset } from './boardStore'
 import { useFb } from './fbStore'
 import s from './board.module.css'
@@ -120,7 +123,7 @@ function Fader({ id, v, set, height }: { id: string; v: number; set: (v: number)
     <div
       role="slider"
       tabIndex={0}
-      aria-label={spec.label === 'Volume' ? 'Volume' : `${spec.label} level`}
+      aria-label={spec.label === 'Volume' ? t('board.volume', 'Volume') : t('board.level', '{name} level', { name: spec.label })}
       aria-orientation="vertical"
       aria-valuemin={0}
       aria-valuemax={100}
@@ -227,7 +230,7 @@ function SauceSource() {
   })
   const label = SOUNDS.find((x) => x.id === sound)!.label
   return (
-    <Card title="SOURCE" hint={`${label} · ${key.root}${key.scale.startsWith('minor') ? ' minor' : ''}`}>
+    <Card title={t('board.source', 'SOURCE')} hint={`${label} · ${key.root}${key.scale.startsWith('minor') ? ` ${t('board.minor', 'minor')}` : ''}`}>
       <div className={s.scope}>
         <canvas ref={spectrum} className={s.scopeCanvas} aria-hidden="true" />
         <span className={s.scopeName}>{label}</span>
@@ -248,19 +251,19 @@ function SauceSource() {
         ))}
       </div>
       <div className={s.sourceRow}>
-        <div className={s.miniSeg} role="radiogroup" aria-label="Style">
+        <div className={s.miniSeg} role="radiogroup" aria-label={t('board.style', 'Style')}>
           {(['pluck', 'flow'] as const).map((m) => (
             <button key={m} type="button" role="radio" aria-checked={m === style} onClick={() => playActions.setStyle(m)}>
               {m.toUpperCase()}
             </button>
           ))}
         </div>
-        <div className={s.oct} role="group" aria-label="Octave">
-          <button type="button" aria-label="Octave down" onClick={() => playActions.setOctave(octave - 1)}>
+        <div className={s.oct} role="group" aria-label={t('board.octave', 'Octave')}>
+          <button type="button" aria-label={t('board.octave.down', 'Octave down')} onClick={() => playActions.setOctave(octave - 1)}>
             −
           </button>
           <span>Oct {octave}</span>
-          <button type="button" aria-label="Octave up" onClick={() => playActions.setOctave(octave + 1)}>
+          <button type="button" aria-label={t('board.octave.up', 'Octave up')} onClick={() => playActions.setOctave(octave + 1)}>
             +
           </button>
         </div>
@@ -269,7 +272,7 @@ function SauceSource() {
           className={s.frame}
           data-on={frozen || undefined}
           aria-pressed={frozen}
-          title="Loops the last 4 beats (or make a frame with your hands)"
+          title={t('board.frame.title', 'Loops the last 4 beats (or make a frame with your hands)')}
           onClick={playActions.toggleFrame}
         >
           FRAME
@@ -279,10 +282,10 @@ function SauceSource() {
   )
 }
 
-const SAUCE_SECTIONS: [string, string, string[]][] = [
-  ['TONE', 'Filter + body', ['cutoff', 'res', 'drive', 'sub']],
-  ['SHAPE', 'Envelope', ['attack', 'release', 'glide', 'bend']],
-  ['MOTION', 'What your hands move', ['vib', 'wob', 'echo', 'space']],
+const sauceSections = (): [string, string, string[]][] => [
+  [t('board.tone', 'TONE'), t('board.tone.hint', 'Filter + body'), ['cutoff', 'res', 'drive', 'sub']],
+  [t('board.shape', 'SHAPE'), t('board.shape.hint', 'Envelope'), ['attack', 'release', 'glide', 'bend']],
+  [t('board.motion', 'MOTION'), t('board.motion.hint', 'Hand-controlled'), ['vib', 'wob', 'echo', 'space']],
 ]
 
 function SauceBoard() {
@@ -297,7 +300,7 @@ function SauceBoard() {
   return (
     <div className={s.sauceGrid}>
       <SauceSource />
-      {SAUCE_SECTIONS.map(([title, hint, ids]) => (
+      {sauceSections().map(([title, hint, ids]) => (
         <Card key={title} title={title} hint={hint}>
           <div className={s.knobs}>
             {ids.map((id) => (
@@ -306,9 +309,9 @@ function SauceBoard() {
           </div>
         </Card>
       ))}
-      <Card title="OUT">
+      <Card title={t('board.out', 'OUT')}>
         <div className={s.out}>
-          <canvas ref={out} className={s.outMeter} aria-label="Output level" />
+          <canvas ref={out} className={s.outMeter} aria-label={t('board.outLevel', 'Output level')} />
           <Fader id="vol" v={k.vol!} set={(v) => board.setSauce('vol', v)} height={180} />
         </div>
         <span className={s.value} style={{ textAlign: 'center' }}>
@@ -320,14 +323,14 @@ function SauceBoard() {
 }
 
 const STEM_COLOR = ['#FF8A3D', '#E5402B', '#F5B13D', '#8B5CF6']
-/** REMIX's shapes, the pads' order and names (their actions: S1's Edit shapes map). */
+/** REMIX's shapes, the pads' order and names (their actions: S1's Edit shapes map); getters, so each read is in the language in use. */
 export const PAD_NAMES: Record<FxShape, string> = {
-  fist: 'Fist',
-  peace: 'Peace',
-  pinch: 'Pinch',
-  horns: 'Horns',
-  point_down: 'Point ↓',
-  point_up: 'Point ↑',
+  get fist() { return t('shape.fist', 'Fist') },
+  get peace() { return t('shape.peace', 'Peace') },
+  get pinch() { return t('shape.pinch', 'Pinch') },
+  get horns() { return t('shape.horns', 'Horns') },
+  get point_down() { return t('shape.pointDown', 'Point ↓') },
+  get point_up() { return t('shape.pointUp', 'Point ↑') },
 }
 
 /** Press-and-hold (the mouse, or Space / Enter on the focused control): `on` while held, `off` on letting go. */
@@ -409,7 +412,7 @@ function StemStrip({ i }: { i: number }) {
           type="button"
           className={s.m}
           aria-pressed={mute}
-          aria-label={`Mute ${REMIX_STEMS[i]}`}
+          aria-label={t('board.mute', 'Mute {stem}', { stem: REMIX_STEMS[i] ?? '' })}
           onClick={() => board.toggle('mute', i)}
         >
           M
@@ -418,7 +421,7 @@ function StemStrip({ i }: { i: number }) {
           type="button"
           className={s.s}
           aria-pressed={solo}
-          aria-label={`Solo ${REMIX_STEMS[i]}`}
+          aria-label={t('board.solo', 'Solo {stem}', { stem: REMIX_STEMS[i] ?? '' })}
           onClick={() => board.toggle('solo', i)}
         >
           S
@@ -431,34 +434,44 @@ function StemStrip({ i }: { i: number }) {
 function RemixBoard() {
   const k = useBoard((b) => b.remix)
   const cut = useBoard((b) => b.cut)
+  // 2.1: the deck follows Link (another Link app's tempo within ±8 % of the song's): its Tempo isn't the Board's then
+  const songBpm = useSong((st) => songGrid(st.song)?.bpm ?? null)
+  const linkBpm = useLink((l) => (l.reading && l.reading.peers > 0 ? l.reading.bpm : null))
+  const following = songBpm != null && linkBpm != null && Math.abs(linkBpm / songBpm - 1) <= FOLLOW_RANGE
   return (
     <div className={s.remixGrid}>
-      <Card title="STEMS" hint="Mute · Solo · Filter">
+      <Card title="STEMS" hint={t('board.stems.hint', 'Mute · Solo · Filter')}>
         <div className={s.strips}>
           {[0, 1, 2, 3].map((i) => (
             <StemStrip key={i} i={i} />
           ))}
         </div>
       </Card>
-      <Card title="BANDS" hint="The strings · fold to cut">
+      <Card title={t('board.bands', 'BANDS')} hint={t('board.bands.hint', 'The strings · fold to cut')}>
         <div className={s.bands}>
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className={s.band} style={{ opacity: cut[i] ? 0.5 : 1 }}>
               <Knob id={`b${i}`} v={k[`b${i}`]!} set={(v) => board.setRemix(`b${i}`, v)} stack />
               <button type="button" className={s.cut} aria-pressed={cut[i]} onClick={() => board.toggle('cut', i)}>
-                {cut[i] ? 'CUT' : 'Cut'}
+                {cut[i] ? t('board.cut.on', 'CUT') : t('board.cut', 'Cut')}
               </button>
             </div>
           ))}
         </div>
       </Card>
-      <Card title="BEAT FX" hint="Hold · on the beat" className={s.fxCard}>
+      <Card title="BEAT FX" hint={t('board.beatFx.hint', 'Hold · on the beat')} className={s.fxCard}>
         <BeatPads css={s} />
       </Card>
       <Card title="MASTER">
         <div className={s.master}>
           <div className={s.masterKnobs}>
-            <Knob id="tempo" v={k.tempo!} set={(v) => board.setRemix('tempo', v)} size={50} />
+            <div
+              style={following ? { opacity: 0.4, pointerEvents: 'none' } : undefined}
+              title={following ? t('board.following', 'Following Ableton Link') : undefined}
+              aria-disabled={following || undefined}
+            >
+              <Knob id="tempo" v={k.tempo!} set={(v) => board.setRemix('tempo', v)} size={50} />
+            </div>
             <Knob id="depth" v={k.depth!} set={(v) => board.setRemix('depth', v)} size={50} stack />
           </div>
           <Fader id="mvol" v={k.mvol!} set={(v) => board.setRemix('mvol', v)} height={170} />
@@ -472,7 +485,7 @@ export function Board() {
   const open = useFb((f) => f.board)
   const mode = useUi((u) => u.mode)
   const sound = usePlay((p) => p.sound)
-  const song = useSong((t) => t.song?.name)
+  const song = useSong((st) => st.song?.name)
   const testBeat = useLiveDeck((d) => d.testBeat)
   const saucePreset = useBoard((b) => b.saucePreset)
   const remixPreset = useBoard((b) => b.remixPreset)
@@ -480,17 +493,17 @@ export function Board() {
   const presets = sauce ? (Object.keys(SAUCE_PRESETS) as SaucePreset[]) : (Object.keys(REMIX_PRESETS) as RemixPreset[])
   const current = sauce ? saucePreset : remixPreset
   return (
-    <section className={s.board} data-open={open || undefined} aria-hidden={!open} aria-label="Board">
+    <section className={s.board} data-open={open || undefined} aria-hidden={!open} aria-label={t('board.name', 'Board')}>
       <div className={s.head}>
         <div className={s.headText}>
-          <span className={s.title}>Board</span>
+          <span className={s.title}>{t('board.name', 'Board')}</span>
           <span className={s.sub}>
             {sauce
-              ? `SAUCE · ${SOUNDS.find((x) => x.id === sound)!.label} · drag a knob up or down, double-click resets`
-              : `REMIX · ${song ?? (testBeat ? 'Test beat' : 'no track yet')}`}
+              ? t('board.sauce.sub', 'SAUCE · {sound} · drag a knob up or down, double-click resets', { sound: SOUNDS.find((x) => x.id === sound)!.label })
+              : `REMIX · ${song ?? (testBeat ? t('board.testBeat', 'Test beat') : t('board.noTrack', 'no track yet'))}`}
           </span>
         </div>
-        <div className={s.presets} role="radiogroup" aria-label="Board presets">
+        <div className={s.presets} role="radiogroup" aria-label={t('board.presets', 'Board presets')}>
           {presets.map((p) => (
             <button
               key={p}
@@ -504,9 +517,9 @@ export function Board() {
           ))}
         </div>
         <button type="button" className={s.reset} onClick={() => (sauce ? board.saucePreset('Init') : board.remixPreset('Clean'))}>
-          Reset all
+          {t('board.reset', 'Reset all')}
         </button>
-        <button type="button" className={s.close} aria-label="Close" onClick={() => useFb.setState({ board: false })}>
+        <button type="button" className={s.close} aria-label={t('common.close', 'Close')} onClick={() => useFb.setState({ board: false })}>
           ×
         </button>
       </div>

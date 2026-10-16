@@ -17,6 +17,13 @@
  * - TWIST: each wrist's roll (the knuckle line's thumb end toward the camera or away, in 3D) from the hand's own
  *   resting roll (palms to the camera, or edge-on pointing in: either rests at 0), a pitch bend.
  * - FRAME: both hands an L, the frame held (HandShapes.frame, as REMIX's GLASS).
+ * - PALM style (2.1, controlStyle 'palm', two hands): a quick strike DOWN of the open hand plays its note, a drum pad in
+ *   the air (STRIKE). The stop is the hit: a quick move down that slows gradually (a glide to a lower note) never
+ *   sounds. Its velocity from the strike's peak speed; its note from the hand's height as the strike began; held
+ *   while the hand stays, released pulled back up (or closed, or lost). A downward tap, not a push toward the camera:
+ *   the tracker reads the palm's place steadily, its size (the push) a few per cent a result and noisily.
+ * - PALMS: an open palm (fingers straight and spread wide) held PALM.HOLD_MS, counted once per opening (Melody's LOOP,
+ *   2.1: a variation; its heights, spread and fists are FLOW's signals, computed whatever the style).
  * - progress: how many times each GUIDE step's move has been done (it ticks a step when its count goes up).
  *
  * Hands here are the PERFORMER's own: FoxBox's camera picture isn't mirrored, so their right hand is the picture's left
@@ -103,6 +110,8 @@ export interface PlaySignals {
   /** One-handed: the playing hand (the performer's) and its slot in the picture (cameraSignals().stage[slot]); null
    *  otherwise, or with no hand seen. */
   one: { hand: PlayHand; slot: 'left' | 'right' } | null
+  /** Open palms held PALM.HOLD_MS, either hand, so far: one each until that hand closes (Melody's LOOP: a variation). */
+  palms: number
 }
 
 /** The GUIDE's "you did it": how many times each move has been done since the camera started (only ever goes up). */
@@ -138,7 +147,7 @@ export const PLUCK = {
   SHAPE_FOLD: 3,
   /** A shape gone in, that hand's later folds this long after are its stragglers (a fist's fourth finger a result
    *  behind the rest, fast at 30 a second): silent too. */
-  SHAPE_QUIET_MS: 250,
+  SHAPE_QUIET_MS: 150,
   /** A frame on its way: an L's thumb and index, and two of the other three curled this far (a C's rest about 0-0.35). */
   L_FOLDED: 0.5,
   /** A finger's bends (degrees, added up) for a whole fold: a fist's (fxShapes' curls are full at 165°, a C's would be
@@ -157,7 +166,7 @@ export const PLUCK = {
   MIN_VELOCITY: 0.1,
   /** A pluck is a fold: its rise at this speed at least (curl a second). A held fist's index creeping past FIRE as
    *  its rest catches up is no pluck (N04's thumbs-up, a velocity of 0.1). */
-  MIN_SPEED: 1.5,
+  MIN_SPEED: 0.8,
   /** No result for this long and the hand moved REFOUND_MOVE palm widths meanwhile: the next is a stall's catch-up on a
    *  moving hand (the tracker misreads it), not a rise seen, as after the hand was missing. A hand folding in place
    *  through a slow result plucks as ever. */
@@ -170,10 +179,10 @@ export const PLUCK = {
   /** Results in a row back within ARM to re-arm (and release), and that long at least: one fold misread as fold, dip,
    *  fold (a 70 ms dip at 30 a second) isn't two plucks; a finger resting folded isn't re-armed by one misread result. */
   ARM_RESULTS: 2,
-  ARM_MS: 80,
+  ARM_MS: 50,
   /** The hand moving this fast (palm lengths a second; a playing hand under 0.5): no plucks (a blurred hand's curls jump
    *  for a result or two: N05). */
-  MOVE_MAX: 3,
+  MOVE_MAX: 6,
   /** Results in a row past FIRE for each finger to pluck, thumb first: a curl jumps for single results (a hand moving
    *  fast, a C's thumb seen side-on), so a rise waits for the next result (at 30 a second, 33 ms). */
   CONFIRM: [2, 2, 2, 2, 2],
@@ -197,6 +206,35 @@ const PINCH = { GAP_RATIO: 0.4, GAP_MAX: 0.15, OPEN: 1.6, HOLD_MS: 150, REST_UP_
  *  PEACE, FIST and the rest as its fingers fold, and a resting C (its ring and pinky curled more) can look like PEACE
  *  to the picture's rules; neither is a shape. */
 const SHAPE = { HOLD_MS: 250, QUIET_MS: 300, DEPARTED: 2, PAST: 0.35 }
+/** An open palm, deliberate: four fingers straight, the thumb out and the fingers spread wide (index tip to pinky tip
+ *  this many palm lengths in 3D: a relaxed hand's are together), held this long. */
+const PALM = { CURL: 0.12, THUMB: 0.3, SPREAD: 1, HOLD_MS: 500 }
+/** PALM style's strike (palm lengths a second: the palm's centre down the picture over the hand's own size). */
+export const STRIKE = {
+  /** The hand open (its four fingers' curls under this: a C's are about 0.25) and square-on to the camera (its plane's
+   *  normal this share toward it, palm or back). */
+  OPEN: 0.35,
+  FACING: 0.5,
+  /** Moving down this fast, and DOWNNESS times as fast down as across (a wave is across), starts a strike... */
+  ON: 2,
+  DOWNNESS: 1.5,
+  /** ...that sounds if it peaks this fast (MEDIUM; Pluck sensitivity scales it), travels this far... */
+  FIRE: 3.5,
+  TRAVEL: 0.3,
+  /** ...and stops: down to this share of its peak within STOP_MS of it (a glide slows over longer). */
+  STOP: 0.35,
+  STOP_MS: 140,
+  /** A strike still going this long is a move, not a strike. */
+  MAX_MS: 400,
+  /** Peak speed for velocity 1 (S3's taps peak about 15, 10 and 7: fast, medium, slow). */
+  FULL: 16,
+  /** Held: pulled back up this far from the hit lets it go. */
+  PULL: 0.35,
+  /** After a let go, no new strike this long (the rebound settling). */
+  REARM_MS: 150,
+  /** The finger a strike plays as (any finger plays the hand's note; the middle is the hand's centre). */
+  FINGER: 2 as const,
+}
 const MUTE = 0.7 // the right hand's four fingers all folded past this: a fist (also PLAY's FIST: a C never is)
 const HEIGHT_LOW = 0.15 // the picture's height a palm's at, low …
 const HEIGHT_HIGH = 0.85 // … and high
@@ -225,8 +263,8 @@ const GAP_OPEN = 1.4
 /** One-handed (playPrefs): the hand that plays, the performer's: with both in view Left-handed picks (the right, or the
  *  left), else the one seen; null when one-handed is off or no hand is seen. */
 export function playingHand(shapes: HandShapes): PlayHand | null {
-  const { oneHanded, leftHanded } = usePlayPrefs.getState()
-  if (!oneHanded) return null
+  const { controlStyle, leftHanded } = usePlayPrefs.getState()
+  if (controlStyle !== 'one') return null
   const [r, l] = [!!shapes[SLOT.right], !!shapes[SLOT.left]]
   return r && l ? (leftHanded ? 'left' : 'right') : r ? 'right' : l ? 'left' : null
 }
@@ -241,6 +279,7 @@ export const NO_PLAY: PlaySignals = {
   height: { left: null, right: null },
   spread: 0,
   one: null,
+  palms: 0,
 }
 
 /** One hand over the other: their boxes (their points' extents) sharing a third of the smaller (fingertips meeting
@@ -312,9 +351,17 @@ interface Hand {
   plucked: number
   /** When its last shape went in (SHAPE_FOLD's silence). */
   shapeAt: number
-  /** The thumb on the index now, unheld (a quick tap: the FRAME's cycle while PLAY's loop is latched). */
-  tapping: boolean
+  /** Open (PALM) since; Infinity once counted, till it closes; -1 not open. */
+  palmSince: number
+  /** PALM style's strike: 0 none, 1 going down (since, its height and place then, its palm length then: a tap's wrist
+   *  flex shortens it in the picture; its peak and when), 2 held (from its hit's place); free again at `free`. */
+  strike: { phase: 0 | 1 | 2; since: number; height: number; y: number; scale: number; peak: number; peakAt: number; hit: number; free: number }
+  /** The last result's palm centre as read (re-found or not), its palm length, when, and whether it was steady: PALM's
+   *  speeds are from result to result. */
+  prev: { x: number; y: number; palm: number; at: number; ok: boolean } | null
 }
+
+const NO_STRIKE: Hand['strike'] = { phase: 0, since: 0, height: 0, y: 0, scale: 1, peak: 0, peakAt: 0, hit: 0, free: -1e9 }
 
 export class PlayGestures {
   private hands: Record<PlayHand, Hand | null> = { left: null, right: null }
@@ -325,6 +372,7 @@ export class PlayGestures {
    *  lags), not a chord. */
   private waiting: Record<PlayHand, PluckEvent[]> = { left: [], right: [] }
   private crossed = -1e9 // the hands last seen overlapping
+  private palms = 0
   private last: PlaySignals = NO_PLAY
   private done = { ...NO_PLAY.progress }
   /** What's on now, for the counts' rising edges; the octave third each hand is in; FLOW's pitch at its last count. */
@@ -342,12 +390,14 @@ export class PlayGestures {
   }
 
   /** One new hands result (after fxShapes' step on it): the plucks and releases it fired. `aspect`: the frame's width
-   *  over its height. `frame` (frameGestures): formed or PLAY's loop latched, a pinch is the frame's (a style cycle),
-   *  neither WOBBLE nor a pluck of the closing index; formed or being made (an L's thumb and index), nothing plucks. */
-  step(shapes: HandShapes, fx: FxSignals, now: number, aspect: number, frame = { formed: false, latched: false }): PlayEvents {
-    const framed = frame.formed || frame.latched
-    const { leftHanded, sensitivity, oneHanded, wobble, reach } = usePlayPrefs.getState()
+   *  over its height. `frame` (frameGestures): formed (held) or being made (an L's thumb and index), nothing plucks and
+   *  no shape is named. */
+  step(shapes: HandShapes, fx: FxSignals, now: number, aspect: number, frame = { formed: false }): PlayEvents {
+    const framed = frame.formed
+    const { leftHanded, sensitivity, controlStyle, wobble, reach } = usePlayPrefs.getState()
+    const oneHanded = controlStyle === 'one'
     const scale = PLUCK_SCALE[sensitivity]
+    const palmStyle = controlStyle === 'palm'
     const one = playingHand(shapes)
     if (one) this.one = one
     else if (!oneHanded) this.one = null
@@ -396,13 +446,20 @@ export class PlayGestures {
       // a hand that comes up already folded never plucks.
       if (!s) {
         const off = [false, false, false, false, false]
-        this.hands[hand] = { pending: [null, null, null, null, null], gapRest: null, pinched: false, pinchSince: -1, armed: off.slice(), back: [0, 0, 0, 0, 0], backAt: [0, 0, 0, 0, 0], held: off.slice(), curl, rest: null, height, centre, palm, at: now, born: now, twist: 0, roll: null, missed: false, steady: false, plucked: -1e9, shapeAt: -1e9, tapping: false, gapN: 0, raws: [], lastShape: null, lastShapeAt: -1e9 }
+        this.hands[hand] = { pending: [null, null, null, null, null], gapRest: null, pinched: false, pinchSince: -1, armed: off.slice(), back: [0, 0, 0, 0, 0], backAt: [0, 0, 0, 0, 0], held: off.slice(), curl, rest: null, height, centre, palm, at: now, born: now, twist: 0, roll: null, missed: false, steady: false, plucked: -1e9, shapeAt: -1e9, palmSince: -1, strike: { ...NO_STRIKE }, prev: null, gapN: 0, raws: [], lastShape: null, lastShapeAt: -1e9 }
         continue
       }
       const dt = Math.max(1, now - s.at)
+      const wp = h.world
+      const d3 = (a: number, b: number) => (wp ? Math.hypot(wp[a]!.x - wp[b]!.x, wp[a]!.y - wp[b]!.y, wp[a]!.z - wp[b]!.z) : 0)
+      const open = !framed && curl[0]! < PALM.THUMB && curl.slice(1).every((c) => c < PALM.CURL) && d3(8, 20) >= PALM.SPREAD * d3(0, 9)
+      if (!open) s.palmSince = -1
+      else if (s.palmSince < 0) s.palmSince = now
+      else if (now - s.palmSince >= PALM.HOLD_MS) [this.palms, s.palmSince] = [this.palms + 1, Infinity]
       const moved = Math.hypot(centre.x - s.centre.x, centre.y - s.centre.y) / Math.max(s.palm, 1e-6)
       const fast = (moved / Math.max(1, now - s.at)) * 1000 >= PLUCK.MOVE_MAX
       const refound = s.missed || (dt > PLUCK.REFOUND_MS && moved > PLUCK.REFOUND_MOVE)
+      const was = s.height // PALM style's note: the height before this result
       s.missed = false
       s.steady = !refound
       // Where it is: steady (a re-found hand's first result, often misplaced, doesn't move it).
@@ -420,7 +477,6 @@ export class PlayGestures {
         else if (!s.pinched) s.gapRest = follow(s.gapRest, gap, dt, PINCH.REST_UP_MS, PINCH.REST_DOWN_MS)
         s.gapN = follow(s.gapN, Math.min(1, Math.max(0, (gap - GAP_SHUT) / (GAP_OPEN - GAP_SHUT))), dt, STEADY_MS, STEADY_MS)
         const shut = Math.min(PINCH.GAP_RATIO * s.gapRest, PINCH.GAP_MAX)
-        s.tapping = gap < Math.min(0.5 * s.gapRest, 0.2)
         const flip = s.pinched ? gap > shut * PINCH.OPEN : gap < shut
         if (!flip) s.pinchSince = -1
         else if (s.pinchSince < 0) s.pinchSince = now
@@ -436,13 +492,53 @@ export class PlayGestures {
       const off = (hand === 'right' ? 1 : -1) * wrap(roll - s.roll)
       const bend = Math.sign(off) * Math.min(1, Math.max(0, (Math.abs(off) - TWIST_DEAD) / (TWIST_FULL - TWIST_DEAD)))
       s.twist = follow(s.twist, bend, dt, TWIST_MS, TWIST_MS)
-      // Framed: the index closing on the thumb (its gap halved from its rest) is a pinch on its way, not a pluck.
-      const closing = s.gapRest != null && gap < 0.6 * s.gapRest
       // Each finger's rest: down at once, up slowly, frozen while it's held (refound results don't count).
       const rest = (s.rest ??= curl.slice())
       if (!refound) curl.forEach((c, f) => !s.held[f] && (rest[f] = follow(rest[f]!, c, dt, PLUCK.REST_UP_MS, PLUCK.REST_DOWN_MS)))
       const fired = plucks.length
-      curl.forEach((c, f) => {
+      if (palmStyle) {
+        const k = s.strike
+        const n = wp ? (() => {
+          const [a, b] = [5, 17].map((i) => [wp[i]!.x - wp[0]!.x, wp[i]!.y - wp[0]!.y, wp[i]!.z - wp[0]!.z]) as [number[], number[]]
+          const c = [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!]
+          return Math.abs(c[2]!) / (Math.hypot(...c) || 1e9)
+        })() : 1
+        const flat = curl.slice(1).every((c) => c < STRIKE.OPEN) && n >= STRIKE.FACING
+        // Its speed down and across since the last result (palm lengths a second); none from a re-found one's place.
+        const p = s.prev
+        const at = (v: number) => (v / Math.max(p?.palm ?? 1, 1e-6) / Math.max(1, now - (p?.at ?? now))) * 1000
+        const [vy, vx] = p ? [at(centre.y - p.y), at(centre.x - p.x)] : [0, 0]
+        const ready = !refound && !!p?.ok && !still && flat
+        s.prev = { x: centre.x, y: centre.y, palm, at: now, ok: !refound }
+        if (k.phase === 2) {
+          if (!refound) k.hit = Math.max(k.hit, centre.y) // sinking further: the hit follows (a re-found place is no guide)
+          if (!flat || still || (!refound && (k.hit - centre.y) / k.scale >= STRIKE.PULL)) {
+            if (s.held[STRIKE.FINGER]) release(hand, s, STRIKE.FINGER)
+            s.strike = { ...NO_STRIKE, free: now + STRIKE.REARM_MS }
+          }
+        } else if (k.phase === 1) {
+          if (vy > k.peak) [k.peak, k.peakAt] = [vy, now]
+          const stopped = vy <= STRIKE.STOP * k.peak
+          if (!ready || now - k.since > STRIKE.MAX_MS || (stopped && now - k.peakAt > STRIKE.STOP_MS)) s.strike = { ...NO_STRIKE, free: k.free }
+          else if (stopped) {
+            if (k.peak >= STRIKE.FIRE * (scale / PLUCK_SCALE.medium) && (centre.y - k.y) / k.scale >= STRIKE.TRAVEL) {
+              s.held[STRIKE.FINGER] = true
+              plucks.push({
+                hand,
+                finger: STRIKE.FINGER,
+                velocity: Math.max(PLUCK.MIN_VELOCITY, Math.min(1, k.peak / STRIKE.FULL)),
+                height: k.height,
+                t: now,
+                held: true,
+                together: 0,
+              })
+              s.strike = { ...k, phase: 2, hit: centre.y }
+            } else s.strike = { ...NO_STRIKE, free: k.free }
+          }
+        } else if (ready && now >= k.free && vy >= STRIKE.ON && vy >= STRIKE.DOWNNESS * Math.abs(vx)) {
+          s.strike = { ...k, phase: 1, since: now, height: was, y: p!.y, scale: p!.palm, peak: vy, peakAt: now }
+        }
+      } else curl.forEach((c, f) => {
         const was = s.curl[f]!
         const speed = (c - was) / dt // curl per ms
         const fire = Math.min(rest[f]! + PLUCK.FIRE * scale, PLUCK.FIRE_CAP)
@@ -459,9 +555,8 @@ export class PlayGestures {
           s.armed[f] = true
           s.pending[f] = null
           if (s.held[f]) release(hand, s, f) // back to its rest: the note's let go
-        } else if (!PLUCK.PLUCKS[f] || rest[f]! > PLUCK.REST_MAX || still || fast || now - s.shapeAt < PLUCK.SHAPE_QUIET_MS || (framed && f === 1 && closing)) {
-          // a thumb, a finger resting folded, a frame formed or being made, or the index closing on the thumb while
-          // framed (a cycle): never plucks
+        } else if (!PLUCK.PLUCKS[f] || rest[f]! > PLUCK.REST_MAX || still || fast || now - s.shapeAt < PLUCK.SHAPE_QUIET_MS) {
+          // a thumb, a finger resting folded, a frame formed or being made: never plucks
         } else if (s.armed[f] && rose && PLUCK.CONFIRM[f]! > 1 && !wait) {
           s.pending[f] = { was, speed }
         } else if (s.armed[f] && (confirmed || (rose && PLUCK.CONFIRM[f]! <= 1))) {
@@ -551,7 +646,7 @@ export class PlayGestures {
       const quiet = !mine || now - mine.plucked >= SHAPE.QUIET_MS
       const departed = !!mine && mine.curl.slice(1).filter((c, i) => c >= (mine.rest?.[i + 1] ?? 0) + SHAPE.PAST).length >= SHAPE.DEPARTED
       const meant = quiet && departed && s.since > 0 && now - s.since >= SHAPE.HOLD_MS
-      const named: PlayShape | null = mine?.pinched ? (quiet && !framed ? 'pinch' : null) : !meant || s.shape === 'pinch' || (s.shape === 'fist' && !isFist(mine)) ? null : s.shape
+      const named: PlayShape | null = framed ? null : mine?.pinched ? (quiet ? 'pinch' : null) : !meant || s.shape === 'pinch' || (s.shape === 'fist' && !isFist(mine)) ? null : s.shape
       // One-handed (a hold toggles it): the shape kept through a misread shorter than Wobble tolerance, or while the
       // raw read is the same shape coming back (its own hold restarting).
       let kept = named
@@ -584,6 +679,7 @@ export class PlayGestures {
       height: { left: this.hands.left?.height ?? null, right: this.hands.right?.height ?? null },
       spread: this.spread,
       one: one ? { hand: one, slot: SLOT[one] } : null,
+      palms: this.palms,
     }
     return { plucks, releases }
   }
@@ -597,11 +693,5 @@ export class PlayGestures {
   reachNow(): number | null {
     const raws = (this.one && this.hands[this.one]?.raws) || []
     return raws.length ? raws.reduce((a, r) => a + r.v, 0) / raws.length : null
-  }
-
-  /** A quick pinch (the thumb on the index, unheld) on each performer hand now: frameGestures' cycles while PLAY's loop
-   *  is latched. */
-  taps(): Record<PlayHand, boolean> {
-    return { left: !!this.hands.left?.tapping, right: !!this.hands.right?.tapping }
   }
 }

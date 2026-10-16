@@ -5,6 +5,7 @@ import { engineHealth, useEngine } from '@/state/engine'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import { animate } from '@/visuals/motion'
+import { t } from '@/i18n'
 import styles from './feedback.module.css'
 
 type Kind = 'err' | 'warn' | 'info'
@@ -26,39 +27,39 @@ function useBanner(): BannerData | null {
     return {
       id: `offline:${status.lastError ?? ''}`,
       kind: 'err',
-      title: 'ENGINE OFFLINE',
-      body: `${status.lastError ?? 'The engine stopped.'} Your track is safe.`,
-      ...(b ? { action: { label: 'RECONNECT', run: () => void b.restartEngine() } } : {}),
+      title: t('banner.offline.title', 'ENGINE OFFLINE'),
+      body: t('banner.offline.body', '{reason} Your track is safe.', { reason: status.lastError ?? t('banner.offline.stopped', 'The engine stopped.') }),
+      ...(b ? { action: { label: t('banner.reconnect', 'RECONNECT'), run: () => void b.restartEngine() } } : {}),
     }
   }
   if (status.state === 'restarting') {
     return {
       id: `restarting:${status.restarts}`,
       kind: 'info',
-      title: 'ENGINE RESTARTING',
-      body: `Respawning the engine${status.attempt ? ` (attempt ${status.attempt})` : ''}. ${status.lastError ?? ''}`.trim(),
+      title: t('banner.restarting.title', 'ENGINE RESTARTING'),
+      body: `${status.attempt ? t('banner.restarting.attempt', 'Restarting the engine (attempt {n}).', { n: status.attempt }) : t('banner.restarting.body', 'Restarting the engine.')} ${status.lastError ?? ''}`.trim(),
     }
   }
   if (health?.state === 'error') {
     return {
       id: `health-error:${health.message ?? ''}`,
       kind: 'err',
-      title: 'ENGINE ERROR',
-      body: `${health.message ?? 'The engine reported an error.'} Stems will fail until it recovers.`,
-      ...(b ? { action: { label: 'RESTART', run: () => void b.restartEngine() } } : {}),
+      title: t('banner.error.title', 'ENGINE ERROR'),
+      body: t('banner.error.body', '{reason} Stems will fail until it recovers.', { reason: health.message ?? t('banner.error.default', 'The engine reported an error.') }),
+      ...(b ? { action: { label: t('banner.restart', 'RESTART'), run: () => void b.restartEngine() } } : {}),
     }
   }
   if (health && health.disk_free_bytes < LOW_DISK_BYTES) {
     return {
       id: 'lowdisk',
       kind: 'warn',
-      title: `LOW DISK · ${formatBytes(health.disk_free_bytes)} FREE`,
-      body: 'Final renders and the persona model need at least 3 GB free.',
+      title: t('banner.lowdisk.title', 'LOW DISK · {free} FREE', { free: formatBytes(health.disk_free_bytes) }),
+      body: t('banner.lowdisk.body', 'Splitting stems and saving takes need at least 3 GB free.'),
       ...(b
         ? {
             action: {
-              label: 'REVEAL EXPORTS',
-              run: () => void b.reveal(health.export_dir).then((ok) => !ok && toast.warn('Export folder not found')),
+              label: t('banner.reveal', 'SHOW THE FOLDER'),
+              run: () => void b.reveal(health.export_dir).then((ok) => !ok && toast.warn(t('banner.reveal.missing', 'Takes folder not found'))),
             },
           }
         : {}),
@@ -104,7 +105,7 @@ export function Banner() {
           {data.action.label}
         </button>
       )}
-      <button type="button" className={styles.bannerClose} aria-label="Dismiss" onClick={() => dismiss(data.id)}>
+      <button type="button" className={styles.bannerClose} aria-label={t('common.dismiss', 'Dismiss')} onClick={() => dismiss(data.id)}>
         ×
       </button>
     </div>

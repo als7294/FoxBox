@@ -1,5 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Type-only: nothing here may import from electron or node.
+import type { AbletonBridge } from './ableton'
+import type { BootBridge } from './splash'
 
 export type EngineState = 'idle' | 'starting' | 'ready' | 'unresponsive' | 'restarting' | 'offline' | 'stopped' | 'mock'
 
@@ -175,6 +177,8 @@ export interface FvwksBridge {
   readonly platform: string
   /** CPU architecture of the app process (arm64 / x64). */
   readonly arch: string
+  /** FVWKS_VISION_CPU=1: the camera models skip the GPU delegate (CI runners have no GPU). */
+  readonly visionCpu?: boolean
   /**
    * The engine, as seen from the renderer. The renderer never holds the engine's URL or token:
    * JSON goes through `request` (IPC → main → engine) and audio through `vbx://audio/<id>`.
@@ -226,6 +230,43 @@ export interface FvwksBridge {
   readonly bootUpdate: BootUpdateBridge
   /** The output window (SEND TO OUTPUT: a projector or LED wall). */
   readonly visuals: VisualsBridge
+  /** 2.1: SAUCE's MIDI out (the virtual port "FoxBox", S6's Ableton device) and Ableton Link in (main/midi.ts). */
+  readonly midi: MidiBridge
+  /** 2.1: the FoxBox device for Ableton Live (Settings → MIDI & Ableton → THE DEVICE). */
+  readonly ableton: AbletonBridge
+  /** 2.1: the boot splash (shared/splash.ts): the main window reports its milestones, the splash draws them. */
+  readonly boot: BootBridge
+}
+
+/** Settings → MIDI & Ableton, as main needs it. */
+export interface MidiPrefs {
+  /** The virtual MIDI source "FoxBox" is open. */
+  port: boolean
+  /** 1-16: every channel message goes out on it. */
+  channel: number
+  /** Ableton Link joined (it asks for the local network the first time). */
+  link: boolean
+}
+
+/** Link now: S2's ExternalClock plus the peers (0: FoxBox alone in the session). */
+export interface LinkReading {
+  bpm: number
+  beat: number
+  phase: number
+  quantum: number
+  peers: number
+}
+
+export interface MidiBridge {
+  /** One MIDI message of SAUCE's stream (fire and forget). */
+  send(bytes: number[]): void
+  setPrefs(prefs: MidiPrefs): void
+  /** Hands in view (the device's hand count). */
+  hands(n: number): void
+  /** CC `cc` alone, swept, for a DAW's MIDI learn. */
+  learn(cc: number): void
+  /** Link's readings (~60 a second while it's on), null when it goes off or won't load. */
+  onLink(listener: (reading: LinkReading | null) => void): () => void
 }
 
 export interface DisplayInfo {
@@ -297,6 +338,11 @@ export const IPC = {
   visualsState: 'fvwks:visuals-state',
   /** main → both windows: one end each of the MessageChannel the frames go over. */
   visualsPort: 'fvwks:visuals-port',
+  midiSend: 'fvwks:midi-send',
+  midiPrefs: 'fvwks:midi-prefs',
+  midiHands: 'fvwks:midi-hands',
+  midiLearn: 'fvwks:midi-learn',
+  midiLink: 'fvwks:midi-link',
 } as const
 
 export interface BootInfo {

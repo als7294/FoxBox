@@ -1,0 +1,78 @@
+# W1, FoxBox for Windows (the SAUCE-only beta): on a push to the published snapshot's main, or by hand, on
+# windows-latest (we have no Windows machine). Two jobs side by side:
+#   tests      the app's typecheck and unit tests on Windows (paths, line endings: what the Mac can't catch)
+#   installer  the x64 NSIS installer with its blockmap and electron-updater's latest.yml, kept as an artifact
+#   tracking   S1's tracking smoke: the web build in a hidden window, a generated hand clip as the fake camera, the
+#              hand models on the CPU (no GPU here): hands found in 90% of the run, plucks within 1 of the clip's truth
+# No release here: publishing stays a manual step.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npx vitest run --maxWorkers=2
+
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # the designer credit's address, injected at build time (a repository secret; unset, the credit is plain text)
+      FVWKS_CREDIT_EMAIL: ${{ secrets.FVWKS_CREDIT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run package:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foxbox-windows-x64
+          path: |
+            app/release/*.exe
+            app/release/*.exe.blockmap
+            app/release/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  tracking:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx vite build --config vite.web.config.ts --outDir smoke-web
+      - run: npx electron scripts/tracking-smoke.cjs smoke-web tests/fixtures/hands-c-pose.mjpeg tests/fixtures/hands-c-pose.json

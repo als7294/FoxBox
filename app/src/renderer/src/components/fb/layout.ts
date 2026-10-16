@@ -1,15 +1,6 @@
 /** The compact layout (FOXBOX2_COMPACT.md): below 1440 wide or 900 tall, the dock, popovers and waveform shrink. */
 export const isCompact = (w: number, h: number): boolean => w < 1440 || h < 900
 
-/** The left-handed layout's words: right ↔ left (Settings → Playing; S1's playPrefs). */
-export const sided = (text: string, leftHanded: boolean): string =>
-  leftHanded
-    ? text.replace(
-        /Right|Left|RIGHT|LEFT|right|left/g,
-        (m) => ({ Right: 'Left', Left: 'Right', RIGHT: 'LEFT', LEFT: 'RIGHT', right: 'left', left: 'right' })[m]!,
-      )
-    : text
-
 /** The dock (bottom, height) and REMIX's waveform box (height, gap above the dock), design or compact. */
 export const dockBox = (w: number, h: number) =>
   isCompact(w, h)

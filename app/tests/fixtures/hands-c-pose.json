@@ -1,0 +1,48 @@
+{
+ "about": "Generated two-handed C pose (synthetic hands, no person): each finger folds once in turn, the right hand then the left. 9 s at 30 fps, 640x360 MJPEG for Chromium's fake camera. Thumbs never pluck in PLAY, so they are left out.",
+ "fps": 30,
+ "dur": 9,
+ "hands": 2,
+ "plucks": [
+  {
+   "t": 1.567,
+   "hand": "right",
+   "finger": 1
+  },
+  {
+   "t": 2.367,
+   "hand": "right",
+   "finger": 2
+  },
+  {
+   "t": 3.167,
+   "hand": "right",
+   "finger": 3
+  },
+  {
+   "t": 3.933,
+   "hand": "right",
+   "finger": 4
+  },
+  {
+   "t": 6.067,
+   "hand": "left",
+   "finger": 1
+  },
+  {
+   "t": 6.867,
+   "hand": "left",
+   "finger": 2
+  },
+  {
+   "t": 7.667,
+   "hand": "left",
+   "finger": 3
+  },
+  {
+   "t": 8.433,
+   "hand": "left",
+   "finger": 4
+  }
+ ]
+}

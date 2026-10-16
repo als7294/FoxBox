@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { handShapes, isAnL, isLPose, type HandShapes } from '@/components/camera/camMath'
-import { FrameGestures, frameQuad, palmFacing } from '@/components/camera/frameGestures'
+import { FrameGestures, frameQuad, palmFacing, setInwardFrames } from '@/components/camera/frameGestures'
 import { FxShapes, rawShape } from '@/components/camera/fxShapes'
 import { PlayGestures } from '@/components/camera/playGestures'
 import { usePlayPrefs } from '@/components/camera/playPrefs'
@@ -11,15 +11,15 @@ const L = [0, 0, 1, 1, 1] // thumb and index out, the rest folded
 
 /** The two Ls of a frame turned `deg` (clockwise on screen) about the picture's middle: the performer's right hand (the
  *  picture's left) its bottom-left corner, index up and thumb right; the left the top-right. `roll`: both hands turned
- *  over that far in their corners (180: a card turned over; `roll2` the left's, if not the same). */
-function frame(deg = 0, pinch: 'R' | null = null, roll = 0, roll2 = roll, fold = L) {
+ *  over that far in their corners (180: a card turned over; `roll2` the left's, if not the same); `k` its size. */
+function frame(deg = 0, pinch: 'R' | null = null, roll = 0, roll2 = roll, fold = L, k = 1) {
   const r = (deg * Math.PI) / 180
   const at = (x: number, y: number) => {
     const [dx, dy] = [(x - 0.5) * ASPECT, y - 0.5]
     return [0.5 + (dx * Math.cos(r) - dy * Math.sin(r)) / ASPECT, 0.5 + dx * Math.sin(r) + dy * Math.cos(r)] as const
   }
-  const [rx, ry] = at(0.36, 0.72)
-  const [lx, ly] = at(0.64, 0.28)
+  const [rx, ry] = at(0.5 - 0.14 * k, 0.5 + 0.22 * k)
+  const [lx, ly] = at(0.5 + 0.14 * k, 0.5 - 0.22 * k)
   const right = hand3d(fold, rx, ry, ASPECT, { mirror: true, thumbSide: true, turn: deg, roll })
   const left = hand3d(fold, lx, ly, ASPECT, { mirror: true, thumbSide: true, turn: 180 + deg, roll: roll2 })
   if (pinch === 'R') {
@@ -55,7 +55,7 @@ function session() {
       prev = handShapes(hands, t, prev, ASPECT)
       const ev = play.step(prev, fx.step(prev, t, ASPECT), t, ASPECT, f)
       plucks.push(...ev.plucks.map((p) => p.finger))
-      f = frames.step(prev, t, ASPECT, play.taps())
+      f = frames.step(prev, t, ASPECT)
     }
     return { f, play: play.signals() }
   }
@@ -63,13 +63,13 @@ function session() {
 }
 
 describe('the FRAME', () => {
-  it('forms after the two Ls hold, its corners a quad clockwise from the top-left; PLAY latches on it; making it plucks nothing', () => {
+  it('forms after the two Ls hold, its corners a quad clockwise from the top-left, its amount 0.5; making it plucks nothing', () => {
     const { step, shapes, plucks } = session()
     step(frame(0, null, 0, 0, [0, 0, 0, 0, 0]), 10) // open hands where the Ls will be
     expect(step(frame(), 2).f.formed).toBe(false)
     const { f } = step(frame(), 5)
     expect(f.formed).toBe(true)
-    expect(f.latched).toBe(true)
+    expect(f.amount).toBe(0.5)
     const q = frameQuad(shapes().left!, shapes().right!, ASPECT)
     expect(q[0]!.x + q[0]!.y).toBeLessThan(Math.min(q[1]!.x + q[1]!.y, q[2]!.x + q[2]!.y, q[3]!.x + q[3]!.y)) // top-left first
     expect(q[1]!.x).toBeGreaterThan(q[0]!.x) // then clockwise: the top-right
@@ -86,16 +86,13 @@ describe('the FRAME', () => {
     expect(step(frame(), 8).f.lHeldMs).toBe(0)
   })
 
-  it('two pinches at a corner while held: two cycles, the frame never drops', () => {
+  it('pulled wider the amount rises (1 at twice its size), closer it falls; a pinch at a corner never drops it', () => {
     const { step } = session()
     step(frame(), 8)
-    for (const _ of [1, 2]) {
-      let s = step(frame(0, 'R'), 4) // a 160 ms pinch at the bottom-left corner
-      expect(s.f.formed).toBe(true)
-      s = step(frame(), 10) // open again
-      expect(s.f.formed).toBe(true)
-    }
-    expect(step(frame(), 1).f.cycles).toBe(2)
+    expect(step(frame(0, null, 0, 0, L, 1.6), 12).f.amount).toBeGreaterThan(0.7)
+    expect(step(frame(0, null, 0, 0, L, 0.7), 12).f.amount).toBeLessThan(0.4)
+    expect(step(frame(0, 'R'), 4).f.formed).toBe(true) // a 160 ms pinch at the bottom-left corner
+    expect(step(frame(), 10).f.formed).toBe(true)
   })
 
   it("an L's thumb and index read before its other three fold; a C, a point or an open hand never", () => {
@@ -163,15 +160,13 @@ describe('the FRAME', () => {
     let s = step(frame(0, null, 180), 6)
     expect(s.f.flipped).toBe(true)
     expect(s.f.formed).toBe(true)
-    expect(s.f.cycles).toBe(0)
     expect(step(frame(0, null, 180), 20).f.flips).toBe(1) // one flip per turn
     for (let r = 180; r >= 0; r -= 30) step(frame(0, null, r, 180), 1) // back, one hand and then the other
     for (let r = 180; r >= 0; r -= 30) step(frame(0, null, 0, r), 1)
     s = step(frame(), 6)
-    expect(s.f.cycles).toBe(0) // a hand turning isn't a corner's tap
     expect(s.f.flipped).toBe(false)
     expect(s.f.flips).toBe(2)
-    expect(s.f.latched).toBe(true) // a flip isn't a release
+    expect(s.f.formed).toBe(true) // a flip isn't a release
     for (let d = 0; d <= 180; d += 20) step(frame(d), 1) // turned right round on screen: not a flip
     expect(step(frame(180), 6).f.flips).toBe(2)
   })
@@ -198,48 +193,50 @@ describe('the FRAME', () => {
     expect(step(open, 3).f.formed).toBe(false) // 320 ms
   })
 
-  it('a turn whose Ls go unread long enough to drop the frame: made again turned over, the same frame (flipped, latch kept)', () => {
+  it('turned over slowly: still an L edge-on on the looser limits, the same frame flipped; misread out of it 0.3 s, let go', () => {
     const { step } = session()
-    let s = step(frame(), 8)
-    expect(s.f.latched).toBe(true)
-    expect(step(frame(0, null, 90), 10).f.formed).toBe(true) // edge-on 400 ms: still an L on the looser limits
-    s = step(frame(0, null, 90, 90, [0, 0, 0, 0, 0]), 10) // misread as open hands mid-turn: the frame drops
-    expect(s.f.formed).toBe(false)
-    s = step(frame(0, null, 180), 8)
-    expect(s.f.formed).toBe(true)
-    expect(s.f.latched).toBe(true)
-    expect(s.f.flipped).toBe(true)
-    expect(s.f.flips).toBe(1)
-    s = step(frame(0, null, 0, 0, [0, 0, 0, 0, 0]), 10) // out, and made again the same way round: a new frame
-    s = step(frame(0, null, 180), 8)
-    expect(s.f.latched).toBe(false)
-    expect(s.f.flipped).toBe(false)
-  })
-
-  it("PLAY: out of the shape and back unlatches; while latched, a pinch is a cycle (no WOBBLE, no pluck of the index)", () => {
-    const { step, plucks } = session()
     step(frame(), 8)
-    const open = () => [hand3d([0, 0, 0, 0, 0], 0.3), hand3d([0, 0, 0, 0, 0], 0.7)]
-    let s = step(open(), 15) // back to playing: the loop stays latched
-    expect(s.f.latched).toBe(true)
+    expect(step(frame(0, null, 90), 10).f.formed).toBe(true) // edge-on 400 ms: still an L on the looser limits
+    let s = step(frame(0, null, 180), 8)
+    expect(s.f).toMatchObject({ formed: true, flipped: true, flips: 1 })
+    s = step(frame(0, null, 90, 90, [0, 0, 0, 0, 0]), 9) // misread as open hands mid-turn 0.32 s: let go
     expect(s.f.formed).toBe(false)
-    const cycles = s.f.cycles
-    const pinching = () => {
-      const h = hand3d([0, 0.6, 0, 0, 0], 0.3) // the index folds onto the thumb
-      h.world[4] = { ...h.world[8]! }
-      h.points[4] = { ...h.points[8]! }
-      return [h, hand3d([0, 0, 0, 0, 0], 0.7)]
-    }
-    for (let i = 0; i < 6; i++) s = step(pinching())
-    expect(s.f.cycles).toBe(cycles + 1)
-    expect(s.play.shapes.right?.shape ?? null).not.toBe('pinch')
-    expect(plucks).toHaveLength(0)
-    step(open(), 15)
-    expect(step(frame(), 8).f.latched).toBe(false) // a new frame: the loop's off
+    s = step(frame(0, null, 180), 8) // made again: a new frame, the right way up
+    expect(s.f).toMatchObject({ formed: true, flipped: false })
   })
 
-  it('one-handed: one L held the Hold time opens a frame on its corner (latched); let go it stays; held again it goes', () => {
-    usePlayPrefs.setState({ oneHanded: true, holdMs: 500, wobble: 'medium' })
+  it("held only: let go, it's gone (no latch); made again, a new frame; while held PLAY names no shape", () => {
+    const { step } = session()
+    const was = step(frame(), 8).f.formedAt
+    expect(step(frame(), 1).play.shapes.right?.shape ?? null).toBeNull()
+    expect(step([hand3d([0, 0, 0, 0, 0], 0.3), hand3d([0, 0, 0, 0, 0], 0.7)], 15).f.formed).toBe(false)
+    const s = step(frame(), 8)
+    expect(s.f.formed).toBe(true)
+    expect(s.f.formedAt).toBeGreaterThan(was)
+  })
+
+  it("Melody's LOOP: any inward frame (loose fingers, any rotation, either hand on top) forms in 0.15 s; facing out, never", () => {
+    const loose = [0, 0, 0, 0, 0] // thumb and index out, the other three anyhow
+    expect(session().step(frame(0, null, 0, 0, loose), 8).f.formed).toBe(false) // not two Ls: no frame outside LOOP
+    setInwardFrames(true)
+    try {
+      for (const deg of [0, 45, 90, 180]) {
+        const { step } = session()
+        expect(step(frame(deg, null, 0, 0, loose), 3).f.formed).toBe(false)
+        const s = step(frame(deg, null, 0, 0, loose), 3)
+        expect(s.f).toMatchObject({ formed: true, amount: 0.5 })
+        expect(step(frame(deg, null, 0, 0, [0.6, 0, 1, 1, 1]), 9).f.formed).toBe(false) // out of the L pose 0.32 s: let go
+      }
+      // The same Ls swapped round, their openings facing away from each other: no frame.
+      const out = () => [hand3d(loose, 0.64, 0.28, ASPECT, { mirror: true, thumbSide: true }), hand3d(loose, 0.36, 0.72, ASPECT, { mirror: true, thumbSide: true, turn: 180 })]
+      expect(session().step(out(), 10).f.formed).toBe(false)
+    } finally {
+      setInwardFrames(false)
+    }
+  })
+
+  it('one-handed: one L held the Hold time is the frame on its corner, as long as it is held; turned over, the flip side', () => {
+    usePlayPrefs.setState({ controlStyle: 'one', holdMs: 500, wobble: 'medium' })
     try {
       const { step } = session()
       const [right] = frame()
@@ -249,26 +246,26 @@ describe('the FRAME', () => {
       expect(s.f.formed).toBe(false)
       expect(s.f.holdProgress).toBeGreaterThan(0.3)
       s = step([right!], 8) // 560 ms
-      expect(s.f).toMatchObject({ formed: true, latched: true, holdProgress: 0 })
+      expect(s.f).toMatchObject({ formed: true, holdProgress: 0, amount: 0.5 })
       expect(s.f.corners).toHaveLength(4)
       expect(s.f.corner!.x).toBeCloseTo(0.36, 1) // the L's corner, about where the hand is
-      s = step([open], 10) // let go, back to playing
-      expect(s.f.corner).not.toBeNull() // kept where it locked
-      expect(s.f).toMatchObject({ formed: false, latched: true })
-      step([right!], 2) // an L again, turned over in its corner: the flip side, no release
+      s = step([open], 10) // let go
+      expect(s.f.formed).toBe(false)
+      expect(s.f.corner).not.toBeNull() // kept where it was
+      s = step([right!], 14) // held again: a new frame
+      expect(s.f).toMatchObject({ formed: true, flipped: false })
       for (const r of [45, 90, 135]) step([frame(0, null, r)[0]!])
-      s = step([frame(0, null, 180)[0]!], 15)
-      expect(s.f).toMatchObject({ latched: true, flipped: true })
+      s = step([frame(0, null, 180)[0]!], 15) // turned over in its corner: the flip side, still held
+      expect(s.f).toMatchObject({ formed: true, flipped: true })
       for (const r of [135, 90, 45]) step([frame(0, null, r)[0]!])
       s = step([right!], 10) // and back: the front
-      expect(s.f).toMatchObject({ latched: true, flipped: false })
-      s = step([open], 10)
-      s = step([right!], 14)
-      expect(s.f.latched).toBe(false) // held again: let go
-      const both = step(frame(), 10).f // the other hand's L too: no two-handed frame, the one hand's hold already fired
-      expect(both.latched).toBe(false)
+      expect(s.f).toMatchObject({ formed: true, flipped: false })
+      expect(step([open], 10).f.formed).toBe(false)
+      const both = step(frame(), 14).f // the other hand's L too: still the one hand's frame (its corner)
+      expect(both.formed).toBe(true)
+      expect(both.corner).not.toBeNull()
     } finally {
-      usePlayPrefs.setState({ oneHanded: false })
+      usePlayPrefs.setState({ controlStyle: 'curl' })
     }
   })
 })

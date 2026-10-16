@@ -16,6 +16,7 @@
 import { useEffect, useRef } from 'react'
 import { dockBox } from '@/components/fb/layout'
 import { VISUAL_WAVE, visualHidesCamera } from './visuals'
+import { t } from '@/i18n'
 
 export interface WaveSection {
   label: string
@@ -316,17 +317,17 @@ const FOX_LINE = [[-96, 0], [-84, -1], [-74, -8], [-66, -22], [-56, -30], [-48, 
   [27, -48], [31, -58], [35, -46], [44, -40], [56, -33], [48, -28], [38, -26], [32, -16], [31, 0], [44, 0]] as const
 const TAIL = 5 // the first points: the tail, which wags
 
-function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: number }, k: number, t: number, mid: number) {
-  const still = t === 0
-  const u = (t * 0.045) % 2
+function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: number }, k: number, sec: number, mid: number) {
+  const still = sec === 0
+  const u = (sec * 0.045) % 2
   const pp = u < 1 ? u : 2 - u
   const e = pp * pp * (3 - 2 * pp)
   const dir = u < 1 ? 1 : -1
   const x0 = still ? mid : R.x + 110 + e * (R.w - 220)
-  const step = t * 10
+  const step = sec * 10
   const appear = Math.min(1, k * 1.5)
   const bob = Math.abs(Math.sin(step)) * 2.2
-  const wag = Math.sin(t * 5) * 5
+  const wag = Math.sin(sec * 5) * 5
   const K = FOX_LINE.map(([x, y], i) => [x, i > 1 && i < TAIL ? y - wag * (i === 2 ? 0.3 : 1) : y] as [number, number])
   const cr = (p0: number[], p1: number[], p2: number[], p3: number[], q: number) => {
     const q2 = q * q
@@ -343,7 +344,7 @@ function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: nu
     ctx.beginPath()
     pts.forEach(([x, y], i) => {
       const lift = y! < -0.5 ? 1 : 0
-      const Y = y! * appear - bob * lift + lift * Math.sin(i * 0.9 - t * 14) * amp + off
+      const Y = y! * appear - bob * lift + lift * Math.sin(i * 0.9 - sec * 14) * amp + off
       if (i) ctx.lineTo(x!, Y)
       else ctx.moveTo(x!, Y)
     })
@@ -371,7 +372,7 @@ function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: nu
   line(0, 1.2)
   ctx.beginPath() // the belly
   for (let x = -40; x <= 30; x += 2) {
-    const y = -12 * appear - bob + Math.sin(x * 0.5 - t * 12)
+    const y = -12 * appear - bob + Math.sin(x * 0.5 - sec * 12)
     if (x === -40) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
@@ -388,7 +389,7 @@ function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: nu
     ctx.stroke()
   }
   for (let i = 0; i < 9; i++) { // its trail: waveform bars
-    const h = (Math.abs(Math.sin(t * 6 + i * 0.8)) * 7 + 2) * (1 - i / 9) * appear
+    const h = (Math.abs(Math.sin(sec * 6 + i * 0.8)) * 7 + 2) * (1 - i / 9) * appear
     ctx.globalAlpha = appear * (1 - i / 9) * 0.8
     ctx.lineWidth = 2.5
     ctx.beginPath()
@@ -407,6 +408,6 @@ function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: nu
   ctx.fillStyle = 'rgba(246, 239, 230, 0.7)'
   ctx.font = "600 12px 'Geist Mono', monospace"
   ctx.textAlign = 'center'
-  ctx.fillText('PAUSED · SPACE TO PLAY', mid, cy + 34)
+  ctx.fillText(t('remix.paused', 'PAUSED · SPACE TO PLAY'), mid, cy + 34)
   ctx.restore()
 }

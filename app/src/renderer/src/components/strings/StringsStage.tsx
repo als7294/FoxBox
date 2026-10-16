@@ -11,8 +11,8 @@
  * FoxBox 2.0 (S3): `mode` 'play' draws PLAY's strings instead (playStrings.ts: note labels, plucks, FLOW, FREEZE; fed
  * by playFeed.ts): the hands-only tracker, no song, beat FX or GLASS. 'remix' (the default) is the above.
  * The FRAME (2.0) is the hero, in both modes: a pane exactly in the hands' frame (S1's quad, cameraSignals().frame,
- * else the fallback rectangle from the two Ls) playing back the camera's last 4 beats through its style; a pinch
- * restyles it (S1's frame.cycles). Outside it nothing changes (glass.ts, glassPass.ts: the stage feeds it each new
+ * else the fallback rectangle from the two Ls) playing back the camera's last 4 beats through its style (each new
+ * frame the next; P restyles it). Outside it nothing changes (glass.ts, glassPass.ts: the stage feeds it each new
  * camera frame). REMIX: while the frame is held, on the song's grid. PLAY: FREEZE's frame, on S2's plucks tempo.
  *
  * VISUALS (visuals.ts): the picked visual on this canvas too: SAUCE's over the camera, REMIX's instead of it, around
@@ -58,8 +58,13 @@ function frameCorners(hands: ReturnType<typeof cameraSignals>['stage'], aspect: 
 }
 
 /** S1's frame state: its pinch count while framed (a change restyles it), and turned over like a card (the flip side). */
-const frameCycles = (): number => (SYNTH ? 0 : cameraSignals().frame.cycles) + keyFrame.cycles // and the P key's
+const frameCycles = (): number => keyFrame.cycles // the P key's (2.1: a pinch no longer restyles it)
 const frameTurned = (): boolean | undefined => (SYNTH ? undefined : cameraSignals().frame.flipped)
+/** FRAMES_SIMPLE (2.1): S1's frame.amount, 0-1 (its size against the size it was made at), once S1 publishes it. */
+const frameAmount = (): number | null => {
+  const f: { formed: boolean; amount?: number | null } = cameraSignals().frame
+  return SYNTH ? null : (f.amount ?? null)
+}
 
 const DIAG_MS = 5000 // main.log's STRINGS line
 
@@ -196,7 +201,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
         else base?.frame(silentFrame(now / 1000), dt)
         playStrings?.frame(hands, now)
         keep(now)
-        const g = glass.update(now, playFeed.strings.frozen || keyFrame.on, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest() })
+        const g = glass.update(now, playFeed.strings.frozen || keyFrame.on, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount() })
         camera()
         visual.draw(octx, w, h, dt, now / 1000, box)
         const pane = g.mix > 0 ? pass.draw(base ? base.canvas : out, g, { bass: 0, kick: 0, time: now / 1000, now }) : null
@@ -244,7 +249,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
       // S1's frame: formed holds through corner taps and a card turn (the raw L drops mid-turn); the scripted hands, the L
       const formed = (SYNTH ? cameraSignals().shapes.frame.held : cameraSignals().frame.formed) || keyFrame.on
       const g = glass.update(now, formed, frameCorners(hands, w / h), {
-        beat: a.bpm > 0 ? { bpm: a.bpm, phase: a.beatPhase } : null, cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest() })
+        beat: a.bpm > 0 ? { bpm: a.bpm, phase: a.beatPhase } : null, cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount() })
       if (g.changed) useStrings.setState({ glass: { type: g.type, at: now } })
       const hit = (a.stems?.drums?.onset ?? a.onset) >= 1 && now - kickAt >= 334 // the glass's glint: at most 3 a second
       if (hit) kickAt = now

@@ -15,10 +15,12 @@ import { createPreview } from '@/audio/library/preview'
 import { getClipAudio, useLiveDeck } from '@/state/liveDeck'
 import { songs } from '@/state/song'
 import { toast } from '@/state/toasts'
+import { t } from '@/i18n'
 import { usePlayPrefs } from '@/components/camera/playPrefs'
-import { dockBox, sided, waveLineY } from '@/components/fb/layout'
+import { dockBox, waveLineY } from '@/components/fb/layout'
 import { createLibraryWheel, type LibraryWheel } from './libraryWheel'
 import s from './wheel.module.css'
+import { computer } from '@/lib/platform'
 
 export const useWheelUi = create<{ open: boolean }>(() => ({ open: false }))
 /** Open or close it from the page (S1's gestures are told, so the shaka toggles from there; REMIX's FX pause while open). */
@@ -57,14 +59,14 @@ let loadedAt = -Infinity // a load's sleeve flies onto the line before the wheel
 
 /** A library track into REMIX: S3 makes it a song (analysis, then the stems gate), and the deck loads it. */
 async function loadTrack(trackId: string): Promise<void> {
-  if (missing.has(trackId)) return void toast.warn('File missing', { detail: 'It was moved or deleted since the library was read.' })
+  if (missing.has(trackId)) return void toast.warn(t('wheel.missing', 'File missing'), { detail: t('wheel.missing.detail', 'It was moved or deleted since the library was read.') })
   loadedAt = performance.now()
   try {
     const song = await unwrap(api.POST('/api/library/tracks/{track_id}/song', { params: { path: { track_id: trackId } } }))
     closeWheel()
     await songs.pick(song.id, { open: false })
   } catch (e) {
-    toast.error("Couldn't load that track", { detail: (e as Error).message })
+    toast.error(t('wheel.loadFailed', 'Couldn’t load that track'), { detail: (e as Error).message })
   }
 }
 
@@ -72,8 +74,8 @@ async function loadTrack(trackId: string): Promise<void> {
  *  `replace`: Locate… a source that's gone, the old one removed once the new one is in. */
 export async function addLibrarySource(kind: 'folder' | 'rekordbox' | 'serato', replace?: string): Promise<string | null> {
   const r = await bridge()?.addLibrarySource(kind)
-  if (!r) return 'Adding a library needs the desktop app.'
-  if (r.error) return kind === 'rekordbox' ? "That file isn't a Rekordbox collection export." : r.error
+  if (!r) return t('wheel.add.needsApp', 'Adding a library needs the desktop app.')
+  if (r.error) return kind === 'rekordbox' ? t('wheel.add.badXml', 'That file isn’t a Rekordbox collection export.') : r.error
   if (r.added && replace)
     await unwrap(api.DELETE('/api/library/sources/{source_id}', { params: { path: { source_id: replace } } })).catch(() => undefined)
   return null
@@ -108,7 +110,8 @@ const hintTop = (w: number, h: number) => {
   return Math.min(waveLineY(w, h) + 48, h - d.bottom - d.height - 22)
 }
 
-const SHELF: Record<string, string> = { rekordbox: 'PLAYLISTS', serato: 'CRATES', folder: 'FOLDERS' }
+const shelfLabel = (kind: string): string =>
+  kind === 'serato' ? t('wheel.shelf.crates', 'CRATES') : kind === 'folder' ? t('wheel.shelf.folders', 'FOLDERS') : t('wheel.shelf.playlists', 'PLAYLISTS')
 
 function WheelPanel({ open }: { open: boolean }) {
   const qc = useQueryClient()
@@ -128,7 +131,7 @@ function WheelPanel({ open }: { open: boolean }) {
   const refresh = () => void qc.invalidateQueries({ queryKey: ['library-sources'] })
   const useSerato = async () => {
     seratoAsked = false
-    setNote((await findSerato()) ? null : { text: 'Serato isn’t on this Mac (no _Serato_ folder in Music).' })
+    setNote((await findSerato()) ? null : { text: t('wheel.serato.none', 'Serato isn’t on {computer} (no _Serato_ folder in Music).', { computer: computer() }) })
     refresh()
   }
   const add = async (kind: 'folder' | 'rekordbox', replace?: string) => {
@@ -206,15 +209,15 @@ function WheelPanel({ open }: { open: boolean }) {
 
   useEffect(() => {
     const items = tracks.data?.items ?? []
-    for (const t of items) if (t.missing) missing.add(t.id)
+    for (const tr of items) if (tr.missing) missing.add(tr.id)
     // ponytail: a missing file is marked in its title (the ring has no dimmed card yet: S2's, with the design handoff)
     wheel.current?.setTracks(
-      items.map((t) => ({
-        id: t.id,
-        title: t.missing ? `${t.title} · file missing` : t.title,
-        artist: t.artist ?? undefined,
-        bpm: t.bpm ?? undefined,
-        artUrl: t.has_art === false || t.missing ? null : libraryUrl('art', t.id),
+      items.map((tr) => ({
+        id: tr.id,
+        title: tr.missing ? `${tr.title} · ${t('wheel.fileMissing', 'file missing')}` : tr.title,
+        artist: tr.artist ?? undefined,
+        bpm: tr.bpm ?? undefined,
+        artUrl: tr.has_art === false || tr.missing ? null : libraryUrl('art', tr.id),
       })),
     )
   }, [tracks.data])
@@ -230,21 +233,21 @@ function WheelPanel({ open }: { open: boolean }) {
   return (
     <div className={s.wrap} data-closing={!open || undefined} onKeyDown={(e) => e.key === 'Escape' && closeWheel()}>
       <div className={s.dim} aria-hidden="true" />
-      <div ref={host} tabIndex={0} aria-label="Library wheel" className={s.host} />
+      <div ref={host} tabIndex={0} aria-label={t('wheel.aria', 'Library wheel')} className={s.host} />
       <div className={s.top}>
         <div role="group" aria-label="Library filter" className={s.bar}>
           <input
             ref={search}
             type="search"
             className={s.search}
-            aria-label="Search the library"
-            placeholder="Search"
+            aria-label={t('wheel.search.aria', 'Search the library')}
+            placeholder={t('wheel.search', 'Search')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
           {list.length > 0 && (
-            <div className={s.sources} role="radiogroup" aria-label="Source">
-              {[{ id: '', name: 'All', tracks: all }, ...list].map((x) => (
+            <div className={s.sources} role="radiogroup" aria-label={t('wheel.source', 'Source')}>
+              {[{ id: '', name: t('wheel.all', 'All'), tracks: all }, ...list].map((x) => (
                 <button
                   key={x.id}
                   type="button"
@@ -264,19 +267,19 @@ function WheelPanel({ open }: { open: boolean }) {
           )}
           <span className={s.count} role="status">
             {scanning.length
-              ? `Scanning ${scanning[0]!.name} · ${scanning[0]!.tracks.toLocaleString()} so far`
+              ? t('wheel.scanning.count', 'Scanning {name} · {n} so far', { name: scanning[0]!.name, n: scanning[0]!.tracks.toLocaleString() })
               : list.length
-                ? `${total.toLocaleString()} of ${(src?.tracks ?? all).toLocaleString()}`
+                ? t('wheel.count', '{n} of {total}', { n: total.toLocaleString(), total: (src?.tracks ?? all).toLocaleString() })
                 : ''}
           </span>
-          <button type="button" className={s.close} aria-label="Close the library" onClick={closeWheel}>
+          <button type="button" className={s.close} aria-label={t('wheel.close', 'Close the library')} onClick={closeWheel}>
             ×
           </button>
         </div>
         {src && (playlists.data?.length ?? 0) > 0 && (
-          <div className={s.shelf} role="radiogroup" aria-label={SHELF[src.kind] ?? 'PLAYLISTS'}>
-            <span className={s.shelfLabel}>{SHELF[src.kind] ?? 'PLAYLISTS'}</span>
-            {[{ id: '', name: 'All tracks', track_count: src.tracks }, ...(playlists.data ?? [])].map((p) => (
+          <div className={s.shelf} role="radiogroup" aria-label={shelfLabel(src.kind)}>
+            <span className={s.shelfLabel}>{shelfLabel(src.kind)}</span>
+            {[{ id: '', name: t('wheel.allTracks', 'All tracks'), track_count: src.tracks }, ...(playlists.data ?? [])].map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -294,23 +297,25 @@ function WheelPanel({ open }: { open: boolean }) {
       </div>
       {list.length > 0 && (
         <div className={s.hint} style={{ top: hintTop(window.innerWidth, window.innerHeight) }} aria-hidden="true">
-          {sided('Right index spins · close your left hand to grab · hold to load · Beat FX paused', leftHanded)}
+          {leftHanded
+            ? t('wheel.hint.left', 'Left index spins · close your right hand to grab · hold to load · Beat FX paused')
+            : t('wheel.hint', 'Right index spins · close your left hand to grab · hold to load · Beat FX paused')}
         </div>
       )}
       {list.length > 0 && (errors.length > 0 || note || (q.trim() && total === 0 && !tracks.isFetching)) && (
         <div className={s.msgs} role="status">
           {errors.map((x) => (
             <div key={x.id} className={s.msg}>
-              <b className={s.msgTitle}>Can’t find {x.name}</b>
-              <span className={s.msgBody}>It was moved or unplugged.</span>
+              <b className={s.msgTitle}>{t('wheel.gone', 'Can’t find {name}', { name: x.name })}</b>
+              <span className={s.msgBody}>{t('wheel.gone.body', 'It was moved or unplugged.')}</span>
               <span className={s.msgBtns}>
                 {x.kind !== 'serato' && (
                   <button type="button" data-kind="solid" onClick={() => void add(x.kind === 'rekordbox' ? 'rekordbox' : 'folder', x.id)}>
-                    Locate…
+                    {t('wheel.locate', 'Locate…')}
                   </button>
                 )}
                 <button type="button" onClick={() => remove(x.id)}>
-                  Remove
+                  {t('wheel.remove', 'Remove')}
                 </button>
               </span>
             </div>
@@ -321,7 +326,7 @@ function WheelPanel({ open }: { open: boolean }) {
               {note.retry && (
                 <span className={s.msgBtns}>
                   <button type="button" data-kind="solid" onClick={note.retry}>
-                    Pick another
+                    {t('wheel.pickAnother', 'Pick another')}
                   </button>
                 </span>
               )}
@@ -329,10 +334,10 @@ function WheelPanel({ open }: { open: boolean }) {
           )}
           {q.trim() && total === 0 && !tracks.isFetching && (
             <div className={s.msg}>
-              <b className={s.msgTitle}>Nothing matches “{q.trim()}”</b>
+              <b className={s.msgTitle}>{t('wheel.noMatch', 'Nothing matches “{q}”. Not even close.', { q: q.trim() })}</b>
               <span className={s.msgBtns}>
                 <button type="button" onClick={() => setQ('')}>
-                  Clear search
+                  {t('wheel.clearSearch', 'Clear search')}
                 </button>
               </span>
             </div>
@@ -340,23 +345,22 @@ function WheelPanel({ open }: { open: boolean }) {
         </div>
       )}
       {((sources.data && list.length === 0) || sources.isError) && (
-        <div role="group" aria-label="Add your music" className={s.msgs}>
+        <div role="group" aria-label={t('wheel.empty.title', 'Add your music')} className={s.msgs}>
           <div className={s.msg}>
-            <b className={s.msgTitle}>Add your music</b>
+            <b className={s.msgTitle}>{t('wheel.empty.title', 'Add your music')}</b>
             <span className={s.msgBody}>
-              Pick a folder, import a Rekordbox XML export (File → Export Collection in xml format), or read your Serato library. Nothing
-              leaves this Mac.
+              {t('wheel.empty.body', 'Pick a folder, import a Rekordbox XML export (File → Export Collection in xml format), or read your Serato library. Nothing leaves this Mac.')}
             </span>
             {note && <span className={s.msgBody}>{note.text}</span>}
             <span className={s.msgBtns}>
               <button type="button" data-kind="solid" onClick={() => void add('folder')}>
-                Choose a folder…
+                {t('wheel.add.folder', 'Choose a folder…')}
               </button>
               <button type="button" onClick={() => void add('rekordbox')}>
-                Rekordbox XML…
+                {t('wheel.add.xml', 'Rekordbox XML…')}
               </button>
               <button type="button" onClick={() => void useSerato()}>
-                Use Serato
+                {t('wheel.add.serato', 'Use Serato')}
               </button>
             </span>
           </div>
@@ -365,9 +369,9 @@ function WheelPanel({ open }: { open: boolean }) {
       {scanning.length > 0 && total === 0 && (
         <div className={s.msgs} role="status">
           <div className={s.msg}>
-            <b className={s.msgTitle}>Scanning {scanning[0]!.name}…</b>
+            <b className={s.msgTitle}>{t('wheel.scanning', 'Scanning {name}…', { name: scanning[0]!.name })}</b>
             <span className={s.msgBody}>
-              {scanning[0]!.tracks.toLocaleString()} tracks so far · tags and artwork. The wheel fills in as tracks are found.
+              {t('wheel.scanning.body', '{n} tracks so far · tags and artwork. The wheel fills in as tracks are found.', { n: scanning[0]!.tracks.toLocaleString() })}
             </span>
             <span className={s.scanBar}>
               <span />

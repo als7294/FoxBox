@@ -17,6 +17,7 @@ import { openWheel, useWheelUi } from '@/components/wheel/WheelOverlay'
 import { isEngineUsable, useEngine } from '@/state/engine'
 import { useLiveDeck } from '@/state/liveDeck'
 import { useSong } from '@/state/song'
+import { t } from '@/i18n'
 import { BeatPads, PAD_NAMES } from './Board'
 import { useBoard } from './boardStore'
 import { closeAll, useFb } from './fbStore'
@@ -29,7 +30,7 @@ import s from './remix.module.css'
  *  re-renders only a few times a second (play/pause, the tempo), not every frame (REMIX's GPU is the tracker's too). */
 export function RemixWave() {
   const deck = useLiveDeck((d) => d.deck)
-  const song = useSong((t) => t.song) // its structure and grid can land after the deck
+  const song = useSong((x) => x.song) // its structure and grid can land after the deck
   const wheelOpen = useWheelUi((w) => w.open)
   const boardOpen = useFb((f) => f.board)
   const remix = useBoard((b) => b.remix)
@@ -69,15 +70,17 @@ function StemsLine() {
   const deck = useLiveDeck((d) => d.deck)
   if (ask)
     return (
-      <div className={s.stems} data-tone="ask" role="group" aria-label="Stem splitter">
+      <div className={s.stems} data-tone="ask" role="group" aria-label={t('remix.stems.aria', 'Stem splitter')}>
         <span className={s.stemsDot} />
-        <span className={s.stemsTitle}>Split the stems?</span>
-        <span className={s.stemsSub}>{DEMUCS_NOTICE} It downloads once (84 MB).</span>
+        <span className={s.stemsTitle}>{t('remix.stems.ask', 'Split the stems?')}</span>
+        <span className={s.stemsSub}>
+          {DEMUCS_NOTICE} {t('remix.stems.once', 'It downloads once (84 MB).')}
+        </span>
         <button type="button" className={s.small} data-primary onClick={() => ask(true)}>
-          Continue
+          {t('launch.update.continue', 'Continue')}
         </button>
         <button type="button" className={s.small} onClick={() => ask(false)}>
-          Not now
+          {t('remix.stems.notNow', 'Not now')}
         </button>
       </div>
     )
@@ -98,21 +101,25 @@ function StemsLine() {
       )}
     </div>
   )
-  if (download != null) return line('busy', 'Downloading the stem model', '84 MB · once', download)
-  if (stems === 'splitting') return line('busy', 'Splitting stems', 'Drums · Bass · Vocals · Other', progress ?? 0)
-  if (stems === 'loading') return line('busy', 'Loading stems', 'Drums · Bass · Vocals · Other')
-  if (stems === 'on') return line('ok', 'Stems ready', 'Drums · Bass · Vocals · Other')
+  const parts = () => t('remix.stems.parts', 'Drums · Bass · Vocals · Other')
+  const mix = () => t('remix.stems.mix', 'The strings play the mix.')
+  if (download != null)
+    return line('busy', t('remix.stems.downloading', 'Downloading the stem model'), t('remix.stems.downloading.sub', '84 MB · once'), download)
+  if (stems === 'splitting') return line('busy', t('remix.stems.splitting', 'Splitting stems'), parts(), progress ?? 0)
+  if (stems === 'loading') return line('busy', t('remix.stems.loading', 'Loading stems'), parts())
+  if (stems === 'on') return line('ok', t('remix.stems.ready', 'Stems ready'), parts())
   if (stems === 'failed')
-    return line('bad', 'Stem split failed', 'The strings play the mix.', null, ['Try again', () => deck?.retryStems()])
-  if (stems === 'declined') return line('bad', 'No stems', 'The strings play the mix.', null, ['Split stems', () => deck?.retryStems()])
+    return line('bad', t('remix.stems.failed', 'Stem split failed'), mix(), null, [t('camera.retry', 'Try again'), () => deck?.retryStems()])
+  if (stems === 'declined')
+    return line('bad', t('remix.stems.none', 'No stems'), mix(), null, [t('remix.stems.split', 'Split stems'), () => deck?.retryStems()])
   return null
 }
 
 export function SongPop() {
   useTick(true)
-  const song = useSong((t) => t.song)
-  const busy = useSong((t) => t.busy)
-  const songError = useSong((t) => t.error)
+  const song = useSong((x) => x.song)
+  const busy = useSong((x) => x.busy)
+  const songError = useSong((x) => x.error)
   const ready = useEngine((e) => isEngineUsable(e.status))
   const deck = useLiveDeck((d) => d.deck)
   const testBeat = useLiveDeck((d) => d.testBeat)
@@ -124,13 +131,13 @@ export function SongPop() {
   const sections = deck?.sections() ?? []
   const at = deck?.positionS() ?? 0
   const sub = !ready
-    ? 'Getting REMIX ready…'
+    ? t('remix.song.starting', 'Getting REMIX ready…')
     : (busy ??
       load.error ??
       songError ??
       (song || testing
         ? [bpm ? `${Math.round(bpm)} BPM` : null, key].filter(Boolean).join(' · ')
-        : 'Drop a track anywhere, or open your library'))
+        : t('remix.song.empty', 'Drop a track anywhere, or open your library')))
   return (
     <>
       {load.input}
@@ -138,7 +145,7 @@ export function SongPop() {
         <button
           type="button"
           className={s.play}
-          aria-label={playing ? 'Pause' : 'Play'}
+          aria-label={playing ? t('remix.song.pause', 'Pause') : t('remix.song.play', 'Play')}
           aria-keyshortcuts="Space"
           disabled={!song && !testing}
           onClick={togglePlay}
@@ -146,14 +153,14 @@ export function SongPop() {
           {playing ? '❚❚' : '▶'}
         </button>
         <div className={s.songText}>
-          <span className={s.songTitle}>{song?.name ?? (testing ? 'Test beat' : 'No track yet')}</span>
+          <span className={s.songTitle}>{song?.name ?? (testing ? t('board.testBeat', 'Test beat') : t('remix.song.none', 'No track yet'))}</span>
           <span className={s.songSub}>{sub}</span>
         </div>
         <span className={s.push}>
           <KeyChip>Space</KeyChip>
         </span>
       </div>
-      <Section label="JUMP TO">
+      <Section label={t('remix.song.jumpTo', 'JUMP TO')}>
         <KeyChip>← →</KeyChip>
       </Section>
       {sections.length ? (
@@ -172,7 +179,9 @@ export function SongPop() {
           ))}
         </div>
       ) : (
-        <div className={s.noSections}>{song ? 'Reading the song’s sections…' : 'Sections show once a track is in'}</div>
+        <div className={s.noSections}>
+          {song ? t('remix.song.reading', 'Reading the song’s sections…') : t('remix.song.noSections', 'Sections show once a track is in')}
+        </div>
       )}
       <StemsLine />
       <div className={p.grid2}>
@@ -185,10 +194,10 @@ export function SongPop() {
             openWheel()
           }}
         >
-          Open library · L
+          {t('remix.song.library', 'Open library · L')}
         </button>
         <button type="button" className={s.wide} onClick={song ? load.choose : playTestBeat}>
-          {song ? 'Pick a file…' : 'Try the test beat'}
+          {song ? t('remix.song.pick', 'Pick a file…') : t('remix.tryTestBeat', 'Try the test beat')}
         </button>
       </div>
     </>
@@ -208,16 +217,19 @@ export function FxPop() {
         title="Beat FX"
         sub={
           now.fx && now.fx !== 'glass'
-            ? `${REMIX_ACTIONS.find((a) => a.id === now.fx)?.label ?? now.fx} · depth ${Math.round(now.depth * 100)}% · locked to the beat`
-            : 'Hold a shape: its effect plays, locked to the beat. Raise the hand for more.'
+            ? t('remix.fx.sub', '{fx} · depth {n}% · locked to the beat', {
+                fx: REMIX_ACTIONS.find((a) => a.id === now.fx)?.label ?? now.fx,
+                n: Math.round(now.depth * 100),
+              })
+            : t('remix.fx.hint', 'Hold a shape: its effect plays, locked to the beat. Raise the hand for more.')
         }
       >
         <EditToggle edit={edit != null} set={(on) => setEdit(on ? 'fist' : null)} />
       </PopHead>
       <BeatPads css={s} edit={edit} pick={setEdit} />
       {edit != null && <EditShapes mode="remix" shape={edit} names={PAD_NAMES} />}
-      <Section label="BANDS">
-        <span className={p.sub}>Fold a finger to cut</span>
+      <Section label={t('board.bands', 'BANDS')}>
+        <span className={p.sub}>{t('remix.fx.bands', 'Fold a finger to cut')}</span>
       </Section>
       <div className={s.bands}>
         {BANDS.map((b, i) => (
@@ -232,15 +244,15 @@ export function FxPop() {
 
 export function RemixRecordPop() {
   const clipT0 = useProdRec((r) => r.t0)
-  const takeT0 = useTakes((t) => t.t0)
+  const takeT0 = useTakes((x) => x.t0)
   const kind = useProd((x) => x.recordKind)
   return (
     <RecordPanel
       t0={clipT0 ?? takeT0}
       onToggle={toggleRemixRecord}
-      sub={kind === 'video' ? 'Video + audio of the camera and strings' : 'WAV of the track as you play it'}
+      sub={kind === 'video' ? t('remix.rec.sub.video', 'Video + audio of the camera and strings') : t('remix.rec.sub.wav', 'WAV of the track as you play it')}
     >
-      <div className={p.seg} role="radiogroup" aria-label="Record" style={{ width: 200 }}>
+      <div className={p.seg} role="radiogroup" aria-label={t('stage.record', 'Record')} style={{ width: 200 }}>
         {(['video', 'wav'] as const).map((k) => (
           <button
             key={k}
@@ -251,7 +263,7 @@ export function RemixRecordPop() {
             disabled={clipT0 != null || takeT0 != null}
             onClick={() => useProd.getState().setRecordKind(k)}
           >
-            {k === 'video' ? 'VIDEO' : 'AUDIO'}
+            {k === 'video' ? t('remix.rec.video', 'VIDEO') : t('remix.rec.audio', 'AUDIO')}
           </button>
         ))}
       </div>

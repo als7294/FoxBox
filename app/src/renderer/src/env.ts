@@ -14,6 +14,11 @@ export function bridge(): FvwksBridge | null {
 
 export const isElectron = (): boolean => Boolean(bridge())
 
+/** The Windows beta (SAUCE only for now): Electron on win32, or `?platform=win32` in a development page. */
+export const isWindows = (): boolean =>
+  bridge()?.platform === 'win32' ||
+  (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('platform') === 'win32')
+
 /**
  * Mock mode: no engine, MSW answers /api/* from the page's own origin. Used by `npm run web`,
  * `npm run dev:mock`, and `?mock=1`.

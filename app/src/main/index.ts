@@ -18,6 +18,8 @@ import {
   type NativeImage,
 } from 'electron'
 import { randomBytes } from 'node:crypto'
+import { createSocket } from 'node:dgram'
+import { Worker } from 'node:worker_threads'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, realpath, rename, statfs, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -31,6 +33,7 @@ import {
   type DisplayInfo,
   type EngineResponse,
   type EngineStatus,
+  type LinkReading,
   type UpdateState,
   type VisualsOutputState,
 } from '../shared/bridge'
@@ -42,15 +45,20 @@ import {
   resolveEngineLaunch,
   type QuarantineResult,
 } from './engine/command'
+import { readConfig } from './ableton/foxbox-ableton'
+import { registerAbletonIpc } from './ableton/ipc'
 import { LogFile } from './engine/logfile'
 import { EngineSupervisor } from './engine/supervisor'
 import { bootSkipReason, BootUpdateGate } from './bootUpdate'
+import { openSplash, showWindow, type Splash } from './splash'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
 import { ExportGuard, isInside } from './exportGuard'
 import { underNotch } from './notch'
 import { buildMenu } from './menu'
+import { createMidiRouter } from './midi'
 import { cartridgePng } from './png'
 import { Updater } from './updater'
+import { startWinUpdates } from './winUpdater'
 
 // Dev only: a packaged app launched with FVWKS_MOCK must never silently talk to mocks and play fake audio.
 const MOCK = process.env.FVWKS_MOCK === '1' && !app.isPackaged
@@ -106,7 +114,9 @@ const USER_DATA = app.getPath('userData')
 // Chromium's caches get their own folder so they don't mix with the engine's library.
 app.setPath('sessionData', join(USER_DATA, 'Chromium'))
 const DATA_DIR = resolve(devEnv('FVWKS_DATA_DIR') || (app.isPackaged ? USER_DATA : join(DEV_DATA, 'data')))
-const EXPORT_DIR = resolve(devEnv('FVWKS_EXPORT_DIR') || (app.isPackaged ? join(homedir(), 'Music', 'FoxBox') : join(DEV_DATA, 'exports')))
+const EXPORT_DIR = resolve(
+  devEnv('FVWKS_EXPORT_DIR') || (app.isPackaged ? join(app.getPath('music'), 'FoxBox') : join(DEV_DATA, 'exports')),
+) // Windows: OneDrive's Music too
 const LOG_DIR = join(USER_DATA, 'logs')
 
 const mainLog = new LogFile(join(LOG_DIR, 'main.log'))
@@ -125,6 +135,8 @@ const token = randomBytes(32).toString('base64url')
 let supervisor: EngineSupervisor | null = null
 let offlineReason: string | null = null
 let mainWindow: BrowserWindow | null = null
+/** 2.1's boot splash (splash.ts): it shows the main window at the hand-over. */
+let splash: Splash | null = null
 /** The first-run Setup window (900×620), open instead of the main window until setup completes. */
 let setupWindow: BrowserWindow | null = null
 let updater: Updater | null = null
@@ -239,8 +251,10 @@ function createWindow(): void {
     show: false,
     title: 'FoxBox',
     backgroundColor: '#070708', // the boot screen's black, so launch doesn't flash
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 22 },
+    // W1: Windows draws its caption buttons over the app's own top strip
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 22 } }
+      : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#070708', symbolColor: '#f4ece4', height: 36 } }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -252,7 +266,8 @@ function createWindow(): void {
     },
   })
   mainWindow = win
-  win.once('ready-to-show', () => win.show())
+  if (splash) splash.hold(win)
+  else win.once('ready-to-show', () => showWindow(win))
   // the island's shape follows the notch: told on full screen, moves, resizes and display changes
   let notched = false
   const pushNotch = () => {
@@ -497,6 +512,7 @@ function createBootGate(u: Updater, firstRun: boolean): BootUpdateGate {
   const gate = new BootUpdateGate({ updater: u, current: app.getVersion(), skip, log: (line) => log(`updates: ${line}`) })
   gate.on('state', (state) => {
     sendToRenderer(IPC.bootUpdateState, state)
+    splash?.update(state)
     if (state.phase === 'clear') u.startAutoCheck()
   })
   if (skip) u.startAutoCheck()
@@ -633,6 +649,8 @@ function registerAudioProtocol(): void {
         if (v) headers.set(h, v)
       }
       headers.set('Cache-Control', 'private, max-age=3600')
+      // a track with no cover: 204, not a 404 the console logs as an error (the wheel's card keeps its initials)
+      if (url.hostname === 'art' && upstream.status === 404) return new Response(null, { status: 204, headers: cors })
       return new Response(upstream.body, { status: upstream.status, headers })
     } catch (err) {
       return new Response(`engine unreachable: ${(err as Error).message}`, { status: 502, headers: cors })
@@ -641,9 +659,130 @@ function registerAudioProtocol(): void {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 2.1: MIDI out and Ableton Link (main/midi.ts)
+
+/** 2.1's native parts (scripts/build-native.sh): Contents/Resources/native/ (build/native/ in dev); null: won't load. */
+function loadNative<T>(name: string): T | null {
+  const file = nativeFile(name)
+  try {
+    const m = { exports: {} as T }
+    process.dlopen(m, file)
+    return m.exports
+  } catch (err) {
+    log(`native ${name} didn't load: ${(err as Error).message}`)
+    return null
+  }
+}
+/** The virtual CoreMIDI source "FoxBox" lives in a worker thread, never on main: RtMidi's port setup runs the calling
+ *  thread's CFRunLoop re-entrantly (MidiOutCore::getPortCount), which on main stalls Electron's Node loop for good (2.1.0's
+ *  hang: no timers, children or engine output after the port opened). The worker's own run loop is empty. The raw binding
+ *  takes a Buffer per message, not an array. */
+const MIDI_WORKER = `
+const { parentPort, workerData } = require('node:worker_threads')
+const m = { exports: {} }
+process.dlopen(m, workerData.file)
+const out = new m.exports.Output()
+out.openVirtualPort(workerData.name)
+parentPort.postMessage('open')
+parentPort.on('message', (b) => {
+  if (b === 'close') {
+    out.closePort()
+    process.exit(0)
+  }
+  try {
+    out.sendMessage(Buffer.from(b))
+  } catch (e) {
+    parentPort.postMessage('send failed: ' + e.message)
+  }
+})`
+const nativeFile = (name: string) =>
+  app.isPackaged ? join(process.resourcesPath, 'native', name) : join(app.getAppPath(), 'build', 'native', name)
+type LinkNative = { enable(on: boolean): void; read(quantum: number): Omit<LinkReading, 'quantum'> & { enabled: boolean } }
+let stopMidi: (() => void) | null = null
+
+function registerMidi(): void {
+  const udp = createSocket('udp4')
+  udp.on('error', (err) => log(`midi: osc ${err.message}`))
+  const midi = createMidiRouter({
+    openPort: () => {
+      const w = new Worker(MIDI_WORKER, { eval: true, workerData: { file: nativeFile('midi.node'), name: 'FoxBox' } })
+      let failures = 0
+      w.on('message', (m: unknown) => {
+        if (m === 'open') log('midi: the "FoxBox" port is open')
+        else if (failures++ < 3) log(`midi: ${String(m)}`)
+      })
+      w.on('error', (err) => log(`midi: the port's worker failed: ${err.message}`))
+      return {
+        send: (b) => w.postMessage(b),
+        close: () => {
+          w.postMessage('close')
+          w.unref()
+        },
+      }
+    },
+    udp: (packet, port) => udp.send(packet, port, '127.0.0.1'),
+    config: () => readConfig(USER_DATA),
+    version: app.getVersion(),
+  })
+  const hello = setInterval(() => midi.tick(), 1000)
+  let link: LinkNative | null | undefined
+  let linkTimer: ReturnType<typeof setInterval> | null = null
+  let linkAwake: number | null = null // App Nap would slow the readings behind another app (the clock goes stale after 1 s)
+  const toWindow = (r: LinkReading | null) => mainWindow?.webContents.send(IPC.midiLink, r)
+  const setLink = (on: boolean) => {
+    if (on === (linkTimer !== null)) return
+    if (linkTimer) clearInterval(linkTimer)
+    linkTimer = null
+    if (linkAwake !== null) powerSaveBlocker.stop(linkAwake)
+    linkAwake = null
+    if (on) link ??= loadNative<LinkNative>('foxbox_link.node')
+    link?.enable(on)
+    if (!on || !link) return toWindow(null)
+    log('midi: Link on')
+    linkAwake = powerSaveBlocker.start('prevent-app-suspension')
+    const l = link
+    let failed = false
+    linkTimer = setInterval(() => {
+      try {
+        const r = l.read(4)
+        const reading: LinkReading = { bpm: r.bpm, beat: r.beat, phase: r.phase, quantum: 4, peers: r.peers }
+        toWindow(reading)
+        midi.link(reading)
+      } catch (err) {
+        if (!failed) log(`midi: Link read failed: ${(err as Error).message}`) // once: never an exception 60 times a second
+        failed = true
+      }
+    }, 16)
+  }
+  ipcMain.on(IPC.midiSend, (event, bytes: unknown) => void (trusted(event) && midi.send(bytes)))
+  ipcMain.on(IPC.midiHands, (event, n: unknown) => void (trusted(event) && typeof n === 'number' && midi.hands(n)))
+  ipcMain.on(IPC.midiLearn, (event, cc: unknown) => void (trusted(event) && typeof cc === 'number' && midi.learn(cc)))
+  ipcMain.on(IPC.midiPrefs, (event, raw: unknown) => {
+    if (!trusted(event) || !raw || typeof raw !== 'object') return
+    const p = raw as Record<string, unknown>
+    const prefs = { port: p.port === true, channel: typeof p.channel === 'number' ? p.channel : 1, link: p.link === true }
+    midi.setPrefs(prefs)
+    setLink(prefs.link)
+  })
+  registerAbletonIpc(ipcMain, {
+    where: () => ({ userData: USER_DATA, home: homedir() }),
+    trusted,
+    openPath: (p) => shell.openPath(p),
+    showItem: (p) => shell.showItemInFolder(p),
+  })
+  stopMidi = () => {
+    clearInterval(hello)
+    setLink(false)
+    midi.close()
+    udp.close()
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // IPC
 
 function registerIpc(): void {
+  registerMidi()
   ipcMain.on(IPC.bootInfo, (event) => {
     const info: BootInfo = { mock: MOCK && trusted(event) }
     event.returnValue = info
@@ -766,14 +905,14 @@ function registerIpc(): void {
     return null
   })
 
-  // RECORD: the renderer made the MP4 clip (or the WAV take, 2.0); main writes it into <exports>/Clips/ (Takes/)
+  // RECORD: the renderer made the MP4 clip (or the WAV take, 2.0, and its .mid, 2.1); main writes it into <exports>/Clips/ (Takes/)
   // (never a Save panel), like the audio exports, and lets it be dragged and revealed.
   ipcMain.handle(IPC.saveClip, async (event, rawName: unknown, raw: unknown) => {
     if (!trusted(event)) throw new Error('not allowed')
     const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : null
     if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 4 * 1024 ** 3) throw new Error('That clip is empty or too large.')
-    const ext = typeof rawName === 'string' && /\.wav$/i.test(rawName) ? '.wav' : '.mp4'
-    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.(mp4|wav)$/i, '') : ''
+    const ext = typeof rawName === 'string' ? (/\.(wav|mid)$/i.exec(rawName)?.[0].toLowerCase() ?? '.mp4') : '.mp4'
+    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.(mp4|wav|mid)$/i, '') : ''
     const safe =
       base
         .replace(/[^\w .()+#-]/g, '')
@@ -781,7 +920,7 @@ function registerIpc(): void {
         .slice(0, 100)
         .trim() || 'FoxBox clip'
     const root = exportGuard.root ?? EXPORT_DIR
-    const dir = join(root, ext === '.wav' ? 'Takes' : 'Clips')
+    const dir = join(root, ext === '.mp4' ? 'Clips' : 'Takes')
     await mkdir(dir, { recursive: true })
     const realRoot = await realpath(root)
     if (!isInside(realRoot, await realpath(dir))) throw new Error('The Clips folder is outside the export folder.')
@@ -848,13 +987,14 @@ function registerIpc(): void {
   // 2.0: the permission without asking, so the stage waits for "Turn on the camera" instead of prompting at launch
   ipcMain.handle(IPC.cameraStatus, (event) => {
     if (!trusted(event)) return 'denied'
-    if (process.platform !== 'darwin' || app.commandLine.hasSwitch('use-fake-device-for-media-stream')) return 'granted'
+    if (process.platform === 'linux' || app.commandLine.hasSwitch('use-fake-device-for-media-stream')) return 'granted' // Windows answers too
     return systemPreferences.getMediaAccessStatus('camera')
   })
 
   // The same for the Camera pane (RECORD's "camera access is off" line).
   ipcMain.handle(IPC.openCameraSettings, async (event) => {
-    if (trusted(event) && process.platform === 'darwin') {
+    if (trusted(event) && process.platform === 'win32') await shell.openExternal('ms-settings:privacy-webcam')
+    else if (trusted(event) && process.platform === 'darwin') {
       await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera')
     }
   })
@@ -921,6 +1061,13 @@ function registerIpc(): void {
 async function startEngine(): Promise<void> {
   if (MOCK) {
     log('FVWKS_MOCK=1: not starting the engine; the renderer uses MSW mocks')
+    return
+  }
+  if (process.platform === 'win32') {
+    // W1, the SAUCE-only beta: no engine on Windows yet (REMIX shows its own "coming" screen)
+    offlineReason = 'REMIX is coming to Windows'
+    log(`engine: not started: ${offlineReason}`)
+    broadcast(IPC.engineStatus, engineStatus())
     return
   }
   let launch
@@ -994,6 +1141,13 @@ if (!app.requestSingleInstanceLock()) {
   registerIpc()
 
   void app.whenReady().then(async () => {
+    splash = openSplash({
+      preload: join(__dirname, '../preload/index.js'),
+      load: (win, page) => void (RENDERER_URL ? win.loadURL(`${RENDERER_URL}/${page}`) : win.loadFile(join(RENDERER_DIR, page))),
+      continueUpdate: () => bootGate?.continue(),
+      clear: bootClear(),
+      log,
+    })
     watchDisplays()
     log(`starting ${app.getName()} ${app.getVersion()} (packaged=${app.isPackaged}, mock=${MOCK}, engine=${ENGINE_DIR})`)
     lockDownPermissions()
@@ -1017,16 +1171,22 @@ if (!app.requestSingleInstanceLock()) {
         },
       ),
     )
-    updater = createUpdater()
-    // An update that kept failing to start: put the previous app back (it relaunches) before anything else runs.
-    if (updater.needsRollback && updater.rollback()) return
-    if (TRANSLOCATED) log(`running translocated (${process.execPath})`)
-    // 2.0: no first-run Setup window; the boot screen holds the update check (the engine starts as usual)
-    bootGate = createBootGate(updater, false)
-    createWindow()
-    // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
-    mainWindow?.webContents.once('did-finish-load', () => void updater?.confirmLaunch())
-    void bootGate.run()
+    if (process.platform === 'win32') {
+      // W1: electron-updater (NSIS, GitHub's latest.yml + blockmap) in the background, installed on quit; no boot gate
+      createWindow()
+      if (app.isPackaged) void startWinUpdates((line) => log(`updates: ${line}`))
+    } else {
+      updater = createUpdater()
+      // An update that kept failing to start: put the previous app back (it relaunches) before anything else runs.
+      if (updater.needsRollback && updater.rollback()) return
+      if (TRANSLOCATED) log(`running translocated (${process.execPath})`)
+      // 2.0: no first-run Setup window; the boot screen holds the update check (the engine starts as usual)
+      bootGate = createBootGate(updater, false)
+      createWindow()
+      // A window that loaded confirms an update's good start (the previous app kept for rollback can go).
+      mainWindow?.webContents.once('did-finish-load', () => void updater?.confirmLaunch())
+      void bootGate.run()
+    }
     await startEngine()
   })
 
@@ -1035,6 +1195,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', (event) => {
     if (!confirmStopOutput(mainWindow)) return event.preventDefault()
     updater?.dispose()
+    stopMidi?.()
+    stopMidi = null
     if (quitting || !supervisor) return
     event.preventDefault()
     quitting = true

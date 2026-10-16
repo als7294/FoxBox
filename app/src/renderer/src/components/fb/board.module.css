@@ -55,7 +55,7 @@
   letter-spacing: -0.01em;
 }
 .sub {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fb-ink-2);
   white-space: nowrap;
   overflow: hidden;
@@ -73,7 +73,7 @@
   height: 30px;
   padding: 0 14px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   transition: background 0.2s;
 }
@@ -88,7 +88,7 @@
   height: 38px;
   padding: 0 14px;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.07);
 }
@@ -142,12 +142,12 @@
   gap: 8px;
 }
 .cardTitle {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.14em;
 }
 .cardHint {
-  font-size: 12px;
+  font-size: 14px;
   color: #8f8275;
   white-space: nowrap;
   overflow: hidden;
@@ -234,7 +234,7 @@
   background: var(--fb-ink);
 }
 .knobName {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -252,7 +252,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--fb-accent-soft);
@@ -357,7 +357,7 @@
   position: absolute;
   right: 12px;
   top: 12px;
-  font: 600 11px var(--fb-mono);
+  font: 600 13px var(--fb-mono);
   color: var(--fb-accent-soft);
 }
 .sounds {
@@ -368,7 +368,7 @@
 .soundBtn {
   height: 36px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   background: rgba(255, 255, 255, 0.06);
   transition: background 0.2s;
@@ -392,7 +392,7 @@
 .miniSeg button {
   height: 34px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
 }
@@ -412,7 +412,7 @@
   font-size: 18px;
 }
 .oct span {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   min-width: 46px;
   text-align: center;
@@ -424,7 +424,7 @@
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.07);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -462,7 +462,7 @@
   background: rgba(0, 0, 0, 0.18);
 }
 .stripName {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -483,7 +483,7 @@
   width: 28px;
   height: 24px;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   background: rgba(255, 255, 255, 0.07);
 }
@@ -514,7 +514,7 @@
   width: 62px;
   height: 30px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
   background: rgba(255, 255, 255, 0.07);
@@ -553,12 +553,12 @@
   box-shadow: inset 0 0 0 2px var(--fb-accent);
 }
 .padShape {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   opacity: 0.7;
 }
 .padName {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.15;
 }

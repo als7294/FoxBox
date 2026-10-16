@@ -3,13 +3,14 @@
 // REMIX's beat and bar, or the recording's time, and "SAUCE ⇄" switches in one click; clicked, it expands to the two
 // mode pills.
 import { useEffect, useState } from 'react'
-import { usePlay } from '@/components/play/playStore'
+import { PLAY_MODES, playActions, playModeOf, usePlay } from '@/components/play/playStore'
 import { bridge } from '@/env'
 import { clock, useProdRec } from '@/components/prod/prodActions'
 import { switchMode } from '@/components/shell/ModeSwitch'
 import { useTakes } from '@/components/stage/takes'
 import { useLiveDeck } from '@/state/liveDeck'
 import { useUi, type Mode } from '@/state/ui'
+import { t } from '@/i18n'
 import { closeAll, useFb } from './fbStore'
 import s from './island.module.css'
 
@@ -18,8 +19,8 @@ function useTicker(on: boolean, ms: number): void {
   const [, tick] = useState(0)
   useEffect(() => {
     if (!on) return
-    const t = window.setInterval(() => tick((n) => n + 1), ms)
-    return () => window.clearInterval(t)
+    const id = window.setInterval(() => tick((n) => n + 1), ms)
+    return () => window.clearInterval(id)
   }, [on, ms])
 }
 
@@ -40,7 +41,10 @@ function useNotch(): boolean {
 
 function Status({ mode }: { mode: Mode }) {
   const note = usePlay((p) => p.note)
-  const takeT0 = useTakes((t) => t.t0)
+  const loop = usePlay((p) =>
+    p.melodyMode === 'loop' ? `LOOP · ${p.preset?.name ?? ''} · ${p.loop.linked ? 'LINK ' : ''}${p.loop.bpm}` : null,
+  )
+  const takeT0 = useTakes((x) => x.t0)
   const clipT0 = useProdRec((r) => r.t0)
   const deck = useLiveDeck((d) => d.deck)
   const recAt = takeT0 ?? clipT0
@@ -56,7 +60,7 @@ function Status({ mode }: { mode: Mode }) {
     return (
       <span className={s.status}>
         <span className={s.dot} />
-        <span>{note ?? '—'}</span>
+        <span>{loop ?? note ?? '—'}</span>
       </span>
     )
   const c = deck?.clock() ?? null
@@ -69,7 +73,7 @@ function Status({ mode }: { mode: Mode }) {
           <span key={i} className={s.beat} data-on={(deck?.isPlaying && inBar === i) || undefined} />
         ))}
       </span>
-      <span>Bar {c && beat >= 0 ? Math.floor(beat / c.beatsPerBar) + 1 : 1}</span>
+      <span>{t('dock.bar', 'Bar {n}', { n: c && beat >= 0 ? Math.floor(beat / c.beatsPerBar) + 1 : 1 })}</span>
     </span>
   )
 }
@@ -88,6 +92,31 @@ const BARS = [
   [98, 18, 32],
   [107, 27, 14],
 ]
+
+/** 2.1: SAUCE's play style, PLUCK · FLOW · LOOP (S cycles it), in the open Island as in the Hands popover. */
+function PlayStyle({ open }: { open: boolean }) {
+  const style = usePlay(playModeOf)
+  return (
+    <div className={s.styleSeg} role="radiogroup" aria-label={t('island.playStyle', 'Play style')} aria-hidden={!open}>
+      {PLAY_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={m === style}
+          tabIndex={open ? 0 : -1}
+          className={s.styleBtn}
+          onClick={(e) => {
+            e.stopPropagation()
+            playActions.setPlayMode(m)
+          }}
+        >
+          {m.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function Island() {
   const mode = useUi((u) => u.mode)
@@ -113,7 +142,7 @@ export function Island() {
           <button
             type="button"
             className={s.quick}
-            title="Switch mode (M)"
+            title={t('island.switch', 'Switch mode (M)')}
             aria-keyshortcuts="M"
             onClick={(e) => {
               e.stopPropagation()
@@ -123,7 +152,8 @@ export function Island() {
             {NAME[mode]} ⇄
           </button>
         </div>
-        <div className={s.pills} role="radiogroup" aria-label="Mode" aria-hidden={!open}>
+        {mode === 'play' && <PlayStyle open={open} />}
+        <div className={s.pills} role="radiogroup" aria-label={t('island.mode', 'Mode')} aria-hidden={!open}>
           {(['play', 'remix'] as const).map((m) => (
             <button
               key={m}
@@ -161,7 +191,7 @@ export function Island() {
           ))}
         </div>
         <div className={s.foot} aria-hidden={!open}>
-          M switches · notes release, the song pauses on the bar
+          {t('island.foot', 'M switches · notes release, the song pauses on the bar')}
         </div>
       </div>
     </>

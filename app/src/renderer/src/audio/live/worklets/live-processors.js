@@ -854,12 +854,16 @@ registerProcessor('fvwks-moves', Moves)
 //          anywhere in the loop (time smeared), 8 X-RAY a thin band-pass, crushed, 9 SCANLINES a 1/16 line-gate with a
 //          phosphor's decay, 10 MIRROR warped tape (a deep wow and flutter, dark), 11 LIQUID a slow deep flanger, 12 ICE
 //          high-passed into a bright space
+//   amount the frame's size against its size when made (2.1, S1's frame.amount; 0.5 as made): each style's depth, today's
+//          sound at 0.5, less closer (down to a light touch at 0), more wider. Smoothed (50 ms): it follows the hands.
 const FRAME_MAX_S = 4.2
+/** A style's control at `a` (0-1): x `lo` at 0, x1 at 0.5 (as made), x `hi` at 1, linear either side. */
+const byAmount = (a, lo, hi) => (a < 0.5 ? lo + (1 - lo) * 2 * a : 1 + (hi - 1) * 2 * (a - 0.5))
 const FLIP_SWAP_S = 0.07 // S3's FLIP_MS / 2
 const SNAP_S = 0.06 // S3's BEAT_SNAP_MS
 class Frame extends AudioWorkletProcessor {
   static get parameterDescriptors() {
-    return [param('on', 0, 0, 1), param('style', 0, 0, 12), param('flip', 0, 0, 1), param('quiet', 0, 0, 1)]
+    return [param('on', 0, 0, 1), param('style', 0, 0, 12), param('flip', 0, 0, 1), param('quiet', 0, 0, 1), param('amount', 0.5, 0, 1)]
   }
   constructor(opts) {
     super()
@@ -871,16 +875,22 @@ class Frame extends AudioWorkletProcessor {
     this.buf = [0, 1].map(() => new Float32Array(Math.ceil(FRAME_MAX_S * sr) + this.F + 2)) // [F before | the loop]
     this.L = 0; this.end = 0; this.beatN = sr / 2; this.on = false; this.g = 0
     this.path = null; this.old = null; this.xfAt = -Infinity
+    this.rate = 1; this.lockBpm = 120; this.lockBeatN = sr / 2
     this.rev = false; this.turnAt = -Infinity; this.flipDue = -1; this.flipRev = false; this.offAt = -1
-    this.tape = [new Float32Array(Math.ceil(0.02 * sr)), new Float32Array(Math.ceil(0.02 * sr))]; this.tapeW = 0
+    this.tape = [new Float32Array(Math.ceil(0.03 * sr)), new Float32Array(Math.ceil(0.03 * sr))]; this.tapeW = 0 // KALEIDO's deepest reaches 22 ms
     this.lockAt = 0; this.style = 0; this.next = 0; this.switchAt = -1; this.inAt = -Infinity
     this.svf = [new Svf(), new Svf()]; this.held = [0, 0]; this.shift = [new Shifter(8192), new Shifter(8192)]
     this.pp = [new Float32Array(Math.ceil(2 * sr)), new Float32Array(Math.ceil(2 * sr))]; this.ppW = 0; this.ppHp = new Svf()
     this.fdn = [1433, 1601, 1867, 2053].map((n) => ({ b: new Float32Array(Math.round((n * sr) / 48000)), i: 0, lp: 0 }))
     this.hits = []; this.seed = 3; this.snapHp = new Svf()
+    this.amt = 0.5 // the amount, smoothed
     this.port.onmessage = (e) => {
       const d = e.data || {}
-      if (d.bpm > 0) { this.bpm = d.bpm; this.anchor = d.anchor || 0 }
+      if (d.bpm > 0) {
+        this.bpm = d.bpm; this.anchor = d.anchor || 0
+        if (d.follow) this.follow(d.bpm) // an external clock (Link): a loop on now follows its tempo
+      }
+      if (d.clear) this.bpm = 0 // the clock gone: none (120 from the next lock), until another comes
       if (d.edgeS >= 0) this.edge = d.edgeS
       if (d.bloomS >= 0) this.bloom = d.bloomS
       if (d.bloomDelayS >= 0) this.bloomDelay = d.bloomDelayS
@@ -902,6 +912,7 @@ class Frame extends AudioWorkletProcessor {
       const k = end - L - this.F + j
       this.buf[c][j] = k >= oldest && k < this.abs ? this.h[c][k % this.N] : 0
     }
+    Object.assign(this, { rate: 1, lockBpm: bpm, lockBeatN: beatS * sr })
     Object.assign(this, { L, end, beatN: beatS * sr, on: true, lockAt: this.abs + Math.round(this.edge * sr), bloomAt: this.abs + Math.round(this.bloomDelay * sr), switchAt: -1, inAt: -Infinity })
     Object.assign(this, { rev: false, old: null, turnAt: -Infinity, flipDue: -1, offAt: -1 })
     this.path = this.home()
@@ -910,11 +921,23 @@ class Frame extends AudioWorkletProcessor {
     if (!this.quiet) this.hits.push({ kind: 'lock', at: this.lockAt })
   }
   home() { // the whole loop forwards, on the grid
-    return { start: 0, len: this.L, at: this.end, base: 0, dir: 1 }
+    return { start: 0, len: this.L, at: this.end, base: 0, dir: 1, rate: this.rate }
   }
   where(t) { // the loop's sample now, along the path
-    const q = this.path, j = (((q.base + t - q.at) % q.len) + q.len) % q.len
+    const q = this.path, j = (((q.base + (t - q.at) * q.rate) % q.len) + q.len) % q.len
     return q.start + (q.dir > 0 ? j : q.len - 1 - j)
+  }
+  follow(bpm) { // an external clock's tempo mid-loop: the loop played at its speed from where it is (vinyl: no jump)
+    const r = bpm / this.lockBpm
+    if (!this.on || !(r > 0.5 && r < 2) || Math.abs(r - this.rate) < 1e-6) return
+    const t = this.abs, q = this.path
+    const j = (((q.base + (t - q.at) * q.rate) % q.len) + q.len) % q.len
+    const homeJ = ((((t - this.end) * this.rate) % this.L) + this.L) % this.L
+    this.path = { ...q, at: t, base: j, rate: r }
+    this.old = null
+    this.end = t - homeJ / r // the grid (and where forwards would be) at the new speed
+    this.rate = r
+    this.beatN = this.lockBeatN / r
   }
   go(q, t) {
     this.old = this.path; this.path = q; this.xfAt = t
@@ -924,18 +947,19 @@ class Frame extends AudioWorkletProcessor {
   }
   flipTo(rev, t) {
     this.rev = rev
-    this.go(rev ? { start: 0, len: this.L, at: t, base: this.L - 1 - this.where(t), dir: -1 } : this.home(), t) // from here / where forwards would be
+    this.go(rev ? { start: 0, len: this.L, at: t, base: this.L - 1 - this.where(t), dir: -1, rate: this.rate } : this.home(), t) // from here / where forwards would be
   }
-  tap(q, c, t) { // path q at t, its seam crossfaded through the audio before it
-    const len = q.len, F = Math.min(this.F, len >> 1), b = this.buf[c], s = this.F + q.start, j = (((q.base + t - q.at) % len) + len) % len
+  tap(q, c, t) { // path q at t, its seam crossfaded through the audio before it (a fractional place read between samples)
+    const len = q.len, F = Math.min(this.F, len >> 1), b = this.buf[c], s = this.F + q.start, j = (((q.base + (t - q.at) * q.rate) % len) + len) % len
+    const at = (x) => { const i = Math.floor(x); return b[i] + (b[i + 1] - b[i]) * (x - i) }
     if (q.dir > 0) { // forwards: the cycle's last F into what came before its start
-      if (j < len - F) return b[s + j]
+      if (j < len - F) return at(s + j)
       const a = (j - (len - F)) / F
-      return b[s + j] * Math.cos(a * HALF_PI) + b[s - F + (j - (len - F))] * Math.sin(a * HALF_PI)
+      return at(s + j) * Math.cos(a * HALF_PI) + at(s - F + (j - (len - F))) * Math.sin(a * HALF_PI)
     }
-    if (j >= F) return b[s + len - 1 - j] // backwards: the cycle's first F out of what came before its start
+    if (j >= F) return at(s + len - 1 - j) // backwards: the cycle's first F out of what came before its start
     const a = j / F
-    return b[s + len - 1 - j] * Math.sin(a * HALF_PI) + b[s - 1 - j] * Math.cos(a * HALF_PI)
+    return at(s + len - 1 - j) * Math.sin(a * HALF_PI) + at(s - 1 - j) * Math.cos(a * HALF_PI)
   }
   read(c, t) {
     const v = this.tap(this.path, c, t)
@@ -1010,8 +1034,25 @@ class Frame extends AudioWorkletProcessor {
       else if (this.abs - this.turnAt < 0.04 * sr) this.switchAt = Math.max(this.abs + Math.round(dip), this.flipDue) // the partner, with the turn
       else this.switchAt = this.nextBeat() // a pinch: on the beat
     }
-    const gTp = Math.tan(Math.PI * 1100 / sr), gBp = Math.tan(Math.PI * 1500 / sr), gHp = Math.tan(Math.PI * 450 / sr)
-    const gPp = Math.tan(Math.PI * 200 / sr), gTape = Math.tan(Math.PI * 2800 / sr), pd = Math.min(this.pp[0].length - 1, Math.round(0.75 * this.beatN)), g16 = this.beatN / 4
+    this.amt += ((p.amount ? Math.min(1, Math.max(0, p.amount[0])) : 0.5) - this.amt) * (1 - Math.exp(-n / (0.05 * sr)))
+    const a = this.amt, wet = Math.min(1, 0.4 + 1.2 * a) // closer than as made: less of the style over the plain loop
+    const ctl = { // each style's controls at the amount (all x1 at 0.5: the sound as designed)
+      echoFb: 0.55 * byAmount(a, 0.55, 1.36), echoLv: 0.6 * byAmount(a, 0.5, 1.4), // 1 ECHO TRAIL: longer, louder trails
+      prism: 1.1 * byAmount(a, 0.35, 1.45), prismUp: 0.35 * byAmount(a, 0.3, 1.5), // 2 PRISM: more shimmer, more octave
+      crushEvery: Math.round(5 * byAmount(a, 0.4, 1.6)), crushSteps: 16 / byAmount(a, 0.25, 2), // 3 HALFTONE: rate / 2-8, 64-8 steps
+      chorus: 0.25 * byAmount(a, 0.4, 1.8), chorusDepth: 0.004 * byAmount(a, 0.5, 1.75), // 4 KALEIDO: wider, deeper
+      moshStutter: 0.35 * byAmount(a, 0.3, 1.6), moshDrop: 0.6 * byAmount(a, 0.3, 1.6), moshSteps: 24 / byAmount(a, 0.5, 2), // 5 DATAMOSH
+      heat: 2.2 * byAmount(a, 0.6, 1.8), // 6 THERMAL: harder drive into a darker low-pass (below)
+      grains: 0.85 * byAmount(a, 0.5, 1.15), grainDry: 0.3 / byAmount(a, 0.5, 3), // 7 SLIT-SCAN: less of the plain loop under
+      xrayK: 0.7 / byAmount(a, 0.6, 2), xrayGain: 4 * byAmount(a, 0.85, 1.3), xraySteps: 12 / byAmount(a, 0.5, 2), // 8 X-RAY: thinner, cruder
+      lineDepth: Math.min(1, byAmount(a, 0.45, 1)), lineGlow: 0.015 / byAmount(a, 0.6, 2.5), // 9 SCANLINES: deeper gate, shorter glow
+      wow: 0.004 * byAmount(a, 0.4, 1.3), flutter: 0.00025 * byAmount(a, 0.4, 2), tapeDrive: 1.5 * byAmount(a, 0.6, 1.8), // 10 MIRROR: deeper wow (under its 6 ms), hotter, darker
+      jetFb: 0.65 * byAmount(a, 0.55, 1.3), jetDepth: 0.0027 * byAmount(a, 0.55, 1.18), // 11 LIQUID: more feedback, a wider sweep
+      ice: 1.6 * byAmount(a, 0.4, 1.35), // 12 ICE: more space, high-passed higher (below)
+    }
+    const gTp = Math.tan(Math.PI * (1100 / byAmount(a, 0.45, 1.8)) / sr), gBp = Math.tan(Math.PI * 1500 / sr), gHp = Math.tan(Math.PI * 450 / sr)
+    const gIce = Math.tan(Math.PI * 450 * byAmount(a, 0.55, 2) / sr)
+    const gPp = Math.tan(Math.PI * 200 / sr), gTape = Math.tan(Math.PI * (2800 / byAmount(a, 0.6, 2.2)) / sr), pd = Math.min(this.pp[0].length - 1, Math.round(0.75 * this.beatN)), g16 = this.beatN / 4
     for (let i = 0; i < n; i++) {
       const xl = L ? L[i] : 0, xr = R ? R[i] : 0
       this.h[0][this.w] = xl; this.h[1][this.w] = xr
@@ -1030,27 +1071,28 @@ class Frame extends AudioWorkletProcessor {
         let al = this.read(0, t), ar = this.read(1, t)
         if (this.switchAt >= 0 && t >= this.switchAt) { this.setStyle(this.next); this.switchAt = -1; this.inAt = t }
         const b = Math.min(1, Math.max(0, (t - this.bloomAt) / (this.bloom * sr)))
-        const w = b * b * (3 - 2 * b) * (this.switchAt >= 0 ? Math.min(1, Math.max(0, (this.switchAt - t) / dip)) : Math.min(1, (t - this.inAt) / dip))
+        const w = wet * b * b * (3 - 2 * b) * (this.switchAt >= 0 ? Math.min(1, Math.max(0, (this.switchAt - t) / dip)) : Math.min(1, (t - this.inAt) / dip))
         if (w > 0 && this.style) {
           let fl = al, fr = ar
           const st = this.style
           if (st === 1) { // ECHO TRAIL: dotted-1/8 ping-pong trails
             const N2 = this.pp[0].length, r = (this.ppW - pd + N2) % N2, el = this.pp[0][r], er = this.pp[1][r]
             this.ppHp.run(0.5 * (al + ar), gPp, 1.4)
-            this.pp[0][this.ppW] = this.ppHp.hp + 0.55 * er; this.pp[1][this.ppW] = 0.55 * el
+            this.pp[0][this.ppW] = this.ppHp.hp + ctl.echoFb * er; this.pp[1][this.ppW] = ctl.echoFb * el
             this.ppW = (this.ppW + 1) % N2
-            fl = 0.8 * al + 0.6 * el; fr = 0.8 * ar + 0.6 * er
+            fl = 0.8 * al + ctl.echoLv * el; fr = 0.8 * ar + ctl.echoLv * er
           } else if (st === 2 || st === 12) { // PRISM: an octave up into a bright space (a shimmer) / ICE: high-passed into it
             const up = st === 2
             const sl = up ? this.shift[0].run(al, 2, 1536) : al, sr2 = up ? this.shift[1].run(ar, 2, 1536) : ar
-            this.svf[0].run(sl, gHp, 1.4); this.svf[1].run(sr2, gHp, 1.4)
+            const gh = up ? gHp : gIce
+            this.svf[0].run(sl, gh, 1.4); this.svf[1].run(sr2, gh, 1.4)
             const d = this.fdn, v = d.map((l) => l.b[l.i]), s4 = 0.5 * (v[0] + v[1] + v[2] + v[3])
             const inn = 0.25 * (this.svf[0].hp + this.svf[1].hp)
-            for (let k = 0; k < 4; k++) { const l = d[k]; l.lp += 0.7 * (0.8 * (v[k] - s4 + inn) - l.lp); l.b[l.i] = l.lp; l.i = (l.i + 1) % l.b.length }
-            if (up) { fl = 0.75 * al + 0.35 * sl + 1.1 * (v[0] + 0.6 * v[2]); fr = 0.75 * ar + 0.35 * sr2 + 1.1 * (v[1] + 0.6 * v[3]) }
-            else { fl = this.svf[0].hp + 1.6 * (v[0] + 0.6 * v[2]); fr = this.svf[1].hp + 1.6 * (v[1] + 0.6 * v[3]) }
+            for (let j = 0; j < 4; j++) { const l = d[j]; l.lp += 0.7 * (0.8 * (v[j] - s4 + inn) - l.lp); l.b[l.i] = l.lp; l.i = (l.i + 1) % l.b.length }
+            if (up) { fl = 0.75 * al + ctl.prismUp * sl + ctl.prism * (v[0] + 0.6 * v[2]); fr = 0.75 * ar + ctl.prismUp * sr2 + ctl.prism * (v[1] + 0.6 * v[3]) }
+            else { fl = this.svf[0].hp + ctl.ice * (v[0] + 0.6 * v[2]); fr = this.svf[1].hp + ctl.ice * (v[1] + 0.6 * v[3]) }
           } else if (st === 3) { // HALFTONE: bitcrushed, a fifth of the rate, 5 bits
-            if (t % 5 === 0) { this.held[0] = Math.round(al * 16) / 16; this.held[1] = Math.round(ar * 16) / 16 }
+            if (t % ctl.crushEvery === 0) { this.held[0] = Math.round(al * ctl.crushSteps) / ctl.crushSteps; this.held[1] = Math.round(ar * ctl.crushSteps) / ctl.crushSteps }
             fl = this.held[0]; fr = this.held[1]
           } else if (st === 4 || st === 10 || st === 11) { // KALEIDO chorus / MIRROR tape wow / LIQUID flanger: a swung delay
             const n2 = this.tape[0].length, T = (t - this.lockAt) / sr, y = [0, 0], x = [al, ar]
@@ -1059,16 +1101,16 @@ class Frame extends AudioWorkletProcessor {
               if (st === 4) { // three voices round 15 ms, the sides apart: wide and lush
                 this.tape[c][this.tapeW] = x[c]
                 let v = 0
-                for (let k = 0; k < 3; k++) v += tap(0.015 + 0.004 * Math.sin(TAU * [0.33, 0.47, 0.61][k] * T + k * 2.1 + c * 1.7))
-                y[c] = 0.6 * x[c] + 0.25 * v
+                for (let j = 0; j < 3; j++) v += tap(0.015 + ctl.chorusDepth * Math.sin(TAU * [0.33, 0.47, 0.61][j] * T + j * 2.1 + c * 1.7))
+                y[c] = 0.6 * x[c] + ctl.chorus * v
               } else if (st === 10) { // a tape delay swung by a deep wow (0.8 Hz, the sides a quarter apart) and flutter, dark
                 this.tape[c][this.tapeW] = x[c]
-                const v = tap(0.006 + 0.004 * Math.sin(TAU * 0.8 * T + c * HALF_PI) + 0.00025 * Math.sin(TAU * 6.2 * T))
-                this.svf[c].run(Math.tanh(1.5 * v), gTape, 0.9)
+                const v = tap(0.006 + ctl.wow * Math.sin(TAU * 0.8 * T + c * HALF_PI) + ctl.flutter * Math.sin(TAU * 6.2 * T))
+                this.svf[c].run(Math.tanh(ctl.tapeDrive * v), gTape, 0.9)
                 y[c] = 0.85 * this.svf[c].lp
               } else { // 0.6-6 ms swept at 0.12 Hz, fed back: a slow jet swirl
-                const v = tap(0.0033 + 0.0027 * Math.sin(TAU * 0.12 * T + c * HALF_PI))
-                this.tape[c][this.tapeW] = x[c] + 0.65 * v
+                const v = tap(0.0033 + ctl.jetDepth * Math.sin(TAU * 0.12 * T + c * HALF_PI))
+                this.tape[c][this.tapeW] = x[c] + ctl.jetFb * v
                 y[c] = 0.6 * (x[c] + v)
               }
             }
@@ -1077,28 +1119,29 @@ class Frame extends AudioWorkletProcessor {
           } else if (st === 5) { // DATAMOSH: some 1/16s stutter their first 1/32, some drop an octave; crushed
             const k = Math.floor((t - this.end) / g16), c0 = Math.round(this.end + k * g16), h = hash01(k % 64), u = t - c0
             let from = t, e = 1
-            if (h < 0.35) { const half = Math.round(g16 / 2); from = c0 + (u % half); e = Math.min(1, (u % half) / 48, (half - (u % half)) / 48) }
-            else if (h < 0.6) { from = c0 + Math.floor(u / 2); e = Math.min(1, u / 48, (g16 - u) / 48) }
-            if (t % 4 === 0) { this.held[0] = Math.round(this.read(0, from) * e * 24) / 24; this.held[1] = Math.round(this.read(1, from) * e * 24) / 24 }
+            if (h < ctl.moshStutter) { const half = Math.round(g16 / 2); from = c0 + (u % half); e = Math.min(1, (u % half) / 48, (half - (u % half)) / 48) }
+            else if (h < ctl.moshDrop) { from = c0 + Math.floor(u / 2); e = Math.min(1, u / 48, (g16 - u) / 48) }
+            if (t % 4 === 0) { this.held[0] = Math.round(this.read(0, from) * e * ctl.moshSteps) / ctl.moshSteps; this.held[1] = Math.round(this.read(1, from) * e * ctl.moshSteps) / ctl.moshSteps }
             fl = this.held[0]; fr = this.held[1] // a quarter of the rate, ~4.5 bits
           } else if (st === 6) { // THERMAL: warm drive into a low-pass
-            this.svf[0].run(Math.tanh(2.2 * al), gTp, 1.1); this.svf[1].run(Math.tanh(2.2 * ar), gTp, 1.1)
+            this.svf[0].run(Math.tanh(ctl.heat * al), gTp, 1.1); this.svf[1].run(Math.tanh(ctl.heat * ar), gTp, 1.1)
             fl = 0.5 * this.svf[0].lp; fr = 0.5 * this.svf[1].lp
           } else if (st === 7) { // SLIT-SCAN: 90 ms grains from anywhere in the loop, two overlapping (time smeared)
             const G = Math.round(0.09 * sr), age = t - this.lockAt
             let gl = 0, gr = 0
-            for (let k = 0; k < 2; k++) {
-              const a = age + (k * G) / 2, n = Math.floor(a / G), p = a - n * G, win = Math.sin((Math.PI * p) / G) ** 2
-              const at = this.F + Math.floor(hash01(n * 2 + k + 7) * (this.L - G)) + p
+            for (let j = 0; j < 2; j++) {
+              const g0 = age + (j * G) / 2, n = Math.floor(g0 / G), p = g0 - n * G, win = Math.sin((Math.PI * p) / G) ** 2
+              const at = this.F + Math.floor(hash01(n * 2 + j + 7) * (this.L - G)) + p
               gl += this.buf[0][at] * win; gr += this.buf[1][at] * win
             }
-            fl = 0.3 * al + 0.85 * gl; fr = 0.3 * ar + 0.85 * gr
+            fl = ctl.grainDry * al + ctl.grains * gl; fr = ctl.grainDry * ar + ctl.grains * gr
           } else if (st === 8) { // X-RAY: a thin band-pass, crushed
-            this.svf[0].run(al, gBp, 0.7); this.svf[1].run(ar, gBp, 0.7)
-            if (t % 6 === 0) { this.held[0] = Math.round(4 * this.svf[0].bp * 12) / 12; this.held[1] = Math.round(4 * this.svf[1].bp * 12) / 12 }
+            this.svf[0].run(al, gBp, ctl.xrayK); this.svf[1].run(ar, gBp, ctl.xrayK)
+            if (t % 6 === 0) { this.held[0] = Math.round(ctl.xrayGain * this.svf[0].bp * ctl.xraySteps) / ctl.xraySteps; this.held[1] = Math.round(ctl.xrayGain * this.svf[1].bp * ctl.xraySteps) / ctl.xraySteps }
             fl = this.held[0]; fr = this.held[1]
           } else if (st === 9) { // SCANLINES: a 1/16 line-gate, each line's glow dying away (a phosphor's 15 ms)
-            const q = (t - this.end) % g16, e = 0.001 * sr, gate = q < g16 / 2 ? Math.min(1, q / e) : Math.exp(-(q - g16 / 2) / (0.015 * sr))
+            const q = (t - this.end) % g16, e = 0.001 * sr, line = q < g16 / 2 ? Math.min(1, q / e) : Math.exp(-(q - g16 / 2) / (ctl.lineGlow * sr))
+            const gate = 1 - ctl.lineDepth * (1 - line)
             fl = al * gate; fr = ar * gate
           }
           al += (fl - al) * w; ar += (fr - ar) * w

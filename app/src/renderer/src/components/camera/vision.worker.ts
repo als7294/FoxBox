@@ -34,9 +34,12 @@ let last: Seen = { faces: [], hands: [], person: null, body: null }
 
 /** Each model's delegate, for the main thread (Vision.delegates). */
 const delegates: Record<string, string> = {}
+/** The init's `cpu` (FVWKS_VISION_CPU=1): no GPU delegate at all. */
+let cpuOnly = false
 
 async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>, name = ''): Promise<T | null> {
   try {
+    if (cpuOnly) throw new Error('CPU pinned')
     const m = await make('GPU')
     delegates[name] = 'GPU'
     return m
@@ -279,8 +282,9 @@ function runExtras(frame: ImageBitmap, body: boolean, matteEvery = 2, handsFirst
 }
 
 self.onmessage = (e: MessageEvent) => {
-  const m = e.data as { type: 'init'; urls: Urls } | { type: 'frame'; face: ImageBitmap | null; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number; handsFirst?: boolean; faceLight?: boolean; handsOnly?: boolean }
+  const m = e.data as { type: 'init'; urls: Urls; cpu?: boolean } | { type: 'frame'; face: ImageBitmap | null; scene: ImageBitmap; roi: unknown; now: number; at: number; people: number; body?: boolean; matteEvery?: number; handsFirst?: boolean; faceLight?: boolean; handsOnly?: boolean }
   if (m.type === 'init') {
+    cpuOnly = m.cpu === true
     void load(m.urls).then(() =>
       (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates }),
     )

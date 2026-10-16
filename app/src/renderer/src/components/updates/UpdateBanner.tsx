@@ -1,4 +1,5 @@
 import type { UpdateState } from '@shared/bridge'
+import { t } from '@/i18n'
 import type { ReactNode } from 'react'
 import { formatBytes } from '@/lib/format'
 import { toast } from '@/state/toasts'
@@ -42,7 +43,7 @@ function Bar({ tone, head, note, meter, progress, children }: BarProps) {
         <div
           className={styles.track}
           role="progressbar"
-          aria-label="Update download"
+          aria-label={t('update.download.aria', 'Update download')}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(pct * 100)}
@@ -55,10 +56,10 @@ function Bar({ tone, head, note, meter, progress, children }: BarProps) {
 }
 
 function downloadMeter(d: UpdateState['download']): string {
-  if (!d) return 'starting…'
+  if (!d) return t('update.starting', 'starting…')
   const done = transferText(d.bytes_done, d.bytes_total)
-  if (d.rate_bps == null) return `${done} · starting…`
-  return [done, rateText(d.rate_bps), ...(d.eta_s == null ? [] : [`${clockText(d.eta_s)} left`])].join(' · ')
+  if (d.rate_bps == null) return `${done} · ${t('update.starting', 'starting…')}`
+  return [done, rateText(d.rate_bps), ...(d.eta_s == null ? [] : [t('update.left', '{time} left', { time: clockText(d.eta_s) })])].join(' · ')
 }
 
 /**
@@ -72,10 +73,10 @@ export function UpdateBanner() {
   if (!updates || !s) return null
   const v = s.latest ?? 'update'
   const run = (call: () => Promise<UpdateState>) =>
-    void call().then(apply, (err: unknown) => toast.error('UPDATE', { detail: errorText(err) }))
+    void call().then(apply, (err: unknown) => toast.error(t('update.toast', 'UPDATE'), { detail: errorText(err) }))
   const laterButton = (
-    <button type="button" className={styles.btn} data-kind="quiet" aria-label="Remind me later" onClick={() => dismiss(laterId(s.latest))}>
-      Later
+    <button type="button" className={styles.btn} data-kind="quiet" aria-label={t('update.later.aria', 'Remind me later')} onClick={() => dismiss(laterId(s.latest))}>
+      {t('update.later', 'Later')}
     </button>
   )
 
@@ -83,15 +84,15 @@ export function UpdateBanner() {
     case 'available':
       if (later) return null
       return (
-        <Bar tone="offer" head={`FoxBox ${v} available`} note={s.sizeBytes ? formatBytes(s.sizeBytes) : null}>
+        <Bar tone="offer" head={t('update.available', 'FoxBox {v} available', { v })} note={s.sizeBytes ? formatBytes(s.sizeBytes) : null}>
           <button
             type="button"
             className={styles.btn}
             data-kind="solid"
-            aria-label={`Update to FoxBox ${v}`}
+            aria-label={t('update.to', 'Update to FoxBox {v}', { v })}
             onClick={() => run(() => updates.download())}
           >
-            Update
+            {t('update.update', 'Update')}
           </button>
           {laterButton}
         </Bar>
@@ -101,45 +102,45 @@ export function UpdateBanner() {
       return (
         <Bar
           tone="busy"
-          head={`Downloading ${v}`}
+          head={t('update.downloading', 'Downloading {v}', { v })}
           meter={downloadMeter(d)}
           progress={d && d.bytes_total > 0 ? d.bytes_done / d.bytes_total : 0}
         >
-          <button type="button" className={styles.btn} aria-label="Cancel download" onClick={() => run(() => updates.cancel())}>
-            Cancel
+          <button type="button" className={styles.btn} aria-label={t('update.cancel.aria', 'Cancel download')} onClick={() => run(() => updates.cancel())}>
+            {t('common.cancel', 'Cancel')}
           </button>
         </Bar>
       )
     }
     case 'verifying':
-      return <Bar tone="busy" head={`Verifying ${v}…`} />
+      return <Bar tone="busy" head={t('update.verifying', 'Verifying {v}…', { v })} />
     case 'ready':
       // Main asks for a native confirmation before it swaps the app.
       return (
-        <Bar tone="ready" head={`Update ready · FoxBox ${v}`} note={s.installBlocked}>
+        <Bar tone="ready" head={t('update.ready', 'Update ready · FoxBox {v}', { v })} note={s.installBlocked}>
           {s.installBlocked ? null : (
             <button
               type="button"
               className={styles.btn}
               data-kind="accent"
-              aria-label="Restart to update"
+              aria-label={t('update.restart.aria', 'Restart to update')}
               onClick={() => run(() => updates.install())}
             >
-              Restart
+              {t('update.restart', 'Restart')}
             </button>
           )}
         </Bar>
       )
     case 'installing':
-      return <Bar tone="busy" head="Restarting…" />
+      return <Bar tone="busy" head={t('launch.update.restarting', 'Restarting…')} />
     case 'error':
       if (!s.error || s.error.during === 'check' || later) return null
       return (
-        <Bar tone="failed" head={`Update failed, still on v${s.current}`} note={failureDetail(s.error.message) || null}>
+        <Bar tone="failed" head={t('update.failed', 'Update failed, still on v{v}', { v: s.current })} note={failureDetail(s.error.message) || null}>
           {/* Without a known version (a rolled-back update) there is nothing to download again. */}
           {s.latest ? (
-            <button type="button" className={styles.btn} aria-label="Retry update" onClick={() => run(() => updates.download())}>
-              Retry
+            <button type="button" className={styles.btn} aria-label={t('update.retry.aria', 'Retry update')} onClick={() => run(() => updates.download())}>
+              {t('update.retry', 'Retry')}
             </button>
           ) : null}
           {laterButton}

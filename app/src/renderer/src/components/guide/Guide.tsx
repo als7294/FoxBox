@@ -5,8 +5,9 @@
 // ~1.2 s. Skip or Esc remembers the step. It waits while the camera is off, and for WHAT'S NEW.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SauceAction } from '@/audio/play/instrument'
-import { usePlayPrefs } from '@/components/camera/playPrefs'
+import { oneHanded, usePlayPrefs } from '@/components/camera/playPrefs'
 import { CalibrateReach } from '@/components/fb/CalibrateReach'
+import { useSetup } from '@/components/fb/Setup'
 import { useTick } from '@/components/stage/StageControls'
 import { beatFxNow } from '@/audio/live/beatFx'
 import { cameraSignals } from '@/components/camera/smartCamera'
@@ -14,6 +15,7 @@ import { currentInstrument, playActions, SOUNDS, usePlay } from '@/components/pl
 import { playTestBeat, startOutput, useOutputOpen } from '@/components/prod/prodActions'
 import { useTakes } from '@/components/stage/takes'
 import { fingerCuts } from '@/components/strings/beatFx'
+import { glassSignal } from '@/components/strings/glass'
 import { useStrings } from '@/components/strings/stringsStore'
 import { useLiveDeck } from '@/state/liveDeck'
 import { isTextTarget } from '@/lib/shortcuts'
@@ -23,6 +25,8 @@ import { guideDemo, type GuideDemoId } from '@/audio/guideDemo'
 import { GuideHands, type GuideMove } from './GuideHands'
 import { guide, useGuide, type Chapter } from './guideStore'
 import s from './guide.module.css'
+import { t, useLang, type Lang } from '@/i18n'
+import { files } from '@/lib/platform'
 
 const SUCCESS_MS = 1200
 const CHECK_MS = 250
@@ -64,30 +68,33 @@ const jumpToDrop = (): void => {
   const drop = deck?.sections().find((x) => x.kind === 'drop')
   if (deck && drop) deck.seek(drop.startS)
 }
-const FLIP = 'Turn your hands over for the flip side.'
+// 2.1 frames (docs/FRAMES_SIMPLE.md): one step, "Now you try" is a frame held for a second
+const heldFrame: Watch = { start: now(), done: () => glassSignal().on && performance.now() - glassSignal().onAt >= 1000 }
+const frameText = () =>
+  t('guide.frame.text', 'It loops the last 4 beats. Pull wider for more. Let go to stop. Now you try: hold one for a second.')
 
 // docs/STRINGS_UX.md: SAUCE's 11 steps, REMIX's 6
-const PLAY_STEPS: GuideStepSpec[] = [
+const playSteps = (): GuideStepSpec[] => [
   {
-    title: 'Curve your hands into a C, turned a little toward the camera',
-    text: 'Thumb in front. Both hands up: the strings appear between them.',
+    title: t('guide.play.cpose.title', 'Curve your hands into a C, turned a little toward the camera'),
+    text: t('guide.play.cpose.text', 'Thumb in front. Both hands up: the strings appear between them.'),
     move: 'c-pose',
     watch: { start: () => progress().hands, done: (from) => progress().hands > from || bothUp() }, // already up counts
   },
   {
-    title: 'Raise or lower a hand to pick a note',
-    text: 'Then curl a finger to pluck. Now you try: play three notes.',
+    title: t('guide.play.pluck.title', 'Raise or lower a hand to pick a note'),
+    text: t('guide.play.pluck.text', 'Then curl a finger to pluck. Now you try: play three notes.'),
     move: 'pluck',
     demo: 'pluck',
     watch: rises('pluck', 3),
   },
   {
-    title: 'Pick a sound',
-    text: 'Sound in the dock, or keys 1–7.',
+    title: t('guide.play.sound.title', 'Pick a sound'),
+    text: t('guide.play.sound.text', 'Sound in the dock, or keys 1–7.'),
     move: null,
     icon: '◉',
     action: {
-      label: 'Next sound',
+      label: t('guide.play.sound.action', 'Next sound'),
       run: () => playActions.setSound(SOUNDS[(SOUNDS.findIndex((x) => x.id === usePlay.getState().sound) + 1) % SOUNDS.length]!.id),
     },
     watch: {
@@ -95,82 +102,96 @@ const PLAY_STEPS: GuideStepSpec[] = [
       done: (from) => SOUNDS[from]?.id !== usePlay.getState().sound,
     },
   },
-  { title: 'Twist to bend', text: 'Roll a wrist while a note plays.', move: 'twist', demo: 'twist', watch: rises('twist') },
   {
-    title: 'Shake for vibrato',
-    text: 'A quick tremble while a note plays. Point up or down for the octave.',
+    title: t('guide.play.twist.title', 'Twist to bend'),
+    text: t('guide.play.twist.text', 'Roll a wrist while a note plays.'),
+    move: 'twist',
+    demo: 'twist',
+    watch: rises('twist'),
+  },
+  {
+    title: t('guide.play.shake.title', 'Shake for vibrato'),
+    text: t('guide.play.shake.text', 'A quick tremble while a note plays. Point up or down for the octave.'),
     move: 'shake',
     demo: 'shake',
     watch: rises('shake'),
   },
-  { title: 'Pinch for wobble', text: 'Raise the pinch to go faster.', move: 'pinch', watch: rises('pinch') },
   {
-    title: 'Make a frame to loop the last 4 beats',
-    text: `Pinch and hold for a moment to change the effect. ${FLIP}`,
-    move: 'frame',
-    demo: 'frame',
-    watch: rises('frame'),
+    title: t('guide.play.pinch.title', 'Pinch for wobble'),
+    text: t('guide.play.pinch.text', 'Raise the pinch to go faster.'),
+    move: 'pinch',
+    watch: rises('pinch'),
   },
+  { title: t('guide.frame.title', 'Make a frame with both hands'), text: frameText(), move: 'frame', demo: 'frame', watch: heldFrame },
   {
-    title: 'Try FLOW',
-    text: 'Press S: your right hand’s height plays, a right-hand fist mutes.',
+    title: t('guide.play.flow.title', 'Try FLOW'),
+    text: t('guide.play.flow.text', 'Press S: your right hand’s height plays, a right-hand fist mutes.'),
     move: 'flow',
     demo: 'height',
     watch: { start: () => progress().pitch, done: (from) => usePlay.getState().style === 'flow' && progress().pitch > from },
   },
   {
-    title: 'Pick a melody, then pluck to play it',
-    text: 'FOLLOW plays the tune note by note, whatever you pluck. 🎲 or D for a new one.',
+    title: t('guide.loop.title', 'Turn on a melody: it plays by itself'),
+    text: t('guide.loop.text', 'Raise your right hand for brighter, your left for higher. Now you try: move your right hand up.'),
     move: 'melody',
     demo: 'preset',
-    watch: { start: () => progress().pluck, done: (from) => usePlay.getState().melodyMode !== 'off' && progress().pluck > from },
-    action: { label: '🎲 Roll a melody', run: () => playActions.roll() },
+    watch: {
+      start: () => (cameraSignals().play.height.right ?? 0),
+      done: (from) => usePlay.getState().melodyMode === 'loop' && (cameraSignals().play.height.right ?? 0) > from + 0.25,
+    },
+    action: { label: t('guide.loop.action', 'Play style LOOP'), run: () => playActions.setPlayMode('loop') },
   },
   {
-    title: 'Record a take',
-    text: 'Press R, play, press R again. Then drag the take into Ableton or Finder.',
+    title: t('guide.loop2.title', 'Spread your hands for space'),
+    text: t('guide.loop2.text', 'Make a fist to drop it, on the beat. Frame it for an effect. Now you try: drop it with a fist.'),
+    move: 'fist',
+    watch: { start: now(), done: () => usePlay.getState().loop.dropped },
+  },
+  {
+    title: t('guide.play.record.title', 'Record a take'),
+    text: t('guide.play.record.text', 'Press R, play, press R again. Then drag the take into Ableton or {files}.', { files: files() }),
     move: 'record',
     demo: 'record',
     watch: { start: () => useTakes.getState().n, done: (from) => useTakes.getState().n > from },
   },
   {
-    title: 'Send to output',
-    text: 'A picture-only window for a projector or stream.',
+    title: t('stage.output.send', 'Send to output'),
+    text: t('guide.play.output.text', 'A picture-only window for a projector or stream.'),
     move: null,
     icon: '▣',
-    action: { label: 'Send to output', run: () => void startOutput() },
+    action: { label: t('stage.output.send', 'Send to output'), run: () => void startOutput() },
     watch: { start: now(), done: () => useOutputOpen.getState().open },
   },
 ]
 
-const REMIX_STEPS: GuideStepSpec[] = [
+const remixSteps = (): GuideStepSpec[] => [
   {
-    title: 'Load a track, or try the test beat',
-    text: 'Drop a file on the window, open the library (L), or try the test beat.',
+    title: t('guide.remix.load.title', 'Load a track, or try the test beat'),
+    text: t('guide.remix.load.text', 'Drop a file on the window, open the library (L), or try the test beat.'),
     move: 'test-beat',
-    action: { label: 'Try the test beat', run: playTestBeat },
+    action: { label: t('remix.tryTestBeat', 'Try the test beat'), run: playTestBeat },
     watch: { start: now(), done: () => Boolean(useLiveDeck.getState().deck?.isPlaying) },
   },
   {
-    title: 'Hold a fist',
-    text: 'TEAROUT, locked to the beat. Raise it for more.',
+    title: t('guide.remix.fist.title', 'Hold a fist'),
+    text: t('guide.remix.fist.text', 'TEAROUT, locked to the beat. Raise it for more.'),
     move: 'fist',
     demo: 'tearout',
     watch: { start: now(), done: () => beatFxNow().fx === 'tearout' },
   },
   {
-    title: 'Fold a finger to cut a band',
-    text: 'SUB · LOW · MID · HI-MID · HIGH.',
+    title: t('guide.remix.fold.title', 'Fold a finger to cut a band'),
+    text: 'SUB · LOW · MID · HI-MID · HIGH.', // the band names stay English, as on the strings' pills
     move: 'fold',
     demo: 'bands',
     watch: { start: now(), done: () => (fingerCuts(cameraSignals()) ?? []).some((v) => v > 0.5) },
   },
   {
-    title: 'Jump to the drop',
-    text: 'Song → Jump to, or ← / → once the GUIDE is closed.',
+    title: t('guide.remix.drop.title', 'Jump to the drop'),
+    text: t('guide.remix.drop.text', 'Song → Jump to, or ← / → once the GUIDE is closed.'),
     move: 'drop',
     demo: 'drop',
-    action: { label: 'Jump to the drop', run: jumpToDrop },
+    action: { label: t('guide.remix.drop.title', 'Jump to the drop'), run: jumpToDrop },
     watch: {
       start: now(),
       done: () => {
@@ -180,30 +201,22 @@ const REMIX_STEPS: GuideStepSpec[] = [
       },
     },
   },
+  { title: t('guide.frame.title', 'Make a frame with both hands'), text: frameText(), move: 'frame-glass', demo: 'glass', watch: heldFrame },
   {
-    title: 'Frame a window: the last 4 beats loop',
-    text: `Pinch to change the effect. ${FLIP}`,
-    move: 'frame-glass',
-    demo: 'glass',
-    watch: { start: now(), done: (from) => (useStrings.getState().glass?.at ?? 0) > from },
-  },
-  {
-    title: 'Hold the shaka 🤙 for your library',
-    text: 'Now you try: open it, spin, pull a card out.',
+    title: t('guide.remix.shaka.title', 'Hold the shaka 🤙 for your library'),
+    text: t('guide.remix.shaka.text', 'Now you try: open it, spin, pull a card out.'),
     move: 'shaka',
     watch: { start: now(), done: () => cameraSignals().wheel.open || useWheelUi.getState().open },
-    action: { label: 'Open the library', run: openWheel },
+    action: { label: t('guide.remix.shaka.action', 'Open the library'), run: openWheel },
   },
 ]
 
-export const GUIDE_STEPS: Record<Chapter, GuideStepSpec[]> = { play: PLAY_STEPS, remix: REMIX_STEPS }
-
 // ONE-HANDED (2.0.1, STRINGS_UX "The one-handed GUIDE"): one hand does it all
-const PRACTICE: [SauceAction, string, string][] = [
-  ['drive', 'a fist', 'DRIVE'],
-  ['wobble', 'a pinch', 'WOBBLE'],
-  ['echo', 'peace', 'ECHO'],
-  ['space', 'horns', 'SPACE'],
+const practice = (): [SauceAction, string, string][] => [
+  ['drive', t('guide.one.practice.fist', 'Hold a fist to turn on {fx}', { fx: 'DRIVE' }), 'DRIVE'],
+  ['wobble', t('guide.one.practice.pinch', 'Hold a pinch to turn on {fx}', { fx: 'WOBBLE' }), 'WOBBLE'],
+  ['echo', t('guide.one.practice.peace', 'Hold peace to turn on {fx}', { fx: 'ECHO' }), 'ECHO'],
+  ['space', t('guide.one.practice.horns', 'Hold horns to turn on {fx}', { fx: 'SPACE' }), 'SPACE'],
 ]
 const practised = new Set<SauceAction>()
 const notePractice = () => (currentInstrument()?.latched ?? []).forEach((a) => practised.add(a))
@@ -212,16 +225,13 @@ const notePractice = () => (currentInstrument()?.latched ?? []).forEach((a) => p
 function ShapesPractice() {
   useTick(true, 200)
   notePractice()
-  const next = PRACTICE.find(([a]) => !practised.has(a))
+  const shapes = practice()
+  const next = shapes.find(([a]) => !practised.has(a))
   return (
     <div className={s.practice}>
-      {next && (
-        <b className={s.practiceNow}>
-          Hold {next[1]} to turn on {next[2]}
-        </b>
-      )}
+      {next && <b className={s.practiceNow}>{next[1]}</b>}
       <ul className={s.ticks}>
-        {PRACTICE.map(([a, , name]) => (
+        {shapes.map(([a, , name]) => (
           <li key={a} data-done={practised.has(a) || undefined}>
             {practised.has(a) ? '✓' : '○'} {name}
           </li>
@@ -232,23 +242,23 @@ function ShapesPractice() {
 }
 
 const reachNow = () => JSON.stringify(usePlayPrefs.getState().reach)
-const ONE_PLAY_STEPS: GuideStepSpec[] = [
+const onePlaySteps = (): GuideStepSpec[] => [
   {
-    title: 'Hold one hand up, curved into a C',
-    text: 'Turned a little toward the camera.',
+    title: t('guide.one.cpose.title', 'Hold one hand up, curved into a C'),
+    text: t('guide.one.cpose.text', 'Turned a little toward the camera.'),
     move: 'c-pose',
     watch: { start: now(), done: () => cameraSignals().play.one != null },
   },
   {
-    title: 'Raise or lower it to pick a note',
-    text: 'Then curl a finger to pluck. Now you try: play three notes.',
+    title: t('guide.one.pluck.title', 'Raise or lower it to pick a note'),
+    text: t('guide.play.pluck.text', 'Then curl a finger to pluck. Now you try: play three notes.'),
     move: 'pluck',
     demo: 'pluck',
     watch: rises('pluck', 3),
   },
   {
-    title: 'Show us your reach',
-    text: 'Your highest comfortable note, then your lowest. Each one counts down from 3.',
+    title: t('guide.one.reach.title', 'Show us your reach'),
+    text: t('guide.one.reach.text', 'Your highest comfortable note, then your lowest. Each one counts down from 3.'),
     move: 'height',
     body: () => <CalibrateReach onDone={() => undefined} />,
     watch: {
@@ -257,39 +267,77 @@ const ONE_PLAY_STEPS: GuideStepSpec[] = [
     },
   },
   {
-    title: 'Practise the shapes, one at a time',
-    text: 'Hold a shape to turn its effect on. Hold it again to turn it off.',
+    title: t('guide.one.shapes.title', 'Practise the shapes, one at a time'),
+    text: t('guide.one.shapes.text', 'Hold a shape to turn its effect on. Hold it again to turn it off.'),
     move: 'fist',
     body: () => <ShapesPractice />,
     watch: {
       start: () => (practised.clear(), 0),
-      done: () => (notePractice(), PRACTICE.every(([a]) => practised.has(a))),
+      done: () => (notePractice(), practice().every(([a]) => practised.has(a))),
     },
   },
-  { title: 'Twist to bend', text: 'Point up or down for the octave.', move: 'twist', demo: 'twist', watch: rises('twist') },
   {
-    title: 'Hold an L to open a frame',
-    text: `Pinch and hold for a moment to change the effect, turn your hand over for the flip side, and hold the L again to let it go.`,
-    move: 'frame',
-    demo: 'frame',
-    watch: { start: () => progress().frame, done: (from) => progress().frame > from || cameraSignals().frame.latched },
+    title: t('guide.play.twist.title', 'Twist to bend'),
+    text: t('guide.one.twist.text', 'Point up or down for the octave.'),
+    move: 'twist',
+    demo: 'twist',
+    watch: rises('twist'),
   },
   {
-    title: 'Try FLOW',
-    text: 'Press S: height for pitch, open and close your thumb and index for the filter, a fist to mute.',
+    title: t('guide.frame1.title', 'Hold an L to make a frame'),
+    text: t('guide.frame1.text', 'It loops while you hold it, and letting go stops it. Now you try: hold one for a second.'),
+    move: 'frame',
+    demo: 'frame',
+    watch: heldFrame,
+  },
+  {
+    title: t('guide.play.flow.title', 'Try FLOW'),
+    text: t('guide.one.flow.text', 'Press S: height for pitch, open and close your thumb and index for the filter, a fist to mute.'),
     move: 'flow',
     demo: 'height',
     watch: { start: () => progress().pitch, done: (from) => usePlay.getState().style === 'flow' && progress().pitch > from },
   },
 ]
 let reachAtStart = ''
-const ONE_REMIX_STEPS: GuideStepSpec[] = REMIX_STEPS.map((x) =>
-  x.move === 'shaka' ? { ...x, text: 'Your index spins it, close your hand to preview, hold a fist to load.' } : x,
-)
 
-/** The chapter's steps: the one-handed ones while One-handed is on (S1's usePlayPrefs). */
-export const stepsFor = (c: Chapter): GuideStepSpec[] =>
-  (usePlayPrefs.getState().oneHanded ? { play: ONE_PLAY_STEPS, remix: ONE_REMIX_STEPS } : GUIDE_STEPS)[c]
+/** Each control style's steps in the language in use: built at call time once per language (the GUIDE's effects follow
+ *  a step's identity, so a language keeps the same objects; a new pick remounts the app and builds them anew). */
+let built: { lang: Lang; curl: Record<Chapter, GuideStepSpec[]>; one: Record<Chapter, GuideStepSpec[]>; palm: Record<Chapter, GuideStepSpec[]> } | undefined
+function lists() {
+  const lang = useLang.getState().lang
+  if (built?.lang !== lang) {
+    const play = playSteps()
+    const remix = remixSteps()
+    built = {
+      lang,
+      curl: { play, remix },
+      one: {
+        play: onePlaySteps(),
+        remix: remix.map((x) =>
+          x.move === 'shaka' ? { ...x, text: t('guide.one.shaka.text', 'Your index spins it, close your hand to preview, hold a fist to load.') } : x,
+        ),
+      },
+      // PALM (2.1): the same steps, its note step says tap, not curl, and shows the open-palm tap
+      palm: {
+        play: play.map((x) =>
+          x.move === 'pluck' ? { ...x, move: 'palm-tap', text: t('guide.palm.text', 'Then tap the air with an open palm. Now you try: play three notes.') } : x,
+        ),
+        remix,
+      },
+    }
+  }
+  return built
+}
+
+/** The two-handed (CURL) chapters' steps. */
+export const guideSteps = (): Record<Chapter, GuideStepSpec[]> => lists().curl
+
+/** The chapter's steps for the control style (usePlayPrefs.controlStyle): ONE HAND's own, PALM's, or CURL's. */
+export const stepsFor = (c: Chapter): GuideStepSpec[] => {
+  const style = usePlayPrefs.getState().controlStyle
+  const l = lists()
+  return (style === 'one' ? l.one : style === 'palm' ? l.palm : l.curl)[c]
+}
 
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -298,7 +346,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
     <>
       <div className={s.demo} key={n}>
         {spec.move ? (
-          <GuideHands move={spec.move} width={332} hands={usePlayPrefs.getState().oneHanded ? 1 : 2} />
+          <GuideHands move={spec.move} width={332} hands={oneHanded() ? 1 : 2} />
         ) : (
           <span className={s.icon} aria-hidden="true">
             {spec.icon}
@@ -312,7 +360,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
       <div className={s.row}>
         <p className={s.try} data-done={done || undefined} role="status">
           <span className={s.tryDot} />
-          {done ? 'Nice.' : 'Now you try'}
+          {done ? t('guide.nice', 'Nice.') : t('guide.nowYouTry', 'Now you try')}
         </p>
         {spec.action && (
           <button type="button" className={s.action} onClick={spec.action.run}>
@@ -321,7 +369,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
         )}
         {spec.demo && REDUCED && (
           <button type="button" className={s.action} onClick={() => void guideDemo.play(spec.demo!)}>
-            Play the demo
+            {t('guide.playDemo', 'Play the demo')}
           </button>
         )}
       </div>
@@ -337,7 +385,7 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
 export function Guide() {
   const chapter = useGuide((g) => g.open)
   const step = useGuide((g) => g.step)
-  const cam = useStrings((t) => t.camera)
+  const cam = useStrings((x) => x.camera)
   const ref = useRef<HTMLDialogElement>(null)
   const [done, setDone] = useState(false)
   const steps = chapter ? stepsFor(chapter) : []
@@ -387,14 +435,14 @@ export function Guide() {
     if (!spec?.watch || waiting) return
     const from = spec.watch.start()
     let next = 0
-    const t = window.setInterval(() => {
+    const iv = window.setInterval(() => {
       if (!spec.watch!.done(from)) return
-      window.clearInterval(t)
+      window.clearInterval(iv)
       setDone(true)
       next = window.setTimeout(() => (step + 1 < steps.length ? guide.go(step + 1) : guide.close(true)), SUCCESS_MS)
     }, CHECK_MS)
     return () => {
-      window.clearInterval(t)
+      window.clearInterval(iv)
       window.clearTimeout(next)
     }
   }, [spec, step, steps.length, waiting])
@@ -406,7 +454,7 @@ export function Guide() {
       ref={ref}
       className={s.card}
       data-fb
-      aria-label={chapter === 'remix' ? 'REMIX guide' : 'SAUCE guide'}
+      aria-label={chapter === 'remix' ? t('settings.guide.remix', 'REMIX guide') : t('settings.guide.sauce', 'SAUCE guide')}
       onKeyDown={(e) => {
         // Tab loops inside the card while focus is in it
         if (e.key !== 'Tab') return
@@ -419,12 +467,10 @@ export function Guide() {
       }}
     >
       <div className={s.head}>
-        <span className={s.chapter}>{chapter === 'remix' ? 'REMIX' : 'SAUCE'} GUIDE</span>
-        <span className={s.count}>
-          {step + 1} / {steps.length}
-        </span>
+        <span className={s.chapter}>{chapter === 'remix' ? t('guide.head.remix', 'REMIX GUIDE') : t('guide.head.sauce', 'SAUCE GUIDE')}</span>
+        <span className={s.count}>{t('guide.count', '{n} / {total}', { n: step + 1, total: steps.length })}</span>
         <button type="button" className={s.skip} onClick={() => guide.close()}>
-          Skip
+          {t('guide.skip', 'Skip')}
         </button>
       </div>
       {spec &&
@@ -435,18 +481,18 @@ export function Guide() {
                 ◎
               </span>
             </div>
-            <h2 className={s.title}>Turn on the camera to start</h2>
-            <p className={s.text}>The GUIDE starts once the camera sees you.</p>
+            <h2 className={s.title}>{t('guide.wait.title', 'Turn on the camera to start')}</h2>
+            <p className={s.text}>{t('guide.wait.text', 'The GUIDE starts once the camera sees you.')}</p>
           </>
         ) : (
           <GuideStep spec={spec} n={step + 1} of={steps.length} done={done} />
         ))}
       <div className={s.foot}>
         <button type="button" className={s.back} onClick={back} disabled={step === 0}>
-          Back
+          {t('guide.back', 'Back')}
         </button>
         <button type="button" className={s.next} onClick={next}>
-          {step + 1 < steps.length ? 'Next' : 'Done'}
+          {step + 1 < steps.length ? t('guide.next', 'Next') : t('common.done', 'Done')}
         </button>
       </div>
     </dialog>
@@ -459,10 +505,11 @@ export function useGuideFirstRun() {
   const mode = useUi((u) => u.mode)
   const booting = useUi((u) => u.booting)
   const whatsNew = useUi((u) => u.whatsNew) // WHAT'S NEW first: the GUIDE waits for it
-  const cam = useStrings((t) => t.camera)
+  const cam = useStrings((x) => x.camera)
+  const setupDone = useSetup((x) => x.done) // 2.1: the setup first, then the camera, then the GUIDE
   useEffect(() => {
     const g = useGuide.getState()
-    if (booting || whatsNew || g.open || cam !== 'live' || g.shown[mode]) return
+    if (booting || whatsNew || !setupDone || g.open || cam !== 'live' || g.shown[mode]) return
     guide.open(mode, 0)
-  }, [mode, booting, whatsNew, cam])
+  }, [mode, booting, whatsNew, setupDone, cam])
 }

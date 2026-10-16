@@ -406,7 +406,7 @@ export function createSmartCamera(): SmartCamera {
     shapes = handShapes(hands, now, shapes, aspect, body)
     fxNow = fx.step(shapes, now, aspect)
     const ev = play.step(shapes, fxNow, now, aspect, frameNow)
-    frameNow = frames.step(shapes, now, aspect, play.taps())
+    frameNow = frames.step(shapes, now, aspect)
     emit(releases, ev.releases) // a re-pluck's release goes first
     emit(plucks, ev.plucks)
     wheel.step(shapes, now, aspect)

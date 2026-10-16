@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, normalize, relative, sep } from 'node:path'
 
-const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3', '.mp4', '.als'])
+const DRAGGABLE_EXTENSIONS = new Set(['.aiff', '.aif', '.wav', '.xml', '.flac', '.mp3', '.mp4', '.als', '.mid'])
 const MAX_ROOTS = 16
 const MAX_RETURNED = 20_000
 const MAX_JSON_BYTES = 32 * 1024 * 1024

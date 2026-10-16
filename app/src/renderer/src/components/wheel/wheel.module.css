@@ -70,7 +70,7 @@
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.07);
-  font: 500 15px var(--fb-font);
+  font: 500 16px var(--fb-font);
   color: var(--fb-ink);
   outline: none;
 }
@@ -96,7 +96,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--fb-ink);
 }
@@ -106,12 +106,12 @@
   color: var(--fb-ink-on-accent);
 }
 .srcCount {
-  font-size: 12px;
+  font-size: 14px;
   opacity: 0.6;
   font-variant-numeric: tabular-nums;
 }
 .count {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--fb-ink-2);
   padding: 0 4px;
   font-variant-numeric: tabular-nums;
@@ -145,21 +145,21 @@
 .shelfLabel {
   flex: none;
   margin-right: 8px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #b5a798;
 }
 .crate {
   height: 30px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 .hint {
   position: absolute;
   left: 50%;
   translate: -50% 0;
-  font-size: 13px;
+  font-size: 14px;
   color: rgba(246, 239, 230, 0.72);
   white-space: nowrap;
   z-index: 6;
@@ -194,7 +194,7 @@
   font-weight: 600;
 }
 .msgBody {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   color: #b5a798;
 }
@@ -207,7 +207,7 @@
   height: 42px;
   padding: 0 16px;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.08);
 }
@@ -226,16 +226,16 @@
   }
   .src {
     height: 30px;
-    font-size: 13px;
+    font-size: 14px;
   }
   .crate {
     height: 28px;
   }
   .srcCount {
-    font-size: 11px;
+    font-size: 13px;
   }
   .count {
-    font-size: 12px;
+    font-size: 14px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

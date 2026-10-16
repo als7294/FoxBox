@@ -38,20 +38,20 @@
   padding: 0 2px;
 }
 .chapter {
-  font: 600 12px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   letter-spacing: 0.14em;
   color: var(--fb-accent);
 }
 .count {
   flex: 1;
-  font: 500 12px var(--fb-mono);
+  font: 500 14px var(--fb-mono);
   color: var(--fb-ink-2);
 }
 .skip {
   height: 28px;
   padding: 0 12px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--fb-ink-2);
   background: rgba(255, 255, 255, 0.07);
@@ -98,7 +98,7 @@
 }
 .text {
   margin: 0 2px;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--fb-ink-2);
 }
@@ -114,7 +114,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 600 12px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #ff9c5c;
@@ -139,7 +139,7 @@
   height: 36px;
   padding: 0 14px;
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.1);
 }
@@ -177,7 +177,7 @@
 .next {
   height: 46px;
   border-radius: 15px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
 }
 .back {
@@ -223,7 +223,7 @@
 .ticks li {
   padding: 6px 12px;
   border-radius: 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.07);
   color: var(--fb-ink-2);

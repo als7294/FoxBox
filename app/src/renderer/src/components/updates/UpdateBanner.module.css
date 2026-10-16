@@ -17,7 +17,7 @@
   backdrop-filter: blur(30px) saturate(1.8);
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
   color: var(--fb-ink);
-  font: 600 15px var(--fb-font);
+  font: 600 16px var(--fb-font);
 }
 .bar[data-tone='ready'] {
   --tone: #7bd69a;
@@ -79,7 +79,7 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
   color: var(--fb-ink);
-  font: 700 13px var(--fb-font);
+  font: 700 14px var(--fb-font);
   white-space: nowrap;
   transition: background 0.15s;
 }

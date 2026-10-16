@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react'
 
 export type GuideMove =
   | 'c-pose' | 'pluck' | 'height' | 'twist' | 'shake' | 'point' | 'melody' | 'flow' | 'frame' | 'pinch' | 'frame-pinch' | 'flip' | 'record'
-  | 'test-beat' | 'fist' | 'fold' | 'drop' | 'frame-glass' | 'shaka'
+  | 'test-beat' | 'fist' | 'fold' | 'drop' | 'frame-glass' | 'shaka' | 'palm-tap'
 
 type V = [number, number]
 const W = 240 // the drawing's own units (3:2)
@@ -702,6 +702,32 @@ const MOVES: Record<GuideMove, Move> = {
       g.c.restore()
       if (g.one) holdRing(g, F.q[3]!, t < 2 ? seg(t, 0.2, 0.75) : seg(t, 3.45, 3.95), t < 2 ? 1 - seg(t, 0.75, 0.9) : 1 - seg(t, 3.95, 4.1))
       return [W / 2 + 40 * Math.cos(turn), H / 2]
+    },
+  },
+  // PALM (2.1): an open palm to the camera taps down fast (the wrist flexing ≤ 25°, so the fingers foreshorten), stops
+  // (the note: a pulse at the palm, its fingertips lit), then rebounds; S1's detector fires at the stop
+  'palm-tap': {
+    period: 2, still: [0.3, 0.74],
+    draw(g, t) {
+      const down = seg(t, 0.6, 0.72) ** 2 // accelerating into the tap
+      const up = out3(seg(t, 0.82, 1.15)) // the rebound
+      const k = down * (1 - up)
+      const hit = t >= 0.72 && t < 1.15 ? 1 - seg(t, 0.72, 1.15) : 0
+      const P0 = front({ x: W / 2, y: 128 + 16 * k, s: S, curls: [0, 0, 0, 0, 0] })
+      const wrist = P0[0]!
+      const flex = 1 - 0.18 * k // ~25° of flex: the hand foreshortens toward the camera
+      const P = P0.map(([x, y]): V => [x, wrist[1] + (y - wrist[1]) * flex])
+      if (down > 0.15 && down < 1) for (const dx of [-30, 30]) arrow(g, [W / 2 + dx, 30 + 8 * down], [W / 2 + dx, 46 + 8 * down], 0.5) // the strike's speed
+      if (hit > 0) { // the note: a pulse at the palm
+        const c = P[9]!
+        g.c.beginPath()
+        g.c.arc(c[0], c[1], 14 + 26 * (1 - hit), 0, Math.PI * 2)
+        g.c.strokeStyle = `rgba(${ACC}, ${0.8 * hit})`
+        g.c.lineWidth = 2.5
+        g.c.stroke()
+      }
+      hand(g, P, S, hit > 0.3 ? TIPS : [])
+      return P[12]!
     },
   },
   shaka: {

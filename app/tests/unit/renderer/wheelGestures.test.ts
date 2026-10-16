@@ -103,7 +103,7 @@ describe("the library wheel's gestures", () => {
   })
 
   it('one-handed: the one hand dials with its index, closes to grab, and a fist held 0.8 s loads', () => {
-    usePlayPrefs.setState({ oneHanded: true })
+    usePlayPrefs.setState({ controlStyle: 'one' })
     try {
       const step = session()
       const point = [1, 0, 1, 1, 1]
@@ -118,7 +118,7 @@ describe("the library wheel's gestures", () => {
       expect(step(fist, null, 25).loads).toBe(1) // the same hand's fist: a load
       expect(step(hand3d([0, 0, 0, 0, 0], 0.3), null, 10).loads).toBe(1) // opening after it doesn't load again
     } finally {
-      usePlayPrefs.setState({ oneHanded: false })
+      usePlayPrefs.setState({ controlStyle: 'curl' })
     }
   })
 })

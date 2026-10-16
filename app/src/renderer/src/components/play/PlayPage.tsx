@@ -14,7 +14,18 @@ import { isTextTarget } from '@/lib/shortcuts'
 import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import { useOutputOwner } from '@/visuals/live/output'
-import { playActions, playInstrument, SCALE_LABEL, SOUNDS, startPlayHands, togglePlayTake, usePlay, type Move } from './playStore'
+import {
+  PLAY_MODES,
+  playActions,
+  playInstrument,
+  playModeOf,
+  SCALE_LABEL,
+  SOUNDS,
+  startPlayHands,
+  togglePlayTake,
+  usePlay,
+  type Move,
+} from './playStore'
 import s from '@/components/stage/stage.module.css'
 
 /** BASS 808 · REESE · GROWL · WOBBLE, MELODY PLUCK · LEAD · KEYS (keys 1–7). */
@@ -144,7 +155,6 @@ export function FrameBadge() {
 /** MELODY: OFF / FOLLOW / FIT, the preset (or 🎲 a new one, D), ↺ back to the start, and where it is. */
 export function MelodyPicker() {
   const mode = usePlay((p) => p.melodyMode)
-  const style = usePlay((p) => p.style)
   const presets = usePlay((p) => p.presets)
   const preset = usePlay((p) => p.preset)
   const place = usePlay((p) => p.place)
@@ -153,14 +163,12 @@ export function MelodyPicker() {
     <span className={s.row} role="group" aria-label="Melody">
       <span role="radiogroup" aria-label="Melody mode">
         MELODY{' '}
-        {(['off', 'follow', 'fit'] as const).map((m) => (
+        {(['off', 'loop'] as const).map((m) => (
           <button
             key={m}
             type="button"
             role="radio"
             aria-checked={m === mode}
-            disabled={m === 'follow' && style === 'flow'}
-            title={m === 'follow' && style === 'flow' ? 'FOLLOW plays with PLUCK' : undefined}
             onClick={() => playActions.setMelodyMode(m)}
           >
             {m.toUpperCase()}
@@ -197,7 +205,7 @@ export function NoteLadder() {
   const ladder = usePlay((p) => p.ladder)
   const lit = usePlay((p) => p.lit)
   const mode = usePlay((p) => p.melodyMode)
-  const follow = mode === 'follow' && lit.next != null
+  const follow = mode === 'loop' && lit.next != null
   return (
     <ol aria-label="Note ladder" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column-reverse' }}>
       {ladder.map((n) => {
@@ -295,7 +303,7 @@ export function usePlayKeys(active: boolean) {
       const p = usePlay.getState()
       if (/^[1-7]$/.test(k)) playActions.setSound(SOUNDS[Number(k) - 1]!.id)
       else if (k === 'ArrowUp' || k === 'ArrowDown') playActions.setOctave(p.octave + (k === 'ArrowUp' ? 1 : -1))
-      else if (k === 's' || k === 'S') playActions.setStyle(p.style === 'pluck' ? 'flow' : 'pluck')
+      else if (k === 's' || k === 'S') playActions.setPlayMode(PLAY_MODES[(PLAY_MODES.indexOf(playModeOf(p)) + 1) % PLAY_MODES.length]!)
       else if (k === 'd' || k === 'D') playActions.roll()
       else if (k === 'r' || k === 'R') void togglePlayTake()
       else return

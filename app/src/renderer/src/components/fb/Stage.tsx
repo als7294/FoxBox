@@ -2,6 +2,7 @@
 // canvas: what RECORD films and OUTPUT shows), the mode's warm grade, the bottom scrim, the coach. Only the mode on
 // screen mounts its StringsStage (its camera base parks and the other adopts it: one stream).
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { markBoot } from '@/state/bootMarks'
 import { cameraAlert } from '@/components/camera/cameraAlert'
 import { CLIP_SIZE } from '@/components/clips/liveCapture'
 import { prodCanvas } from '@/components/prod/prodActions'
@@ -9,9 +10,11 @@ import { useProd } from '@/components/prod/prodStore'
 import { checkCamera, useCameraGate } from '@/components/stage/CameraStage'
 import { StringsStage } from '@/components/strings/StringsStage'
 import { retryStringsCamera, useStrings } from '@/components/strings/stringsStore'
-import { bridge } from '@/env'
+import { switchMode } from '@/components/shell/ModeSwitch'
+import { bridge, isWindows } from '@/env'
 import { sendFrame, useOutputOwner } from '@/visuals/live/output'
 import s from './stage.module.css'
+import { t } from '@/i18n'
 
 /** The coach, a glass pill in the middle of the picture. */
 export function Coach({ text, small }: { text: string; small?: boolean }) {
@@ -26,15 +29,36 @@ export function Coach({ text, small }: { text: string; small?: boolean }) {
 
 /** Before macOS was ever asked: the button whose press brings its prompt (never at launch). */
 function CameraAsk() {
+  const win = isWindows()
   return (
     <div className={s.coachWrap} data-interactive>
       <div role="group" aria-label="Camera" className={s.ask}>
         <b className={s.askTitle}>Play with your hands</b>
-        <span className={s.askText}>FoxBox needs the camera to see them. Nothing leaves this Mac.</span>
+        <span className={s.askText}>FoxBox needs the camera to see them. Nothing leaves this {win ? 'PC' : 'Mac'}.</span>
         <button type="button" className={s.askBtn} onClick={() => useCameraGate.setState({ on: true })}>
           Turn on the camera
         </button>
-        <span className={s.askNote}>macOS asks once. You can change it later in Settings.</span>
+        <span className={s.askNote}>
+          {win ? t('camera.ask.note.win', 'You can change it later in Windows Settings → Privacy & security → Camera.') : t('camera.ask.note', 'macOS asks once. You can change it later in Settings.')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** The Windows beta: REMIX's audio engine (stems, the library) isn't built for Windows yet, so REMIX says so. */
+export function RemixSoon() {
+  return (
+    <div className={s.stage} data-mode="remix" data-testid="remix-soon">
+      <div className={s.coachWrap} data-interactive>
+        <div role="group" aria-label="REMIX" className={s.ask}>
+          <b className={s.askTitle}>REMIX is coming to Windows</b>
+          <span className={s.askText}>Its audio engine (stems and the library) is still being built for Windows. SAUCE plays now.</span>
+          <button type="button" className={s.askBtn} onClick={() => switchMode('play')}>
+            Play SAUCE
+          </button>
+          <span className={s.askNote}>FoxBox for Windows · beta</span>
+        </div>
       </div>
     </div>
   )
@@ -62,6 +86,7 @@ export function Stage({ mode, active, children }: { mode: 'play' | 'remix'; acti
           resolution={CLIP_SIZE[aspect]}
           className={s.canvas}
           onCanvas={(c) => {
+            markBoot('strings') // the boot splash's "Stringing the strings"
             canvas.current = c
             if (active) prodCanvas.current = c
           }}

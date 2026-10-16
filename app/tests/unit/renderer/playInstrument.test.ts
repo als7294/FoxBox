@@ -3,12 +3,12 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { degreeMidi, flowDegree, heightOctave, ladderDegree, ladderMidi, ladderSize, midiHz, noteName, SCALES } from '@/audio/play/notes'
-import { PRESETS, roll, snapToChord } from '@/audio/play/melody'
+import { PRESETS, roll } from '@/audio/play/melody'
 import { createTempo, frameStyle } from '@/audio/live/frameLoop'
 
 const made: Fake[] = []
 const param = () => {
-  const p = { value: 0, rampTo: vi.fn((v: number) => { p.value = v; return p }), setValueAtTime: vi.fn((v: number) => { p.value = v; return p }) }
+  const p = { value: 0, rampTo: vi.fn((v: number) => { p.value = v; return p }), setValueAtTime: vi.fn((v: number) => { p.value = v; return p }), setTargetAtTime: vi.fn((v: number, _at?: number, _tau?: number) => { p.value = v; return p }), cancelScheduledValues: vi.fn(() => p) }
   return p
 }
 class Fake {
@@ -35,7 +35,7 @@ vi.mock('tone', () => {
 })
 const nodes: Native[] = []
 class Native {
-  parameters = new Map(['on', 'style', 'flip'].map((k) => [k, param()]))
+  parameters = new Map(['on', 'style', 'flip', 'amount'].map((k) => [k, param()]))
   port = { postMessage: vi.fn() }
   constructor(_ctx?: unknown, readonly name?: string, readonly opts?: unknown) { nodes.push(this) }
   connect() { return this }
@@ -58,7 +58,7 @@ describe("PLAY's notes: the ladder", () => {
     expect(noteName(61)).toBe('C#4')
   })
 
-  it('melodies: the starters are valid; roll is the same for a seed, in range, ending home; FIT snaps to the nearest chord tone', () => {
+  it('melodies: the starters are valid; roll is the same for a seed, in range, ending home', () => {
     const ids = new Set(PRESETS.map((p) => p.id))
     expect(ids.size).toBe(PRESETS.length)
     for (const p of PRESETS) {
@@ -75,9 +75,6 @@ describe("PLAY's notes: the ladder", () => {
       expect(r.steps.length).toBe(8)
       expect([0, 5]).toContain(r.steps.at(-1))
     }
-    expect(snapToChord(3, [0, 2, 4], 5, 9)).toBe(4) // 3 isn't in the chord: up to 4 (ties go up)
-    expect(snapToChord(1, [0, 2, 4], 5, 9)).toBe(2)
-    expect(snapToChord(6, [0, 2, 4], 5, 9)).toBe(7) // 7 = degree 2 an octave up
   })
 })
 
@@ -246,7 +243,7 @@ describe("PLAY's instrument (the API)", () => {
     expect(voice('Synth').detune.rampTo).toHaveBeenLastCalledWith(700, 0.03, 0) // the pitch hand's roll
   })
 
-  it('TWIST bends what plays by up to a fifth; FRAME latches the loop (made again: lets go) on the plucks\' tempo', async () => {
+  it('TWIST bends what plays by up to a fifth; FRAME (2.1): held it loops on the plucks\' tempo, let go it stops; F toggles it; its amount; the shapes pause', async () => {
     const { createInstrument, twistCents } = await import('@/audio/play/instrument')
     expect([twistCents(1), twistCents(-1), twistCents(0.5)]).toEqual([700, -700, 350])
     const inst = await createInstrument(ctx)
@@ -264,16 +261,33 @@ describe("PLAY's instrument (the API)", () => {
     ctx.currentTime = 1.25
     expect(inst.beatClock()).toEqual({ bpm: 120, phase: 0.5 })
     inst.frame(true)
-    inst.frame(true) // held: still once
+    inst.frame(true) // held: on, once
     expect([inst.frozen, on.value]).toEqual([true, 1])
-    inst.setFrameStyle('prism', true) // turned over: the flip side, backwards
+    inst.setFrameStyle('prism', true) // turned over: the flip side, backwards (an untaught bonus, kept)
     expect([loop.parameters.get('style')!.value, loop.parameters.get('flip')!.value]).toEqual([2, 1])
-    inst.frame(false)
+    inst.setFrameAmount(0.9) // pulled wider: more
+    expect(loop.parameters.get('amount')!.value).toBeCloseTo(0.9, 6)
+    inst.setFrameAmount(Number.NaN)
+    expect(loop.parameters.get('amount')!.value).toBe(0.5) // as made
+    const drive = made.find((n) => n.kind === 'Distortion' && made.indexOf(n) < made.findIndex((m) => m.kind === 'AutoFilter'))!
+    inst.shape('right', 'fist', 1) // while it loops the other shapes pause
+    expect(drive.wet.value).toBe(0)
+    inst.frame(false) // let go: it stops (the glass break), and the fist is back
+    expect([inst.frozen, on.value, drive.wet.value]).toEqual([false, 0, 1])
+    inst.shape('right', null)
+    inst.toggleFrame() // F: on without the hands
+    expect([inst.frozen, on.value]).toEqual([true, 1])
+    inst.toggleFrame()
+    expect([inst.frozen, on.value]).toEqual([false, 0])
+    inst.frame(true)
+    inst.toggleFrame() // F while the hands frame: off, and the held hands wait to make a new one
     inst.frame(true)
     expect([inst.frozen, on.value]).toEqual([false, 0])
     inst.frame(false)
     inst.frame(true)
-    inst.setKey('E', 'minor') // the loop would be out of key
+    expect(inst.frozen).toBe(true)
+    inst.setKey('E', 'minor') // the loop would be out of key: off until a new frame
+    inst.frame(true)
     expect([inst.frozen, on.value]).toEqual([false, 0])
   })
 
@@ -350,7 +364,7 @@ describe("PLAY's instrument (the API)", () => {
     expect(inst.board).toMatchObject({ drive: 0.3, sub: 0.5, vol: 0.78 })
   })
 
-  it("SAUCE's actions: a card held with the mouse, a shape mapped to another action (MUTE), LOOP latching", async () => {
+  it("SAUCE's actions: a card held with the mouse, a shape mapped to another action (MUTE), LOOP toggling", async () => {
     const { createInstrument, SAUCE_ACTIONS } = await import('@/audio/play/instrument')
     expect(SAUCE_ACTIONS.map((a) => a.label)).toEqual(['DRIVE', 'WOBBLE', 'ECHO', 'SPACE', 'OCT ±1', 'LOOP', 'BEND', 'VIBRATO', 'MUTE', 'RECORD', 'OFF'])
     const inst = await createInstrument(ctx)
@@ -392,6 +406,59 @@ describe("PLAY's instrument (the API)", () => {
     expect(inst.currentNote('left')).toBeTruthy()
   })
 
+  it('MIDI (2.1): a held pluck its note until the hand opens, a mode switch lets go, FLOW a note and bend, the frame a CC; the demo silent', async () => {
+    const { createInstrument } = await import('@/audio/play/instrument')
+    const { setMidiOut } = await import('@/audio/play/midi')
+    const sent: number[][] = []
+    setMidiOut({ send: (bytes) => sent.push(bytes) })
+    const inst = await createInstrument(ctx)
+    const on = (n: number) => sent.some((b) => b[0] === 0x90 && b[1] === n), off = (n: number) => sent.some((b) => b[0] === 0x80 && b[1] === n)
+    inst.pluck({ hand: 'right', finger: 1, velocity: 0.5, height: 0.5, held: true })
+    const n = ladderMidi(key, 2, 4)
+    expect(sent.find((b) => b[0] === 0x90)).toEqual([0x90, n, 64])
+    inst.release({ hand: 'right', finger: 1 })
+    expect(off(n)).toBe(true)
+    inst.pluck({ hand: 'left', finger: 0, velocity: 1, height: 0, held: true })
+    inst.setStyle('flow') // a mode switch mid-hold: it lets go
+    expect(off(ladderMidi(key, 2, 0))).toBe(true)
+    inst.flow({ pitch: 0, spread: 1, shake: 0, mute: false })
+    inst.flow({ pitch: 0.2, spread: 1, shake: 0, mute: false }) // up the scale: a bend, not a new note
+    expect(on(degreeMidi(key, 1, 0))).toBe(true)
+    expect(sent.some((b) => b[0] === 0xe0 && ((b[2]! << 7) | b[1]!) > 8192)).toBe(true)
+    inst.flow({ pitch: 0.2, spread: 1, shake: 0, mute: true }) // the fist: FLOW's note off
+    expect(off(degreeMidi(key, 1, 0))).toBe(true)
+    inst.frame(true)
+    expect(sent.at(-1)).toEqual([0xb0, 30, 127])
+    sent.length = 0
+    const demo = await createInstrument(ctx, { midi: false })
+    demo.pluck({ hand: 'right', finger: 1, velocity: 1, height: 0.5, held: true })
+    expect(sent.filter((b) => b[0] === 0x90)).toEqual([]) // the GUIDE's: nothing into the port
+    setMidiOut(null)
+  })
+
+  it("Link: beatClock and the frame loop on its tempo and beat (the plucks' tempo set aside); off or stale, the plucks' again", async () => {
+    const { createInstrument } = await import('@/audio/play/instrument')
+    const { setExternalClock } = await import('@/audio/externalClock')
+    const inst = await createInstrument(ctx)
+    const loop = nodes.filter((n) => n.name === 'fvwks-frame').at(-1)!
+    for (const t of [0, 0.5, 1]) { ctx.currentTime = t; inst.pluck({ hand: 'right', finger: 0, velocity: 1, height: 0.5 }) } // 120 from the plucks
+    setExternalClock({ bpm: 128, beat: 32.25, phase: 0.25, quantum: 4 })
+    ctx.currentTime = 2
+    inst.flow({ pitch: 0.5, spread: 0.5, shake: 0, mute: false })
+    expect(inst.beatClock()).toMatchObject({ bpm: 128 })
+    expect(inst.beatClock()!.phase).toBeCloseTo(0.25, 1)
+    const sent = loop.port.postMessage.mock.calls.at(-1)![0] as { bpm: number; anchor: number; follow: boolean }
+    expect(sent).toMatchObject({ bpm: 128, follow: true })
+    expect(sent.anchor).toBeCloseTo(2 - 0.25 * (60 / 128), 2) // the beat a quarter back
+    inst.pluck({ hand: 'right', finger: 0, velocity: 1, height: 0.5 })
+    expect(loop.port.postMessage.mock.calls.at(-1)![0]).toBe(sent) // a pluck doesn't post its tempo over Link's
+    setExternalClock({ bpm: 128, beat: 0, phase: 0, quantum: 4 }, performance.now() - 5000) // no reading for 5 s: gone
+    inst.flow({ pitch: 0.5, spread: 0.5, shake: 0, mute: false })
+    expect(inst.beatClock()!.bpm).toBeCloseTo(120, 0) // the plucks' again
+    expect(loop.port.postMessage.mock.calls.at(-1)![0]).toMatchObject({ bpm: 120 })
+    setExternalClock(null)
+  })
+
   it('PLUCK and the 808 keep their natural decay; a sound change lets every held note go', async () => {
     const { createInstrument } = await import('@/audio/play/instrument')
     const inst = await createInstrument(ctx)
@@ -415,35 +482,69 @@ describe("PLAY's instrument (the API)", () => {
     expect(lead.triggerRelease).toHaveBeenCalled()
   })
 
-  it("FOLLOW: each pluck, either hand, plays the preset's next note (the hand's height ±1 octave) and wraps; FIT snaps to the step's chord and advances", async () => {
-    const { createInstrument } = await import('@/audio/play/instrument')
-    const inst = await createInstrument(ctx)
-    inst.setSound('keys')
-    inst.setMelodyMode('follow')
-    inst.setPreset('kitsune')
-    const steps = PRESETS.find((p) => p.id === 'kitsune')!.steps
-    const played = () => made.filter((n) => n.kind === 'FMSynth')
-      .flatMap((v) => v.triggerAttackRelease.mock.calls.map((c, i) => [v.triggerAttackRelease.mock.invocationCallOrder[i]!, c[0] as number]))
-      .sort((a, b) => a[0]! - b[0]!).map((x) => x[1]!) // the pool's voices, in the order they played
-    expect(inst.nextNote()?.midi).toBe(ladderMidi(key, 4, steps[0]!))
-    for (let i = 0; i < steps.length + 2; i++) inst.pluck({ hand: i % 3 ? 'left' : 'right', finger: i % 5, velocity: 0.8, height: 0.5 })
-    expect(played().map((hz) => Math.round(12 * Math.log2(hz / 440) + 69))).toEqual([...steps, steps[0], steps[1]].map((d) => ladderMidi(key, 4, d!)))
-    expect(inst.melody).toMatchObject({ mode: 'follow', position: 2, length: steps.length })
-    inst.reset()
-    inst.pluck({ hand: 'right', finger: 0, velocity: 0.8, height: 0.9 }) // high: an octave up
-    expect(played().at(-1)).toBeCloseTo(midiHz(ladderMidi(key, 4, steps[0]!, 1)), 6)
-    inst.setMelodyMode('fit')
-    inst.setPreset('kitsune') // the chord: degrees 0, 2, 4
-    expect(inst.allowedNotes().map((n) => n.index)).toEqual([0, 2, 4, 5, 7])
-    inst.pluck({ hand: 'right', finger: 0, velocity: 0.8, height: 3 / 8 }) // step 3: not allowed, up to 4
-    expect(played().at(-1)).toBeCloseTo(midiHz(ladderMidi(key, 4, 4)), 6)
-    expect(inst.melody.position).toBe(1)
-    const r = inst.roll(7)
-    expect(r.name).toBe('Rolled')
-    expect(r.notes).toHaveLength(8)
-    expect(inst.melody.position).toBe(0)
-    expect(inst.presets().map((p) => [p.name, p.notes.length])).toEqual([['Night hook', 8], ['Kitsune', 8], ['Low rider', 8], ['Lantern', 8], ['Rolled', 8]])
-    expect(inst.presets().at(-1)!.notes).toEqual(r.notes) // Rolled: the latest roll
+  it("LOOP (2.1 Melody mode): the preset plays by itself on the beat (120 BPM, a melodic sound); the hands shape it, register and the drop on the beat; no plucks; the strip's edits land at the top; the palm; the tempo", async () => {
+    vi.useFakeTimers()
+    try {
+      const { createInstrument } = await import('@/audio/play/instrument')
+      const inst = await createInstrument(ctx) // the 808: a bass sound
+      const toMidi = (hz: number) => Math.round(12 * Math.log2(hz / 440) + 69)
+      const played = () => made.filter((n) => n.kind === 'FMSynth').flatMap((v) => v.triggerAttackRelease.mock.calls.map((c) => ({ midi: toMidi(c[0] as number), at: c[2] as number }))).sort((a, b) => a.at - b.at)
+      const run = (to: number) => { while (ctx.currentTime < to - 1e-9) { ctx.currentTime = Math.round((ctx.currentTime + 0.025) * 1000) / 1000; vi.advanceTimersByTime(25) } } // the context and the timer together
+      const tone = made.find((n) => n.kind === 'Filter')!
+      inst.setMelodyMode('loop')
+      expect(inst.sound).toBe('keys') // melodic by default
+      const steps = PRESETS[0]!.steps.map((d) => ladderMidi(key, 4, d))
+      run(4.1)
+      expect(played().slice(0, 9).map((n) => n.at)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => Math.round((0.05 + 0.5 * i) * 1000) / 1000).map((t) => expect.closeTo(t, 6) as unknown as number))
+      expect(played().slice(0, 9).map((n) => n.midi)).toEqual([...steps, steps[0]]) // 2 bars, round again
+      expect(inst.melody).toMatchObject({ mode: 'loop', preset: { id: 'night-hook' }, bpm: 120, linked: false, dropped: false })
+      const n0 = played().length
+      inst.pluck({ hand: 'right', finger: 1, velocity: 1, height: 0.5 }) // the hands shape it: no plucks
+      expect(played()).toHaveLength(n0)
+      inst.loopHands({ right: 1, left: 0.9, spread: 1, fist: false }) // brightest, high, wide
+      expect(tone.frequency.value).toBeGreaterThan(15000)
+      run(5.0)
+      const hi = played().find((n) => Math.abs(n.at - 4.55) < 1e-6)! // beat 9: the next one not yet scheduled
+      expect(hi.midi).toBe(steps[1]! + 12) // an octave up, from the beat
+      expect(played().find((n) => Math.abs(n.at - 4.05) < 1e-6)!.midi).toBe(steps[0]) // already on its way: as it was
+      inst.loopHands({ right: 0.5, left: 0.5, spread: 0.2, fist: true })
+      run(5.6)
+      const gate = made.filter((n) => n.kind === 'Gain').find((g) => g.gain.setTargetAtTime.mock.calls.some((c) => c[0] === 0 && c[2] === 0.03))!
+      expect(gate.gain.setTargetAtTime.mock.calls.find((c) => c[0] === 0 && c[2] === 0.03)![1]).toBeCloseTo(5.55, 6) // dropped on the beat
+      expect(inst.melody.dropped).toBe(true)
+      inst.loopHands({ right: 0.5, left: 0.5, spread: 0.2, fist: false })
+      run(6.2)
+      expect(inst.melody.dropped).toBe(false)
+      // the strip: an edit comes back ruled and lands at the loop's next top (8.05 s), not before
+      const edit = inst.loopNotes().notes.map((n, i) => (i === 1 ? { ...n, midi: n.midi + 1 } : n)) // off the scale
+      const ruledEdit = inst.editLoop(edit)
+      expect(inst.loopRows()).toContain(ruledEdit[1]!.midi)
+      expect(inst.loopNotes().pending).toEqual(ruledEdit)
+      run(8.45) // scheduled 0.15 s ahead: through 8.55
+      expect(inst.loopNotes()).toMatchObject({ notes: ruledEdit, pending: null })
+      expect(played().find((n) => Math.abs(n.at - 8.55) < 1e-6)!.midi).toBe(ruledEdit[1]!.midi)
+      expect(inst.loopState()).toMatchObject({ notes: ruledEdit, bpm: 120, register: 0, dropped: false })
+      inst.resetLoop()
+      inst.palm() // a variation for the next bar
+      inst.setLoopTempo(90)
+      expect(inst.melody.bpm).toBe(90)
+      inst.setLoopTempo(500)
+      expect(inst.melody.bpm).toBe(200)
+      inst.setMelodyMode('off')
+      expect(inst.loopState()).toBeNull()
+      const n1 = played().length
+      run(9.5)
+      expect(played()).toHaveLength(n1) // stopped
+      inst.pluck({ hand: 'right', finger: 1, velocity: 1, height: 0.5 }) // plucks again
+      expect(made.filter((n) => n.kind === 'FMSynth').some((v) => v.triggerAttackRelease.mock.calls.length)).toBe(true)
+      const r = inst.roll(7) // from OFF: LOOP on, Rolled
+      expect([r.name, inst.melody.mode, inst.melody.preset.id]).toEqual(['Rolled', 'loop', 'rolled'])
+      expect(inst.presets().map((p) => [p.name, p.notes.length])).toEqual([['Night hook', 8], ['Kitsune', 8], ['Low rider', 8], ['Lantern', 8], ['Rolled', 8]])
+      expect([inst.nextNote(), inst.allowedNotes()]).toEqual([null, []]) // 2.1: no FOLLOW, no FIT
+      inst.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('PLAY is song-free: nothing in audio/play reaches the song world', () => {

@@ -6,6 +6,7 @@
  */
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { finishMidiTake, startMidiTake } from '@/audio/play/midi'
 import { bridge } from '@/env'
 import { toast } from '@/state/toasts'
 
@@ -20,6 +21,8 @@ export interface Take {
   /** Where main saved it (drag-out and Show in Finder take it; never shown). */
   path: string
   seconds: number
+  /** 2.1: the same take as a .mid beside it (SAUCE, with Record MIDI on). */
+  midiPath?: string
 }
 
 interface TakesState {
@@ -117,10 +120,12 @@ export class CaptureBuffer {
   }
 }
 
-let tap: { node: AudioWorkletNode; source: AudioNode; buf: CaptureBuffer; stopped: Promise<void>; label: string } | null = null
+type Tap = { node: AudioWorkletNode; source: AudioNode; buf: CaptureBuffer; stopped: Promise<void>; label: string; bpm?: () => number }
+let tap: Tap | null = null
 
-/** Starts a take of `source` (its context must have the fvwks-tap worklet loaded). `label`: " - 808 - C#m". */
-export function startTake(ctx: BaseAudioContext, source: AudioNode, label: string): void {
+/** Starts a take of `source` (its context must have the fvwks-tap worklet loaded). `label`: " - 808 - C#m". `bpm`:
+ *  the take's MIDI too (SAUCE's stream, S2), at that tempo when it stops. */
+export function startTake(ctx: BaseAudioContext, source: AudioNode, label: string, bpm?: () => number): void {
   if (tap) return
   const node = new AudioWorkletNode(ctx, 'fvwks-tap', {
     numberOfInputs: 1,
@@ -139,7 +144,8 @@ export function startTake(ctx: BaseAudioContext, source: AudioNode, label: strin
   source.connect(node)
   node.connect(ctx.destination) // silent: keeps the tap rendering
   node.port.postMessage({ type: 'start', startAt: ctx.currentTime + 0.01 })
-  tap = { node, source, buf, stopped, label }
+  tap = { node, source, buf, stopped, label, bpm }
+  if (bpm) startMidiTake()
   useTakes.setState({ t0: performance.now() })
 }
 
@@ -155,12 +161,15 @@ export async function stopTake(): Promise<Take | null> {
   t.source.disconnect(t.node)
   t.node.disconnect()
   const span = t.buf.span()
+  // the .mid starts where the WAV does: its cropped lead-in and the tap's 10 ms start skipped
+  const mid = t.bpm ? finishMidiTake(t.bpm(), span[0] / t.buf.rate + 0.01) : null
   if (span[1] <= span[0]) return null
   const n = useTakes.getState().n + 1
   const name = `FoxBox take ${n}${t.label}.wav`
   const b = bridge()
   const path = b ? await b.saveClip(name, await t.buf.wav(span).arrayBuffer()) : name
-  const take = { name: path.split('/').pop() ?? name, path, seconds: (span[1] - span[0]) / t.buf.rate }
+  const midiPath = b && mid ? await b.saveClip(name.replace(/\.wav$/, '.mid'), mid.slice().buffer) : undefined
+  const take: Take = { name: path.split('/').pop() ?? name, path, seconds: (span[1] - span[0]) / t.buf.rate, midiPath }
   useTakes.setState((s) => ({ n, recent: [take, ...s.recent].slice(0, 3) }))
   return take
 }

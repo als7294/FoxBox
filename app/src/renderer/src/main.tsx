@@ -4,6 +4,7 @@ import { App } from './App'
 import { initOutputLink } from './visuals/live/output'
 import { OutputWindow } from './visuals/live/OutputWindow'
 import { isMockMode } from './env'
+import { LangRoot } from './i18n/LangRoot'
 import './styles/fonts.css'
 import './styles/tokens.css'
 import './styles/foxbox-tokens.css'
@@ -25,7 +26,7 @@ async function boot() {
   const which = params.get('window')
   initOutputLink()
   const root = which === 'output' ? <OutputWindow /> : <App />
-  createRoot(document.getElementById('root')!).render(<StrictMode>{root}</StrictMode>)
+  createRoot(document.getElementById('root')!).render(<StrictMode><LangRoot>{root}</LangRoot></StrictMode>)
 }
 
 void boot()

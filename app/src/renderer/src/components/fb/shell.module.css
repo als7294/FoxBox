@@ -39,7 +39,7 @@
   padding: 7px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #fff;
   z-index: 5;
@@ -83,7 +83,7 @@
   box-shadow: 0 0 10px 2px rgba(255, 140, 60, 0.75);
 }
 .notePopNext {
-  font: 500 12px var(--fb-font);
+  font: 500 14px var(--fb-font);
   letter-spacing: 0;
   color: rgba(246, 239, 230, 0.62);
 }
@@ -119,8 +119,42 @@
   background: var(--fb-accent);
 }
 .badgeSub {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: 0;
   color: #b5a798;
+}
+
+/* 2.1 frames: the how / hold / next chip, above the dock (REMIX: above its waveform) */
+.frameCue {
+  position: absolute;
+  left: 50%;
+  bottom: 124px;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--fb-glass);
+  backdrop-filter: blur(30px) saturate(1.8);
+  font: 600 20px/1.2 var(--fb-font);
+  color: var(--fb-ink);
+  white-space: nowrap;
+  z-index: 5;
+  pointer-events: none;
+}
+.frameCue[data-mode='remix'] {
+  bottom: 268px;
+}
+.frameCue[data-mode='loop'] {
+  bottom: 204px; /* above LOOP's strip */
+}
+@media (max-width: 1439px), (max-height: 899px) {
+  .frameCue {
+    bottom: 100px;
+  }
+  .frameCue[data-mode='remix'] {
+    bottom: 214px;
+  }
+  .frameCue[data-mode='loop'] {
+    bottom: 172px;
+  }
 }

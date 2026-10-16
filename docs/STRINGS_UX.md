@@ -81,6 +81,36 @@ SAUCE never waits for the REMIX engine and never downloads anything.
 - There's no keyboard fallback for notes in 2.0.
 - REMIX's first visit is covered by the GUIDE's REMIX chapter. The stem model downloads (84 MB, once) on the first split, never at launch.
 
+## First-run setup (2.1)
+The user: "during first time setup foxbox strings should ask if you prefer your face hidden by default, as well as a few other simple setup questions".
+
+**Where:** after the launch screen and before the camera request, so no camera is needed yet. Then comes the camera, then the GUIDE. It runs once. Every answer can be changed later in Settings.
+
+**The cards** are five quick ones, each a single big choice:
+
+| # | Title | Choices (the default is preselected) | Sets |
+|---|---|---|---|
+| 1 | **Your language** | English · Español · Português (Brasil) · Français · Deutsch · 日本語 (the system language preselected) | Settings → Language |
+| 2 | **Hide your face by default?** | **Show it** · Hide my face | Face hiding (off by default) |
+| 3 | **Which hand leads?** | **Right** · Left | Left-handed layout |
+| 4 | **One hand or two?** | **Two hands** · One hand | One-handed mode (the one-handed GUIDE follows) |
+| 5 | **Where's your music?** | A folder… · Rekordbox XML… · Serato · **Later** | REMIX's library sources |
+
+- **The lines under each title** (13–15 px, not animation text):
+  - 2: "FoxBox can cover your face in takes and on outputs."
+  - 3: "Your lead hand plays the pitch in FLOW and spins the library."
+  - 4: "One-handed mode plays everything with either hand."
+  - 5: "For REMIX's library. Nothing leaves this Mac."
+  - All cards: "You can change this anytime in Settings."
+- **The look:**
+  - one centred glass card in the 2.0 style, with the title Geist 700 at ≥ 36 px;
+  - choices as big pills (≥ 64 px tall), with a tap choosing and moving on;
+  - progress dots (1 / 5), and "Skip setup" top right, which keeps the defaults;
+  - the music card's choices open the native pickers, and "Later" skips;
+  - reduced motion: cross-fades only.
+- **Keys:** arrows move between choices, Enter picks, and Esc skips setup.
+- **No modal stack:** it's the first screen, not a dialog over the app.
+
 ## The GUIDE: the in-app tutorial
 A premium, motion-animated step flow over the live app. It uses real strings, real sound and the user's own camera, with "now you try" steps. It isn't a video.
 - **Its motion follows the onboarding video:** `FoxBox Onboarding.dc.html`, with kinetic type and orange slash wipes.
@@ -107,18 +137,19 @@ A premium, motion-animated step flow over the live app. It uses real strings, re
 - **Closing early** remembers the step, and the GUIDE then offers "Continue from step n". A skipped first run still counts: the GUIDE never opens by itself again.
 - **Reduced motion:** the demo shows the start and end poses with an arrow, and "Play the demo" plays its sound once.
 
-**SAUCE steps (11):**
+**SAUCE steps (12 in 2.1):**
 1. Curve your hands into a C, turned a little toward the camera, thumb in front (the strings appear).
 2. Raise or lower a hand to pick a note; curl a finger to pluck.
 3. Pick a sound (Sound, or keys 1–7).
 4. Twist to bend.
 5. Shake for vibrato; point up or down for the octave.
 6. Pinch for wobble.
-7. Make a frame to loop the last 4 beats; pinch and hold for a moment to change the effect. Turn your hands over for the flip side.
+7. Make a frame with both hands. It loops the last 4 beats. Pull wider for more. Let go to stop.
 8. Try FLOW.
-9. Pick a melody, then pluck to play it (🎲 for a new one).
-10. Record a take, then drag it into Ableton or Finder.
-11. Send to output (a projector or stream).
+9. Turn on a melody: it plays by itself. Raise your right hand for brighter, your left for higher. (2.1)
+10. Spread your hands for space. Make a fist to drop it, on the beat. Frame it for an effect. (2.1)
+11. Record a take, then drag it into Ableton or Finder.
+12. Send to output (a projector or stream).
 
 The design's settings mock says "10 steps", a placeholder; the 11 above stand.
 
@@ -127,7 +158,7 @@ The design's settings mock says "10 steps", a placeholder; the 11 above stand.
 2. Hold a fist (TEAROUT).
 3. Fold a finger to cut a band.
 4. Jump to the drop.
-5. Frame a window: the last 4 beats loop; pinch and hold for a moment to change the effect. Turn your hands over for the flip side.
+5. Make a frame with both hands. It loops the last 4 beats. Pull wider for more. Let go to stop.
 6. Hold the shaka 🤙 for your library.
 
 ## Empty states and copy
@@ -209,7 +240,7 @@ The both-hands-open playing pose never fires anything.
 - Picking an action that another shape has **swaps** the two.
 - **Reset all** restores the defaults.
 - The maps are per mode, and they persist. S1 owns the remap API.
-- **SAUCE's Frame is fixed to LOOP** *(chat)*, since latching, the pinch, the flip and the release depend on it. Edit shapes shows it locked, and LOOP isn't offered to other shapes.
+- **SAUCE's Frame is fixed to LOOP** *(chat)*, since holding, sizing and the flip depend on it. Edit shapes shows it locked, and LOOP isn't offered to other shapes.
 
 **Actions:**
 - **SAUCE:** DRIVE · WOBBLE · ECHO · SPACE · OCT ±1 · LOOP · BEND · VIBRATO · MUTE · RECORD · OFF.
@@ -260,7 +291,7 @@ The component names follow the design's README.
   - the key picker ("C# minor pentatonic ▾");
   - the octave stepper (− · OCTAVE n · +, with ↑ / ↓ or point up / down).
 - **Melody** (MelodyPicker): see below.
-- **Hands** (GestureLegend): PLUCK / FLOW (S), the gestures, the shapes and Edit shapes.
+- **Hands** (GestureLegend): the play style **PLUCK · FLOW · LOOP** (S; 2.1), the gestures, the shapes and Edit shapes.
 - **Never shown in SAUCE:** a track, the test beat, BPM, a timeline, stems or beat FX.
 
 **REMIX (RemixPage):**
@@ -279,78 +310,151 @@ The component names follow the design's README.
 - **WhatsNew,** shown once: "FoxBox is now an instrument for your hands", the 16:9 film, and "Looking for STUDIO, VISUALS or MASKS? They live on in FoxBox 1.5.5", with a link.
 - **OutputWindow:** the picture only, full screen.
 
-## SAUCE: melodies (MELODY: OFF · FOLLOW · FIT)
-The user asked for "both, switchable": play a preset melody your own way, or keep free play.
+## SAUCE: Melody mode (2.1)
+The user: "when melody mode is on it should use a different control style to adjust the sounds of the melody and auto loop it… modified on beat by your hand motions or frames". So MELODY becomes a **performance mode**: the melody plays by itself, and your hands shape it.
 
-**The Melody popover:**
-- OFF / FOLLOW / FIT in its header, with a subtitle that explains the mode.
-- **PRESETS:** Night hook · Kitsune · Low rider · Lantern · Rolled, each 8 notes, written by S2. They're never named after or copied from existing songs. **Rolled** holds the last 🎲 roll.
-- **SEQUENCE:** the strip of 8 notes. In FOLLOW the next one is orange.
-- **🎲 Roll a melody** (key D, with the "D rolls" chip): a new melody in the current key. It's rule-based (scale steps, contour, phrase length), never called AI or "generated".
-- **Back to the start.**
+**Turning it on** *(the user's structure call)*: SAUCE's play style is **one visible switch, PLUCK · FLOW · LOOP**, in the dock (Hands) and the Island, and S cycles it. **LOOP is Melody mode.** PLUCK stays the default. The **Melody popover becomes LOOP's preset picker and tempo**, with no OFF / LOOP switch of its own.
+- Picking a preset (Night hook · Kitsune · Low rider · Lantern · Rolled, 8 notes each), or 🎲 (D), **starts it looping at once**, with no plucking needed.
+- **Tempo** is 120 BPM by default, or Link's tempo when Link is on (2.1). The popover has a − 120 + stepper ("LINK 124" when Link is on).
+- **OFF** returns to plucking, as before.
+- FOLLOW and FIT are cut: the loop replaces them.
 
-**The modes:**
-- **OFF:** free play. Height picks the note, and a curl plays it.
-- **FOLLOW:**
-  - each pluck (either hand) plays the preset's **next** note, so you supply the rhythm;
-  - hand height shifts that note ±1 octave;
-  - both hands advance the one phrase *(chat)*;
-  - at the end, it wraps to the top.
-- **FIT:** hand-height notes snap to the preset's notes, and each pluck advances the phrase.
-- **What carries over:** changing the key transposes the preset; changing the sound keeps your place. Back to the start, a new preset or 🎲 starts from the top.
-- **FLOW** *(chat)*: FIT snaps the right hand's pitch. FOLLOW needs plucks, so it's greyed out in FLOW ("FOLLOW plays with PLUCK").
+**The four controls** (the ones the GUIDE teaches):
+
+| Hand | Does | How it lands |
+|---|---|---|
+| **Right hand up / down** | brightness (the filter) | smooth, live |
+| **Left hand up / down** | register: low · mid · high octave | on the next beat |
+| **Hands apart / together** | space (reverb and width) | smooth, live |
+| **A fist** (either hand) | drops the melody; open it and it comes back | on the next beat |
+
+**Extras (not taught):**
+- **Twist:** bends, ±2 semitones.
+- **🤏 ✌️ 🤘:** WOBBLE · ECHO · SPACE, starting on the next beat.
+- **An open palm held ~0.5 s:** plays a variation for the next bar (the 🎲 rules, in key).
+
+**Frames:** any inward frame works on the loop (see "Frames"). It's on the next beat, it holds while you hold, its size sets the amount, and letting go ends it.
+
+**The look** (it reads differently from plucking):
+- **No pluck strings.** A glass **loop ring** sits centred between the hands: the 8 notes are dots around it, a playhead circles once per bar, and each note glows as it plays.
+- **The ring reacts:** brightness makes it glow, register raises or lowers it, space widens and softens it, and a drop dims it to an outline.
+- **The hands:** a small handle at each palm, labelled while you learn it ("BRIGHTER" right, "HIGHER" left). The labels fade after a few uses. **Big text or no text** *(the user)*: they're animation text, so they're at least 28 px at 1280 or not shown at all, never small.
+- **The Island** shows "LOOP · Night hook · 120". The dock's Hands shows "LOOP", and its Melody shows the preset ("Night hook").
+- **Hands popover (in LOOP):** the legend lists the four controls first, then the extras.
+
+**The loop strip** *(the user: "a soft DAW-like overlay at the bottom showing the loop… make it impossible for it to sound bad")*:
+- **At rest:** a soft glass strip just above the dock, as wide as the dock and ~84 px tall (72 px in compact).
+  - It shows the loop as note blocks over 2 bars: time runs left to right, pitch goes up.
+  - A playhead sweeps it, and each block lights as it plays.
+  - The four hand controls show as a gentle tint: brightness warms the strip's top glow, register shifts the blocks up or down a row band, space softens them, and a drop dims the strip.
+- **On hover** (mouse only; the hands keep playing), it eases up to ~180 px (150 in compact). The 16th grid shows, with the beats stronger and faint scale-note rows. Then:
+  - **drag a block** up or down for pitch, or left or right to move it;
+  - **drag its right edge** for length;
+  - **click an empty spot** to add a note (an 8th);
+  - **double-click** a block to delete it;
+  - **⌘Z / ⇧⌘Z** undo and redo, **Reset to preset** puts the original back, and Esc or moving away collapses the strip.
+  - The first hover shows one hint: "Drag the notes. Whatever you do stays in key."
+- **Keyboard:** Tab to a block; ↑↓ change pitch, ←→ move it, ⇧←→ change its length, and Delete removes it.
+- **It can't sound bad (S2's rules):**
+  - pitch snaps to the key's scale, and to chord tones on the strong beats;
+  - start times snap to the 16th grid, and lengths to musical values (1/16, 1/8, dotted 1/8, 1/4, 1/2);
+  - the range is held to one comfortable octave and a half;
+  - no two notes clash;
+  - a leap bigger than a 6th resolves by step;
+  - density is capped (no more than ~3 notes a beat);
+  - a deleted downbeat is replaced by a gentle default (the root, short);
+  - a move that would break a rule slides the block to the nearest allowed spot. There are no error messages.
+- **Timing:** edits land on the next pass of the loop, never mid-note. A pending edit shows as an outline until it lands.
+- **Saving:** edits save per preset on this Mac. An edited preset's tile gets a small dot, and Reset to preset clears it. 🎲 makes a new Rolled, which you can edit too.
+
+**GUIDE** (replacing SAUCE step 9; two steps):
+1. **"Turn on a melody: it plays by itself.** Raise your right hand for brighter, your left for higher." Now you try: move the right hand up.
+2. **"Spread your hands for space. Make a fist to drop it,** on the beat. Frame it for an effect." Now you try: a fist drop.
+
+**Who changes what (Melody mode):**
+- **S1, the gestures:**
+  - in LOOP, no pluck events;
+  - the signals: right and left palm height (0–1, smoothed), spread (hand distance ÷ hand size), twist, a fist on either hand, an open palm held 0.5 s, and the shapes;
+  - the lenient inward-L frame (FRAMES_SIMPLE.md, "Melody mode").
+- **S2, the loop engine and the loop strip's rules:**
+  - an edit API: propose an edit, get back the adjusted edit, and apply it on the next pass. It runs the rules above;
+  - the preset loops at the tempo (120, or Link);
+  - brightness → cutoff (~80 ms smoothing);
+  - register → −1 / 0 / +1 octave, on the next beat;
+  - space → reverb/delay send + stereo width;
+  - a fist → mute on the next beat (with a short tail), and back on the next beat;
+  - twist → ±2 st;
+  - shapes → their FX on the next beat;
+  - an open palm → a variation for the next bar (the 🎲 rules);
+  - a frame → its effect on the loop, amount by size, on the next beat.
+- **S3, the visuals:**
+  - the loop strip's glass styling: the blocks, the light on the playing block, the playhead and the control tints;
+  - the loop ring (8 dots, a playhead per bar) reacting to the four controls;
+  - no strings in LOOP;
+  - the palm handles with their fading labels, at ≥ 28 px at 1280 or not shown (big text or no text);
+  - the frame pane as usual.
+- **S4, the UI:**
+  - the loop strip: rest and hover states, drag, stretch, add, delete, undo/redo, Reset to preset, the keyboard, per-preset saving and the one-time hint;
+  - the play-style switch PLUCK · FLOW · LOOP (Hands and Island; S cycles it). The Melody popover is LOOP's preset picker with 🎲 and the tempo stepper (LINK when on), and FOLLOW/FIT are removed;
+  - the Island and dock text;
+  - the Hands legend in LOOP;
+  - GUIDE steps 9–10.
 
 ## Frames: the last 4 beats, looping (both modes)
 The user: "frames should show the last 4 beat loop with different effects and pinching while in a frame should change the frame style and audio effect", with the beat found automatically. This is the hero moment in both modes, and it replaces FREEZE.
+
+**2.1 simplifies it to one rule** (the user: "frames are insanely confusing"; docs/FRAMES_SIMPLE.md): **hold a frame and it loops; let go and it stops.** It's the same in SAUCE, REMIX and one-handed mode.
 
 **The look** (FramePane, FrameBadge):
 - **The pane** sits exactly in the hands' frame and tilts with them (±10°).
 - **Entrance:**
   - the lit edge draws itself (0.45 s), and the world blooms (0.7 s, from 0.35 s);
   - a name pill sits on the edge: the style + its effect, for example "THERMAL · Warm drive". It's `#FFB27A` in SAUCE and `#F2701F` in REMIX;
-  - a hint pill: "● ● ● ● 4 beats · pinch and hold for a moment to change the effect".
+  - **the effect names itself big** for about a second, centred in the pane (Geist 800, about 70 px, e.g. "PRISM"; no small subline, per "big text or no text". The pill carries "Shimmer · 80%"), then it shrinks into the name pill;
+  - a hint chip under the frame: "Hold to loop · let go to stop", then after a second "Pull wider for more · closer for less".
 - **While it loops:** a white sweep line passes once per loop, and the brightness pulses on each beat.
 - **Sound:** a "lock" on the beat when the frame is made.
 
-**Flow:**
-1. **Make a frame** (thumbs and index fingers of both hands), or press **F**. On the next beat, the last 4 beats of the picture inside the frame and the sound start looping, beat-locked.
-2. **Pinch and hold for a moment while framed** *(chat)*: a deliberate pinch held about a fifth of a second, because a flick-fast pinch can't be told from the resting C. It steps to the next style with its paired audio effect: ECHO TRAIL (Echo) → PRISM (Shimmer) → HALFTONE (Bitcrush) → KALEIDO (Chorus) → DATAMOSH (Glitch) → THERMAL (Warm drive) → round again.
-   - The name flips on the edge, and the effect changes on the next beat.
-   - REMIX: a pinch at either corner of the held frame, which holds through it. SAUCE: any pinch while it's latched.
-3. **Turn your hands over, like turning a card,** for the **flip side** *(the user)*. The frame stays upright, and both hands turn over (palms ↔ backs to the camera) while keeping their L corners. An upside-down turn of the frame can't be tracked, so it isn't the gesture. The pane does a quick card-flip onto the current style's **partner**, a clearly contrasting picture and sound, with the loop **reversed**. The name pill adds "flip side ⟲".
-   - Turn the hands back and it returns to the front style, forwards.
-   - A pinch cycles styles **on the side you're on**.
-   - **The six partners:** S2 (sound) and S3 (picture) pick them from ICE, X-RAY, MIRROR and new ones. That's open until they land.
-4. **Release:** a **glass fracture** *(chat)*, the only release style. It's ~140 ms: a crack, ~40 refracting shards and a glass-break sound, with the live picture back at once. That replaces the design's 6 shards over 0.85 s.
-   - REMIX: let go, because the frame is **held**.
-   - SAUCE: **make the frame again**, because it **latches** *(chat)*.
-   - F or Esc also releases it.
+**Flow (2.1):**
+1. **Make a frame** with both hands (two L's: thumbs and index fingers). On the next beat, the last 4 beats of the picture inside the frame and the sound start looping, beat-locked, **for as long as you hold it**.
+2. **Pull wider for more, closer for less.** The frame's size is the effect's amount, relative to its size when made (which starts at 50 %), shown as a thin bar along the frame's bottom edge.
+3. **Let go:** the **glass fracture** *(chat)*, ~140 ms, with a crack, ~40 refracting shards and a glass-break sound, and the live picture back at once. A frame counts as let go once both hands have been out of the L for 300 ms (S1).
+4. **Each new frame brings the next effect:** ECHO TRAIL (Echo) → PRISM (Shimmer) → HALFTONE (Bitcrush) → KALEIDO (Chorus) → DATAMOSH (Glitch) → THERMAL (Warm drive) → round again. On letting go, a toast under the Island says what's next: "Next frame: HALFTONE". The Board's FRAME control picks one directly.
+5. **The flip side, an untaught bonus** *(the user; kept as is)*: turning both hands over like a card, palms ↔ backs with the L corners kept, card-flips the pane onto the style's partner with the loop reversed. "flip side ⟲" shows in the name pill. It has no cue and no GUIDE step; this line is its only mention.
+
+**In Melody mode (LOOP), any inward frame counts** *(the user)*. Any two L's that enclose space between the hands, in any orientation, make the frame: tilted, sideways or upside-down. It applies its effect to the melody loop on the next beat, with the same rules (hold = on, size = amount, let go = off).
+
+**The always-visible "how":** while no frame has been made yet, a quiet chip above the dock says "Make a frame with both hands to loop the last 4 beats". It goes after 3 frames.
+
+**Keys:** **F** toggles a frame on and off, for anyone who can't hold the pose, and as the way to play over a loop. **P** picks the next effect.
 
 **Per mode:**
 - **REMIX:**
   - the loop sits on the song's grid;
-  - the song keeps running underneath (slip, like a loop roll), so a release returns to where the song is now;
-  - beat-FX shapes and finger cuts pause while framed.
+  - the song keeps running underneath (slip, like a loop roll), so letting go returns to where the song is now.
 - **SAUCE:**
-  - the beat comes from your **plucking tempo**. Before one is found it's **120 BPM**, and the hint pill says "120 · pluck to set the tempo";
-  - the latched pane stays where the frame was made, and new plucks **play on top**, with MELODY carrying on;
-  - the flip reads while the hands still hold the frame they latched;
-  - **a release needs both hands out of the L for 300 ms** (S1's sha B), so turning the hands over is never a release.
+  - the beat comes from your **plucking tempo**. Before one is found it's **120 BPM**, and the chip says "120 · pluck to set the tempo";
+  - your hands are holding the frame, so you can't pluck over it; with **F** you can.
 
-**Both modes** *(chat)*:
-- **A pinch while framed belongs to the frame:** never WOBBLE, and never a pluck, even though a pinch curls the fingers.
+**Both modes:**
+- While framed, other shapes and finger cuts pause, and a pinch is never WOBBLE or a pluck.
 - RECORD captures the loop and what's played over it.
-- A mode switch releases the frame.
+- A mode switch ends the frame.
+
+**Cut in 2.1:**
+- the SAUCE latch ("make it again to release");
+- pinch-and-hold to change the style;
+- the per-mode differences.
+The flip side stays as above.
 
 | State | What shows |
 |---|---|
 | locking | the edge drawing and the bloom, then the lock on the beat |
-| looping | the name pill ("THERMAL · Warm drive") and the hint pill, with the sweep and the beat pulse |
-| restyled | the new name flips in, and the effect changes on the beat |
-| flipped | the card-flip onto the partner, the loop reversed, and "flip side ⟲" in the name pill |
-| SAUCE, no tempo yet | "120 · pluck to set the tempo" in the hint pill |
-| SAUCE, latched | the pane stays where it was made · "frame again to release" (once, on first use) |
-| released | the glass fracture, then live again |
+| looping | the big name for ~1 s, then the name pill, the amount bar and the hint chip, with the sweep and the beat pulse |
+| sizing | the amount bar follows the frame's width ("PRISM · Shimmer · 80%") |
+| flipped (bonus) | the card-flip onto the partner, the loop reversed, and "flip side ⟲" in the name pill |
+| SAUCE, no tempo yet | "120 · pluck to set the tempo" in the chip |
+| let go | the glass fracture, live again, and "Next frame: HALFTONE" |
 
 ## REMIX: the library wheel
 The full spec is `docs/LIBRARY_WHEEL.md`. Its components are LibraryWheel, WheelCard, WheelPointer and LibrarySources.
@@ -417,10 +521,11 @@ They're listed in Settings → Guide & shortcuts.
 | ← / → | section (REMIX), track (wheel), Back / Next (GUIDE) |
 | 1–7 | sounds (SAUCE): 808, REESE, GROWL, WOBBLE, PLUCK, LEAD, KEYS |
 | ↑ / ↓ | octave (SAUCE) |
-| S | PLUCK ⇄ FLOW |
+| S | play style: PLUCK → FLOW → LOOP |
 | D | 🎲 roll a melody (SAUCE) |
 | L | library wheel (REMIX) |
-| F | frame: make or release it |
+| F | frame on / off |
+| P | the next frame effect |
 | V | next visual |
 | B | Board |
 | ⌘, | Settings |
@@ -483,8 +588,8 @@ For accessibility: FoxBox plays with one hand *(the user's decision; it ships ri
 - **A fist** mutes.
 
 **Frames *(the user's pick)*:**
-- **Opening:** hold **one L** (thumb and index out) for the hold time, and a frame opens with the L as its corner. It latches, like SAUCE's two-handed frame.
-- **Changing:** a pinch held ~0.2 s steps to the next style. Turning the hand over gives the flip side.
+- **Opening:** hold **one L** (thumb and index out) for the hold time, and a frame opens with the L as its corner. It loops while you hold the L, and stops when you let go (2.1).
+- **Changing:** each new frame brings the next effect (2.1). Turning the hand over gives the flip side, untaught.
 - **Releasing:** hold the L again, and the glass fracture follows.
 
 **REMIX:**
@@ -509,7 +614,7 @@ For accessibility: FoxBox plays with one hand *(the user's decision; it ships ri
 3. Show us your reach: raise your hand to your highest comfortable note, then your lowest.
 4. **Practice the shapes, one at a time.** Each one gets a tick when it reads: "Hold a fist to turn on DRIVE" → "Hold a pinch for WOBBLE" → "Hold peace for ECHO" → "Hold horns for SPACE". Hold it again to turn it off.
 5. Twist to bend; point up or down for the octave.
-6. Hold an L to open a frame. Pinch and hold for a moment to change the effect, turn your hand over for the flip side, and hold the L again to let it go.
+6. Hold an L to make a frame. It loops while you hold it, and letting go stops it.
 7. Try FLOW: height for pitch, open and close your thumb and index for the filter, a fist to mute.
 
 REMIX's one-handed chapter is the same as the two-handed one, except for step 6: "Hold the shaka 🤙 for your library: your index spins it, close your hand to preview, hold a fist to load."
@@ -535,15 +640,16 @@ The GUIDE keeps its rules: "Now you try" never blocks, and the demos use one han
   - two hands play two notes, and holding sustains;
   - SPREAD is in Settings.
 - **Notes on screen:** a faint, always-there note label at each hand, plus the glass NotePop on each pluck. The note ladder and the trail are gone.
-- **The looper was cancelled.** MELODY OFF · FOLLOW · FIT replaces it, with 5 presets and 🎲 Roll (D).
+- **The looper was cancelled.** MELODY OFF · FOLLOW · FIT replaced it, with 5 presets and 🎲 Roll (D). **In 2.1, LOOP is the third play style (PLUCK · FLOW · LOOP):** the melody plays by itself, shaped by four hand controls on the beat (see "Melody mode").
 - **The octave** is − / + (↑ / ↓) and point up / down, never hand height.
 - **Frames loop the last 4 beats in both modes,** replacing FREEZE:
   - six front styles, each with a flip-side partner;
-  - the flip side: turn both hands over like a card (palms ↔ backs), and the loop plays reversed;
+  - **2.1:** hold to loop, let go to stop; wider = more; each new frame is the next effect; the name big for a second; the how-chips; F and P;
+  - the flip side (turn both hands over like a card, the loop reversed) stays as an untaught bonus;
   - no roll;
   - the glass-fracture release;
   - a pinch while framed never plucks;
-  - SAUCE's frame latches, and REMIX's is held and slips.
+  - REMIX's loop slips under the song; SAUCE no longer latches (2.1).
 - **The camera is hidden only** in REMIX with a Visual on.
 - **Edit shapes:** SAUCE's Frame is fixed to LOOP and shown locked. REMIX's four new actions are S2's, beat-locked.
 - **The launch screen** is the user's looping fox-bedroom video (10 s, seamless; a still under reduced motion), with the UI in a right-hand column. It also shows loading and the boot update, and it ends when the camera and audio are ready (1.5–4.3 s, click to skip). Painterly prompt #3 is superseded.

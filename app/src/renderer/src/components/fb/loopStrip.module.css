@@ -1,0 +1,201 @@
+/* 2.1 LOOP's strip (docs/STRINGS_UX.md): a soft glass strip just above the dock, as wide as it; a mouse over it opens the
+   editor. The look (S3) is the strings of light's: soft rounded glass blocks, the one playing lit like a plucked string,
+   a filament playhead. The four hand controls tint it through variables S4 sets on .strip (from playFeed.loop):
+   --bright 0-1 warms the top glow, --register -1/0/1 shifts the blocks a band, --space 0-1 softens them, and
+   [data-dropped] dims it. */
+.strip {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  width: 840px;
+  height: 84px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 22px;
+  /* the top glow warms with brightness, over the dock's glass */
+  background:
+    radial-gradient(120% 90% at 50% -30%, rgba(255, 150, 80, calc(0.06 + 0.22 * var(--bright, 0.5))), transparent 70%),
+    rgba(24, 18, 14, 0.58);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 18px 40px -20px rgba(0, 0, 0, 0.6);
+  transition:
+    height 0.3s var(--fb-ease-inout),
+    opacity 0.3s,
+    filter 0.3s;
+  z-index: 6;
+  font-family: var(--fb-font);
+}
+.strip[data-open] {
+  height: 180px;
+  padding-bottom: 40px;
+}
+.strip[data-dropped] {
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+.grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.strip[data-open] .grid {
+  cursor: copy;
+}
+.rowLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+.colLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+.colLine[data-beat] {
+  border-left-color: rgba(255, 255, 255, 0.14);
+}
+.note {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 6px;
+  /* soft rounded glass: a warm tint, a light top edge, a faint rim */
+  background: linear-gradient(180deg, rgba(255, 214, 170, 0.42), rgba(247, 150, 80, 0.2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 200, 150, 0.16);
+  /* register shifts the blocks a band; space softens them */
+  transform: translateY(calc(var(--register, 0) * -6px));
+  filter: blur(calc(var(--space, 0) * 1.2px));
+  pointer-events: none;
+  transition:
+    background 0.1s,
+    transform 0.25s var(--fb-ease-inout),
+    filter 0.3s;
+}
+/* the one playing: lit like a plucked string, a bright filament through it and a glow that eases back */
+.note[data-lit] {
+  background: linear-gradient(180deg, #fff6ea, #ffc58a);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 0 10px rgba(255, 170, 90, 0.8),
+    0 0 24px rgba(255, 122, 31, 0.4);
+  animation: pluck 600ms ease-out;
+}
+.note[data-lit]::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 1px;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 220, 180, 0.95);
+}
+@keyframes pluck {
+  from {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.9),
+      0 0 18px rgba(255, 190, 120, 1),
+      0 0 40px rgba(255, 122, 31, 0.7);
+  }
+}
+/* the edit layer: invisible over the playing notes, an outline for an edit waiting for the next pass */
+.edit {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 5px;
+  background: transparent;
+  cursor: grab;
+  outline-offset: 2px;
+}
+.strip:not([data-open]) .edit {
+  pointer-events: none;
+}
+.edit[data-pending] {
+  border: 1.5px dashed rgba(255, 184, 119, 0.9);
+}
+.edit[data-dragging] {
+  background: rgba(255, 184, 119, 0.8);
+  cursor: grabbing;
+}
+.strip[data-open] .edit::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  right: 1px;
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: ew-resize;
+}
+.playhead {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  /* a filament: white, fading at its ends, with the strings' warm glow */
+  background: linear-gradient(180deg, transparent, #fff 18%, #fff 82%, transparent);
+  box-shadow:
+    0 0 8px rgba(255, 200, 150, 0.9),
+    0 0 18px rgba(255, 122, 31, 0.45);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hint {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fb-ink);
+}
+.reset {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fb-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 1439px), (max-height: 899px) {
+  .strip {
+    bottom: 84px;
+    width: 720px;
+    height: 72px;
+  }
+  .strip[data-open] {
+    height: 150px;
+  }
+}
+
+/* reduced motion: no glow pulses, nothing eases (the playhead steps per beat: S4's) */
+@media (prefers-reduced-motion: reduce) {
+  .strip,
+  .note {
+    transition: none;
+  }
+  .note[data-lit] {
+    animation: none;
+  }
+}

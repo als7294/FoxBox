@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { bridge } from '@/env'
+import { bridge, isWindows } from '@/env'
 import { useUi } from '@/state/ui'
+import { t, useLang } from '@/i18n'
 import { parseNotes, splitHighlights, toHighlight, versionsToShow, type Notes } from './notes'
 import voiceLockupUrl from '../../../../../design/brand/foxbox-voice-lockup.svg?url'
 import launchFilm from '@/assets/launch/foxbox-launch.mp4'
@@ -8,10 +9,23 @@ import { GuideHands, type GuideMove } from '@/components/guide/GuideHands'
 import { guide } from '@/components/guide/guideStore'
 import w from './whatsnew2.module.css'
 
+const parseAll = (files: Record<string, string>): Notes[] =>
+  Object.entries(files).map(([path, md]) => parseNotes(path.replace(/^.*\/|\.md$/g, ''), md))
 /** Every release's notes, bundled (so WHAT'S NEW works offline). */
-const BUNDLED: Notes[] = Object.entries(
-  import.meta.glob('../../../../../release-notes/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>,
-).map(([path, md]) => parseNotes(path.replace(/^.*\/|\.md$/g, ''), md))
+const BUNDLED: Notes[] = parseAll(import.meta.glob('../../../../../release-notes/*.md', { query: '?raw', import: 'default', eager: true }))
+/** Translated notes (release-notes/<lang>/<version>.md) where written; the English stands in for the rest. */
+const TRANSLATED = new Map(
+  Object.entries(import.meta.glob('../../../../../release-notes/*/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>).map(
+    ([path, md]) => {
+      const [, lang = '', version = ''] = /([\w-]+)\/([^/]+)\.md$/.exec(path) ?? []
+      return [`${lang}/${version}`, parseNotes(version, md)] as const
+    },
+  ),
+)
+const bundled = (): Notes[] => {
+  const lang = useLang.getState().lang
+  return BUNDLED.map((n) => TRANSLATED.get(`${lang}/${n.version}`) ?? n)
+}
 
 /** FoxBox 1.5.5, where STUDIO, VISUALS, MASKS and more live on. */
 export const LEGACY_URL = 'https://github.com/als7294/FoxBox/releases/tag/v1.5.5'
@@ -29,27 +43,67 @@ function VoiceCard() {
       <div className={w.voiceFilm} aria-hidden="true" />
       <div className={w.voiceText}>
         <img className={w.voiceLockup} src={voiceLockupUrl} alt="FoxBox Voice · beta" draggable={false} />
-        <p className={w.voiceLine}>Type a line. Get a finished vocal, cut to the bar and ready to drag into Ableton or Rekordbox.</p>
+        <p className={w.voiceLine}>
+          {t('whatsnew.voice.line', 'Type a line. Get a finished vocal, cut to the bar and ready to drag into Ableton or Rekordbox.')}
+        </p>
         <a className={w.voiceCta} href={VOICE_URL} target="_blank" rel="noreferrer">
-          Get FoxBox Voice →
+          {t('whatsnew.voice.cta', 'Get FoxBox Voice →')}
         </a>
-        <span className={w.voiceSmall}>Mac only · invite beta</span>
+        <span className={w.voiceSmall}>{t('whatsnew.voice.small', 'Mac only · invite beta')}</span>
       </div>
     </section>
   )
 }
 
-/** 2.0's headline features, each with its move (S3's GuideHands). */
-const CARDS_2: { title: string; body: string; move: GuideMove }[] = [
-  { title: 'SAUCE', body: 'Strings between your hands. Curl a finger to pluck, twist to bend, frame to loop.', move: 'pluck' },
-  { title: 'REMIX', body: 'Any track, live. Hold a fist for TEAROUT on the beat, fold a finger to cut a band.', move: 'fist' },
-  { title: 'Library', body: 'Rekordbox, Serato or a folder on a wheel. Hold the shaka to open it.', move: 'shaka' },
+/** 2.0's headline features, each with its move (S3's GuideHands); built at render time, in the language in use. */
+const cards2 = (): { title: string; body: string; move: GuideMove }[] => [
+  { title: 'SAUCE', body: t('whatsnew.card.sauce', 'Strings between your hands. Curl a finger to pluck, twist to bend, frame to loop.'), move: 'pluck' },
+  { title: 'REMIX', body: t('whatsnew.card.remix', 'Any track, live. Hold a fist for TEAROUT on the beat, fold a finger to cut a band.'), move: 'fist' },
+  { title: t('whatsnew.card.library.title', 'Library'), body: t('whatsnew.card.library', 'Rekordbox, Serato or a folder on a wheel. Hold the shaka to open it.'), move: 'shaka' },
   {
-    title: 'GLASS',
-    body: 'Frame a window: the last 4 beats loop. Pinch to change it, turn your hands over to flip it.',
+    title: t('whatsnew.card.frames.title', 'Frames'),
+    body: t('whatsnew.card.frames', 'Hold a frame: the last 4 beats loop. Pull wider for more, let go to stop.'),
     move: 'frame-glass',
   },
 ]
+
+/** 2.1's headline features, each with its move; the release notes list everything under them. */
+const cards21 = (): { title: string; body: string; move: GuideMove }[] => [
+  {
+    title: 'LOOP',
+    body: t('whatsnew21.loop', 'Pick a melody and it loops on the beat. Right hand up for brighter, left for higher, a fist drops it.'),
+    move: 'melody',
+  },
+  {
+    title: t('whatsnew.card.frames.title', 'Frames'),
+    body: t('whatsnew21.frames', 'Hold a frame: the last 4 beats loop. Wider for more, let go to stop. Each new frame is the next effect.'),
+    move: 'frame',
+  },
+  {
+    title: t('whatsnew21.style.title', 'How you play'),
+    body: t('whatsnew21.style', 'CURL, PALM or ONE HAND. No wrong answer. Switch any time in Settings.'),
+    move: 'palm-tap',
+  },
+  {
+    title: 'MIDI + Ableton',
+    body: t('whatsnew21.midi', 'Your hands play any synth: the FoxBox MIDI port, a device for Live, Link tempo and .mid takes.'),
+    move: 'pluck',
+  },
+]
+
+/** The Windows beta (W1): SAUCE and Frames (REMIX and the Library aren't there yet), then its own card. */
+export const whatsNewCards = (): { title: string; body: string; move: GuideMove }[] => {
+  const all = cards2()
+  if (!isWindows()) return all
+  return [
+    ...all.filter((c) => c.move === 'pluck' || c.move === 'frame-glass'),
+    {
+      title: t('whatsnew.card.windows.title', 'Windows beta'),
+      body: t('whatsnew.card.windows', 'FoxBox Strings, now on Windows: SAUCE and Frames today. REMIX and the library are coming.'),
+      move: 'c-pose',
+    },
+  ]
+}
 
 /** The last version whose WHAT'S NEW was seen (per Mac, in the app's own storage). */
 const SEEN_KEY = 'foxbox-whatsnew-seen'
@@ -98,7 +152,7 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
     )
   }, [current])
 
-  const shown = useMemo(() => (since === undefined ? [] : versionsToShow(BUNDLED, current, since)), [since, current])
+  const shown = useMemo(() => (since === undefined ? [] : versionsToShow(bundled(), current, since)), [since, current])
   // 2.0's first start shows its explainer even before its notes are bundled
   const v2 = current.startsWith('2.') && (since == null || Number(since.split('.')[0]) < 2) // from 1.x (or a first start)
   const visible = open && !booting && (shown.length > 0 || v2)
@@ -113,14 +167,20 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
     setOpen(false)
     void bridge()?.updates.dismissWhatsNew()
   }
-  if (v2) {
-    // WHAT'S NEW 2.0: the launch film behind, what's new on glass cards with S3's hand demos, Let's play or the GUIDE
+  // WHAT'S NEW 2.0 and 2.1: the launch film behind, the headline features on glass cards with S3's hand demos, the
+  // notes folded under them, Let's play or the GUIDE
+  const head = v2
+    ? { title: t('whatsnew.title', 'FoxBox is now an instrument for your hands'), cards: cards2(), all: t('whatsnew.all', 'Everything new in 2.0') }
+    : shown.some((n) => n.version === '2.1.0')
+      ? { title: shown[0]!.title ?? `FoxBox ${current}`, cards: cards21(), all: t('whatsnew.all21', 'Everything new in 2.1') }
+      : null
+  if (head) {
     const lines = shown.flatMap((n) => n.lines.map((l) => toHighlight(n.version, l)))
     return (
       <section
         className={w.screen}
         data-fb
-        aria-label="What's new"
+        aria-label={t('whatsnew.aria', 'What’s new')}
         data-testid="whats-new"
         onKeyDown={(e) => {
           if (e.key === 'Escape') done()
@@ -129,10 +189,10 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
         <video className={w.film} src={launchFilm} autoPlay={!REDUCED} muted loop playsInline preload="auto" aria-hidden="true" />
         <div className={w.shade} aria-hidden="true" />
         <div className={w.col}>
-          <p className={w.kicker}>WHAT’S NEW · {current.split('.').slice(0, 2).join('.')}</p>
-          <h1 className={w.title}>FoxBox is now an instrument for your hands</h1>
+          <p className={w.kicker}>{t('whatsnew.kicker', 'WHAT’S NEW · {v}', { v: current.split('.').slice(0, 2).join('.') })}</p>
+          <h1 className={w.title}>{head.title}</h1>
           <ul className={w.cards}>
-            {CARDS_2.map((c) => (
+            {(isWindows() ? whatsNewCards() : head.cards).map((c) => (
               <li key={c.title} className={w.card}>
                 <div className={w.demo}>
                   <GuideHands move={c.move} width={200} />
@@ -142,11 +202,11 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
               </li>
             ))}
           </ul>
-          <VoiceCard />
+          {v2 && !isWindows() && <VoiceCard />}
           {lines.length > 0 && (
             <details className={w.all}>
-              <summary>Everything new in 2.0</summary>
-              <ul className={w.more} aria-label="Also new">
+              <summary>{head.all}</summary>
+              <ul className={w.more} aria-label={t('whatsnew.more.aria', 'Also new')}>
                 {lines.map((h, i) => (
                   <li key={i}>
                     {h.title ? `${h.title}: ` : ''}
@@ -158,7 +218,7 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
           )}
           <div className={w.ctas}>
             <button ref={go} type="button" className={w.go} onClick={done} data-testid="whats-new-go">
-              Let’s play
+              {t('whatsnew.go', 'Let’s play')}
             </button>
             <button
               type="button"
@@ -168,16 +228,18 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
                 guide.open(useUi.getState().mode, 0)
               }}
             >
-              Show me how
+              {t('whatsnew.how', 'Show me how')}
             </button>
           </div>
-          <p className={w.legacy}>
-            Looking for STUDIO, MASKS or the TouchDesigner visuals? They live on in{' '}
-            <a href={LEGACY_URL} target="_blank" rel="noreferrer">
-              FoxBox 1.5.5
-            </a>
-            .
-          </p>
+          {v2 && !isWindows() && ( // 1.5.5 was Mac only
+            <p className={w.legacy}>
+              {t('whatsnew.legacy', 'Looking for STUDIO, MASKS or the TouchDesigner visuals? They live on in')}{' '}
+              <a href={LEGACY_URL} target="_blank" rel="noreferrer">
+                FoxBox 1.5.5
+              </a>
+              .
+            </p>
+          )}
         </div>
       </section>
     )
@@ -190,7 +252,7 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
     <section
       className={w.screen}
       data-fb
-      aria-label="What's new"
+      aria-label={t('whatsnew.aria', 'What’s new')}
       data-testid="whats-new"
       onKeyDown={(e) => {
         if (e.key === 'Escape') done()
@@ -199,7 +261,9 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
       <video className={w.film} src={launchFilm} autoPlay={!REDUCED} muted loop playsInline preload="auto" aria-hidden="true" />
       <div className={w.shade} aria-hidden="true" />
       <div className={w.col}>
-        <p className={w.kicker}>WHAT’S NEW · {shown.length > 1 ? `${oldest.version} → ${newest.version}` : newest.version}</p>
+        <p className={w.kicker}>
+          {t('whatsnew.kicker', 'WHAT’S NEW · {v}', { v: shown.length > 1 ? `${oldest.version} → ${newest.version}` : newest.version })}
+        </p>
         <h1 className={w.title}>{newest.title ?? `FoxBox ${newest.version}`}</h1>
         <ul className={w.list}>
           {[...cards, ...more].map((h, i) => (
@@ -211,7 +275,7 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
         </ul>
         <div className={w.ctas}>
           <button ref={go} type="button" className={w.go} onClick={done} data-testid="whats-new-go">
-            Let’s play
+            {t('whatsnew.go', 'Let’s play')}
           </button>
           <button
             type="button"
@@ -221,7 +285,7 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
               guide.open(useUi.getState().mode, 0)
             }}
           >
-            Show me how
+            {t('whatsnew.how', 'Show me how')}
           </button>
         </div>
       </div>

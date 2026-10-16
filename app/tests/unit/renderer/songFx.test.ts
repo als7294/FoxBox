@@ -329,6 +329,17 @@ describe('song stems (STRING HANDS)', () => {
     expect(stemLevels()).toEqual({ drums: 1, bass: 1, vocals: 1, other: 1 })
   })
 
+  it("the frame's amount (2.1): S1's frame.amount reaches the frame loop through STRINGS' map; 0.5 (as made) when not framed", () => {
+    const t = new GestureTracker()
+    const side = { pinch: 0, open: 1, fingers: 5, gesture: null, points: [] }
+    const shapes = { left: side, right: side, apart: 0.4, frame: { held: true, size: 0.4, x0: 0, y0: 0, x1: 0, y1: 0, corners: [], since: 0, seen: 0 }, triangle: false, pairs: { thumb: 1, index: 1, middle: 1, ring: 1, pinky: 1 } }
+    const sig = (at: number, frame: object) => ({ at, calibrating: false, near: 0, twoFaces: false, head: null, hands: [], shapes, frame }) as unknown as Parameters<GestureTracker['update']>[0]
+    expect(t.update(sig(0, { formed: true, size: 0.4, amount: 0.8 }), 0, 0.016).frame_amount).toBeCloseTo(0.8, 6)
+    expect(t.update(sig(16, { formed: false, size: 0, amount: 0.8 }), 16, 0.016).frame_amount).toBe(0.5)
+    expect(t.update(sig(32, { formed: true, size: 0.4 }), 32, 0.016).frame_amount).toBe(0.5) // S1 not sending it yet
+    expect(evaluate(STRINGS_SOUND.map, { 'gesture.frame_amount': 0.8 }, new Map(), 0.016).frameAmount).toBeCloseTo(0.8, 6)
+  })
+
   it('plays from stems only once the split is done with all four', () => {
     const stems = STEMS.map((name) => ({ name, audio_id: `a-${name}` }))
     expect(songStems({ stems_state: 'done', stems })).toEqual({ drums: 'a-drums', bass: 'a-bass', vocals: 'a-vocals', other: 'a-other' })
@@ -841,6 +852,27 @@ describe("the FRAME's loop (the frame worklet, 120 BPM from 0)", () => {
     expect(d / p).toBeGreaterThan(0.1) // ICE before the beat at 5 s
   })
 
+  it("Link: the loop locks on its beat; its tempo changing mid-loop, the loop follows from where it is (vinyl); Link lost, it keeps on", () => {
+    const x = ramp(12)
+    const p = make(undefined, 0)
+    p.port.onmessage({ data: { bpm: 120, anchor: 0.1, follow: true } }) // Link's beats at 0.1, 0.6, 1.1 …
+    const msgs: [number, object][] = [[at(6.5), { bpm: 126, anchor: 0.1, follow: true }], [at(9.0), { clear: true }]]
+    const [y] = run(p, x, x, (i) => {
+      for (const [t, m] of msgs) if (i <= t && t < i + 128) p.port.onmessage({ data: m })
+      return { on: i >= at(5.3) ? 1 : 0, style: 0, flip: 0 }
+    })
+    const end = at(5.1), L = at(2) // the latest Link beat before 5.3 s: 5.1 s
+    const looped = (t: number) => end - L + ((t - end) % L)
+    expect(y[at(6.4)]).toBeCloseTo(looped(at(6.4)) * 1e-6, 7) // on Link's beat (past the lock's hit)
+    const advance = (a: number, b: number) => ((((y[b]! - y[a]!) / 1e-6) % L) + L) % L // loop samples between (round the wrap)
+    const t7 = Math.ceil(at(6.5) / 128) * 128 // when the tempo changed
+    expect(advance(t7, t7 + 4800)).toBeCloseTo(4800 * 1.05, 0) // 126 / 120: 1.05 loop samples a sample, from there
+    let jump = 0
+    for (let t = t7 - 200; t < t7 + 200; t++) jump = Math.max(jump, Math.abs(y[t]! - y[t - 1]!))
+    expect(jump).toBeLessThan(2e-6) // no step at the change: the ramp's own slope (1e-6 x 1.05)
+    expect(advance(at(9.9), at(10))).toBeCloseTo(4800 * 1.05, 0) // Link gone: it keeps its speed
+  })
+
   it('no click turning over and back, nor at the seams going backwards', () => {
     const x = Float32Array.from({ length: at(12) }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 440.3 * i) / SR))
     const [y] = run(make(), x, x, (i) => ({ on: i >= at(5.3) ? 1 : 0, style: 0, flip: i >= at(6.4) && i < at(10.2) ? 1 : 0 }))
@@ -854,6 +886,35 @@ describe("the FRAME's loop (the frame worklet, 120 BPM from 0)", () => {
     const [y] = run(make({ live: true, settleS: 0.25 }), x, x, gate(5.1))
     const end = at(4.5), L = at(2), t = at(5.15) // 5.1 - 0.25: the beat before is 4.5 s
     expect(y[t]! - x[t]!).toBeCloseTo((end - L + ((t - end) % L)) * 1e-6, 6)
+  })
+
+  it("the amount (2.1, the frame's size against its size when made): each style more from 0 to 0.5 (as made) to 1, safe; no amount is 0.5; a jump doesn't click", { timeout: 60_000 }, () => { // 40 renders: slow under load
+    let seed = 1
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1
+    const x = Float32Array.from({ length: at(6) }, (_, i) => 0.3 * Math.sin((2 * Math.PI * 55 * i) / SR) * Math.exp(-((i % 24000) / SR) * 6) + 0.08 * rnd())
+    const [plain] = run(make(), x, x, gate(3))
+    const dev = (style: number, amount?: number) => {
+      const [l, r] = run(make(), x, x, (i) => ({ on: i >= at(3) ? 1 : 0, style, flip: 0, ...(amount === undefined ? {} : { amount }) }))
+      let d = 0, p = 0, peak = 0
+      for (let t = at(4); t < at(6); t++) { d += (l[t]! - plain[t]!) ** 2; p += plain[t]! ** 2; peak = Math.max(peak, Math.abs(l[t]!), Math.abs(r[t]!)) }
+      return { d: d / p, peak, l }
+    }
+    for (let style = 1; style <= 12; style++) {
+      const [lo, mid, hi] = [dev(style, 0), dev(style, 0.5), dev(style, 1)]
+      expect(lo.d, `style ${style} 0 < 0.5`).toBeLessThan(mid.d)
+      expect(mid.d, `style ${style} 0.5 < 1`).toBeLessThan(hi.d)
+      expect(lo.d, `style ${style} still there at 0`).toBeGreaterThan(0.002)
+      expect(hi.peak, `style ${style} safe at 1`).toBeLessThan(1)
+      expect(Number.isFinite(hi.d)).toBe(true)
+      if (style === 3) expect(Array.from(dev(style).l)).toEqual(Array.from(mid.l)) // none sent: as made
+    }
+    const sine = Float32Array.from({ length: at(8) }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 440.3 * i) / SR))
+    for (const style of [1, 6, 11]) { // ECHO, THERMAL, LIQUID: pulled from 0 to 1 at once mid-loop
+      const [y] = run(make(), sine, sine, (i) => ({ on: i >= at(3) ? 1 : 0, style, flip: 0, amount: i >= at(5.5) ? 1 : 0 }))
+      let jump = 0
+      for (let t = at(5.4); t < at(5.8); t++) jump = Math.max(jump, Math.abs(y[t]! - y[t - 1]!))
+      expect(jump, `style ${style}`).toBeLessThan(0.08)
+    }
   })
 
   it("a style change while it shows lands on the loop's next beat; every style changes it and stays safe", () => {

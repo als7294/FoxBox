@@ -81,7 +81,7 @@
   letter-spacing: -0.02em;
 }
 .sub {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--fb-ink-2);
 }
 .headRight {
@@ -96,7 +96,7 @@
   border-radius: 9px;
   display: grid;
   place-items: center;
-  font: 600 12px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   color: var(--fb-ink-2);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   white-space: nowrap;
@@ -108,7 +108,7 @@
   margin-bottom: -8px;
 }
 .section {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--fb-ink-2);
@@ -151,7 +151,7 @@
   letter-spacing: 0.01em;
 }
 .tileKey {
-  font: 600 12px var(--fb-mono);
+  font: 600 14px var(--fb-mono);
   opacity: 0.55;
 }
 .grid4 {
@@ -223,7 +223,7 @@
   background: rgba(255, 255, 255, 0.1);
 }
 .pickerLabel {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--fb-ink-2);
 }
@@ -263,7 +263,7 @@
   align-items: center;
 }
 .stepLabel {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--fb-ink-2);
@@ -291,7 +291,7 @@
   padding: 0 18px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.08);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   transition: background 0.2s;
 }
@@ -317,7 +317,7 @@
   white-space: nowrap;
 }
 .presetSub {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   opacity: 0.6;
 }

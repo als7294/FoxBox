@@ -13,6 +13,7 @@ import type { BodyPt, Pt } from '@/components/camera/camMath'
 import type { StageHands } from '@/components/camera/smartCamera'
 import { stemLevels } from '@/audio/live/soundMap'
 import type { AudioFrame } from '@/visuals/live/registry'
+import { depthScale, drawFingertip, drawLightString, type LightLook } from './lightString'
 import { liveTokens, mix, rgba } from './stringTokens'
 
 export type StringId = 'mix' | 'drums' | 'bass' | 'vocals' | 'other'
@@ -150,7 +151,6 @@ const SAG_DEADBAND = 0.012 // the droop moves only past this (picture heights): 
 const FOLD = 0.85 // FINGER FILTERS: a finger curled past this has folded its string away …
 const UNFOLD = 0.5 // … and back under this, it's re-strung (hysteresis: no flicker between)
 const WHIP_S = 0.16 // the snap's whip, then the string is gone
-const SHIMMER = 5 // lines across a vibrating string's swing (it reads as a blurred spindle, as a real string does)
 const follow = (y: number, x: number, dtS: number, tauS: number) => y + (x - y) * (1 - Math.exp(-dtS / tauS))
 
 /** REMIX's strings' labels, thumb to pinky (the design's bands). */
@@ -217,6 +217,7 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
       const index = (id: StringId) => STRINGS.findIndex((s) => s.id === id)
+      const depth = Math.sqrt(depthScale(hands.left, aspect) * depthScale(hands.right, aspect)) // the strings' distance
       const pills: { at: Pt; i: number }[] = []
       for (const s of layout.strands) {
         const i = index(s.id)
@@ -263,41 +264,32 @@ export function createStrings(canvas: HTMLCanvasElement, opts: { reduced?: boole
           ctx.setLineDash([])
           continue
         }
-        // re-strung: the glow to full and the core wide, back over the flash's time
+        // re-strung: brighter, back over the flash's time
         const flash = opts.reduced ? 0 : Math.max(0, 1 - (clock - restrungAt[i]!) / (tk.flashMs / 1000)) ** 2
-        const shape = (u: number, ph: number) => amp * Math.sin(Math.PI * u) * Math.cos(ph) + pl * Math.sin(3 * Math.PI * u) * Math.cos(2 * ph + i)
-        ctx.globalCompositeOperation = 'lighter'
-        // the glow: orange, as loud as its stem plays now, warmed in a drop
-        line(bow)
-        const lit = Math.min(1, tk.glowAlpha * (0.6 + 0.8 * g))
-        ctx.strokeStyle = rgba(mix(tk.glowColor, tk.drop, 0.55 * drop), lit + (1 - lit) * flash)
-        ctx.lineWidth = tk.glow * (0.5 + 0.85 * k.glow) * px
-        ctx.stroke()
-        // the shimmer: faint lines across the swing, a blurred spindle while it rings
-        if (amp + pl > 0.0008) {
-          for (let n = 0; n < SHIMMER; n++) {
-            const ph = (Math.PI * (n + 0.5)) / SHIMMER + t * 40 * (STRINGS[i]!.speed / 50)
-            line((u) => shape(u, ph) + bow(u))
-            ctx.strokeStyle = rgba(tk.core, (0.05 + 0.12 * g) * (1 + drop * 0.5))
-            ctx.lineWidth = 0.55 * tk.weight * px
-            ctx.stroke()
-          }
+        // a string of light (lightString.ts): as bright as its stem plays now, warmed in a drop; a hit rings it (its
+        // first and third modes' swing, as before), drawn as the blurred envelope a camera would see
+        const look: LightLook = { core: tk.core, glow: mix(tk.glowColor, tk.drop, 0.55 * drop), width: tk.weight * 0.6 * px * (0.85 + 0.3 * k.glow), px }
+        const ring = amp + pl > 0.0008 && !opts.reduced ? { age: t * (STRINGS[i]!.speed / 50), velocity: 1, ring: 1e9, hz: 6, phase: i } : null
+        drawLightString(ctx, at(0, 0), at(1, 0), w, hgt, look, {
+          scaleA: depth, scaleB: depth, sag: (sag * hgt) / px, lit: Math.min(1, 0.15 + 0.75 * g + flash), ring,
+          ampPx: (amp + pl) * hgt, t, index: i, still: opts.reduced,
+        })
+      }
+      // the fingertips: a small soft point with a spill of light (a cut band's a plain dot in its dashes' colour)
+      const tipLook: LightLook = { core: tk.core, glow: mix(tk.glowColor, tk.drop, 0.55 * drop), width: tk.weight * px, px }
+      for (const b of layout.beads) {
+        const i = index(b.id)
+        if (!folded[i]) {
+          drawFingertip(ctx, b.at, w, hgt, tipLook, depth, Math.min(1, glow[i]!))
+          continue
         }
         ctx.globalCompositeOperation = 'source-over'
-        // the core: thin, crisp white
-        line(bow)
-        ctx.strokeStyle = rgba(tk.core, 1)
-        ctx.lineWidth = (tk.weight + (tk.pluckWeight - tk.weight) * flash) * px
-        ctx.stroke()
-      }
-      ctx.globalCompositeOperation = 'source-over'
-      // the fingertips: a dot each (a cut band's in its dashes' colour)
-      for (const b of layout.beads) {
         ctx.beginPath()
-        ctx.arc(b.at.x * w, b.at.y * hgt, tk.tipSize * px, 0, Math.PI * 2)
-        ctx.fillStyle = rgba(folded[index(b.id)] ? tk.cut : tk.core, 1)
+        ctx.arc(b.at.x * w, b.at.y * hgt, 0.5 * tk.tipSize * px, 0, Math.PI * 2)
+        ctx.fillStyle = rgba(tk.cut, 1)
         ctx.fill()
       }
+      ctx.globalCompositeOperation = 'source-over'
       // the bands' pills, a little above their strings
       const lb = tk.label
       ctx.font = `${lb.weight} ${(lb.size * px).toFixed(1)}px ${lb.font}`

@@ -2,10 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { MenuCommand } from '@shared/bridge'
 import { startPageSoundMap } from '@/audio/live/soundMap'
+import { startMidi } from '@/audio/midiOut'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { NotchStack } from '@/components/feedback/Toast'
 import { Launch } from '@/components/fb/Launch'
 import { Settings } from '@/components/fb/Settings'
+import { Setup } from '@/components/fb/Setup'
 import { Shell } from '@/components/fb/Shell'
 import { Guide, useGuideFirstRun } from '@/components/guide/Guide'
 import { guide, useGuide } from '@/components/guide/guideStore'
@@ -70,6 +72,7 @@ function Screens() {
   useEffect(() => connectEngineStatus(), [])
   useEffect(() => watchEngineRestarts(() => useUi.getState().booting, toast), [])
   useEffect(() => startPageSoundMap(), []) // REMIX's sound map on the song's FX (S2)
+  useEffect(() => startMidi(), []) // 2.1: SAUCE's MIDI out, Link in (Settings → MIDI & Ableton)
   // A file dragged over anything that isn't a drop target: "no drop" cursor and nothing happens (real targets call
   // preventDefault first; main's navigation lock is the backstop, so a stray drop never opens the file).
   useEffect(() => {
@@ -96,6 +99,7 @@ function Screens() {
       <Settings />
       <Guide />
       <WhatsNew />
+      <Setup />
       <Launch />
     </>
   )

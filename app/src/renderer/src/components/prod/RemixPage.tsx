@@ -3,6 +3,7 @@
 // and RECORD (a video, or the audio alone as a WAV take), OUTPUT and face hiding. Mounted from the first visit on: leaving
 // pauses the song on the bar, and coming back finds it there.
 import { useEffect } from 'react'
+import { t } from '@/i18n'
 import { FaceHidingToggle, OutputButton, RecordButton, TakeChip } from '@/components/stage/StageControls'
 import { closeWheel, followShaka, openWheel, useWheelUi } from '@/components/wheel/WheelOverlay'
 import { finishTake, startTake, useTakes } from '@/components/stage/takes'
@@ -27,7 +28,7 @@ export function toggleRemixRecord(): void {
   if (useTakes.getState().t0 != null) return void finishTake()
   if (useProd.getState().recordKind === 'video') return startRecording()
   const audio = getClipAudio()
-  if (!audio) return void toast.warn('Play the track first', { detail: 'A take records the playing track.' })
+  if (!audio) return void toast.warn(t('rec.playFirst.short', 'Play the track first'), { detail: t('rec.playFirst.take', 'A take records the playing track.') })
   startTake(audio.ctx, audio.node, ` - ${useSong.getState().song?.name ?? 'TEST BEAT'}`)
 }
 

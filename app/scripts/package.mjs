@@ -44,6 +44,9 @@ const pkgSource = readFileSync(pkgPath, 'utf8')
 const { productName, version } = JSON.parse(pkgSource)
 const config = require(join(appDir, 'electron-builder.config.cjs'))
 let extra = {}
+// 2.1's native parts (the MIDI port, Ableton Link): built into build/native/, shipped as Contents/Resources/native/
+execFileSync('sh', [join(appDir, 'scripts', 'build-native.sh')], { stdio: 'inherit' })
+const native = { from: join(appDir, 'build', 'native'), to: 'native', filter: ['*.node'] }
 
 if (bundled) {
   // This checkout's engine (the one the tests ran against), bundled into release/, which is git-ignored.
@@ -56,7 +59,7 @@ if (bundled) {
     console.error(`bundle_engine.sh did not produce an engine bundle in ${bundleDir}`)
     process.exit(1)
   }
-  extra = { extraResources: [{ from: bundleDir, to: 'engine', filter: ['**/*'] }] }
+  extra = { extraResources: [{ from: bundleDir, to: 'engine', filter: ['**/*'] }, native] }
 } else {
   const engineDir = resolve(flag('--engine-dir') ?? process.env.FVWKS_LINKED_ENGINE_DIR ?? join(repoDir(), 'engine'))
   if (!existsSync(join(engineDir, 'pyproject.toml'))) {
@@ -64,7 +67,7 @@ if (bundled) {
     process.exit(1)
   }
   console.log(`Linked engine: ${engineDir}`)
-  extra = { extraMetadata: { fvwks: { linkedEngineDir: engineDir } } }
+  extra = { extraMetadata: { fvwks: { linkedEngineDir: engineDir } }, extraResources: [native] }
 }
 
 const { build, Platform } = require('electron-builder')

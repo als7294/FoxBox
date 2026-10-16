@@ -13,6 +13,7 @@ import {
   type EngineResponse,
   type EngineStatus,
   type FvwksBridge,
+  type LinkReading,
   type MenuCommand,
   type StartDragOptions,
   type UpdatesBridge,
@@ -20,6 +21,8 @@ import {
   type VisualsBridge,
   type VisualsOutputState,
 } from '../shared/bridge'
+import { ABLETON_IPC, type AbletonBridge } from '../shared/ableton'
+import { SPLASH_IPC, type BootBridge, type SplashView } from '../shared/splash'
 
 const boot = ipcRenderer.sendSync(IPC.bootInfo) as BootInfo
 
@@ -67,6 +70,7 @@ const bridge: FvwksBridge = {
   isElectron: true,
   platform: process.platform,
   arch: process.arch,
+  visionCpu: process.env.FVWKS_VISION_CPU === '1',
   engine: {
     request: (req: EngineRequest) => ipcRenderer.invoke(IPC.engineRequest, req) as Promise<EngineResponse>,
     abort: (id: string) => ipcRenderer.send(IPC.engineAbort, id),
@@ -95,6 +99,26 @@ const bridge: FvwksBridge = {
   updates,
   bootUpdate,
   visuals,
+  midi: {
+    send: (bytes) => ipcRenderer.send(IPC.midiSend, bytes),
+    setPrefs: (prefs) => ipcRenderer.send(IPC.midiPrefs, prefs),
+    hands: (n) => ipcRenderer.send(IPC.midiHands, n),
+    learn: (cc) => ipcRenderer.send(IPC.midiLearn, cc),
+    onLink: (listener) => subscribe<LinkReading | null>(IPC.midiLink, listener),
+  },
+  boot: {
+    splashActive: () => ipcRenderer.invoke(SPLASH_IPC.active) as Promise<boolean>,
+    report: (report) => ipcRenderer.send(SPLASH_IPC.report, report),
+    ready: () => ipcRenderer.send(SPLASH_IPC.ready),
+    onView: (listener) => subscribe<SplashView>(SPLASH_IPC.view, listener),
+    act: (act) => ipcRenderer.send(SPLASH_IPC.act, act),
+  } satisfies BootBridge,
+  ableton: {
+    status: () => ipcRenderer.invoke(ABLETON_IPC.status) as ReturnType<AbletonBridge['status']>,
+    install: () => ipcRenderer.invoke(ABLETON_IPC.install) as ReturnType<AbletonBridge['install']>,
+    remove: () => ipcRenderer.invoke(ABLETON_IPC.remove) as ReturnType<AbletonBridge['remove']>,
+    show: () => ipcRenderer.invoke(ABLETON_IPC.show) as Promise<void>,
+  },
 }
 
 contextBridge.exposeInMainWorld('fvwks', bridge)

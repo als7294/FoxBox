@@ -29,7 +29,9 @@ export async function launchApp(env: Record<string, string> = {}, extraArgs: str
   })
   // The temp profile and data go with the app, pass or fail (a spec's close, or the worker tearing it down).
   app.on('close', () => rmSync(root, { recursive: true, force: true }))
-  const page = await app.firstWindow()
+  // 2.1: the boot splash opens first; the app is the other window
+  const isApp = (p: Page) => !p.url().endsWith('splash.html')
+  const page = app.windows().find(isApp) ?? (await app.waitForEvent('window', { predicate: isApp }))
   await page.waitForLoadState('domcontentloaded')
   return { app, page, dirs }
 }

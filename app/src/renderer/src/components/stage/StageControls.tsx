@@ -7,9 +7,12 @@ import { clock, startOutput, stopOutput, useOutputOpen } from '@/components/prod
 import { useProd } from '@/components/prod/prodStore'
 import { useStrings } from '@/components/strings/stringsStore'
 import { bridge } from '@/env'
+import { t } from '@/i18n'
 import { useOutputOwner } from '@/visuals/live/output'
 import type { Take } from './takes'
 import s from './stage.module.css'
+import { files } from '@/lib/platform'
+import { isWindows } from '@/env'
 
 /** Re-renders every 250 ms while `on` (a running clock). */
 export function useTick(on: boolean, ms = 250): void {
@@ -22,11 +25,11 @@ export function useTick(on: boolean, ms = 250): void {
 }
 
 /** RECORD (R): its running time while it records. */
-export function RecordButton({ t0, onClick, label = 'Record' }: { t0: number | null; onClick: () => void; label?: string }) {
+export function RecordButton({ t0, onClick, label = t('stage.record', 'Record') }: { t0: number | null; onClick: () => void; label?: string }) {
   useTick(t0 != null)
   return (
     <button type="button" className={s.record} aria-pressed={t0 != null} aria-keyshortcuts="R" onClick={onClick}>
-      {t0 != null ? `■ Stop · ${clock((performance.now() - t0) / 1000)}` : `● ${label} (R)`}
+      {t0 != null ? `■ ${t('stage.stop', 'Stop')} · ${clock((performance.now() - t0) / 1000)}` : `● ${label} (R)`}
     </button>
   )
 }
@@ -39,7 +42,7 @@ export function TakeChip({ take }: { take: Take }) {
       <span
         className={s.grip}
         draggable={Boolean(b)}
-        title="Drag into Ableton, Rekordbox or Finder"
+        title={t('stage.take.drag', 'Drag into Ableton, Rekordbox or {files}', { files: files() })}
         onDragStart={(e) => {
           e.preventDefault()
           b?.startDrag(take.path)
@@ -49,7 +52,7 @@ export function TakeChip({ take }: { take: Take }) {
       </span>
       {b && (
         <button type="button" onClick={() => void b.reveal(take.path)}>
-          Show in Finder
+          {t('stage.take.reveal', 'Show in {files}', { files: files() })}
         </button>
       )}
     </span>
@@ -78,7 +81,7 @@ export function OutputButton() {
         stopOutput()
       }}
     >
-      {on ? (ask ? 'Stop output?' : '● On output') : 'Send to output'}
+      {on ? (ask ? t('stage.output.stopAsk', 'Stop output?') : t('stage.output.on', '● On output')) : t('stage.output.send', 'Send to output')}
     </button>
   )
 }
@@ -96,7 +99,7 @@ export function FaceHidingToggle() {
         disabled={cam === 'denied' || cam === 'missing' || cam === 'timeout'}
         onChange={(e) => useProd.getState().setFaceHiding(e.target.checked)}
       />
-      Face hiding
+      {t('stage.faceHiding', 'Face hiding')}
     </label>
   )
 }
@@ -117,16 +120,20 @@ const NOTICE_MS = 4000
 export function OutputNotice() {
   const [text, setText] = useState<string | null>(null)
   useEffect(() => {
-    let t = 0
+    let timer = 0
     const off = onOutputChange(async (e) => {
-      const fallback = (await listOutputs())[0]?.label ?? "the Mac's speakers"
-      setText(e.kind === 'lost' ? `Your speakers went away. Playing on ${fallback}.` : `Back on ${e.device.label}.`)
-      window.clearTimeout(t)
-      t = window.setTimeout(() => setText(null), NOTICE_MS)
+      const fallback = (await listOutputs())[0]?.label ?? (isWindows() ? t('stage.speakers.win', "the PC's speakers") : t('stage.speakers', "the Mac's speakers"))
+      setText(
+        e.kind === 'lost'
+          ? t('stage.output.lost', 'Your speakers went away. Playing on {device}.', { device: fallback })
+          : t('stage.output.back', 'Back on {device}.', { device: e.device.label }),
+      )
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setText(null), NOTICE_MS)
     })
     return () => {
       off()
-      window.clearTimeout(t)
+      window.clearTimeout(timer)
     }
   }, [])
   return text ? <p role="status">{text}</p> : null
@@ -141,7 +148,7 @@ export function OutputPicker() {
   }, [])
   return (
     <label className={s.row}>
-      Output{' '}
+      {t('stage.outputPicker', 'Output')}{' '}
       <select
         value={id}
         onChange={(e) => {
@@ -170,7 +177,7 @@ export function CameraPicker() {
   return (
     <span className={s.row}>
       <label>
-        Camera{' '}
+        {t('camera.aria', 'Camera')}{' '}
         <select
           value={id}
           onChange={async (e) => {
@@ -180,7 +187,7 @@ export function CameraPicker() {
             setId(ok ? next : (currentCamera() ?? ''))
           }}
         >
-          <option value="">System default</option>
+          <option value="">{t('stage.systemDefault', 'System default')}</option>
           {cams.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
@@ -188,7 +195,7 @@ export function CameraPicker() {
           ))}
         </select>
       </label>
-      {failed && <span role="status">Couldn’t open that camera.</span>}
+      {failed && <span role="status">{t('stage.camera.failed', 'Couldn’t open that camera.')}</span>}
     </span>
   )
 }

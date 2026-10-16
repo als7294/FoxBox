@@ -1,7 +1,7 @@
 {
   "name": "foxbox",
   "productName": "FoxBox",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "description": "Voice-mask studio for GUY FVWKS: typed or recorded voice in, bar-exact club-ready drops out.",
   "author": "GUY FVWKS",
@@ -21,11 +21,13 @@
     "install:app": "node scripts/install-app.mjs",
     "package:install": "electron-vite build && node scripts/package.mjs --install",
     "package:dmg": "electron-vite build && node scripts/package.mjs --bundle-engine --dmg",
+    "package:win": "electron-vite build && electron-builder --win nsis --x64 --publish never --config electron-builder.config.cjs",
     "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@fontsource/big-shoulders-display": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@julusian/midi": "3.8.1",
     "@playwright/test": "^1.63.0",
     "@tanstack/react-query": "^5.104.0",
     "@testing-library/dom": "^10.4.2",
@@ -39,6 +41,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
+    "electron-updater": "6.8.9",
     "electron-vite": "^5.0.0",
     "jsdom": "^30.1.1",
     "msw": "^2.15.0",

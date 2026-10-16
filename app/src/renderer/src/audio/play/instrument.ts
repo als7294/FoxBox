@@ -15,16 +15,22 @@
  *                folded finger opens (LEAD, KEYS, REESE, GROWL, WOBBLE; a held hand moving glides, on the mono ones and
  *                the 808; PLUCK and the 808 keep their natural decay, an opening only ends a long tail); tilt bends
  *                (±2 st past 0.15), shake is vibrato
- *   MELODY       melody.ts: OFF (the free notes above), FOLLOW (each pluck plays a preset's next note, the hand's height
- *                ±1 octave; both hands advance the one phrase), FIT (the hand's note snapped to the step's chord, each
- *                pluck advancing); six starters and a seeded roll()
+ *   MELODY       (2.1) OFF (the free notes above) or LOOP (melodyLoop.ts): the preset plays by itself as 2 bars (120 BPM,
+ *                setLoopTempo, or Link's), a melodic sound if a bass one was on; the hands shape it instead of plucking
+ *                (loopHands): the right hand's height the brightness (live), the left's the register (-1/0/+1, on the
+ *                next beat), the spread the space (live), a fist drops it (on the beat, back on the beat), twist ±2 st,
+ *                the shapes' FX from the next beat, an open palm a variation of the next bar (palm). The loop strip edits
+ *                it (editLoop: loopRules.ts, landing at the loop's top). Five starters and a seeded roll()
  *   TWIST        a wrist roll bends whatever is playing, both styles (FLOW: the pitch hand's; PLUCK: the one rolled
  *                further): ±7 semitones at full roll, continuous (S1's dead zone, 15°, before it)
- *   FRAME        the LOOP: making the frame loops the last 4 beats of what's played (the tempo found from the
- *                plucks, frameLoop.ts; not the frame's own folds, the last 250 ms) through the frame's style (S3's
- *                glass type: setFrameStyle; turned over, its flip side and the loop backwards), new notes on top;
- *                making it again lets go with a tick (it latches: a held frame would leave no hand to play with). A
- *                pinch while it loops is S3's restyle, not the wobble
+ *   FRAME        the LOOP (2.1, FRAMES_SIMPLE): holding the frame loops the last 4 beats of what's played (the tempo
+ *                found from the plucks, frameLoop.ts; not the frame's own folds, the last 250 ms) through the frame's
+ *                style (S3's glass type, the next with each new frame: setFrameStyle; turned over, its flip side and
+ *                the loop backwards), new notes on top; letting go stops it with the glass break. Its size against
+ *                its size when made (setFrameAmount, 0.5 as made) is the style's depth. F, the Board or LOOP toggle
+ *                it without the hands (toggleFrame). While it loops the hands' other shapes pause
+ *   LINK         (2.1, externalClock) on: the frame loop and the tempo-synced FX on Link's tempo and beat (a loop on
+ *                when it changes follows it, vinyl), beatClock its; off, or no reading for a second: the plucks' again
  *   ONE-HANDED   (2.0.1, S1's flow.oneHanded) one hand does it all: PLUCK's effect shapes (FIST, PINCH, PEACE, HORNS)
  *                toggle when held HOLD_TOGGLE_MS and stay latched (a soft pip up for on, down for off), POINT UP / DOWN
  *                held as before; FLOW: the hand plays, its thumb-index gap opens the filter (not the spread), its fist
@@ -49,11 +55,16 @@ import { attackS, bendSemis, boardDefaults, cutoffHz, faderGain, glideS, release
 import { createTempo, frameStyle } from '../live/frameLoop'
 import { shapeActions as editedShapes, useShapeMap } from '@/components/camera/shapeMap'
 import { attachOutput } from '../output'
-import { createMelody, PRESETS, roll as rollMelody, snapToChord, type MelodyMode } from './melody'
+import { applyLoopRules, loopVariation, type LoopNote } from './loopRules'
+import { PRESETS, roll as rollMelody, type MelodyMode, type MelodyPreset } from './melody'
+import { createLoopPlayer, loopKey, presetLoop } from './melodyLoop'
+import { createMidiStream, setLiveMidi } from './midi'
+import { externalClock } from '../externalClock'
 import { DEFAULT_KEY, flowDegree, flowMidi, followOctave, heightOctave, ladderDegree, ladderMidi, ladderSize, midiHz, noteName, SCALES, type Key, type NoteName, type ScaleId } from './notes'
 
 export type NoteMode = 'height' | 'spread'
 export type { MelodyMode } from './melody'
+export type { LoopNote } from './loopRules'
 
 export const BASS_SOUNDS = ['808', 'reese', 'growl', 'wobble'] as const
 export const MELODY_SOUNDS = ['pluck', 'lead', 'keys'] as const
@@ -141,23 +152,45 @@ export interface Instrument {
   readonly noteMode: NoteMode
   /** The ladder (the note strip), lowest first. */
   ladder(): LadderNote[]
-  /** The note a hand would pluck now (OFF / FIT: its place on the ladder). */
+  /** The note a hand would pluck now (its place on the ladder). */
   currentNote(hand: PlayHand): LadderNote
-  /** MELODY: OFF / FOLLOW / FIT (FOLLOW plays with PLUCK: off in FLOW). */
+  /** MELODY (2.1): OFF, or LOOP: the preset loops from the top at once (a melodic sound if a bass one was on). */
   setMelodyMode(mode: MelodyMode): void
   /** The design's five (Night hook, Kitsune, Low rider, Lantern, Rolled: the latest 🎲), each its 8 notes in the key now
    *  (the SEQUENCE strip). */
   presets(): { id: string; name: string; notes: LadderNote[] }[]
+  /** A preset (LOOP: from the top at once). */
   setPreset(id: string): void
-  /** 🎲 a new melody in the key (a seed for the same one again). */
+  /** 🎲 a new melody in the key (a seed for the same one again); from OFF it turns LOOP on. */
   roll(seed?: number): { id: string; name: string; notes: LadderNote[] }
-  readonly melody: { mode: MelodyMode; preset: { id: string; name: string }; position: number; length: number; wrapped: boolean }
-  /** FOLLOW: the note the next pluck plays (null otherwise). */
+  /** What the UI reads (~10 Hz): the mode, the preset, the note playing (step), the tempo in use, Link's or not, dropped
+   *  (a fist). `position` / `length` / `wrapped`: the step, the loop's notes, false (2.0's names). */
+  readonly melody: { mode: MelodyMode; preset: { id: string; name: string }; position: number; length: number; wrapped: boolean; step: number; bpm: number; linked: boolean; dropped: boolean }
+  /** 2.1: no FOLLOW (always null; the 2.0 UI's callers go with it). */
   nextNote(): LadderNote | null
-  /** FIT: the notes the current step allows (empty otherwise). */
+  /** 2.1: no FIT (always empty). */
   allowedNotes(): LadderNote[]
   /** ↺ the melody from the top. */
   reset(): void
+  /** LOOP's tempo when Link isn't following (60-200 BPM; 120 as made). */
+  setLoopTempo(bpm: number): void
+  /** The loop strip: what plays now, and an edit waiting for the loop's top. */
+  loopNotes(): { notes: LoopNote[]; pending: LoopNote[] | null }
+  /** An edit (the whole loop, 2 bars of 16ths): the rules applied (loopRules.ts), landing at the loop's next top; what
+   *  comes back is exactly what will land. */
+  editLoop(notes: LoopNote[]): LoopNote[]
+  /** The preset's own notes, at the next top. */
+  resetLoop(): void
+  /** The strip's rows: the scale's notes in the loop's range, low to high. */
+  loopRows(): number[]
+  /** LOOP's hands (S1's signals, each frame): the right and left palms' heights (0-1, null unseen), the spread (0-1),
+   *  a fist on either hand. */
+  loopHands(h: { right: number | null; left: number | null; spread: number | null; fist: boolean }): void
+  /** An open palm held ~0.5 s: a variation for the next bar (once). */
+  palm(): void
+  /** LOOP's state for S3's ring and S4's strip (null when OFF): the notes, the note playing, the 16th, the bar's phase,
+   *  the beat, the tempo, and the four controls as applied (register and the drop on the beat). */
+  loopState(): { notes: LoopNote[]; step: number; pos: number; barPhase: number; beat: number; bpm: number; brightness: number; register: number; space: number; dropped: boolean } | null
   flow(sig: FlowSignal): void
   shape(hand: PlayHand, shape: PlayShape | null, depth?: number): void
   /** Edit shapes: what each shape does (unnamed shapes keep theirs as made). */
@@ -168,8 +201,12 @@ export interface Instrument {
   releaseAction(action: SauceAction): void
   /** S1's TWIST, every hands result: bends what plays. */
   twist(t: PlayTwist): void
-  /** S1's FRAME (both hands an L): each time it's made, the loop latches on or lets go. */
+  /** S1's FRAME (both hands an L; one-handed, the L): the loop on while it's held, off (the glass break) as it lets go. */
   frame(held: boolean): void
+  /** F, the Board, the LOOP action: the loop on without the hands, or off again. */
+  toggleFrame(): void
+  /** S1's frame.amount: the frame's size against its size when made (0-1, 0.5 as made): the style's depth. */
+  setFrameAmount(amount: number): void
   /** The frame's loop is on (for S3's pane). */
   readonly frozen: boolean
   /** ONE-HANDED: the actions toggled on now (for the legend). */
@@ -221,6 +258,8 @@ interface Voice {
   /** FLOW glides it from note to note (else each new note plucks). */
   sustains: boolean
   pluck(hz: number, vel: number): void
+  /** A note at context time `at`, `durS` long (Melody mode's loop: scheduled ahead, on the beat). */
+  note(hz: number, durS: number, vel: number, at: number): void
   /** A held key (hand:finger) down: it sustains until lift (the sounds that hold), else it plays its natural length. */
   press(key: string, hz: number, vel: number): void
   lift(key: string): void
@@ -252,6 +291,7 @@ function mono(synth: MonoLike, out: Tone.ToneAudioNode, pluckS: number, extra: P
     sustains: true,
     holds: !natural,
     pluck: (hz, v) => synth.triggerAttackRelease(hz, pluckS, now(), vel(v)),
+    note: (hz, d, v, at) => synth.triggerAttackRelease(hz, natural ? Math.max(d, natural) : d, at, vel(v)),
     press: (key, hz, v) => {
       if (natural) {
         last = { key, start: now() }
@@ -325,6 +365,7 @@ function pool(make: () => MonoLike, n: number) {
     out,
     voices,
     play: (hz: number, dur: number, v: number) => free().triggerAttackRelease(hz, dur, now(), v),
+    playAt: (hz: number, dur: number, v: number, at: number) => free().triggerAttackRelease(hz, dur, at, v),
     press: (key: string, hz: number, v: number) => {
       held.get(key)?.triggerRelease(now())
       const s = free()
@@ -352,7 +393,7 @@ function poly(make: () => MonoLike, pluckS: number, holds: boolean): Voice {
   const p = pool(make, 12)
   const play = (hz: number, v: number) => p.play(hz, pluckS, vel(v))
   return {
-    out: p.out, sustains: false, holds, pluck: play, attack: play, glide: (hz) => play(hz, 0.7), release: p.releaseAll, detune: p.detune, dispose: p.dispose, synths: p.voices,
+    out: p.out, sustains: false, holds, pluck: play, note: (hz, d, v, at) => p.playAt(hz, Math.max(d, pluckS), vel(v), at), attack: play, glide: (hz) => play(hz, 0.7), release: p.releaseAll, detune: p.detune, dispose: p.dispose, synths: p.voices,
     press: (key, hz, v) => (holds ? p.press(key, hz, vel(v)) : play(hz, v)),
     lift: (key) => holds && p.lift(key),
     move: () => {},
@@ -362,8 +403,8 @@ function poly(make: () => MonoLike, pluckS: number, holds: boolean): Voice {
 /** A voice with a breath of noise on each attack, into its own output. */
 function withBreath(v: Voice, b: ReturnType<typeof breath>): Voice {
   b.hp.connect(v.out)
-  const { pluck, press, attack, dispose } = v
-  return { ...v, pluck: (hz, ve) => { b.hit(); pluck(hz, ve) }, press: (k, hz, ve) => { b.hit(); press(k, hz, ve) }, attack: (hz, ve) => { b.hit(); attack(hz, ve) }, dispose: () => { dispose(); b.noise.dispose(); b.hp.dispose() } }
+  const { pluck, note, press, attack, dispose } = v
+  return { ...v, pluck: (hz, ve) => { b.hit(); pluck(hz, ve) }, note: (hz, d, ve, at) => { b.hit(at); note(hz, d, ve, at) }, press: (k, hz, ve) => { b.hit(); press(k, hz, ve) }, attack: (hz, ve) => { b.hit(); attack(hz, ve) }, dispose: () => { dispose(); b.noise.dispose(); b.hp.dispose() } }
 }
 
 const VOWELS = [[450, 800], [800, 1150], [300, 2300]] as const // o, a, i: F1, F2 (Hz)
@@ -396,13 +437,13 @@ function widen(from: Tone.ToneAudioNode, wet = 0.5): { out: Tone.Gain; nodes: To
 /** A breath of noise on each attack (PLUCK, LEAD): a 30 ms high-passed burst, well under the note. One breath per
  *  instant: both hands plucking in the same frame would start the noise twice at one time, which Tone refuses (it threw,
  *  and the second hand's note was lost). */
-function breath(level: number): { noise: Tone.NoiseSynth; hp: Tone.Filter; hit: () => void } {
+function breath(level: number): { noise: Tone.NoiseSynth; hp: Tone.Filter; hit: (at?: number) => void } {
   const noise = new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.02 }, volume: level })
   const hp = new Tone.Filter({ type: 'highpass', frequency: 2500, rolloff: -12 })
   noise.connect(hp)
   let last = -1
-  const hit = () => {
-    const t = now()
+  const hit = (at?: number) => {
+    const t = at ?? now()
     if (t <= last) return
     last = t
     noise.triggerAttackRelease(0.03, t)
@@ -518,7 +559,8 @@ function makeVoice(id: SoundId): Voice {
 }
 
 /** PLAY's instrument on `ctx` (FoxBox's AudioContext; an OfflineAudioContext renders it). Tone runs on it from here. */
-export async function createInstrument(ctx: BaseAudioContext): Promise<Instrument> {
+/** `opts.midi` false: no MIDI stream (the GUIDE's demo instrument plays nothing into the port or a take). */
+export async function createInstrument(ctx: BaseAudioContext, opts: { midi?: boolean } = {}): Promise<Instrument> {
   Tone.setContext(ctx as AudioContext)
   Tone.getContext().lookAhead = 0 // a pluck sounds now, not 100 ms on
   await ctx.audioWorklet.addModule(processorsUrl)
@@ -531,7 +573,8 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   const tone = new Tone.Filter({ type: 'lowpass', frequency: 18000, rolloff: -12 })
   const master = new Tone.Gain(0.5)
   const trim = new Tone.Gain(1) // the sound's LEVEL_DB
-  trim.connect(drive)
+  const loopGate = new Tone.Gain(1) // LOOP's drop (a fist): shut on the beat with a short tail
+  trim.chain(loopGate, drive)
   const echoSend = new Tone.Gain(0)
   const echo = new Tone.FeedbackDelay({ delayTime: 0.33, feedback: 0.45, wet: 1 })
   const spaceSend = new Tone.Gain(0)
@@ -553,6 +596,14 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   // the FRAME's loop (the frame worklet): the last 4 beats of the bus, new notes on top
   const loop = new AudioWorkletNode(ctx, 'fvwks-frame', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { live: true, settleS: 0.25 } })
   const tempo = createTempo()
+  /** The beat: Link's when it's on (externalClock), else the plucks'. */
+  const beatNow = (): { bpm: number; phase: number } | null => {
+    const ext = externalClock()
+    if (ext) return { bpm: ext.bpm, phase: ext.beat - Math.floor(ext.beat) }
+    if (player.running) { const w = player.where(now()); return { bpm: w.bpm, phase: w.phase } } // LOOP: the melody's
+    return tempo.clock(now())
+  }
+  let linkSent = { bpm: 0, anchor: 0 } // Link's grid as the frame loop last had it
   const volume = new Tone.Gain(1) // the Board's Volume, into the limiter
   bus.connect(volume)
   Tone.connect(volume, loop)
@@ -587,12 +638,17 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   const board: Record<string, number> = boardDefaults(SAUCE_BOARD)
   let shake = 0
   let flowSpread: number | null = null
-  const toneHz = () => Math.min(cutoffHz(board.cutoff!), flowSpread == null ? 20000 : 200 * Math.pow(90, flowSpread)) // FLOW's spread under the Cutoff
+  let looping = false // LOOP is on (Melody mode)
+  let bright = 0.55 // LOOP: the right hand's height (as made: medium)
+  let spaceAmt = 0.25 // LOOP: the spread (as made: light)
+  let fxSends = { echo: 0, space: 0 } // the shapes' and the Board's sends (LOOP's space under them)
+  const toneHz = () => Math.min(cutoffHz(board.cutoff!), flowSpread == null ? 20000 : 200 * Math.pow(90, flowSpread), looping ? 300 * Math.pow(60, bright) : 20000) // FLOW's spread / LOOP's brightness under the Cutoff
   const subOn = () => board.sub! > 0.001
   /** The sound with the Sub under it (mono: the newest held or FLOW note; a pluck its own short one). */
   const layered = (v: Voice): Voice => ({
     ...v,
     pluck: (hz, ve) => { v.pluck(hz, ve); if (subOn()) sub.triggerAttackRelease(subHz(hz), 0.35, now(), vel(ve)) },
+    note: (hz, d, ve, at) => { v.note(hz, d, ve, at); if (subOn()) sub.triggerAttackRelease(subHz(hz), Math.min(d, 0.35), at, vel(ve)) },
     press: (k, hz, ve) => {
       v.press(k, hz, ve)
       if (!subOn()) return
@@ -628,6 +684,9 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   let flowOct = 0 // FLOW: the left hand's height
   const holding = new Map<string, { midi: number; at: number; safety: ReturnType<typeof setTimeout> }>() // keys held down
   const HOLD_MAX_MS = 15000 // ponytail: a release lost upstream lets go on its own after this
+  // the MIDI stream (midi.ts): what's played, as MIDI; RECORD's take reads the live one
+  const midiStream = opts.midi === false ? null : createMidiStream(now)
+  if (midiStream) { setLiveMidi(midiStream); midiStream.setup() }
   const releaseAll = () => {
     for (const [k, h] of holding) {
       clearTimeout(h.safety)
@@ -636,11 +695,12 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     holding.clear()
     down.left.clear()
     down.right.clear()
+    midiStream?.allOff() // every note-off: a mode, sound or key switch never leaves one on
   }
   // the notes: the ladder by height (or spread), or the melody's
   let noteMode: NoteMode = 'height'
   let melodyMode: MelodyMode = 'off'
-  const melody = createMelody()
+  let preset: MelodyPreset = PRESETS[0]!
   let rolledMelody = rollMelody(1) // Rolled until the first 🎲
   const height: Record<PlayHand, number> = { left: 0.5, right: 0.5 }
   const deg: Record<PlayHand, number | null> = { left: null, right: null } // each hand's ladder step (its hysteresis)
@@ -652,27 +712,95 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     const midi = ladderMidi(key, octave, i, shift)
     return { index: i, midi, name: noteName(midi) }
   }
-  /** The hand's free step: its height (or the spread) on the ladder, snapped to the melody's chord in FIT. */
+  /** The hand's free step: its height (or the spread) on the ladder. */
   const freeStep = (hand: PlayHand): number => {
     const size = ladderSize(key)
-    const d = noteMode === 'spread' ? (spreadDeg = ladderDegree(spreadNow, size, spreadDeg)) : (deg[hand] = ladderDegree(height[hand], size, deg[hand]))
-    return melodyMode === 'fit' ? snapToChord(d, melody.chord(), scaleLen(), size) : d
+    return noteMode === 'spread' ? (spreadDeg = ladderDegree(spreadNow, size, spreadDeg)) : (deg[hand] = ladderDegree(height[hand], size, deg[hand]))
   }
-  /** A pluck's note: FOLLOW's next (an octave up or down by the hand's height), else the hand's step; FIT and FOLLOW
-   *  advance the melody. */
+  /** A pluck's note: the hand's step. */
   const pluckNote = (ev: PluckEvent): number => {
     if (Number.isFinite(ev.height)) height[ev.hand] = ev.height!
-    if (melodyMode === 'follow') {
-      const d = melody.next()
-      melody.advance()
-      return ladderMidi(key, octave, d, shift + followOctave(ev.height))
+    return ladderMidi(key, octave, freeStep(ev.hand), shift)
+  }
+
+  // LOOP (2.1 Melody mode): the preset plays by itself (melodyLoop.ts), the hands shape it, the strip edits it
+  const isLive = !(typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext)
+  let loopTempo = 120
+  let register = 0 // as applied (on the beat)
+  let registerWant = 0
+  let dropped = false // as applied (on the beat)
+  let dropWant = false
+  let shapesDue = false // a new shape waits for the beat
+  let edits: LoopNote[] | null = null // the strip's (null: the preset's own notes)
+  let editsOct = octave
+  let palmSeed = 1
+  let loopTimer: ReturnType<typeof setInterval> | null = null
+  let gridSent = { bpm: 0, anchor: 0 }
+  const loopRowsNow = () => Array.from({ length: ladderSize(key) }, (_, i) => ladderMidi(key, octave, i))
+  const presetNotes = () => presetLoop(preset.steps.map((d) => ladderMidi(key, octave, d)))
+  const keyNow = () => {
+    const pcs = (degs: readonly number[]) => degs.map((d) => ((ladderMidi(key, octave, d) % 12) + 12) % 12)
+    return loopKey(loopRowsNow(), [pcs(preset.chords[0] ?? []), pcs(preset.chords[4] ?? preset.chords[0] ?? [])], presetNotes(), ((ladderMidi(key, octave, 0) % 12) + 12) % 12)
+  }
+  /** `fn` at context time `at` (live: a timer; offline, or due: now). */
+  const later = (at: number, fn: () => void) => {
+    const ms = (at - now()) * 1000
+    if (isLive && ms > 2) setTimeout(fn, ms)
+    else fn()
+  }
+  const player = createLoopPlayer({
+    play: (n, at, durS) => {
+      const midi = n.midi + 12 * register
+      voice.note(midiHz(midi), durS, 0.72, at)
+      if (midiStream) later(at, () => midiStream.pluck(midi, 0.72)) // MIDI as it sounds, not ahead
+    },
+    beat: (_b, at) => {
+      register = registerWant // the left hand's register, on the beat
+      if (dropWant !== dropped) { // a fist: out on the beat with a short tail; opened, back on the beat
+        dropped = dropWant
+        loopGate.gain.cancelScheduledValues(at)
+        loopGate.gain.setTargetAtTime(dropped ? 0 : 1, at, dropped ? 0.03 : 0.008)
+      }
+      if (shapesDue) {
+        shapesDue = false
+        later(at, applyShapes) // the shapes' FX from the beat
+      }
+    },
+  })
+  const pump = () => {
+    if (!player.running) return
+    const ext = externalClock()
+    if (ext) player.tempo(ext.bpm, now()) // Link's tempo while it follows
+    else {
+      const g = player.grid() // the frame loop on the melody's beat
+      if (Math.abs(g.bpm - gridSent.bpm) > 1e-6 || Math.abs(g.anchor - gridSent.anchor) > 1e-4) loop.port.postMessage((gridSent = g))
     }
-    const d = freeStep(ev.hand)
-    if (melodyMode === 'fit') melody.advance()
-    return ladderMidi(key, octave, d, shift)
+    player.pump(now() + 0.15)
+  }
+  const endLoop = () => {
+    player.stop()
+    if (loopTimer) clearInterval(loopTimer)
+    loopTimer = null
+  }
+  const startLoop = () => { // from the top, at once
+    const ext = externalClock()
+    player.start(edits ?? presetNotes(), now() + 0.05, ext?.bpm ?? loopTempo)
+    if (!isLive) return player.pump(ctx instanceof OfflineAudioContext ? ctx.length / ctx.sampleRate : now() + 60) // offline: all of it now
+    loopTimer ??= setInterval(pump, 25)
+    pump()
+  }
+  const refit = () => { // a new key, octave or sound: the loop in it, from its next top
+    if (!looping) return
+    if (edits) {
+      const d = 12 * (octave - editsOct)
+      edits = applyLoopRules(edits.map((n) => ({ ...n, midi: n.midi + d })), keyNow())
+      editsOct = octave
+    }
+    player.edit(edits ?? presetNotes())
   }
   const releaseHand = (hand: PlayHand) => {
     down[hand].clear()
+    midiStream?.noteOff(hand) // opened, or lost
     const h = holding.get(hand)
     if (!h) return
     clearTimeout(h.safety)
@@ -688,7 +816,9 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   const bend = () => {
     const pitchHand: PlayHand = oneHanded ? shapeHand : shapeHand === 'left' ? 'right' : 'left' // ONE-HANDED: the one hand
     const roll = style === 'flow' ? rolled[pitchHand] : Math.abs(rolled.left) > Math.abs(rolled.right) ? rolled.left : rolled.right // FLOW: the pitch hand's
-    voice.detune((style === 'pluck' ? tiltCents(tilt) : 0) + twistCents(roll, bendSemis(board.bend!)) + bent)
+    const cents = (style === 'pluck' && !looping ? tiltCents(tilt) : 0) + twistCents(roll, looping ? 2 : bendSemis(board.bend!)) + bent // LOOP: ±2 st
+    voice.detune(cents)
+    midiStream?.twist(cents / 100)
   }
 
   const hands = (): PlayHand[] => (style === 'flow' ? [shapeHand] : ['left', 'right'])
@@ -707,19 +837,23 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   let muted = false
   let bent = 0 // BEND: cents
   let bendShake = 0 // VIBRATO: depth
-  let looped = false // LOOP: held now (it latches on the press)
+  let looped = false // LOOP: held now (it toggles on the press)
+  let keyed = false // the loop toggled on without the hands (F, the Board, LOOP)
+  let waitRelease = false // stopped while the hands still frame: a new frame (let go, make it again) starts it
   const applyVolume = () => volume.gain.rampTo(muted ? 0 : faderGain(board.vol!) * (1 - 0.35 * board.drive!), 0.01, now()) // Drive made up for
   const applyShapes = () => {
-    // each action on now: the hands' shapes (FLOW: the left hand's; looping, a pinch is S3's restyle) and the mouse's
+    // each action on now: the hands' shapes (FLOW: the left hand's; while it loops, LOOP's alone) and the mouse's
     const acts = new Map<SauceAction, { depth: number }>()
     const add = (a: SauceAction, depth: number) => { if (depth >= (acts.get(a)?.depth ?? -1)) acts.set(a, { depth }) }
     let next = 0
     for (const h of hands()) {
       const x = held[h]
-      if (!x.shape || (frozen && x.shape === 'pinch')) continue
+      if (!x.shape) continue
+      if (looping && x.shape === 'fist') continue // LOOP: a fist drops the melody (loopHands), it isn't an action
       // ONE-HANDED: the effect shapes act through their toggles (below); in FLOW only POINT UP / DOWN (the fist mutes)
       if (oneHanded && (LATCHING_SHAPES.includes(x.shape) || (style === 'flow' && x.shape !== 'point_up' && x.shape !== 'point_down'))) continue
       const a = shapeActions[x.shape]
+      if (frozen && a !== 'loop') continue // while it loops the other shapes pause (FRAMES_SIMPLE), LOOP can stop it
       add(a, x.depth)
       if (a === 'octave') next += x.shape === 'point_down' ? -1 : 1
     }
@@ -729,13 +863,14 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     }
     const on = (a: SauceAction) => acts.get(a)
     const fist = on('drive'), pinch = on('wobble'), peace = on('echo'), horns = on('space')
+    if (midiStream) for (const [src, x] of [['shape.drive', fist], ['shape.wobble', pinch], ['shape.echo', peace], ['shape.space', horns]] as const) midiStream.cc(src, x?.depth ?? 0)
     if (Boolean(on('mute')) !== muted) { muted = !muted; applyVolume() }
     bent = on('bend') ? 100 * bendSemis(board.bend!) * on('bend')!.depth : 0
     bendShake = on('vibrato')?.depth ?? 0
     const loopOn = Boolean(on('loop'))
     if (loopOn !== looped) {
       looped = loopOn // first: latch() comes back through here
-      if (loopOn) latch(!frozen) // LOOP latches on the press, as the frame does
+      if (loopOn) api.toggleFrame() // LOOP toggles on the press
     }
     // a pinch drives a little too: harmonics for the sweep to bite on, even the 808's sine
     drive.wet.rampTo(Math.max(board.drive!, fist ? 0.5 + 0.5 * fist.depth : pinch && sound !== 'wobble' ? 0.4 : 0), 0.01, now())
@@ -748,20 +883,25 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       }
       wobble.wet.rampTo(pinch ? 1 : 0, 0.005, now())
       if (pinch) { // the Board's Wobble rate (a division of the plucks' beat), raised higher: up to two faster
-        const bpm = tempo.clock(now())?.bpm ?? 120
+        const bpm = beatNow()?.bpm ?? 120
         wobble.frequency.rampTo((bpm / 240) * WOBBLE_DIVS[Math.min(5, wobbleDiv(board.wob!) + Math.round(2 * pinch.depth))]!, 0.03, now())
       }
     }
     pinched = Boolean(pinch)
-    echoSend.gain.rampTo(Math.max(0.7 * board.echo!, peace ? 0.7 : 0), peace ? 0.02 : 0.05, now()) // the throw: the tails ring on after
+    fxSends = { echo: Math.max(0.7 * board.echo!, peace ? 0.7 : 0), space: Math.max(0.6 * board.space!, horns ? 0.6 + 0.4 * horns.depth : 0) }
+    applySends(peace ? 0.02 : 0.05, horns ? 0.4 : 1) // the throw: the tails ring on after
     if (peace) echo.feedback.rampTo(0.35 + 0.35 * peace.depth, 0.05, now())
-    spaceSend.gain.rampTo(Math.max(0.6 * board.space!, horns ? 0.6 + 0.4 * horns.depth : 0), horns ? 0.4 : 1, now())
     bend()
     applyVibrato()
     if (next !== shift) {
       shift = next
       if (flowing && voice.sustains) voice.glide(midiHz(flowMidi(key, octave, flowing.degree, shift + flowOct)))
     }
+  }
+  /** The sends: the shapes' and the Board's, LOOP's space under them (its spread: echo and reverb). */
+  const applySends = (echoS = 0.08, spaceS = 0.08) => {
+    echoSend.gain.rampTo(Math.max(fxSends.echo, looping ? 0.05 + 0.25 * spaceAmt : 0), echoS, now())
+    spaceSend.gain.rampTo(Math.max(fxSends.space, looping ? 0.08 + 0.5 * spaceAmt : 0), spaceS, now())
   }
   /** The Board's Vibrato, the shake on top. */
   const applyVibrato = () => {
@@ -772,11 +912,19 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
   const stopFlow = () => {
     if (flowing) voice.release()
     flowing = null
+    midiStream?.flowOff()
   }
   const latch = (on: boolean) => {
     frozen = on
+    midiStream?.cc('frame', on ? 1 : 0)
     loop.parameters.get('on')!.setValueAtTime(on ? 1 : 0, now())
-    if (on) applyShapes() // the pinch is S3's restyle now
+    applyShapes() // the shapes pause while it loops, and come back after
+  }
+  const syncLoop = () => { if ((framed || keyed) !== frozen) latch(framed || keyed) }
+  const stopLoop = () => { // off now; held hands wait to make a new frame
+    keyed = false
+    if (framed) { framed = false; waitRelease = true }
+    syncLoop()
   }
 
   let offShapeMap = () => {}
@@ -802,6 +950,7 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       trim.gain.rampTo(Math.pow(10, LEVEL_DB[id] / 20), 0.02, now())
       bend()
       applyShapes()
+      refit() // LOOP: in the sound's octave
     },
     setStyle(s) {
       if (s === style) return
@@ -818,13 +967,15 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       deg.left = deg.right = spreadDeg = null // a new ladder (the melody's degrees transpose with it)
       releaseAll()
       stopFlow()
-      if (frozen) latch(false) // its notes would be out of the new key
+      if (frozen) stopLoop() // its notes would be out of the new key
+      refit()
     },
     setOctave(n) {
       octave = Math.max(0, Math.min(7, Math.round(n)))
+      refit()
     },
     pluck(ev) {
-      if (style !== 'pluck') return
+      if (style !== 'pluck' || looping) return // LOOP: the hands shape it, they don't pluck
       const midi = pluckNote(ev)
       if (ev.held) {
         const k = ev.hand // any finger plays the hand's note: the hand holds it
@@ -837,8 +988,10 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
         voice.press(k, midiHz(midi), ev.velocity)
         holding.set(k, { midi, at: now(), safety: setTimeout(() => releaseHand(ev.hand), HOLD_MAX_MS) })
       } else voice.pluck(midiHz(midi), ev.velocity)
+      if (ev.held) midiStream?.noteOn(ev.hand, midi, ev.velocity) // the hand's note until it opens
+      else midiStream?.pluck(midi, ev.velocity)
       tempo.pluck(now())
-      if (tempo.grid) loop.port.postMessage(tempo.grid)
+      if (tempo.grid && !externalClock()) loop.port.postMessage(tempo.grid) // Link on: its grid, not the plucks'
     },
     release(ev) {
       down[ev.hand].delete(ev.finger)
@@ -852,29 +1005,90 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     ladder: () => Array.from({ length: ladderSize(key) }, (_, i) => step(i)),
     currentNote: (hand) => step(freeStep(hand)),
     setMelodyMode(mode) {
+      if (mode === melodyMode) return
       melodyMode = mode
+      registerWant = register = 0
+      dropWant = dropped = false
+      loopGate.gain.cancelScheduledValues(now())
+      loopGate.gain.setTargetAtTime(1, now(), 0.008)
+      if (mode === 'loop') {
+        releaseAll()
+        stopFlow()
+        if ((BASS_SOUNDS as readonly string[]).includes(sound)) api.setSound('keys') // melodic by default
+        looping = true
+        startLoop()
+      } else {
+        endLoop()
+        looping = false
+      }
+      tone.frequency.rampTo(toneHz(), 0.08, now())
+      applySends()
+      bend()
     },
     presets: () => [...PRESETS, rolledMelody].map(({ id, name, steps }) => ({ id, name, notes: steps.map(step) })),
     setPreset(id) {
       const p = [...PRESETS, rolledMelody].find((x) => x.id === id)
-      if (p) melody.set(p)
+      if (!p) return
+      preset = p
+      edits = null
+      if (looping) startLoop()
     },
     roll(seed = Math.floor(Math.random() * 2 ** 31)) {
       rolledMelody = rollMelody(seed, scaleLen())
-      melody.set(rolledMelody)
+      preset = rolledMelody
+      edits = null
+      if (looping) startLoop()
+      else api.setMelodyMode('loop')
       return { id: rolledMelody.id, name: rolledMelody.name, notes: rolledMelody.steps.map(step) }
     },
     get melody() {
-      return { mode: melodyMode, preset: { id: melody.preset.id, name: melody.preset.name }, position: melody.position, length: melody.length, wrapped: melody.wrapped }
+      const w = player.running ? player.where(now()) : null
+      const notes = player.running ? player.notes : (edits ?? presetNotes())
+      const ext = externalClock()
+      return { mode: melodyMode, preset: { id: preset.id, name: preset.name }, position: w?.step ?? 0, length: notes.length, wrapped: false, step: w?.step ?? 0, bpm: ext?.bpm ?? (player.running ? player.bpm : loopTempo), linked: Boolean(ext), dropped }
     },
-    nextNote: () => (melodyMode === 'follow' && style === 'pluck' ? step(melody.next()) : null),
-    allowedNotes: () => {
-      if (melodyMode !== 'fit') return []
-      const ok = new Set(melody.chord().map((c) => c % scaleLen()))
-      return Array.from({ length: ladderSize(key) }, (_, i) => i).filter((i) => ok.has(i % scaleLen())).map(step)
-    },
+    nextNote: () => null,
+    allowedNotes: () => [],
     reset() {
-      melody.reset()
+      if (looping) startLoop()
+    },
+    setLoopTempo(bpm) {
+      loopTempo = Math.max(60, Math.min(200, Math.round(Number.isFinite(bpm) ? bpm : 120)))
+      if (player.running && !externalClock()) player.tempo(loopTempo, now())
+    },
+    loopNotes: () => ({ notes: player.running ? player.notes : (edits ?? presetNotes()), pending: player.pending }),
+    editLoop(notes) {
+      const ruled = applyLoopRules(notes, keyNow())
+      edits = ruled
+      editsOct = octave
+      if (player.running) player.edit(ruled)
+      return ruled
+    },
+    resetLoop() {
+      edits = null
+      if (player.running) player.edit(presetNotes())
+    },
+    loopRows: loopRowsNow,
+    loopHands(h) {
+      if (!looping) return
+      if (h.right != null && Number.isFinite(h.right)) {
+        bright = Math.max(0, Math.min(1, h.right))
+        tone.frequency.rampTo(toneHz(), 0.08, now()) // ~80 ms
+      }
+      if (h.left != null && Number.isFinite(h.left)) registerWant = followOctave(h.left) // thirds; it lands on the beat
+      if (h.spread != null && Number.isFinite(h.spread)) {
+        spaceAmt = Math.max(0, Math.min(1, h.spread))
+        applySends()
+      }
+      dropWant = Boolean(h.fist)
+    },
+    palm() {
+      if (player.running) player.vary((bar) => loopVariation(player.notes, bar, palmSeed++, keyNow()))
+    },
+    loopState() {
+      if (!player.running) return null
+      const w = player.where(now())
+      return { notes: player.notes, step: w.step, pos: w.pos, barPhase: w.barPhase, beat: w.beat, bpm: w.bpm, brightness: bright, register, space: spaceAmt, dropped }
     },
     flow(sig) {
       if ((sig.shapeHand === 'left' || sig.shapeHand === 'right') && sig.shapeHand !== shapeHand) {
@@ -889,13 +1103,32 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       }
       shake = Math.max(0, Math.min(1, sig.shake || 0))
       applyVibrato()
+      // Link (externalClock): the frame loop on its grid, a loop on now at its tempo; gone, the plucks' again (or none)
+      const ext = externalClock()
+      if (ext) {
+        const anchor = now() - ((ext.beat - Math.floor(ext.beat)) * 60) / ext.bpm
+        if (ext.bpm !== linkSent.bpm || Math.abs(anchor - linkSent.anchor) > 0.002) {
+          linkSent = { bpm: ext.bpm, anchor }
+          loop.port.postMessage({ bpm: ext.bpm, anchor, follow: true })
+        }
+      } else if (linkSent.bpm) {
+        linkSent = { bpm: 0, anchor: 0 }
+        loop.port.postMessage(tempo.grid ?? { clear: true })
+      }
+      if (midiStream) { // the hands' continuous moves (MIDI_MAP, rate-limited there), and the plucks' note-offs due
+        midiStream.tick()
+        midiStream.cc('height.right', sig.pitch)
+        if (Number.isFinite(sig.octave)) midiStream.cc('height.left', sig.octave!)
+        midiStream.cc('spread', sig.spread)
+        if (Number.isFinite(sig.gap)) midiStream.cc('gap', sig.gap!)
+        midiStream.cc('shake', shake)
+      }
       tilt = sig.tilt ?? 0
       bend()
       if (style === 'pluck') {
         if (Number.isFinite(sig.pitch)) height.right = sig.pitch
         if (Number.isFinite(sig.octave)) height.left = sig.octave!
         if (Number.isFinite(sig.spread)) spreadNow = sig.spread
-        if (melodyMode === 'follow') return // the melody picks the notes: a moving hand changes nothing
         for (const hand of ['left', 'right'] as const) { // a held hand that moves: its note follows (a glide)
           const h = holding.get(hand)
           if (!h) continue
@@ -903,6 +1136,7 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
           if (midi !== h.midi) {
             h.midi = midi
             voice.move(hand, midiHz(midi))
+            midiStream?.noteOn(hand, midi, 0.7) // MIDI: the moved note played again (a bend is the channel's)
           }
         }
         return
@@ -916,26 +1150,36 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       if (sig.mute) return stopFlow()
       flowOct = heightOctave(sig.octave)
       let degree = flowDegree(key, sig.pitch, flowing?.degree ?? null)
-      if (melodyMode === 'fit') degree = snapToChord(degree, melody.chord(), scaleLen(), 2 * scaleLen() + 1) // FOLLOW plays with PLUCK
       const midi = flowMidi(key, octave, degree, shift + flowOct)
+      if (midi !== flowing?.midi) midiStream?.flowNote(midi) // held, bent along (played again past the bend range)
       if (!flowing) voice.attack(midiHz(midi), 0.8)
       else if (midi !== flowing.midi) voice.sustains ? voice.glide(midiHz(midi)) : voice.pluck(midiHz(midi), 0.7)
-      if (melodyMode === 'fit' && midi !== flowing?.midi) melody.advance() // each new note moves the chord on
       flowing = { degree, midi }
     },
     twist(t) {
       rolled = { left: Number.isFinite(t?.left) ? t.left : 0, right: Number.isFinite(t?.right) ? t.right : 0 }
+      midiStream?.cc('twist.left', rolled.left)
+      midiStream?.cc('twist.right', rolled.right)
       bend()
     },
     frame(held) {
-      if (held && !framed) latch(!frozen)
-      framed = held
+      if (!held) waitRelease = false
+      framed = held && !waitRelease
+      syncLoop()
+    },
+    toggleFrame() {
+      if (frozen) return stopLoop()
+      keyed = true
+      syncLoop()
+    },
+    setFrameAmount(amount) {
+      loop.parameters.get('amount')!.setValueAtTime(Number.isFinite(amount) ? Math.min(1, Math.max(0, amount)) : 0.5, now()) // the worklet smooths it
     },
     setFrameStyle(type, flipped = false) {
       loop.parameters.get('style')!.setValueAtTime(frameStyle(type), now())
       loop.parameters.get('flip')!.setValueAtTime(flipped ? 1 : 0, now())
     },
-    beatClock: () => tempo.clock(now()),
+    beatClock: beatNow,
     setBoard(id, v) {
       if (!(id in board)) return
       board[id] = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0))
@@ -981,6 +1225,7 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
       if (manual.delete(action)) applyShapes()
     },
     shape(hand, s, depth = 0.5) {
+      const was = held[hand].shape
       held[hand] = { shape: s, depth: Math.max(0, Math.min(1, Number.isFinite(depth) ? depth : 0.5)) }
       const h = holdAt[hand]
       if (s !== h.shape) holdAt[hand] = { shape: s, at: now(), fired: false }
@@ -994,6 +1239,7 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
           confirm(on)
         }
       }
+      if (looping && s !== was) return void (shapesDue = true) // LOOP: a new shape's FX from the next beat
       applyShapes()
     },
     get latched() { return [...latchedFx.keys()] },
@@ -1002,11 +1248,13 @@ export async function createInstrument(ctx: BaseAudioContext): Promise<Instrumen
     },
     holdProgress: (hand) => (holding1(hand) ? Math.min(1, (now() - holdAt[hand].at) / (holdMs / 1000)) : 0),
     dispose() {
+      endLoop()
       releaseAll()
       offShapeMap()
+      if (midiStream) setLiveMidi(null)
       detachOutput()
       voice.dispose()
-      for (const n of [trim, drive, wobble, vibrato, tone, master, echoSend, echo, spaceSend, space, glue, glueWet, bus, volume, sub, subGain, pip, pipGain]) n.dispose()
+      for (const n of [trim, loopGate, drive, wobble, vibrato, tone, master, echoSend, echo, spaceSend, space, glue, glueWet, bus, volume, sub, subGain, pip, pipGain]) n.dispose()
       split?.disconnect()
       loop.disconnect()
       limiter.disconnect()

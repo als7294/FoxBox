@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="54 50 404 426">
+  <title>FoxBox Strings</title>
+  <defs>
+    <linearGradient id="fox" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#FFC08A"/><stop offset="0.55" stop-color="#F2701F"/><stop offset="1" stop-color="#E2471F"/></linearGradient>
+    <linearGradient id="aurora" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2DE0C8"/><stop offset="0.5" stop-color="#3E8FE0"/><stop offset="1" stop-color="#7A4FE8"/></linearGradient>
+    <filter id="edgeblur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="8"/></filter>
+    <mask id="eyes" maskUnits="userSpaceOnUse" x="-100" y="-100" width="712" height="712"><rect x="-100" y="-100" width="712" height="712" fill="#fff"/><path d="M140 250 L248 290 L226 330 L176 306 Z M372 250 L264 290 L286 330 L336 306 Z" fill="#000"/></mask>
+  </defs>
+  <path d="M96 56 L204 172 L308 172 L416 56 L452 296 L256 470 L60 296 Z" fill="url(#fox)" mask="url(#eyes)"/>
+</svg>

@@ -10,12 +10,14 @@
  * any model fails, the camera still hides faces exactly as before.
  */
 import faceModel from '@/vendor/mediapipe/face_landmarker.task?url'
+import { markBoot } from '@/state/bootMarks'
 import handModel from '@/vendor/mediapipe/gesture_recognizer.task?url'
 import farModel from '@/vendor/mediapipe/blaze_face_full_range.tflite?url'
 import poseModel from '@/vendor/mediapipe/pose_landmarker_lite.task?url'
 import segModel from '@/vendor/mediapipe/selfie_segmenter.tflite?url'
 import loaderUrl from '@/vendor/mediapipe/vision_wasm_internal.js?url'
 import wasmUrl from '@/vendor/mediapipe/vision_wasm_internal.wasm?url'
+import { bridge } from '@/env'
 import type { BodyPt, Pt, Pt3 } from './camMath'
 
 /** The expression, 0-1 (MediaPipe's blendshapes): what a mask's jaw, eyes and brows follow. */
@@ -226,6 +228,7 @@ export class Vision {
           return
         }
         if (d.type === 'ready') {
+          markBoot('tracking') // the boot splash's "Loading hand tracking"
           // Which delegate each model got (GPU, or CPU when the worker's WebGL2 failed): the tracking's speed hangs on it.
           this.delegates = (d as unknown as { delegates?: Record<string, string> }).delegates ?? {}
           console.info('FoxBox camera models:', JSON.stringify(this.delegates))
@@ -250,6 +253,7 @@ export class Vision {
       w.postMessage({
         type: 'init',
         urls: { loader: abs(loaderUrl), wasm: abs(wasmUrl), face: abs(faceModel), hands: abs(handModel), seg: abs(segModel), far: abs(farModel), pose: abs(poseModel) },
+        cpu: bridge()?.visionCpu === true || new URLSearchParams(location.search).get('vision') === 'cpu', // the web build's smoke
       })
       this.worker = w
     } catch {

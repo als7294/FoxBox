@@ -79,7 +79,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -114,7 +114,7 @@
   padding: 0 10px;
   margin-right: -10px;
   border-radius: 9px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--fb-accent-soft);
@@ -193,7 +193,7 @@
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
   color: rgba(255, 255, 255, 0.62);
   opacity: 0;
   transition: opacity 0.25s;
@@ -217,4 +217,34 @@
 }
 .glow:not([data-notch]) {
   top: 10px;
+}
+
+/* 2.1: SAUCE's play style (PLUCK · FLOW · LOOP) under the mode pills, in the open Island */
+.styleSeg {
+  position: absolute;
+  top: 120px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.island[data-open] .styleSeg {
+  opacity: 1;
+  pointer-events: auto;
+}
+.styleBtn {
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: 800 14px var(--fb-font);
+  letter-spacing: 0.06em;
+}
+.styleBtn[aria-checked='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
 }

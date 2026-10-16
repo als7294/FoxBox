@@ -87,7 +87,7 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
   opacity: 0.72;
@@ -127,7 +127,7 @@
     border-radius: 21px;
   }
   .label {
-    font-size: 11px;
+    font-size: 13px;
   }
   .value {
     font-size: 16px;

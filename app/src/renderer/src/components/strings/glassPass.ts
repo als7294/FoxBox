@@ -10,7 +10,7 @@
  * design's §8: a white edge with a glow in the mode's colour draws itself round (the top edge, then down the sides),
  * closes with one soft flash, and the style blooms in (scaling up from 60%); a white sweep crosses the pane once a loop
  * and each beat pulses it brighter (at most 3 a second); a restyle (a pinch) wipes the new style out from the middle.
- * frameLabel adds the name pill and the hint. The styles, front ↔ flip side (the frame turned over, the loop backwards):
+ * frameLabel adds the big name (about a second, as an effect begins) and the amount bar. The styles, front ↔ flip side (the frame turned over, the loop backwards):
  *   ECHO TRAIL  dotted-1/8 echoes of the loop, warm   ↔ SLIT-SCAN  each column from its own moment of the loop
  *   PRISM       a rainbow split across it              ↔ X-RAY      the negative, cold, its edges lit
  *   HALFTONE    dots on the pane's own grid            ↔ SCANLINES  phosphor lines, a slow roll
@@ -22,7 +22,8 @@
  * once (geometry, no strobe). Reduced motion: the plain pane over a still. Outside the frame nothing changes; inside it can be bold:
  * the `--frame-*` tokens set how bold (stringTokens.ts). Colour is premultiplied (the canvas's default).
  */
-import { GLASS_EFFECT, GLASS_LABEL, loopTime, type FrameCorners, type GlassFrame, type GlassType, type PaneFrame } from './glass'
+import type { Pt } from '@/components/camera/camMath'
+import { GLASS_LABEL, loopTime, type FrameCorners, type GlassFrame, type GlassType, type PaneFrame } from './glass'
 import { liveFrameTokens, rgba, type StringsMode } from './stringTokens'
 
 const TYPE: Record<GlassType, number> = {
@@ -552,90 +553,79 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
 }
 
 const frameTokens = liveFrameTokens()
-const backOut = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2 // a pop with a little overshoot
+
+/** The effect's name shows big in the pane this long (s) whenever an effect begins (the pane forms, P or a pinch
+ *  restyles it, a flip turns it over), then fades over FADE_S. */
+const BIG_S = 1
+const FADE_S = 0.35
 
 /**
- * The frame's pills (the design's §8), on the stage's 2D canvas over the pane, along its edges: the style's name and its
- * sound on the top edge (from its left corner, in the mode's colour; "⟲" on the flip side), popping in once the style
- * has bloomed; and the hint across the bottom edge's right end: a dot per beat of the loop (the one playing lit),
- * "4 beats · pinch to change" (SAUCE: "pinch and hold to change").
+ * The frame's words over its pane (2D, on the composited canvas), "big text or no text" on an animation (the user's
+ * rule): when an effect begins, its name big and centred in the pane (along its tilt) for about a second, then gone;
+ * no small pill or digits. The amount is a thin bar along the pane's bottom (S1's frame size), never a number. The "how"
+ * is S4's chip under the frame. Reduced motion: the name the same second, no fade-in, scale or fade-out ease.
  */
-export function frameLabel(ctx: CanvasRenderingContext2D, g: GlassFrame, w: number, h: number, mode: StringsMode = 'remix'): void {
+export function frameLabel(ctx: CanvasRenderingContext2D, g: GlassFrame, w: number, h: number, _mode: StringsMode = 'remix'): void {
   const early = g.flip < 0.5 // the card hasn't turned edge-on yet: still the old face
   const face = early ? g.flipFrom : g.type
   const name = GLASS_LABEL[face]
-  if (!name || !g.corners || g.crack >= 0 || g.bloom <= 0.01) return
+  if (!name || !g.corners || !g.quad || g.crack >= 0 || g.mix <= 0.01) return
   const tk = frameTokens(performance.now())
   const px = h / PX
-  const still = g.clock === null // reduced motion (no loop clock): no pop
-  const k = Math.min(1, Math.max(0, (g.age * 1000 - 500) / 500)) // the design's: 0.5 s from 0.5 s
-  const pop = still ? 1 : backOut(k)
-  const alpha = g.mix * (still ? g.bloom : k)
-  if (alpha <= 0.01) return
-  const [p0, p1, p2, p3] = g.corners
+  const still = g.clock === null // reduced motion
+  const [, , p2, p3] = g.corners
   const lb = tk.label
-  // a pill of `height` along the edge a → b, `from` px in from a (or, `fromEnd`, its right end that far before b)
-  const pill = (a: typeof p0, b: typeof p0, height: number, at: number, fromEnd: boolean, width: number, draw: () => void) => {
-    const ang = Math.atan2((b.y - a.y) * h, (b.x - a.x) * w)
-    const len = Math.hypot((b.x - a.x) * w, (b.y - a.y) * h)
-    ctx.save()
-    ctx.translate(a.x * w, a.y * h)
-    ctx.rotate(ang)
-    ctx.translate(fromEnd ? len - at - width / 2 : at + width / 2, 0)
-    ctx.scale(0.6 + 0.4 * pop, 0.6 + 0.4 * pop) // from 60%
-    ctx.translate(-width / 2, 0)
-    ctx.globalAlpha = alpha
-    ctx.beginPath()
-    ctx.roundRect(0, -height / 2, width, height, height / 2)
-    draw()
-    ctx.restore()
-  }
-  ctx.textBaseline = 'middle'
-  ctx.textAlign = 'left'
-  // the name pill: Geist 800 17 px, 0.08em, and its sound at 13 px
-  const nameFont = `${lb.weight} ${(lb.size * px).toFixed(1)}px ${lb.font}`
-  const fxFont = `600 ${(13 * px).toFixed(1)}px ${lb.font}`
   const flipped = early ? !g.flipped : g.flipped
   const title = name + (flipped ? ' ⟲' : '')
-  const effect = GLASS_EFFECT[face]
-  ctx.font = nameFont
-  ctx.letterSpacing = `${(lb.tracking * lb.size * px).toFixed(2)}px`
-  const tw = ctx.measureText(title).width
-  ctx.font = fxFont
-  ctx.letterSpacing = '0px'
-  const ew = ctx.measureText(effect).width
-  const nameW = 28 * px + tw + 8 * px + ew
-  pill(p0, p1, 40 * px, 18 * px, false, nameW, () => {
-    ctx.fillStyle = rgba(lb.bg[mode], 1)
-    ctx.fill()
-    ctx.fillStyle = rgba(lb.ink, 1)
-    ctx.font = nameFont
-    ctx.letterSpacing = `${(lb.tracking * lb.size * px).toFixed(2)}px`
-    ctx.fillText(title, 14 * px, 0)
-    ctx.font = fxFont
-    ctx.letterSpacing = '0px'
-    ctx.globalAlpha *= 0.8
-    ctx.fillText(effect, 14 * px + tw + 8 * px, 0)
-  })
-  // the hint: Geist 600 14 px, four 7 px dots
-  const beats = g.clock?.beats ?? tk.loopBeats
-  // SAUCE's latched loop changes on a held pinch (a quick one reads as the resting C); REMIX's on a corner tap
-  const hint = `${beats} beat${beats === 1 ? '' : 's'} · ${mode === 'play' ? 'pinch and hold' : 'pinch'} to change`
-  const hintFont = `600 ${(14 * px).toFixed(1)}px ${lb.font}`
-  ctx.font = hintFont
-  const dots = beats * 7 * px + (beats - 1) * 4 * px
-  const hintW = 24 * px + dots + 8 * px + ctx.measureText(hint).width
-  pill(p3, p2, 36 * px, 16 * px, true, hintW, () => {
-    ctx.fillStyle = rgba(tk.hint.bg, 1)
-    ctx.fill()
-    for (let i = 0; i < beats; i++) {
-      ctx.beginPath()
-      ctx.arc(12 * px + 3.5 * px + i * 11 * px, 0, 3.5 * px, 0, Math.PI * 2)
-      ctx.fillStyle = i === g.clock?.beat ? rgba(tk.hint.dotOn, 1) : 'rgba(255, 255, 255, 0.3)'
-      ctx.fill()
-    }
-    ctx.font = hintFont
-    ctx.fillStyle = rgba(tk.hint.ink, 1)
-    ctx.fillText(hint, 12 * px + dots + 8 * px, 0)
-  })
+
+  // 1. the name, big, while its effect is new
+  const t = g.styleAge
+  const inK = still ? 1 : Math.min(1, Math.max(0, (t - 0.12) / 0.2))
+  const outK = still ? (t >= BIG_S ? 1 : 0) : Math.min(1, Math.max(0, (t - BIG_S) / FADE_S))
+  if (inK > 0 && outK < 1) {
+    const size = Math.max((28 * w) / 1280, Math.min(96 * px, 2 * g.quad.hw * h * 0.2))
+    ctx.save()
+    ctx.translate(g.quad.x * w, g.quad.y * h)
+    ctx.rotate(g.quad.tilt)
+    const k = still ? 1 : 0.92 + 0.08 * inK - 0.06 * outK
+    ctx.scale(k, k)
+    ctx.globalAlpha = g.mix * inK * (1 - outK)
+    ctx.font = `${lb.weight} ${size.toFixed(1)}px ${lb.font}`
+    ctx.letterSpacing = `${(0.04 * size).toFixed(2)}px`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
+    ctx.shadowBlur = 14 * px
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillText(title, 0, 0)
+    ctx.restore()
+  }
+
+  // 2. the amount: a thin bar along the pane's bottom, 15-85% of its width, 22 px in
+  if (g.amount === null || g.bloom <= 0.01) return
+  const alpha = g.mix * (still ? 1 : Math.min(1, g.bloom * 1.5))
+  const mid = { x: ((p3.x + p2.x) / 2) * w, y: ((p3.y + p2.y) / 2) * h }
+  const to = { x: g.quad.x * w - mid.x, y: g.quad.y * h - mid.y }
+  const tl = Math.hypot(to.x, to.y) || 1
+  const inset = (p: Pt) => ({ x: p.x * w + (to.x / tl) * 22 * px, y: p.y * h + (to.y / tl) * 22 * px })
+  const lerp = (a: Pt, b: Pt, u: number): Pt => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })
+  const a = inset(lerp(p3, p2, 0.15))
+  const b = inset(lerp(p3, p2, 0.85))
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.lineCap = 'round'
+  ctx.lineWidth = 4 * px
+  ctx.strokeStyle = 'rgba(20, 12, 8, 0.32)' // dark, so it shows on a light pane as well as a dark one
+  ctx.beginPath()
+  ctx.moveTo(a.x, a.y)
+  ctx.lineTo(b.x, b.y)
+  ctx.stroke()
+  if (g.amount > 0.005) {
+    ctx.strokeStyle = rgba(tk.hint.dotOn, 1)
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(a.x + (b.x - a.x) * g.amount, a.y + (b.y - a.y) * g.amount)
+    ctx.stroke()
+  }
+  ctx.restore()
 }

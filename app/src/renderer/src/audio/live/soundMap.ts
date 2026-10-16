@@ -83,6 +83,8 @@ export interface Gestures {
   /** FRAME (both hands an L): 1 while held, and its size (the diagonal over the frame's width; 0 unless held). */
   frame_held: number
   frame_size: number
+  /** 2.1: the frame's size against its size when made (S1's frame.amount; 0.5 as made, and while there's none). */
+  frame_amount: number
   /** 1 on a shape drawn in the air (S1's $Q), falling to 0 over DRAWN_MS. */
   drawn_circle: number
   drawn_triangle: number
@@ -116,7 +118,7 @@ export interface Gestures {
 
 export const GESTURES_NEUTRAL: Gestures = Object.freeze({ hand_height: 0, head_tilt: 0, jaw_open: 0, motion: 0, pinch: 0,
   squeeze: 0, hands_dist: 0, fingers: 0, pinch_l: 0, pinch_r: 0, open_l: 0, open_r: 0, fingers_l: 0, fingers_r: 0, twist_l: 0, twist_r: 0, turn_l: 0, turn_r: 0,
-  frame_held: 0, frame_size: 0, drawn_circle: 0, drawn_triangle: 0, drawn_star: 0, drawn_zigzag: 0, pair_thumb: 1, pair_index: 1,
+  frame_held: 0, frame_size: 0, frame_amount: 0.5, drawn_circle: 0, drawn_triangle: 0, drawn_star: 0, drawn_zigzag: 0, pair_thumb: 1, pair_index: 1,
   pair_middle: 1, pair_ring: 1, pair_pinky: 1, glass_on: 0, glass_size: 0, glass_tilt: 0, glass_world: 0, glass_crack: 0, glass_style: 0, glass_flip: 0, fist: 0, victory: 0, love: 0, open: 0, triangle: 0 })
 
 const PAIRS = ['thumb', 'index', 'middle', 'ring', 'pinky'] as const
@@ -199,10 +201,11 @@ export class GestureTracker {
     g.turn_r = Math.abs(g.twist_r)
     // FRAME holds and lets go on S1's side: formed (frameGestures) holds through a corner's tap and the turn over, where
     // the raw L drops; the raw L until it's there
-    const fr = (s as { frame?: { formed?: boolean; size?: number } } | null)?.frame
+    const fr = (s as { frame?: { formed?: boolean; size?: number; amount?: number } } | null)?.frame
     const framed = fr?.formed ?? Boolean(sh?.frame.held)
     g.frame_held = framed ? 1 : 0
     g.frame_size = follow(g.frame_size, framed ? v(fr?.formed != null ? fr.size : sh?.frame.size) : 0, dtS, 0.08)
+    g.frame_amount = framed && Number.isFinite(fr?.amount) ? v(fr!.amount) : 0.5 // each new frame starts as made
     const d = fresh ? s.drawn : null
     if (d && d.at > this.drawnAt) {
       this.drawnAt = d.at
@@ -245,7 +248,7 @@ const TARGETS: Record<string, keyof SongFxParams> = {
   'bass.gate': 'gate', 'fx.pump': 'pump', 'bass.wobble_rate': 'wobbleRate', 'bass.gate_rate': 'gateRate', 'bass.subdrop': 'subdrop',
   'bass.slide': 'bassSemi', 'bass.vibrato': 'vibrato', 'fx.halftime': 'halftime', 'fx.buildroll': 'buildroll', 'fx.octave': 'octave',
   'fx.rewind': 'rewind', 'fx.reverse': 'reverse', 'fx.brake': 'brake', 'fx.glass': 'glass', 'fx.crack': 'crack', 'glass.world': 'world',
-  'glass.wet': 'worldWet', 'glass.tilt': 'worldTilt', 'frame.on': 'frame', 'frame.style': 'frameStyle', 'frame.flip': 'frameFlip',
+  'glass.wet': 'worldWet', 'glass.tilt': 'worldTilt', 'frame.on': 'frame', 'frame.style': 'frameStyle', 'frame.flip': 'frameFlip', 'frame.amount': 'frameAmount',
 }
 
 /** A map that moves a stem: the deck plays the song from its stems while it's the active one (decoded only then). */
@@ -367,6 +370,7 @@ export const STRINGS_SOUND: SoundMap = {
     { target: 'frame.on', source: 'gesture.glass_on', min: 0, max: 1, curve: 'gate' },
     { target: 'frame.style', source: 'gesture.glass_style', min: 0, max: 12, curve: 'lin' },
     { target: 'frame.flip', source: 'gesture.glass_flip', min: 0, max: 1, curve: 'gate' },
+    { target: 'frame.amount', source: 'gesture.frame_amount', min: 0, max: 1, curve: 'lin' },
   ],
 }
 

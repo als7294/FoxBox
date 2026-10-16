@@ -1,5 +1,6 @@
 // Calibrate reach (2.0.1 one-handed): Settings → Playing's and the one-handed GUIDE's.
 import { useEffect, useState } from 'react'
+import { t } from '@/i18n'
 import { captureReach } from '@/components/camera/smartCamera'
 import s from './settings.module.css'
 
@@ -28,27 +29,27 @@ export function CalibrateReach({ onDone }: { onDone: () => void }) {
     <div className={s.calib} role="status" aria-live="polite">
       {step === 'done' ? (
         <>
-          <b>Reach set</b>
-          <span className={s.note}>Your notes now span the heights you can reach comfortably.</span>
+          <b>{t('reach.done', 'Reach set')}</b>
+          <span className={s.note}>{t('reach.done.note', 'Your notes now span the heights you can reach comfortably.')}</span>
           <button type="button" className={s.btn} data-primary onClick={onDone}>
-            Done
+            {t('common.done', 'Done')}
           </button>
         </>
       ) : (
         <>
-          <b>{step === 'high' ? 'Hold your playing hand at the highest note you can reach comfortably' : 'Now at your lowest'}</b>
+          <b>{step === 'high' ? t('reach.high', 'Hold your playing hand at the highest note you can reach comfortably') : t('reach.low', 'Now at your lowest')}</b>
           {missed ? (
             <span className={s.btns} style={{ alignItems: 'center' }}>
-              <span className={s.note}>No hand seen. Keep it where the camera sees it.</span>
+              <span className={s.note}>{t('reach.missed', 'No hand seen. Keep it where the camera sees it.')}</span>
               <button type="button" className={s.btn} onClick={() => setAttempt((a) => a + 1)}>
-                Try again
+                {t('camera.retry', 'Try again')}
               </button>
             </span>
           ) : (
             <span className={s.calibCount}>{count}</span>
           )}
           <button type="button" className={s.btn} onClick={onDone}>
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </button>
         </>
       )}

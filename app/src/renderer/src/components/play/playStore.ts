@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import { audioContext } from '@/audio/context'
 import {
+  BASS_SOUNDS,
   createInstrument,
   DEFAULT_OCTAVE,
   type Instrument,
@@ -17,14 +18,17 @@ import {
   type PlayStyle,
   type SoundId,
 } from '@/audio/play/instrument'
+import type { LoopNote } from '@/audio/play/loopRules'
 import { DEFAULT_KEY, type Key, type NoteName, type ScaleId } from '@/audio/play/notes'
 import type { Pt } from '@/components/camera/camMath'
 import { shapeActions } from '@/components/camera/shapeMap'
 import { cameraSignals, onPluck, onRelease } from '@/components/camera/smartCamera'
 import { finishTake, startTake, useTakes } from '@/components/stage/takes'
+import { useMidiPrefs } from '@/audio/midiOut'
 import { usePlayPrefs } from '@/components/camera/playPrefs'
 import { notePluck, playFeed, setFlowLine, setPlayBeat, setPlayNotes, setPlayStrings } from '@/components/strings/playFeed'
 import { glassSignal, keyFrame, setKeyFrame } from '@/components/strings/glass'
+import { setInwardFrames } from '@/components/camera/frameGestures'
 
 export const SOUNDS: { id: SoundId; label: string; family: 'BASS' | 'MELODY' }[] = [
   { id: '808', label: '808', family: 'BASS' },
@@ -76,6 +80,13 @@ interface PlayState {
   preset: { id: string; name: string } | null
   /** Where FOLLOW is in the preset: "Note 3 of 16"; wrapped: back at the top. */
   place: { position: number; length: number; wrapped: boolean }
+  /** 2.1 MELODY LOOP (S2): its tempo when Link isn't on (the popover's stepper), and where it is: the note playing (0-7),
+   *  the tempo in use, Link's or not, a fist's drop. */
+  loopBpm: number
+  loop: { step: number; bpm: number; linked: boolean; dropped: boolean }
+  /** The loop strip: the notes playing, and an edit waiting for the next pass (outlined till it lands). */
+  loopNotes: LoopNote[]
+  loopPending: LoopNote[] | null
   /** The ladder (lowest first), and what's lit on it: each hand's note, FOLLOW's next, FIT's allowed. */
   ladder: LadderNote[]
   lit: { left: number | null; right: number | null; next: number | null; allowed: number[] }
@@ -98,9 +109,18 @@ export const usePlay = create<PlayState>(() => ({
   presets: [],
   preset: null,
   place: { position: 0, length: 0, wrapped: false },
+  loopBpm: 120,
+  loop: { step: 0, bpm: 120, linked: false, dropped: false },
+  loopNotes: [],
+  loopPending: null,
   ladder: [],
   lit: { left: null, right: null, next: null, allowed: [] },
 }))
+
+/** 2.1: SAUCE's play style as the user sees it: LOOP (Melody mode) or the instrument's PLUCK / FLOW. */
+export type PlayMode = 'pluck' | 'flow' | 'loop'
+export const PLAY_MODES: readonly PlayMode[] = ['pluck', 'flow', 'loop']
+export const playModeOf = (s: Pick<PlayState, 'melodyMode' | 'style'>): PlayMode => (s.melodyMode === 'loop' ? 'loop' : s.style)
 
 const TRAIL = 8
 const LIT_MS = 100 // the ladder's lights, ten times a second
@@ -108,6 +128,7 @@ const LIT_MS = 100 // the ladder's lights, ten times a second
 /** The melody's state off the instrument into the store. */
 function syncMelody(i: Instrument): void {
   const m = i.melody
+  setInwardFrames(m.mode === 'loop') // LOOP: any inward frame counts (S1's lenient test)
   usePlay.setState({
     noteMode: i.noteMode,
     melodyMode: m.mode,
@@ -115,9 +136,51 @@ function syncMelody(i: Instrument): void {
     preset: m.preset,
     place: { position: m.position, length: m.length, wrapped: m.wrapped },
   })
+  syncLoop(i)
+}
+
+/** LOOP's state off the instrument (ten times a second while it plays), only when it changed. */
+function syncLoop(i: Instrument): void {
+  const m = i.melody
+  const was = usePlay.getState()
+  const loop = { step: m.step ?? 0, bpm: Math.round(m.bpm ?? was.loopBpm), linked: m.linked ?? false, dropped: m.dropped ?? false }
+  const n = i.loopNotes() ?? { notes: [], pending: null }
+  const next: Partial<PlayState> = {}
+  if (JSON.stringify(loop) !== JSON.stringify(was.loop)) next.loop = loop
+  if (JSON.stringify(n.notes) !== JSON.stringify(was.loopNotes)) next.loopNotes = n.notes
+  if (JSON.stringify(n.pending) !== JSON.stringify(was.loopPending)) next.loopPending = n.pending
+  if (Object.keys(next).length) usePlay.setState(next)
+}
+
+// The loop strip's edits, kept per preset on this Mac (an edited preset's tile shows a dot; Reset to preset clears it)
+const EDITS_KEY = 'foxbox-loop-edits'
+type Edits = Record<string, LoopNote[]>
+export function loopEdits(): Edits {
+  try {
+    return JSON.parse(localStorage.getItem(EDITS_KEY) ?? '{}') as Edits
+  } catch {
+    return {}
+  }
+}
+function saveEdits(id: string, notes: LoopNote[] | null): void {
+  const e = loopEdits()
+  if (notes) e[id] = notes
+  else delete e[id]
+  try {
+    localStorage.setItem(EDITS_KEY, JSON.stringify(e))
+  } catch {
+    // storage off: the edit plays, it just isn't kept
+  }
+}
+/** A preset's saved edit, put back as it's picked (the rules run again: they may have moved on). */
+function applySaved(i: Instrument): void {
+  const saved = loopEdits()[i.melody.preset.id]
+  if (saved && i.melody.mode === 'loop') i.editLoop(saved)
 }
 
 let inst: Instrument | null = null
+/** The bass sound LOOP turned to KEYS, put back when LOOP ends; null once a sound was picked in LOOP. */
+let soundBeforeLoop: SoundId | null = null
 let starting: Promise<Instrument> | null = null
 
 // ONE-HANDED (2.0.1): Hold time reaches S2's shape toggles; S3's hold ring reads each hand's hold, its shape's (S2) or
@@ -144,6 +207,7 @@ export function playInstrument(): Promise<Instrument> {
     i.setOctave(s.octave)
     i.setNoteMode(s.noteMode)
     i.setMelodyMode(s.melodyMode)
+    i.setLoopTempo(s.loopBpm)
     i.output.connect(ctx.destination)
     i.setHoldTime(usePlayPrefs.getState().holdMs) // ONE-HANDED's shape toggles (2.0.1)
     inst = i
@@ -159,10 +223,17 @@ export const playActions = {
   setSound(sound: SoundId) {
     inst?.setSound(sound)
     usePlay.setState({ sound, octave: inst?.octave ?? DEFAULT_OCTAVE[sound] })
+    if (usePlay.getState().melodyMode === 'loop') soundBeforeLoop = null // picked in LOOP: it stays when LOOP ends
   },
   setStyle(style: PlayStyle) {
     inst?.setStyle(style)
     usePlay.setState({ style, frozen: false })
+  },
+  /** 2.1: SAUCE's play style, one switch (S cycles it): PLUCK, FLOW, or LOOP (Melody mode: the preset loops at once). */
+  setPlayMode(m: PlayMode) {
+    if (m === 'loop') return playActions.setMelodyMode('loop')
+    if (usePlay.getState().melodyMode === 'loop') playActions.setMelodyMode('off')
+    playActions.setStyle(m)
   },
   setKey(root: NoteName, scale: ScaleId = usePlay.getState().key.scale) {
     inst?.setKey(root, scale)
@@ -178,37 +249,73 @@ export const playActions = {
     usePlay.setState({ noteMode: inst?.noteMode ?? mode })
   },
   /** FOLLOW is kept in FLOW (S2): FLOW plays its free notes, FOLLOW comes back with PLUCK. */
+  /** LOOP plays a melodic sound: a bass one turns to KEYS, and comes back when LOOP ends (unless one was picked in LOOP). */
   setMelodyMode(mode: MelodyMode) {
+    const was = usePlay.getState()
+    if (mode === was.melodyMode) return
+    if (mode === 'loop' && (BASS_SOUNDS as readonly string[]).includes(was.sound)) {
+      playActions.setSound('keys')
+      soundBeforeLoop = was.sound
+    }
     inst?.setMelodyMode(mode)
+    if (inst && mode === 'loop') applySaved(inst)
     if (inst) syncMelody(inst)
     else usePlay.setState({ melodyMode: mode })
+    if (mode !== 'loop' && soundBeforeLoop) playActions.setSound(soundBeforeLoop)
+    if (mode !== 'loop') soundBeforeLoop = null
   },
+  /** A preset: LOOP plays it at once, from the top (with its saved edit). */
   setPreset(id: string) {
-    inst?.setPreset(id)
-    if (inst) syncMelody(inst)
+    if (!inst) return
+    playActions.setMelodyMode('loop')
+    inst.setPreset(id)
+    applySaved(inst)
+    syncMelody(inst)
   },
-  /** 🎲 (D): a new melody in the key; MELODY OFF turns to FOLLOW, so it plays. */
+  /** 🎲 (D): a new melody in the key (a new Rolled: its old edit goes), looping at once. */
   roll() {
     if (!inst) return
+    playActions.setMelodyMode('loop')
     inst.roll()
-    if (inst.melody.mode === 'off') inst.setMelodyMode('follow')
+    saveEdits(inst.melody.preset.id, null)
     syncMelody(inst)
+  },
+  /** LOOP's tempo when Link isn't on: the popover's − 120 + (60-200). */
+  setLoopTempo(bpm: number) {
+    const b = Math.min(200, Math.max(60, Math.round(bpm)))
+    inst?.setLoopTempo(b)
+    usePlay.setState({ loopBpm: b })
+  },
+  /** The loop strip: notes as the user left them; S2's rules adjust them, and they land on the next pass (kept). */
+  editLoop(notes: LoopNote[]): LoopNote[] {
+    if (!inst?.editLoop) return notes
+    const landed = inst.editLoop(notes)
+    saveEdits(inst.melody.preset.id, landed)
+    syncLoop(inst)
+    return landed
+  },
+  /** Reset to preset: its own notes back, its edit forgotten. */
+  resetLoop() {
+    if (!inst) return
+    inst.resetLoop()
+    saveEdits(inst.melody.preset.id, null)
+    syncLoop(inst)
   },
   /** ↺ the melody from the top. */
   reset() {
     inst?.reset()
     if (inst) syncMelody(inst)
   },
-  /** FRAME by hand (the Board, the Hands card): the loop latches on, or off. */
+  /** FRAME without the hands (F, the Board, the Hands card): the loop on, or off. */
   toggleFrame() {
     if (!inst) return
-    inst.frame(true)
-    inst.frame(false)
+    inst.toggleFrame()
     setKeyFrame(inst.frozen) // F, the Board, the Frame card: S3's pane shows while it loops, hands or none
     usePlay.setState({ frozen: inst.frozen })
   },
   /** Leaving PLAY: FLOW's note and FREEZE's drone let go (setKey stops both; plucks ring out). */
   release() {
+    setInwardFrames(false) // REMIX's frames: the two Ls as made
     const k = usePlay.getState().key
     inst?.setKey(k.root, k.scale)
     setKeyFrame(false)
@@ -232,9 +339,9 @@ export function startPlayHands(): () => void {
   let pluckAt = -Infinity
   let litAt = 0
   let held: Record<string, string | null> = { left: null, right: null }
-  let wasLatched = cameraSignals().frame.latched
   setPlayNotes((hand) => inst?.currentNote(hand).name ?? null) // S3's label at each index fingertip
   setPlayBeat(() => inst?.beatClock() ?? null) // the plucks' tempo: the frame loop's 4 beats (S3's picture)
+  let palms = cameraSignals().play.palms // from the count now: only new palms vary it
   const offRelease = onRelease((ev) => inst?.release(ev)) // a held note lets go when its finger does (S1, S2)
   const offPluck = onPluck((ev) => {
     if (!inst) return
@@ -267,16 +374,38 @@ export function startPlayHands(): () => void {
       held = { ...held, [hand]: id }
     }
     inst.twist(p.twist)
-    // S1's latch is the frame's (on with a frame, off with the next): a press toggles S2's loop, on its flips only
-    const latched = cameraSignals().frame.latched
-    if (latched !== wasLatched) {
-      wasLatched = latched
-      if (latched !== inst.frozen) {
-        inst.frame(true)
-        inst.frame(false)
-      }
+    // LOOP (2.1 Melody mode): the hands shape the melody (nothing while it's OFF); S1's open palm held, when it comes
+    inst.loopHands({
+      right: p.height.right,
+      left: p.height.left,
+      spread: p.spread,
+      fist: p.shapes.left?.shape === 'fist' || p.shapes.right?.shape === 'fist',
+    }) // each palm's own height (left-handed too), null unseen
+    if (p.palms !== palms) {
+      palms = p.palms
+      inst.palm()
     }
-    // the frame's style (S3's, a pinch cycles it) and its flip side are its loop's audio effect (S2)
+    const ls = inst.loopState() // S3's ring and S4's strip (playFeed.loop): set while LOOP plays, null otherwise
+    const sounding = ls?.notes[ls.step]
+    const loop = ls && {
+      notes: ls.notes.map((n) => n.midi),
+      playing: sounding && ls.pos >= sounding.start && ls.pos < sounding.start + sounding.length ? ls.step : null,
+      phase: ls.barPhase,
+      beat: ls.beat % 4,
+      beats: 4,
+      bar: Math.floor(ls.pos / 16),
+      bars: 2, // the strip: (bar + phase) / bars
+      brightness: ls.brightness,
+      register: Math.max(-1, Math.min(1, ls.register)) as -1 | 0 | 1,
+      space: ls.space,
+      dropped: ls.dropped,
+    }
+    playFeed.loop = loop
+    // the frame (2.1, FRAMES_SIMPLE): held, it loops; its size against its size when made is the effect's amount
+    const fr = cameraSignals().frame as { formed: boolean; amount?: number }
+    inst.frame(fr.formed)
+    inst.setFrameAmount(fr.amount ?? 0.5)
+    // the frame's style (S3's, the next with each new frame) and its flip side are its loop's audio effect (S2)
     const g = glassSignal()
     inst.setFrameStyle(g.type, g.flipped)
     const flow = usePlay.getState().style === 'flow'
@@ -291,7 +420,7 @@ export function startPlayHands(): () => void {
     if (p.frame) moves.push('frame')
     // S3's PLAY strings: what the labels say (POINT UP / DOWN shift the octave while held)
     const shift = [held.left, held.right].reduce((n, id) => n + (id === 'point_up' ? 1 : id === 'point_down' ? -1 : 0), 0)
-    setPlayStrings({ style: inst.style, key: inst.key, octave: inst.octave, frozen: inst.frozen, shift })
+    setPlayStrings({ style: inst.style, key: inst.key, octave: inst.octave, frozen: inst.frozen, shift, sound: inst.sound })
     const was = usePlay.getState()
     if (inst.frozen !== was.frozen) usePlay.setState({ frozen: inst.frozen })
     if (!inst.frozen && keyFrame.on) setKeyFrame(false) // the hands let the loop go: the key's pane too
@@ -309,6 +438,7 @@ export function startPlayHands(): () => void {
       const same = (a: LadderNote[], b: LadderNote[]) => a.length === b.length && a.every((n, i) => n.midi === b[i]!.midi)
       if (!same(ladder, was.ladder)) usePlay.setState({ ladder })
       if (JSON.stringify(lit) !== JSON.stringify(was.lit)) usePlay.setState({ lit })
+      if (inst.melody.mode === 'loop' || was.melodyMode === 'loop') syncLoop(inst)
     }
   }
   raf = requestAnimationFrame(tick)
@@ -320,16 +450,18 @@ export function startPlayHands(): () => void {
     setFlowLine(null)
     setPlayNotes(null)
     setPlayBeat(null)
+    playFeed.loop = null
   }
 }
 
-/** RECORD in PLAY: a WAV take of the instrument, "FoxBox take 3 - 808 - C#m.wav". */
+/** RECORD in PLAY: a WAV take of the instrument, "FoxBox take 3 - 808 - C#m.wav" (and its .mid, Record MIDI on). */
 export async function togglePlayTake(): Promise<void> {
   const i = await playInstrument()
   if (useTakes.getState().t0 == null) {
     const s = usePlay.getState()
     const label = SOUNDS.find((x) => x.id === s.sound)!.label
-    return startTake(i.output.context, i.output, ` - ${label} - ${keyShort(s.key)}`)
+    const bpm = useMidiPrefs.getState().recordMidi ? () => i.beatClock()?.bpm ?? 120 : undefined
+    return startTake(i.output.context, i.output, ` - ${label} - ${keyShort(s.key)}`, bpm)
   }
   await finishTake()
 }

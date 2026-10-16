@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { handShapes, type HandShapes } from '@/components/camera/camMath'
 import {
-  BEAT_SNAP_MS, CALM_MS, CENTRE_CORNERS, createGlass, FLIP_MS, FLIP_SIDE, EXIT_HOLD_MS, FRAME_TIMING, fitGlass, GLASS_TYPES, glassSignal, LOOP_MAX_MS, loopClock, loopTime, loopWindow,
+  BEAT_SNAP_MS, CALM_MS, CENTRE_CORNERS, clearGlassSignal, createGlass, FLIP_MS, FLIP_SIDE, EXIT_HOLD_MS, FRAME_TIMING, fitGlass, GLASS_TYPES, glassSignal, keyFrame, nextGlassName, nextGlassStyle, nextGlassType, resetGlassOrder, LOOP_MAX_MS, loopClock, loopTime, loopWindow,
   ONE_L, oneLCorners, quadOf, rectCorners, RESTYLE_MS, type FrameCorners, type GlassQuad,
 } from '@/components/strings/glass'
 import { invert3, squareToQuad } from '@/components/strings/glassPass'
@@ -18,6 +18,11 @@ function run(g: ReturnType<typeof createGlass>, t0: number, ms: number, held: bo
   for (let t = t0 + 16; t <= t0 + ms; t += 16) f = g.update(t, held, held ? CORNERS : null)
   return f
 }
+
+beforeEach(() => {
+  resetGlassOrder()
+  clearGlassSignal()
+})
 
 describe('the FRAME: GLASS forms, holds and shatters', () => {
   it('a lit edge draws itself round the frame (0.45 s), the world blooming in from 0.35 s (0.7 s), one soft flash as it closes', () => {
@@ -192,7 +197,8 @@ describe('the FRAME: turned over, the flip side', () => {
     run(h, 0, 300, true)
     h.update(320, true, CORNERS, { turned: true })
     run(h, 336, EXIT_HOLD_MS + SHATTER + 200, false)
-    expect(h.update(2000, true, CORNERS, { turned: false })).toMatchObject({ flipped: false, type: 'prism' })
+    // the frames' order is shared (one sequence across the stage's panes): g's took ECHO, h's PRISM, so HALFTONE
+    expect(h.update(2000, true, CORNERS, { turned: false })).toMatchObject({ flipped: false, type: 'halftone' })
   })
 })
 
@@ -258,5 +264,54 @@ describe('ONE-HANDED: the one-L frame', () => {
       expect(p2.y - p0.y).toBeGreaterThanOrEqual(ONE_L.min - 1e-9)
       for (const v of [p0.x, p0.y, p2.x, p2.y]) expect(v >= ONE_L.margin - 1e-9 && v <= 1 - ONE_L.margin + 1e-9).toBe(true)
     }
+  })
+})
+
+describe('the next frame (S4\'s toast) and P', () => {
+  it('a new frame opens with nextGlassType(), and it moves on past what that frame shows', () => {
+    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    expect(nextGlassType()).toBe('echo')
+    expect(nextGlassName()).toBe('ECHO TRAIL')
+    expect(g.update(0, true, CENTRE_CORNERS).type).toBe('echo')
+    expect(nextGlassType()).toBe('prism')
+    g.update(100, true, CENTRE_CORNERS, { cycles: 0 })
+    g.update(200, true, CENTRE_CORNERS, { cycles: 1 }) // a pinch restyles it to PRISM
+    expect(nextGlassType()).toBe('halftone')
+    g.update(300, false, CENTRE_CORNERS)
+    expect(g.update(1000, true, CENTRE_CORNERS).type).toBe('halftone')
+  })
+  it('P with no pane moves the next frame on; with one it restyles it (the cycles the glass reads)', () => {
+    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    nextGlassStyle()
+    nextGlassStyle()
+    expect(nextGlassType()).toBe('halftone')
+    g.update(0, true, CENTRE_CORNERS, { cycles: keyFrame.cycles })
+    const before = keyFrame.cycles
+    nextGlassStyle()
+    expect(keyFrame.cycles).toBe(before + 1)
+    expect(g.update(100, true, CENTRE_CORNERS, { cycles: keyFrame.cycles }).type).toBe('kaleido')
+  })
+})
+
+describe('FRAMES_SIMPLE: the amount', () => {
+  it('passes S1\'s amount (clamped) to the pane and the signal while it shows; null without one or once let go', () => {
+    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    expect(g.update(0, true, CENTRE_CORNERS, { amount: 0.5 }).amount).toBe(0.5)
+    expect(g.update(100, true, CENTRE_CORNERS, { amount: 1.4 }).amount).toBe(1)
+    expect(glassSignal().amount).toBe(1)
+    expect(g.update(200, true, CENTRE_CORNERS).amount).toBeNull()
+    g.update(300, false, CENTRE_CORNERS, { amount: 0.7 })
+    expect(glassSignal().amount).toBeNull()
+  })
+})
+
+describe('the effect\'s big name (big text or no text)', () => {
+  it('styleAge counts from the pane forming, and starts again on a restyle and on a flip', () => {
+    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    expect(g.update(0, true, CENTRE_CORNERS, { cycles: 0, turned: false }).styleAge).toBe(0)
+    expect(g.update(2000, true, CENTRE_CORNERS, { cycles: 0, turned: false }).styleAge).toBe(2)
+    expect(g.update(2500, true, CENTRE_CORNERS, { cycles: 1, turned: false }).styleAge).toBe(0) // a restyle (P, a pinch)
+    expect(g.update(3000, true, CENTRE_CORNERS, { cycles: 1, turned: false }).styleAge).toBe(0.5)
+    expect(g.update(3600, true, CENTRE_CORNERS, { cycles: 1, turned: true }).styleAge).toBe(0) // turned over
   })
 })

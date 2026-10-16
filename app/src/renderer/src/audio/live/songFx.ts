@@ -79,10 +79,12 @@ export interface SongFxParams {
   crack: number
   /** The FRAME (the frame worklet): on at 0.5 the song's last 4 beats loop (slip: letting go lands where the song is
    *  now), through `frameStyle` (frameLoop.ts: 1 ECHO TRAIL … 12 ICE; a change while it shows lands on the beat);
-   *  `frameFlip` (on at 0.5: the frame turned over) plays it backwards. */
+   *  `frameFlip` (on at 0.5: the frame turned over) plays it backwards; `frameAmount` (2.1: the frame's size against
+   *  its size when made, 0.5 as made) its style's depth, less closer, more wider. */
   frame: number
   frameStyle: number
   frameFlip: number
+  frameAmount: number
   /** ECHO OUT: the dry song dipped under the echo (0 … 0.95; the echo's send and time are `echo` / `echoBeats`). */
   echoOut: number
   /** LOOP 1 BAR (on at 0.5): the frame's loop, quiet (no lock, no break), no style; a frame takes it over. */
@@ -112,7 +114,7 @@ export const NEUTRAL: SongFxParams = Object.freeze({
   filter: 0, resonance: 0, echo: 0, echoBeats: 0.75, stutter: 0, stutterDiv: 8, tape: 0, crush: 0, wash: 0, pan: 0,
   drums: 1, bass: 1, vocals: 1, other: 1, wobble: 0, wobbleDepth: 0, wobbleRate: 2, growl: 0, vowel: 0.5, tear: 0, gate: 0, gateRate: 3,
   pump: 0, subdrop: 0, bassSemi: 0, vibrato: 0, world: 0, worldWet: 0, worldTilt: 0, halftime: 0, buildroll: 0, octave: 0, rewind: 0,
-  reverse: 0, brake: 0, glass: 0, crack: 0, frame: 0, frameStyle: 0, frameFlip: 0, echoOut: 0, loopBar: 0, iso: 0, cutSub: 0, cutLow: 0, cutMid: 0, cutHiMid: 0, cutHigh: 0,
+  reverse: 0, brake: 0, glass: 0, crack: 0, frame: 0, frameStyle: 0, frameFlip: 0, frameAmount: 0.5, echoOut: 0, loopBar: 0, iso: 0, cutSub: 0, cutLow: 0, cutMid: 0, cutHiMid: 0, cutHigh: 0,
 })
 
 /** A stem's lowpass for its level: open (20 kHz) at 1, closing exponentially to 250 Hz at 0, so a fading stem dulls. */
@@ -331,7 +333,7 @@ export class SongFx {
     p.wash = clamp(p.wash, 0, 1)
     p.pan = clamp(p.pan, -1, 1)
     for (const name of STEMS) p[name] = clamp(p[name], 0, 1)
-    for (const name of [...STEM_FX, ...MOVES, ...CUTS, 'iso', 'glass', 'crack', 'frame', 'frameStyle', 'frameFlip', 'echoOut', 'loopBar'] as const) p[name] = clamp(p[name], ...(RANGE[name] ?? [0, 1]))
+    for (const name of [...STEM_FX, ...MOVES, ...CUTS, 'iso', 'glass', 'crack', 'frame', 'frameStyle', 'frameFlip', 'frameAmount', 'echoOut', 'loopBar'] as const) p[name] = clamp(p[name], ...(RANGE[name] ?? [0, 1]))
     const t = this.ctx.currentTime
     const ramp = (a: AudioParam, v: number, tau = TAU_S) => a.setTargetAtTime(v, t, tau)
     ramp(this.input.gain, (this.enabled && p.iso >= 0.5 ? STRINGS_TRIM : 1) * faderGain(this.board.mvol!), 0.05) // and the Board's Volume
@@ -385,6 +387,7 @@ export class SongFx {
     ramp(this.frameLoop.parameters.get('quiet')!, barLoop ? 1 : 0, 0.005)
     ramp(this.frameLoop.parameters.get('style')!, framed ? Math.round(p.frameStyle) : 0, 0.005) // the worklet rounds it; a change waits for the beat
     ramp(this.frameLoop.parameters.get('flip')!, framed && p.frameFlip >= 0.5 ? 1 : 0, 0.005)
+    ramp(this.frameLoop.parameters.get('amount')!, p.frameAmount, 0.005) // the worklet smooths it (50 ms)
     const bands = this.bandsMoved()
     ramp(this.iso.parameters.get('iso')!, (this.enabled && p.iso >= 0.5) || bands ? 1 : 0, 0.005) // the Board's bands need it too
     CUTS.forEach((name, i) => ramp(this.iso.parameters.get(name)!, Math.max(this.enabled ? p[name] : 0, this.bandCut[i] ? 1 : 0), 0.005))

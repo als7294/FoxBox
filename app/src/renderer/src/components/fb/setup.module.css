@@ -1,0 +1,112 @@
+/* 2.1 first-run setup: the first screen after the launch, one glass card in the 2.0 style. Cross-fades only. */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 5, 3, 0.6);
+  backdrop-filter: blur(26px) saturate(1.4);
+  font-family: var(--fb-font);
+  color: var(--fb-ink);
+}
+.card {
+  width: min(620px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 30px 36px 28px;
+  border-radius: 32px;
+  background: var(--fb-glass);
+  box-shadow: var(--fb-shadow-pop);
+  animation: setupIn 0.35s ease-out both;
+}
+@keyframes setupIn {
+  from {
+    opacity: 0;
+  }
+}
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+.dots {
+  display: flex;
+  gap: 8px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+.dot[data-on] {
+  background: var(--fb-accent);
+}
+.skip {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fb-ink-2);
+}
+.skip:hover {
+  color: var(--fb-ink);
+}
+.title {
+  margin: 0;
+  font: 700 40px/1.1 var(--fb-font);
+  letter-spacing: -0.02em;
+}
+.line {
+  margin: 10px 0 0;
+  font-size: 16px;
+  color: var(--fb-ink-2);
+}
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 26px;
+}
+.choice {
+  min-height: 64px;
+  padding: 0 20px;
+  word-break: keep-all; /* a wrapped label breaks between words, never inside one (日本語) */
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fb-ink);
+  font: 700 20px var(--fb-font);
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.choice:hover,
+.choice:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+}
+.choice[aria-checked='true'] {
+  box-shadow: inset 0 0 0 2px var(--fb-accent);
+}
+.foot {
+  margin: 22px 0 0;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--fb-ink-2);
+}
+/* How you play: one choice per row, its name over a line that says how it feels */
+.choices[data-stack] {
+  grid-template-columns: 1fr;
+}
+.choices[data-stack] .choice {
+  display: grid;
+  gap: 4px;
+  padding: 14px 22px;
+  text-align: left;
+}
+.choiceName {
+  font: 700 20px var(--fb-font);
+  letter-spacing: 0.04em;
+}
+.choiceSub {
+  font: 500 16px/1.35 var(--fb-font);
+  color: var(--fb-ink-2);
+}

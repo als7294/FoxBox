@@ -5,6 +5,8 @@ import { guide, useGuide } from '@/components/guide/guideStore'
 import { stopRecording, useProdRec } from '@/components/prod/prodActions'
 import { finishTake, useTakes } from '@/components/stage/takes'
 import { useUi, type Mode } from '@/state/ui'
+import { t } from '@/i18n'
+import { keys as platformKeys } from '@/lib/platform'
 
 export function switchMode(mode: Mode): void {
   const ui = useUi.getState()
@@ -54,24 +56,25 @@ export function ModeSwitch() {
   )
 }
 
-const KEYS: [string, string][] = [
+/** Built at render time, in the language in use. */
+const keys = (): [string, string][] => [
   ['M', 'SAUCE ⇄ REMIX'],
   ['G', 'GUIDE'],
-  ['R', 'Record, or stop and save'],
-  ['Space', 'Play / pause (REMIX)'],
-  ['L', 'The library wheel (REMIX); the shaka 🤙 too'],
-  ['F', 'Frame: loop the last 4 beats (SAUCE), hold GLASS (REMIX); again to let go'],
-  ['P', "The frame's next style"],
-  ['V', 'Next visual'],
-  ['B', 'The Board'],
-  ['← / →', 'Previous / next section (REMIX); Back / Next in the GUIDE'],
-  ['1–7', 'Sounds (SAUCE): 808, REESE, GROWL, WOBBLE, PLUCK, LEAD, KEYS'],
-  ['↑ / ↓', 'Octave (SAUCE)'],
-  ['S', 'PLUCK ⇄ FLOW'],
-  ['D', '🎲 A new melody (SAUCE)'],
-  ['⌘,', 'Settings'],
-  ['?', 'Shortcuts'],
-  ['Esc', 'Close the GUIDE, the settings, the library wheel or this panel'],
+  ['R', t('keys.record', 'Record, or stop and save')],
+  ['Space', t('keys.play', 'Play / pause (REMIX)')],
+  ['L', t('keys.wheel', 'The library wheel (REMIX); the shaka 🤙 too')],
+  ['F', t('keys.frame', 'Frame on / off')],
+  ['P', t('keys.nextFrame', 'The next frame effect')],
+  ['V', t('keys.visual', 'Next visual')],
+  ['B', t('keys.board', 'The Board')],
+  ['← / →', t('keys.sections', 'Previous / next section (REMIX); Back / Next in the GUIDE')],
+  ['1–7', t('keys.sounds', 'Sounds (SAUCE): {list}', { list: '808, REESE, GROWL, WOBBLE, PLUCK, LEAD, KEYS' })],
+  ['↑ / ↓', t('keys.octave', 'Octave (SAUCE)')],
+  ['S', t('keys.style', 'Play style: PLUCK → FLOW → LOOP')],
+  ['D', t('keys.roll', '🎲 A new melody (SAUCE)')],
+  [platformKeys('⌘,'), t('keys.settings', 'Settings')],
+  ['?', t('keys.shortcuts', 'Shortcuts')],
+  ['Esc', t('keys.esc', 'Close the GUIDE, the settings, the library wheel or this panel')],
 ]
 
 /** The ? panel: the shortcuts and the GUIDE (inline, not a modal). */
@@ -82,7 +85,7 @@ export function ShortcutsPanel() {
   if (!open) return null
   return (
     <aside
-      aria-label="Shortcuts"
+      aria-label={t('keys.shortcuts', 'Shortcuts')}
       style={{
         position: 'fixed',
         right: 12,
@@ -96,7 +99,7 @@ export function ShortcutsPanel() {
     >
       <table>
         <tbody>
-          {KEYS.map(([k, what]) => (
+          {keys().map(([k, what]) => (
             <tr key={k}>
               <th scope="row">
                 <kbd>{k}</kbd>
@@ -107,15 +110,15 @@ export function ShortcutsPanel() {
         </tbody>
       </table>
       <button type="button" onClick={() => guide.open(mode, 0)}>
-        GUIDE: {mode.toUpperCase()}
+        GUIDE: {mode === 'play' ? 'SAUCE' : 'REMIX'}
       </button>
       {resume != null && resume > 0 && (
         <button type="button" onClick={() => guide.open(mode, resume)}>
-          Continue from step {resume + 1}
+          {t('keys.resume', 'Continue from step {n}', { n: resume + 1 })}
         </button>
       )}
       <button type="button" onClick={() => useUi.getState().setShortcutsOpen(false)}>
-        Close
+        {t('common.close', 'Close')}
       </button>
     </aside>
   )

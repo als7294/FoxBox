@@ -277,13 +277,24 @@ describe("PLAY's gestures", () => {
     }
   })
 
-  it('pluck sensitivity: a slow fold 0.4 past its rest plucks on MEDIUM and HIGH, not on LOW', () => {
+  it("an open palm (fingers straight and spread) held 0.5 s counts once (Melody's LOOP: a variation), again after it closes; a C never", () => {
+    const { step } = session()
+    for (let i = 0; i < 20; i++) expect(step(C, C).palms).toBe(0)
+    for (let i = 0; i < 10; i++) expect(step(OPEN, C).palms).toBe(0) // open 360 ms
+    expect(step(OPEN, C, { dt: 160 }).palms).toBe(1) // 520 ms
+    for (let i = 0; i < 30; i++) expect(step(OPEN, C).palms).toBe(1) // held on: once
+    step(C, C, { dt: 120 })
+    for (let i = 0; i < 15; i++) step(OPEN, C)
+    expect(step(OPEN, C).palms).toBe(2)
+  })
+
+  it('pluck sensitivity: a slow fold 0.3 past its rest plucks on MEDIUM and HIGH, not on LOW', () => {
     const got = (sens: 'low' | 'medium' | 'high') => {
       usePlayPrefs.getState().setSensitivity(sens)
       const { step, plucks } = session()
       for (let i = 0; i < 5; i++) step(OPEN, OPEN)
-      for (let c = 0.1; c <= 0.401; c += 0.1) step([0, F(c), 0, 0, 0], OPEN) // 2.5 a second: no early fire
-      for (let i = 0; i < 3; i++) step([0, F(0.4), 0, 0, 0], OPEN)
+      for (let c = 0.1; c <= 0.301; c += 0.1) step([0, F(c), 0, 0, 0], OPEN) // 2.5 a second: no early fire
+      for (let i = 0; i < 3; i++) step([0, F(0.3), 0, 0, 0], OPEN)
       return plucks.length
     }
     try {
@@ -408,8 +419,8 @@ describe("PLAY's gestures", () => {
   })
 
   describe('one-handed (2.0.1)', () => {
-    const on = (patch: Partial<ReturnType<typeof usePlayPrefs.getState>> = {}) => usePlayPrefs.setState({ oneHanded: true, ...patch })
-    const off = () => usePlayPrefs.setState({ oneHanded: false, leftHanded: false, reach: null })
+    const on = (patch: Partial<ReturnType<typeof usePlayPrefs.getState>> = {}) => usePlayPrefs.setState({ controlStyle: 'one', ...patch })
+    const off = () => usePlayPrefs.setState({ controlStyle: 'curl', leftHanded: false, reach: null })
 
     it('with two in view the right hand plays (the left, left-handed); the other plucks nothing and has no shape', () => {
       on()
@@ -494,5 +505,64 @@ describe("PLAY's gestures", () => {
         off()
       }
     })
+  })
+
+  describe('PALM style (2.1): a quick strike down of the open hand plays its note', () => {
+    /** The right hand open at `y` (its wrist), the left resting open: a result every 40 ms down `steps` (picture/result). */
+    const run = (step: ReturnType<typeof session>['step'], from: number, steps: number[], rx = 0.3) => {
+      let y = from
+      let s = step(OPEN, OPEN, { ry: y, rx })
+      for (const d of steps) s = step(OPEN, OPEN, { ry: (y += d), rx })
+      return { s, y }
+    }
+    const palm = <T,>(fn: () => T): T => {
+      usePlayPrefs.setState({ controlStyle: 'palm' })
+      try {
+        return fn()
+      } finally {
+        usePlayPrefs.setState({ controlStyle: 'curl' })
+      }
+    }
+
+    it('a tap (down fast, then a stop) plucks once, its note the height it began at; held there; pulled back, let go; its rebound no second', () =>
+      palm(() => {
+        const { step, plucks, releases } = session()
+        let { s, y } = run(step, 0.45, Array(10).fill(0))
+        const before = s.height.right!
+        ;({ s, y } = run(step, y, [0.02, 0.04, 0.05, 0.05, 0.004, 0])) // ~7 palms a second, then the hit
+        expect(plucks).toHaveLength(1)
+        expect(plucks[0]!.height).toBeCloseTo(before, 1)
+        expect(plucks[0]!.velocity).toBeGreaterThan(0.4)
+        ;({ s, y } = run(step, y, Array(10).fill(0))) // held
+        expect(releases).toHaveLength(0)
+        ;({ s, y } = run(step, y, [-0.03, -0.03, -0.03, 0.02, 0.02, 0.01, 0, 0])) // pulled back, and the rebound settling
+        expect(releases).toHaveLength(1)
+        expect(plucks).toHaveLength(1)
+      }))
+
+    it('a harder strike is louder', () =>
+      palm(() => {
+        const vel = (d: number) => {
+          const { step, plucks } = session()
+          const { y } = run(step, 0.4, Array(10).fill(0))
+          run(step, y, [d / 2, d, d, 0.003, 0])
+          return plucks[0]?.velocity ?? 0
+        }
+        expect(vel(0.07)).toBeGreaterThan(vel(0.04))
+      }))
+
+    it('never: a quick glide down that slows gradually (no stop), a slow move, a wave, a finger folding, a jump after a stall', () =>
+      palm(() => {
+        const { step, plucks } = session()
+        let { y } = run(step, 0.35, Array(10).fill(0))
+        ;({ y } = run(step, y, [0.02, 0.04, 0.05, 0.05, 0.04, 0.03, 0.02, 0.01, 0, 0])) // the glide
+        ;({ y } = run(step, y, Array(8).fill(-0.012))) // slowly back up (1.7 palms a second)
+        ;({ y } = run(step, y, Array(8).fill(0.012))) // and down
+        for (let i = 0; i < 12; i++) step(OPEN, OPEN, { ry: y + (i % 2 ? 0.01 : 0), rx: 0.3 + (i % 2 ? 0.06 : -0.06) }) // a wave
+        for (let i = 0; i < 8; i++) step(i % 4 < 2 ? OPEN : [0, F(1), 0, 0, 0], OPEN, { ry: y }) // the index folding
+        step(OPEN, OPEN, { ry: y + 0.15, dt: 300 }) // a stall, the hands re-found lower (the camera looping, a glitch)
+        for (let i = 0; i < 6; i++) step(OPEN, OPEN, { ry: y + 0.15 })
+        expect(plucks).toHaveLength(0)
+      }))
   })
 })

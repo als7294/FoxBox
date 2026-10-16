@@ -36,7 +36,8 @@ export default defineConfig({
     // The MSW mocks serve the repo's fixture WAVs from ../fixtures.
     server: { fs: { allow: [resolve(__dirname, '..')] } },
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } },
+      // 2.1: the boot splash's page (main/splash.ts)
+      rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html'), splash: resolve(__dirname, 'src/renderer/splash.html') } },
     },
   },
 })

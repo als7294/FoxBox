@@ -16,7 +16,7 @@ describe("the GUIDE's hand animations", () => {
       set: (t, k, v) => ((t[k as string] = v), true),
     }) as unknown as CanvasRenderingContext2D
     const stack: number[] = []
-    expect(GUIDE_MOVES.length).toBe(19)
+    expect(GUIDE_MOVES.length).toBe(20)
     for (const hands of [2, 1] as const) { // and ONE-HANDED's
       for (const m of GUIDE_MOVES) {
         for (const t of [0, 0.7, 1.9, 3.3, 3.7, 4.9, null]) {

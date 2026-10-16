@@ -2,6 +2,7 @@
 // camera alert under it, and the mode's overlays (`children`) on top. The mode on screen owns the picture: RECORD films
 // it and SEND TO OUTPUT shows it; the hidden mode's stage isn't mounted (the camera base parks and the shown one adopts it).
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { t } from '@/i18n'
 import { create } from 'zustand'
 import { cameraAlert } from '@/components/camera/cameraAlert'
 import { CLIP_SIZE, type ClipAspect } from '@/components/clips/liveCapture'
@@ -12,6 +13,8 @@ import { retryStringsCamera, useStrings } from '@/components/strings/stringsStor
 import { bridge } from '@/env'
 import { sendFrame, useOutputOwner } from '@/visuals/live/output'
 import styles from '@/components/prod/page.module.css'
+import { computer } from '@/lib/platform'
+import { isWindows } from '@/env'
 
 /** The picture fitted to the format inside `box` (14px padding), measured. */
 export function useFrameFit(box: RefObject<HTMLDivElement | null>, aspect: ClipAspect): { w: number; h: number } {
@@ -50,15 +53,15 @@ function CameraAsk() {
   return (
     <div
       role="group"
-      aria-label="Camera"
+      aria-label={t('camera.aria', 'Camera')}
       style={{ position: 'absolute', inset: 0, display: 'grid', placeContent: 'center', gap: 8, textAlign: 'center' }}
     >
-      <b>Play with your hands</b>
-      <span>FoxBox needs the camera to see them. Nothing leaves this Mac.</span>
+      <b>{t('camera.ask.title', 'Play with your hands')}</b>
+      <span>{t('camera.ask.text', 'FoxBox needs the camera to see them. Nothing leaves {computer}.', { computer: computer() })}</span>
       <button type="button" onClick={() => useCameraGate.setState({ on: true })}>
-        Turn on the camera
+        {t('camera.ask.button', 'Turn on the camera')}
       </button>
-      <span>macOS asks once. You can change it later in Settings.</span>
+      <span>{isWindows() ? t('camera.ask.note.win', 'You can change it later in Windows Settings → Privacy & security → Camera.') : t('camera.ask.note', 'macOS asks once. You can change it later in Settings.')}</span>
     </div>
   )
 }
@@ -116,15 +119,15 @@ export function CameraStage({
         <div role="alert" className={styles.camAlert}>
           <span aria-hidden="true">▲</span>
           <span className={styles.camText}>
-            <b>{alert.title}</b> {alert.text} FoxBox plays from your hands, so it needs the camera.
+            <b>{alert.title}</b> {alert.text}
           </span>
           {alert.settings && (
             <button type="button" className={styles.camRetry} onClick={() => void bridge()?.openCameraSettings()}>
-              Open camera settings
+              {t('camera.openSettings', 'Open camera settings')}
             </button>
           )}
           <button type="button" className={styles.camRetry} onClick={retryStringsCamera}>
-            Try again
+            {t('camera.retry', 'Try again')}
           </button>
         </div>
       )}
