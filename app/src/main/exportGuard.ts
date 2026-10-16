@@ -42,7 +42,8 @@ function isFinishedBatch(o: Obj): o is Obj & { message: string } {
   return o.kind === 'batch' && o.state === 'done' && typeof o.message === 'string'
 }
 
-const XML_IN_MESSAGE = /\/[^\0\n"'<>|]+?\.xml\b/g
+// A POSIX path or a Windows one (C:\…); asPath keeps only what's absolute on this platform
+const XML_IN_MESSAGE = /(?:[A-Za-z]:[\\/]|\/)[^\0\n"'<>|]+?\.xml\b/g
 
 function asPath(candidate: unknown): string | null {
   if (typeof candidate !== 'string') return null

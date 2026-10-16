@@ -466,7 +466,8 @@ describe('Updater', () => {
     expect(new Updater({ currentVersion: '0.1.0', userData, packaged: true, appBundle }).getState().error).toBeNull()
   })
 
-  it('says clearly when it cannot replace itself, and keeps running', async () => {
+  // chmod can't make a folder read-only on Windows, and the Mac updater isn't used there (W1: electron-updater)
+  it.skipIf(process.platform === 'win32')('says clearly when it cannot replace itself, and keeps running', async () => {
     const apps = temp()
     const appBundle = fakeApp(join(apps, 'FoxBox.app'), '0.1.0')
     chmodSync(apps, 0o555)

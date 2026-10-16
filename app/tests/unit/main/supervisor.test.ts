@@ -109,7 +109,8 @@ describe('EngineSupervisor', () => {
     expect(sup.url).toBe('')
   })
 
-  it('kills the engine on stop, escalating to SIGKILL when SIGTERM is ignored', async () => {
+  // POSIX signals: Windows ends a process at once (TerminateProcess), and W1 runs no engine there
+  it.skipIf(process.platform === 'win32')('kills the engine on stop, escalating to SIGKILL when SIGTERM is ignored', async () => {
     const { sup } = make({ FAKE_ENGINE_IGNORE_TERM: '1' })
     await sup.start()
     await sup.waitUntilReady(5_000)
@@ -226,7 +227,8 @@ describe('EngineSupervisor', () => {
     expect(alive(pid)).toBe(false)
   })
 
-  it('kills an engine left over from a crashed previous run', async () => {
+  // the stale-engine check is ps (POSIX); Windows needs tasklist when REMIX comes there
+  it.skipIf(process.platform === 'win32')('kills an engine left over from a crashed previous run', async () => {
     const { sup, dir } = make()
     const dataDir = join(dir, 'data')
     const stale = spawn(process.execPath, [FAKE, '--port', '0', '--token', 'x', '--data-dir', dataDir], {
