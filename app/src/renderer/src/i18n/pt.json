@@ -91,6 +91,7 @@
   "coach.dark": "Difícil ver suas mãos · Mais luz nas mãos ou chegue mais perto",
   "coach.light": "Falta um pouco de luz para as molduras",
   "coach.otherHand": "Levante a outra mão",
+  "coach.noGraphics": "Os gráficos deste computador não conseguem rodar o rastreamento das mãos · Atualize o driver de vídeo",
   "common.cancel": "Cancelar",
   "common.close": "Fechar",
   "common.dismiss": "Fechar",

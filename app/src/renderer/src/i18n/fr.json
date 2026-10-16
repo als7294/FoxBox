@@ -91,6 +91,7 @@
   "coach.dark": "On voit mal tes mains · Plus de lumière sur tes mains, ou approche-toi",
   "coach.light": "Les cadres demandent un peu plus de lumière",
   "coach.otherHand": "Lève ton autre main",
+  "coach.noGraphics": "La carte graphique de cet ordinateur ne peut pas faire tourner le suivi des mains · Mets à jour son pilote graphique",
   "common.cancel": "Annuler",
   "common.close": "Fermer",
   "common.dismiss": "Ignorer",

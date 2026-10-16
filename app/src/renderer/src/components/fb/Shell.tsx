@@ -6,6 +6,7 @@ import { beatFxNow, REMIX_ACTIONS } from '@/audio/live/beatFx'
 import { setPageSound, STRINGS_SOUND } from '@/audio/live/soundMap'
 import { setStemsGate } from '@/audio/live/songDeck'
 import { cameraSignals } from '@/components/camera/smartCamera'
+import { cameraTracker } from '@/components/camera/smartCameraBase'
 import { CLIP_SIZE } from '@/components/clips/liveCapture'
 import { useGuide } from '@/components/guide/guideStore'
 import { usePlayKeys } from '@/components/play/PlayPage'
@@ -132,6 +133,9 @@ function SauceCoach() {
   const pop = useFb((f) => f.pop)
   const guiding = useGuide((g) => g.open) != null // the GUIDE says it
   useTick(true)
+  // No WebGL (no GPU, a blocklisted one): no hand will ever be found, so this says why, the GUIDE open or not.
+  if (cam === 'live' && cameraTracker()?.graphics === false)
+    return <Coach text={t('coach.noGraphics', "This computer's graphics can't run hand tracking · Update its graphics driver")} />
   if (cam !== 'live' || pop || guiding || performance.now() < lightHintUntil) return null // the stage asks for the camera first, or its alert says why not
   if (cameraSignals().tooDark) return <Coach small text={t('coach.dark', 'Hard to see your hands · More light on your hands, or step closer')} />
   const sh = cameraSignals().play.shapes

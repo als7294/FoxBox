@@ -91,6 +91,7 @@
   "coach.dark": "Cuesta ver tus manos · Más luz en tus manos, o acércate",
   "coach.light": "Los marcos necesitan un poco más de luz",
   "coach.otherHand": "Sube la otra mano",
+  "coach.noGraphics": "Los gráficos de este equipo no pueden ejecutar el seguimiento de manos · Actualiza el controlador de gráficos",
   "common.cancel": "Cancelar",
   "common.close": "Cerrar",
   "common.dismiss": "Cerrar",

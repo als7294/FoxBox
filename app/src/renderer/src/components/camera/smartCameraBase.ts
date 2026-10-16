@@ -51,8 +51,9 @@ export interface CameraTrack {
 }
 let track: CameraTrack | null = null
 export const cameraTrack = (): CameraTrack | null => track
-let tracker: (() => { delegates: Record<string, string>; gain: number }) | null = null
-/** The camera base's tracker (its models' delegates and dark-room gain), for STRINGS' diagnostics. */
+let tracker: (() => { delegates: Record<string, string>; gain: number; graphics: boolean }) | null = null
+/** The camera base's tracker (its models' delegates, dark-room gain and whether it has WebGL), for STRINGS' diagnostics
+ *  and SAUCE's coach. */
 export const cameraTracker = () => tracker?.() ?? null
 let delivered = 0
 /** Camera frames delivered so far (the rate it really runs at: a dim room's built-in camera drops toward 15). */

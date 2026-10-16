@@ -91,6 +91,7 @@
   "coach.dark": "Hände schwer erkennbar · Mehr Licht auf die Hände oder komm näher",
   "coach.light": "Rahmen brauchen etwas mehr Licht",
   "coach.otherHand": "Heb deine andere Hand",
+  "coach.noGraphics": "Die Grafik dieses Computers schafft das Hand-Tracking nicht · Aktualisiere den Grafiktreiber",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.dismiss": "Ausblenden",

@@ -1126,6 +1126,9 @@ async function startEngine(): Promise<void> {
 // renderer is paused (backgroundThrottling: false alone leaves macOS occlusion's paused frames).
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
+// Windows with no usable GPU (none, a blocklisted driver): WebGL in software, so hand tracking still runs (MediaPipe
+// needs WebGL even on its CPU delegate, and Chromium no longer falls back by itself). FoxBox only loads its own pages.
+if (process.platform === 'win32') app.commandLine.appendSwitch('enable-unsafe-swiftshader')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

@@ -175,7 +175,7 @@ export interface SmartCamera {
   seen(): Seen
   /** The tracker: each model's delegate (GPU, or CPU when the worker's WebGL2 failed) and its dark-room brightening
    *  (1 none, up to 2.2). For STRINGS' diagnostics. */
-  tracker(): { delegates: Record<string, string>; gain: number }
+  tracker(): { delegates: Record<string, string>; gain: number; graphics: boolean }
   dispose(): void
 }
 
@@ -944,7 +944,7 @@ export function createSmartCamera(): SmartCamera {
     recalibrate: () => calib.restart(),
     crop: () => lastCrop,
     seen: () => seen,
-    tracker: () => ({ delegates: vision.delegates, gain: vision.lightGain() }),
+    tracker: () => ({ delegates: vision.delegates, gain: vision.lightGain(), graphics: vision.graphics }),
     dispose() {
       alive = false
       vision.dispose()

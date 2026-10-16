@@ -91,6 +91,7 @@
   "coach.dark": "手が見えにくいです · 手元を明るくするか、もっと近づいてください",
   "coach.light": "フレームにはもう少し明るさが必要です",
   "coach.otherHand": "もう片方の手も上げてください",
+  "coach.noGraphics": "このパソコンのグラフィックスではハンドトラッキングを実行できません · グラフィックドライバーを更新してください",
   "common.cancel": "キャンセル",
   "common.close": "閉じる",
   "common.dismiss": "閉じる",

@@ -36,6 +36,16 @@ let last: Seen = { faces: [], hands: [], person: null, body: null }
 const delegates: Record<string, string> = {}
 /** The init's `cpu` (FVWKS_VISION_CPU=1): no GPU delegate at all. */
 let cpuOnly = false
+/** WebGL here: MediaPipe takes every frame in through it, even on the CPU delegate. Without it (no GPU, a blocklisted
+ *  one) the models load and no hand is ever found. */
+function hasGl(): boolean {
+  try {
+    const c = new OffscreenCanvas(1, 1)
+    return !!(c.getContext('webgl2') ?? c.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
 
 async function gpuThenCpu<T>(make: (delegate: 'GPU' | 'CPU') => Promise<T>, name = ''): Promise<T | null> {
   try {
@@ -286,7 +296,7 @@ self.onmessage = (e: MessageEvent) => {
   if (m.type === 'init') {
     cpuOnly = m.cpu === true
     void load(m.urls).then(() =>
-      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates }),
+      (self as unknown as Worker).postMessage({ type: 'ready', ready: { face: !!face, hands: !!hands, seg: !!seg, pose: !!pose }, delegates, gl: hasGl() }),
     )
     return
   }

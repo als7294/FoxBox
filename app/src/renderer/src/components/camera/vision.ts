@@ -203,6 +203,8 @@ export class Vision {
   private worker: Worker | null = null
   /** Each model's delegate once loaded ({ face: 'GPU', hands: 'CPU', ... }; a model that failed: none). */
   delegates: Record<string, string> = {}
+  /** False when the worker has no WebGL (no GPU, a blocklisted one): the hands will never be found, the coach says why. */
+  graphics = true
   private busy = true // until the models are loaded
   /** Each new hands result, as it arrives (before the next frame is drawn: PLAY's plucks). */
   onHands: ((seen: Seen) => void) | null = null
@@ -231,7 +233,8 @@ export class Vision {
           markBoot('tracking') // the boot splash's "Loading hand tracking"
           // Which delegate each model got (GPU, or CPU when the worker's WebGL2 failed): the tracking's speed hangs on it.
           this.delegates = (d as unknown as { delegates?: Record<string, string> }).delegates ?? {}
-          console.info('FoxBox camera models:', JSON.stringify(this.delegates))
+          this.graphics = (d as unknown as { gl?: boolean }).gl !== false
+          console.info('FoxBox camera models:', JSON.stringify(this.delegates), this.graphics ? '' : '(no WebGL: no hand tracking)')
         }
         if (d.type === 'face') {
           const f = fromCrop(d.seen, d.roi)
