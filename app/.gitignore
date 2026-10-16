@@ -11,3 +11,4 @@ playwright-report/
 
 # The credit's contact address (build-time injection; never committed)
 credit.local.json
+src/renderer/smoke-web/

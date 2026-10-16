@@ -2,8 +2,8 @@
 // the hand models on the CPU (CI runners have no GPU; --gpu leaves them their GPU). It passes when the hands are found
 // in 90% of the run and the plucks are right: within 1 of the clip's truth on the GPU; on the CPU, fewer results a second
 // miss some (14 of 16 on an M-series Mac), so at least half of them and never more than 1 extra. No timing gates.
-//   npx vite build --config vite.web.config.ts --outDir smoke-web
-//   npx electron scripts/tracking-smoke.cjs smoke-web tests/fixtures/hands-c-pose.mjpeg tests/fixtures/hands-c-pose.json
+//   npx vite build --config vite.web.config.ts --outDir smoke-web   (the config's root is src/renderer: it lands there)
+//   npx electron scripts/tracking-smoke.cjs src/renderer/smoke-web tests/fixtures/hands-c-pose.mjpeg tests/fixtures/hands-c-pose.json
 // It reads the SAUCE box's data-hands (hands seen) and data-pluck (each pluck). The fake camera loops the clip in real
 // time, so any LOOPS × its length of wall time holds exactly LOOPS × its plucks, whatever the clip's phase.
 const { app, BrowserWindow } = require('electron')
@@ -17,6 +17,10 @@ const gpu = process.argv.includes('--gpu')
 // --no-gpu: no hardware acceleration at all (a CI runner's), to reproduce its failures on a Mac
 if (process.argv.includes('--no-gpu')) app.disableHardwareAcceleration()
 const truth = JSON.parse(fs.readFileSync(truthFile, 'utf8'))
+if (!fs.existsSync(path.join(web, 'index.html'))) {
+  console.log(`tracking smoke: no web build at ${web} (index.html missing)`)
+  process.exit(1)
+}
 const LOOPS = 2 // counted over the clip twice round, from a second after the first hands
 const LAG_MS = 300 // a pluck sounds a little after its fold
 const LIMIT_MS = 180_000

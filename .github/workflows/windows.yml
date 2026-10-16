@@ -74,5 +74,6 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - run: npm ci --no-audit --no-fund
+      # vite.web.config.ts's root is src/renderer: a relative --outDir lands under it
       - run: npx vite build --config vite.web.config.ts --outDir smoke-web
-      - run: npx electron scripts/tracking-smoke.cjs smoke-web tests/fixtures/hands-c-pose.mjpeg tests/fixtures/hands-c-pose.json
+      - run: npx electron scripts/tracking-smoke.cjs src/renderer/smoke-web tests/fixtures/hands-c-pose.mjpeg tests/fixtures/hands-c-pose.json
