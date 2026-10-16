@@ -117,9 +117,10 @@ export const usePlay = create<PlayState>(() => ({
   lit: { left: null, right: null, next: null, allowed: [] },
 }))
 
-/** 2.1: SAUCE's play style as the user sees it: LOOP (Melody mode) or the instrument's PLUCK / FLOW. */
+/** 2.1: SAUCE's play style as the user sees it: LOOP (Melody mode) or the instrument's PLUCK / FLOW. 2.1.1: LOOP is its own
+ *  mode (MELODY, components/fb/modes.ts), so the style row and S are PLUCK · FLOW. */
 export type PlayMode = 'pluck' | 'flow' | 'loop'
-export const PLAY_MODES: readonly PlayMode[] = ['pluck', 'flow', 'loop']
+export const PLAY_MODES: readonly PlayMode[] = ['pluck', 'flow']
 export const playModeOf = (s: Pick<PlayState, 'melodyMode' | 'style'>): PlayMode => (s.melodyMode === 'loop' ? 'loop' : s.style)
 
 const TRAIL = 8

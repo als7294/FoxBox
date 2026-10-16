@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { handShapes, isAnL, isLPose, type HandShapes } from '@/components/camera/camMath'
-import { FrameGestures, frameQuad, palmFacing, setInwardFrames } from '@/components/camera/frameGestures'
+import { FrameGestures, frameQuad, lPoints, palmFacing, setInwardFrames } from '@/components/camera/frameGestures'
 import { FxShapes, rawShape } from '@/components/camera/fxShapes'
 import { PlayGestures } from '@/components/camera/playGestures'
 import { usePlayPrefs } from '@/components/camera/playPrefs'
@@ -215,23 +215,57 @@ describe('the FRAME', () => {
     expect(s.f.formedAt).toBeGreaterThan(was)
   })
 
-  it("Melody's LOOP: any inward frame (loose fingers, any rotation, either hand on top) forms in 0.15 s; facing out, never", () => {
-    const loose = [0, 0, 0, 0, 0] // thumb and index out, the other three anyhow
-    expect(session().step(frame(0, null, 0, 0, loose), 8).f.formed).toBe(false) // not two Ls: no frame outside LOOP
+  it("Melody's LOOP: two real Ls at any rotation, either hand on top, form in 0.15 s; open palms (thumbs out) or facing out, never", () => {
+    const palm = [0, 0, 0, 0, 0] // an open hand, its thumb out: thumb and index read as an L's (2.1.1, S3)
     setInwardFrames(true)
     try {
       for (const deg of [0, 45, 90, 180]) {
         const { step } = session()
-        expect(step(frame(deg, null, 0, 0, loose), 3).f.formed).toBe(false)
-        const s = step(frame(deg, null, 0, 0, loose), 3)
-        expect(s.f).toMatchObject({ formed: true, amount: 0.5 })
-        expect(step(frame(deg, null, 0, 0, [0.6, 0, 1, 1, 1]), 9).f.formed).toBe(false) // out of the L pose 0.32 s: let go
+        expect(step(frame(deg), 3).f.formed).toBe(false)
+        expect(step(frame(deg), 3).f).toMatchObject({ formed: true, amount: 0.5 })
+        expect(step(frame(deg, null, 0, 0, [0.6, 0, 1, 1, 1]), 9).f.formed).toBe(false) // out of the L 0.32 s: let go
+        expect(session().step(frame(deg, null, 0, 0, palm), 12).f.formed).toBe(false) // LOOP's own moves: open palms
       }
       // The same Ls swapped round, their openings facing away from each other: no frame.
-      const out = () => [hand3d(loose, 0.64, 0.28, ASPECT, { mirror: true, thumbSide: true }), hand3d(loose, 0.36, 0.72, ASPECT, { mirror: true, thumbSide: true, turn: 180 })]
+      const out = () => [hand3d(L, 0.64, 0.28, ASPECT, { mirror: true, thumbSide: true }), hand3d(L, 0.36, 0.72, ASPECT, { mirror: true, thumbSide: true, turn: 180 })]
       expect(session().step(out(), 10).f.formed).toBe(false)
     } finally {
       setInwardFrames(false)
+    }
+  })
+
+  it("the outline is the fingers' own (2.1.1): each L's index tip, thumb/index base and thumb tip, followed live; gone on release", () => {
+    const { step, shapes } = session()
+    const at = (q: { x: number; y: number }[], h: NonNullable<HandShapes['left']>) => {
+      const own = lPoints(h)
+      expect(own[0]).toEqual(h.points[8]) // the index tip
+      expect(own[2]).toEqual(h.points[4]) // the thumb tip
+      expect(own[1]!.x).toBeCloseTo((h.points[2]!.x + h.points[5]!.x) / 2, 9) // between the thumb's and index's bases
+      return own.every((p) => q.some((v) => Math.hypot(v.x - p.x, v.y - p.y) < 1e-4))
+    }
+    const clockwise = (q: { x: number; y: number }[]) => q.reduce((sum, p, k) => sum + p.x * ASPECT * q[(k + 1) % q.length]!.y - q[(k + 1) % q.length]!.x * ASPECT * p.y, 0) > 0
+    let s = step(frame(), 20)
+    expect(s.f.outline).toHaveLength(6)
+    expect(at(s.f.outline!, shapes().left!) && at(s.f.outline!, shapes().right!)).toBe(true) // its 6 vertices: theirs
+    expect(clockwise(s.f.outline!)).toBe(true)
+    s = step(frame(0, null, 0, 0, L, 1.3), 20) // pulled wider: it follows
+    expect(at(s.f.outline!, shapes().left!) && at(s.f.outline!, shapes().right!)).toBe(true)
+    s = step(frame(0, null, 0, 0, [0, 0, 0, 0, 0]), 3) // let go, 120 ms: still formed (the grace), but nothing drawn
+    expect(s.f.formed).toBe(true)
+    expect(s.f.outline).toBeNull()
+    expect(step(frame(0, null, 0, 0, [0, 0, 0, 0, 0]), 6).f.formed).toBe(false)
+    usePlayPrefs.setState({ controlStyle: 'one', holdMs: 500 })
+    try {
+      const one = session()
+      const [right] = frame()
+      const f = one.step([right!], 30).f
+      const h = one.shapes().left ?? one.shapes().right!
+      expect(f.outline).toHaveLength(3) // one hand: between its thumb and index
+      expect(at(f.outline!, h)).toBe(true)
+      expect(clockwise(f.outline!)).toBe(true)
+      expect(at(f.corners!, h)).toBe(true) // its pane's quad: the parallelogram on those three (no 2.2-palm square)
+    } finally {
+      usePlayPrefs.setState({ controlStyle: 'curl' })
     }
   })
 

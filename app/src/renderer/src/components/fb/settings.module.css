@@ -280,6 +280,14 @@
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+/* 2.1.1: the three modes' intros, a row under the full GUIDEs */
+.guides + .guides {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 12px;
+}
+.guides + .guides .guide {
+  height: 88px;
+}
 .guide {
   height: 120px;
   border-radius: 22px;

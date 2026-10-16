@@ -7,14 +7,15 @@
  * with each new frame; a pinch while framed restyles it, S1's frame.cycles). Turned over, each has its flip side (S2's
  * sounds pair the same way). Its name pill sits on the edge, the "4 beats · pinch to change" hint under it.
  *   The entrance (the design's §8): a lit edge draws itself round the frame (FRAME_TIMING.edgeMs), closes with one soft
- *   flash; the style blooms in from bloomDelayMs (bloomMs). Letting go: it shatters, the shards falling out of frame
- *   (shatterMs: chat's glass fracture).
- *   REMIX: the pane follows the hands while they hold the frame (the song's grid is the beat).
- *   PLAY: FREEZE's frame: it locks where the hands framed it and stays while frozen (the tempo from the plucks).
- * Reduced motion: the plain pane over a still of the lock moment, a short fade in and out, no flash, shards or wipes.
+ *   flash; the style blooms in from bloomDelayMs (bloomMs).
+ *   2.1.1, the user: "frames should only ever be contained in my fingers". The pane is where the hands are, every
+ *   result, in both modes: S1's corners (its texture's quad) and outline (each hand's thumb tip, L crotch and index
+ *   tip), used as they come (S1 smooths them; more here would drag the pane behind the fingers); glassPass clips all of
+ *   it to the outline. Letting go: it's gone that frame (no shards, nothing left in place).
+ * Reduced motion: the plain pane over a still of the lock moment, a short fade in, no flash or wipes.
  *
- * This is the logic (pure, tested): when it's on (REMIX: S1's FRAME_HOLD_MS to make the frame, EXIT_HOLD_MS to lose
- * it, so it never flickers), its timeline, its style, the loop's window on the beat, and where the pane sits.
+ * This is the logic (pure, tested): when it's on (S1's FRAME_HOLD_MS to make the frame, its release to lose it), its
+ * timeline, its style, the loop's window on the beat, and where the pane sits.
  * glassPass.ts draws it and keeps the camera's last seconds. Points are 0-1 of the picture (y down).
  */
 import type { Pt } from '@/components/camera/camMath'
@@ -41,12 +42,9 @@ export const GLASS_EFFECT: Record<GlassType, string> = {
 /** The card-flip as the frame turns over (or back). */
 export const FLIP_MS = 140
 
-/** The frame lost this long before the glass goes (the tracker's dropouts; S1's hold covers the making). */
-export const EXIT_HOLD_MS = 150
-/** Reduced motion's fade in, and its cut out (a fade this short). */
+/** Reduced motion's fade in. */
 export const CALM_MS = 150
-export const CALM_OUT_MS = 60
-/** REMIX: a shatter this close before a beat lands on it (never later than this). */
+/** REMIX: letting go this close before a beat lands on it (never later than this): the release sound's crackAt. */
 export const BEAT_SNAP_MS = 60
 /** The soft flash as the edge closes; never more than 3 a second. */
 export const FLASH_MS = 250
@@ -58,14 +56,13 @@ export interface FrameTiming {
   bloomMs: number
   /** The bloom starts this far into the edge's draw. */
   bloomDelayMs: number
-  shatterMs: number
 }
-export const FRAME_TIMING: FrameTiming = { edgeMs: 450, bloomMs: 700, bloomDelayMs: 350, shatterMs: 140 }
+export const FRAME_TIMING: FrameTiming = { edgeMs: 450, bloomMs: 700, bloomDelayMs: 350 }
 const frameTokens = liveFrameTokens()
 /** The timeline as the page's tokens have it now (S2: the frame sounds land on it). */
 export function frameTiming(now = typeof performance !== 'undefined' ? performance.now() : 0): FrameTiming {
   const t = frameTokens(now)
-  return { edgeMs: t.edgeMs, bloomMs: t.bloomMs, bloomDelayMs: t.bloomDelayMs, shatterMs: t.fracture.ms }
+  return { edgeMs: t.edgeMs, bloomMs: t.bloomMs, bloomDelayMs: t.bloomDelayMs }
 }
 
 /** The frame's four corners, 0-1 of the picture (y down), clockwise from the top-left (S1's cameraSignals().frame). */
@@ -95,7 +92,8 @@ export interface GlassSignal {
   y: number
   /** performance.now() when the last pane formed (its edge starts drawing), 0 if never. */
   onAt: number
-  /** performance.now() when the last CRACK began (letting go), 0 if never. */
+  /** performance.now() when the last frame was let go (its release sound; REMIX: on the beat if one was due within
+   *  BEAT_SNAP_MS), 0 if never. */
   crackAt: number
   /** The frame turned over: `type` is the flip side's, and the loop runs backwards. */
   flipped: boolean
@@ -127,7 +125,10 @@ export interface PaneFrame {
   flip: number
   flipFrom: GlassType
   corners: FrameCorners | null
-  /** The pane's own opacity: 1 while it shows, easing out at the very end. */
+  /** What the fingers bound (S1's frame.outline: 3 or 6 points, clockwise; the F key's pane: its corners): everything
+   *  is clipped to it; null (S1's release grace, no L read): not drawn. */
+  outline: Pt[] | null
+  /** The pane's own opacity: 1 while it shows (reduced motion: fading in). */
   mix: number
   /** How much of the lit edge has drawn itself round the frame, 0-1 (clockwise from the top-left). */
   edge: number
@@ -135,8 +136,6 @@ export interface PaneFrame {
   bloom: number
   /** The soft flash as the edge closes, 0-1. */
   flash: number
-  /** GLASS: how far the shards have fallen, 0-1, once let go; -1 while it's held, or with no crack. */
-  crack: number
   /** Seconds since the pane formed (DATAMOSH's melt, ICE's shimmer). */
   age: number
   /** Seconds since its current effect began (the pane formed, a restyle, a flip): its big name shows for ~1 s. */
@@ -222,22 +221,7 @@ export function quadOf(c: FrameCorners, aspect: number): GlassQuad {
   }
 }
 
-/** ONE-HANDED (2.0.1): the frame one L makes. Its corner is the L's (`at`: S1's cameraSignals().frame.corner, the
- *  stage's 0-1) and the pane opens toward the picture's centre, the far corner mirrored through it: at least `min` of
- *  the picture each way, `margin` inside its edges. */
-export const ONE_L = { min: 0.4, margin: 0.04 }
-export function oneLCorners(at: Pt): FrameCorners {
-  const span = (v: number) => {
-    const a = Math.min(1 - ONE_L.margin, Math.max(ONE_L.margin, v))
-    const b = Math.abs(1 - 2 * a) >= ONE_L.min ? 1 - a : a + (a <= 0.5 ? ONE_L.min : -ONE_L.min)
-    return [Math.min(a, b), Math.max(a, b)] as const
-  }
-  const [x0, x1] = span(at.x)
-  const [y0, y1] = span(at.y)
-  return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }]
-}
-
-/** FREEZE with no frame to lock onto (a hand unseen): a pane in the middle of the picture. */
+/** The F key's pane (no hands to bound it): the middle of the picture. */
 export const CENTRE_CORNERS: FrameCorners = [{ x: 0.22, y: 0.2 }, { x: 0.78, y: 0.2 }, { x: 0.78, y: 0.8 }, { x: 0.22, y: 0.8 }]
 
 /** The fallback keys (STRINGS_UX: F frame · P next style; S4 wires them). F: a pane at CENTRE_CORNERS while on (SAUCE:
@@ -263,12 +247,6 @@ export const resetGlassOrder = (): void => void (nextAt = 0)
 const ease = (t: number) => t * t * (3 - 2 * t)
 const easeOut = (t: number) => 1 - (1 - t) ** 3 // the design's cubic-bezier(.2, .8, .2, 1), near enough
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t))
-const SMOOTH = 0.6 // the pane following the hands, each frame (S1's quad is smoothed already; the fallback isn't)
-
-function follow(was: FrameCorners | null, to: FrameCorners): FrameCorners {
-  if (!was) return to.map((p) => ({ ...p })) as FrameCorners
-  return was.map((p, i) => ({ x: p.x + (to[i]!.x - p.x) * SMOOTH, y: p.y + (to[i]!.y - p.y) * SMOOTH })) as FrameCorners
-}
 
 /** The one soft flash as the edge closes, at most one every FLASH_GAP_MS. */
 function flasher() {
@@ -344,33 +322,30 @@ export interface FrameInput {
   turned?: boolean
   /** FRAMES_SIMPLE: S1's frame.amount (0-1), while it's held. */
   amount?: number | null
+  /** S1's frame.outline (what the fingers bound), while it's held. */
+  outline?: Pt[] | null
 }
 
 /**
- * The FRAME over time: `update` each drawn frame with whether it's on (REMIX: S1's FRAME held; PLAY: frozen), the
- * frame's corners, and the beat and S1's pinch count. `follow`: the pane follows the hands (REMIX) or locks where it
- * formed (PLAY, which also needs no hold: `exitHoldMs` 0).
+ * The FRAME over time: `update` each drawn frame with whether it's held (REMIX: S1's frame formed; PLAY: frozen), the
+ * frame's corners now (the pane is where they are: no frame, no pane), and the beat, S1's outline and pinch count.
+ * `snap` (REMIX): letting go lands its crackAt on a beat due within BEAT_SNAP_MS (the release sound; the pane goes at
+ * once either way).
  */
-export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?: () => FrameTiming; follow?: boolean; exitHoldMs?: number; settleMs?: number } = {}) {
+export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?: () => FrameTiming; snap?: boolean; settleMs?: number } = {}) {
   const reduced = opts.reduced === true
   const aspect = opts.aspect ?? 16 / 9
   const timing = opts.timing ?? (() => FRAME_TIMING)
-  const follows = opts.follow ?? true
-  const exitHold = opts.exitHoldMs ?? EXIT_HOLD_MS
   const flashes = flasher()
   let on = false
-  let heldAt = -Infinity
   let index = -1 // GLASS_TYPES' index; the first frame is ECHO TRAIL
   let styleAt = -Infinity // when the effect on show began (its big name)
   let prev = 0
   let restyleAt = -Infinity
   let cyclesSeen: number | undefined
   let onAt = 0
-  let offAt = -Infinity
   let flashFrom = -Infinity
-  let crackAt = -Infinity
   let cracked = 0 // the signal's crackAt
-  let corners: FrameCorners | null = null
   let loop: LoopWindow | null = null
   let flipped = false
   let flipAt = -Infinity
@@ -379,9 +354,7 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
   return {
     update(now: number, held: boolean, frame: FrameCorners | null, input: FrameInput = {}): GlassFrame {
       const t = timing()
-      const holding = held && (frame !== null || !follows)
-      if (holding) heldAt = now
-      const want = holding || now - heldAt < exitHold
+      const want = held && frame !== null
       let changed = false
       if (want && !on) {
         on = true
@@ -393,18 +366,15 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
         flipAt = -Infinity
         onAt = now
         styleAt = now
-        offAt = crackAt = -Infinity
         flashFrom = reduced ? -Infinity : flashes.at(now + t.edgeMs)
         changed = true
-        corners = null
         const w = loopWindow(now, input.beat ?? null, input.oldest ?? -Infinity, LOOP_MAX_MS, opts.settleMs ?? 0)
         loop = reduced ? { start: w.end - 1, end: w.end, length: 1, beats: 1 } : w // reduced: a still of the lock moment
       } else if (!want && on) {
         on = false
-        offAt = now
-        // a hard snap: on the beat if one is due within BEAT_SNAP_MS (REMIX), else now
-        const toBeat = follows && input.beat && input.beat.bpm > 0 ? (1 - Math.min(1, Math.max(0, input.beat.phase))) * (60000 / input.beat.bpm) : Infinity
-        if (!reduced) crackAt = cracked = now + (toBeat <= BEAT_SNAP_MS ? toBeat : 0)
+        // the release sound: on the beat if one is due within BEAT_SNAP_MS (REMIX), else now
+        const toBeat = opts.snap && input.beat && input.beat.bpm > 0 ? (1 - Math.min(1, Math.max(0, input.beat.phase))) * (60000 / input.beat.bpm) : Infinity
+        if (!reduced) cracked = now + (toBeat <= BEAT_SNAP_MS ? toBeat : 0)
       }
       if (on && input.cycles !== undefined && cyclesSeen !== undefined && input.cycles !== cyclesSeen && now - onAt > 0) {
         prev = index
@@ -423,25 +393,14 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
         changed = true
       }
       cyclesSeen = input.cycles
-      if (on && follows && frame) corners = follow(corners, frame)
-      else if (on && !corners) corners = (frame ?? CENTRE_CORNERS).map((p) => ({ ...p })) as FrameCorners // PLAY: where it locked
+      // where the fingers are now (held, `frame` is there); let go, nothing
+      const corners = on ? (frame!.map((p) => ({ ...p })) as FrameCorners) : null
+      const outline = on && input.outline && input.outline.length >= 3 ? input.outline.map((p) => ({ ...p })) : null
+      if (!on) loop = null
       const since = now - onAt
-      let mix = 1
-      let edge = reduced ? 1 : ease(clamp01(since / Math.max(1, t.edgeMs))) // the design: in and out
-      let bloom = reduced ? 1 : easeOut(clamp01((since - t.bloomDelayMs) / Math.max(1, t.bloomMs)))
-      let crack = -1
-      if (reduced) mix = on ? clamp01(since / CALM_MS) : 1 - clamp01((now - offAt) / CALM_OUT_MS)
-      else if (!on && crackAt > -Infinity && now >= crackAt) {
-        crack = clamp01((now - crackAt) / t.shatterMs) // the snap, then the shards flung out
-        mix = crack >= 1 ? 0 : 1 // and gone: no fade, the live picture back at once
-        edge = 0
-      }
-      if (!on && (mix <= 0 || !corners)) {
-        corners = null
-        loop = null
-        mix = edge = bloom = 0
-        crack = -1
-      }
+      const mix = !on ? 0 : reduced ? clamp01(since / CALM_MS) : 1
+      const edge = !on ? 0 : reduced ? 1 : ease(clamp01(since / Math.max(1, t.edgeMs))) // the design: in and out
+      const bloom = !on ? 0 : reduced ? 1 : easeOut(clamp01((since - t.bloomDelayMs) / Math.max(1, t.bloomMs)))
       const type: GlassType = reduced ? 'plain' : styleOf(Math.max(0, index), flipped)
       const restyle = reduced ? 1 : ease(clamp01((now - restyleAt) / RESTYLE_MS))
       const quad = corners ? quadOf(corners, aspect) : null
@@ -451,9 +410,9 @@ export function createGlass(opts: { reduced?: boolean; aspect?: number; timing?:
         ? { on: true, type, size, tilt: Math.max(-1, Math.min(1, quad.tilt / (Math.PI / 4))), x: quad.x, y: quad.y, onAt, crackAt: cracked, flipped, amount }
         : { ...OFF, type, onAt, crackAt: cracked, flipped }
       return {
-        type, prev: reduced ? 'plain' : styleOf(prev, flipped), restyle, loop, corners, mix, edge, bloom,
+        type, prev: reduced ? 'plain' : styleOf(prev, flipped), restyle, loop, corners, outline, mix, edge, bloom,
         flipped, flip: reduced ? 1 : clamp01((now - flipAt) / FLIP_MS), flipFrom: reduced ? 'plain' : flipFrom,
-        flash: flashAt(now, flashFrom), crack, age: since / 1000, styleAge: (now - styleAt) / 1000, quad, changed,
+        flash: on ? flashAt(now, flashFrom) : 0, age: since / 1000, styleAge: (now - styleAt) / 1000, quad, changed,
         clock: loop && !reduced ? loopClock(loop, now, flipped) : null, amount,
       }
     },

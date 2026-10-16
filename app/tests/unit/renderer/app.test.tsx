@@ -4,6 +4,7 @@ import { http, passthrough } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { App } from '../../../src/renderer/src/App'
+import { useFb } from '../../../src/renderer/src/components/fb/fbStore'
 import { handlers } from '../../../src/renderer/src/mocks/handlers'
 import { useUi } from '../../../src/renderer/src/state/ui'
 
@@ -21,7 +22,7 @@ afterEach(cleanup)
 afterAll(() => server.close())
 
 describe('App (2.0: SAUCE and REMIX, the design shell)', () => {
-  it('opens on SAUCE, which never asks for a song; ⌘, opens settings, Esc closes it; M goes to REMIX', async () => {
+  it('opens on SAUCE, which never asks for a song; ⌘, opens settings, Esc closes it; M opens the chooser, 3 is REMIX, ⌘1 SAUCE', async () => {
     useUi.setState({ booting: false })
     render(<App />)
     expect(await screen.findByRole('navigation', { name: 'SAUCE' })).toBeInTheDocument()
@@ -32,7 +33,12 @@ describe('App (2.0: SAUCE and REMIX, the design shell)', () => {
     await new Promise((r) => setTimeout(r, 300)) // anything PLAY would fetch at start
     expect(requested.filter((p) => p.startsWith('/api/songs'))).toEqual([])
     fireEvent.keyDown(window, { key: 'm' })
+    expect(useFb.getState().island).toBe(true)
+    fireEvent.keyDown(window, { key: '3' })
     expect(await screen.findByRole('navigation', { name: 'REMIX' })).toBeInTheDocument()
     expect(useUi.getState().mode).toBe('remix')
+    expect(useFb.getState().island).toBe(false)
+    fireEvent.keyDown(window, { key: '1', metaKey: true })
+    expect(await screen.findByRole('navigation', { name: 'SAUCE' })).toBeInTheDocument()
   })
 })

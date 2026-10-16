@@ -1,14 +1,16 @@
-// The dock (2.0 design §4): centred at the bottom, seven buttons, each a label over its live value. SAUCE: Sound ·
-// Melody · Hands · Visual · Board · Record · Settings; REMIX: Song · Beat FX · Library · Visual · Board · Record ·
+// The dock (2.0 design §4): centred at the bottom, each button a label over its live value. 2.1.1, it follows the mode:
+// SAUCE: Sound · Hands · Visual · Board · Record · Settings; MELODY: Melody · Sound · Visual · Board · Record ·
+// Settings; REMIX: Song · Beat FX · Library · Visual · Board · Record ·
 // Settings. A button opens its popover (or the Board, the wheel, Settings); the active one is cream.
 import { beatFxNow } from '@/audio/live/beatFx'
-import { playModeOf, SOUNDS, usePlay } from '@/components/play/playStore'
+import { SOUNDS, usePlay } from '@/components/play/playStore'
 import { clock, useProdRec } from '@/components/prod/prodActions'
 import { useProd } from '@/components/prod/prodStore'
 import { useTick } from '@/components/stage/StageControls'
 import { useTakes } from '@/components/stage/takes'
 import { closeWheel, openWheel, useWheelUi } from '@/components/wheel/WheelOverlay'
 import { useLiveDeck } from '@/state/liveDeck'
+import { MODE_NAME, useTopMode } from './modes'
 import { useUi, type Mode } from '@/state/ui'
 import { closeAll, openSettings, toggleBoard, togglePop, useFb, type Pop, type VisualKind } from './fbStore'
 import { t } from '@/i18n'
@@ -41,8 +43,9 @@ function useButtons(mode: Mode): DockButton[] {
   const settings = useUi((u) => u.settingsOpen)
   const wheel = useWheelUi((w) => w.open)
   const sound = usePlay((p) => p.sound)
-  const style = usePlay(playModeOf)
-  const preset = usePlay((p) => (p.melodyMode === 'loop' ? (p.preset?.name ?? 'LOOP') : t('dock.melody.presets', 'Presets')))
+  const style = usePlay((p) => p.style)
+  const top = useTopMode()
+  const preset = usePlay((p) => p.preset?.name ?? 'LOOP')
   const takeT0 = useTakes((x) => x.t0)
   const clipT0 = useProdRec((r) => r.t0)
   const kind = useProd((p) => p.recordKind)
@@ -55,16 +58,18 @@ function useButtons(mode: Mode): DockButton[] {
     board: { key: 'board', label: t('board.name', 'Board'), value: board ? t('dock.board.hide', 'Hide') : t('dock.board.knobs', 'Knobs'), on: board, click: toggleBoard },
     settings: { key: 'settings', label: t('dock.settings', 'Settings'), value: '⋯', on: settings, click: openSettings },
   }
-  if (mode === 'play')
+  if (mode === 'play') {
+    const soundBtn = p('sound', t('dock.sound', 'Sound'), SOUNDS.find((x) => x.id === sound)!.label)
     return [
-      p('sound', t('dock.sound', 'Sound'), SOUNDS.find((x) => x.id === sound)!.label),
-      p('melody', t('dock.melody', 'Melody'), preset),
-      p('hands', t('dock.hands', 'Hands'), style.toUpperCase()),
+      ...(top === 'melody'
+        ? [p('melody', t('dock.melody', 'Melody'), preset), soundBtn]
+        : [soundBtn, p('hands', t('dock.hands', 'Hands'), style.toUpperCase())]),
       shared.visual,
       shared.board,
       p('rec', t('stage.record', 'Record'), rec ?? t('dock.rec.takes', 'Takes')),
       shared.settings,
     ]
+  }
   const c = deck?.clock() ?? null
   const bar = c && c.beat >= 0 ? Math.floor(c.beat / c.beatsPerBar) + 1 : 1
   const fx = beatFxNow().fx
@@ -93,8 +98,9 @@ export function Dock() {
   const mode = useUi((u) => u.mode)
   const board = useFb((f) => f.board)
   const buttons = useButtons(mode)
+  const top = useTopMode()
   return (
-    <nav className={s.dock} data-board={board || undefined} aria-label={mode === 'play' ? 'SAUCE' : 'REMIX'}>
+    <nav className={s.dock} data-board={board || undefined} aria-label={MODE_NAME[top]}>
       <div className={s.holo} aria-hidden="true" />
       <div className={s.holoEdge} aria-hidden="true" />
       {buttons.map((b) => (

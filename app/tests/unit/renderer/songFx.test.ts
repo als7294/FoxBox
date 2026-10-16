@@ -136,7 +136,7 @@ describe('song FX without clicks', () => {
       AudioWorkletNode: class extends Node {
         private p: Record<string, Param> = {}
         parameters = { get: (k: string) => (this.p[k] ??= new Param()) }
-        port = { postMessage: (m: unknown) => messages.push(m), onmessage: null }
+        port = { postMessage: (m: unknown) => messages.push(m), onmessage: null, close() {} }
       },
     })
     const ctx = { currentTime: 10, sampleRate: SR } as unknown as BaseAudioContext
@@ -381,7 +381,7 @@ describe('song stems (STRING HANDS)', () => {
       AudioWorkletNode: class extends Node {
         private p: Record<string, Param> = {}
         parameters = { get: (k: string) => (this.p[k] ??= new Param()) }
-        port = { postMessage: () => {}, onmessage: null }
+        port = { postMessage: () => {}, onmessage: null, close() {} }
       },
     })
     useSongFx.setState({ enabled: true })
@@ -394,7 +394,10 @@ describe('song stems (STRING HANDS)', () => {
     fx.set({ drums: 0.25 })
     expect(level('drums')).toBe(1)
     useSongFx.setState({ enabled: true })
+    const port = (fx as unknown as { limit: { port: { onmessage: unknown } } }).limit.port
+    expect(port.onmessage).not.toBeNull()
     fx.dispose()
+    expect(port.onmessage).toBeNull() // its open port held the SongFx, its deck and their song and stems (a leak a load)
   })
 })
 
@@ -414,7 +417,7 @@ describe("REMIX's Board on SongFx (board.ts)", () => {
       AudioWorkletNode: class extends Node {
         private p: Record<string, Param> = {}
         parameters = { get: (k: string) => (this.p[k] ??= new Param()) }
-        port = { postMessage: () => {}, onmessage: null }
+        port = { postMessage: () => {}, onmessage: null, close() {} }
       },
     })
     useSongFx.setState({ enabled: true })
@@ -759,7 +762,7 @@ describe("STRINGS' GLASS: a world with its own sound", () => {
       AudioWorkletNode: class extends Node {
         private p: Record<string, Param> = {}
         parameters = { get: (k: string) => (this.p[k] ??= new Param()) }
-        port = { postMessage: (m: { kind: string }) => posted.push(m), onmessage: null }
+        port = { postMessage: (m: { kind: string }) => posted.push(m), onmessage: null, close() {} }
       },
     })
     useSongFx.setState({ enabled: true })

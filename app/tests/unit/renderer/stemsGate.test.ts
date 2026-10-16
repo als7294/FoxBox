@@ -12,7 +12,7 @@ Object.assign(globalThis, {
   DelayNode: class extends Node { delayTime = new Param() },
   ConvolverNode: class extends Node { buffer: unknown = null },
   AnalyserNode,
-  AudioWorkletNode: class extends Node { private p: Record<string, Param> = {}; parameters = { get: (k: string) => (this.p[k] ??= new Param()) }; port = { postMessage() {}, onmessage: null } },
+  AudioWorkletNode: class extends Node { private p: Record<string, Param> = {}; parameters = { get: (k: string) => (this.p[k] ??= new Param()) }; port = { postMessage() {}, onmessage: null, close() {} } },
 })
 const ctx = { sampleRate: 48000, currentTime: 1, createBuffer: (_c: number, len: number) => ({ getChannelData: () => new Float32Array(len) }) }
 const engine = { ctx, songInput: new Node(), nextGridTime: () => 1, followClock: () => {} }

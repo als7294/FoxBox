@@ -1,17 +1,16 @@
 // The island (2.0 design: ModeSwitch): the notch, black, hanging from the top centre, only while the window's top
-// really sits under one (full screen on a notched built-in display); otherwise a floating glass pill. Collapsed it shows SAUCE's last note,
-// REMIX's beat and bar, or the recording's time, and "SAUCE ⇄" switches in one click; clicked, it expands to the two
-// mode pills.
+// really sits under one (full screen on a notched built-in display); otherwise a floating glass pill. 2.1.1 (docs/
+// MODE_ENTRY_UX.md §1–2): collapsed it's the mode, its status and Switch; Switch, a click or M opens the mode chooser.
 import { useEffect, useState } from 'react'
-import { PLAY_MODES, playActions, playModeOf, usePlay } from '@/components/play/playStore'
+import { usePlay } from '@/components/play/playStore'
 import { bridge } from '@/env'
 import { clock, useProdRec } from '@/components/prod/prodActions'
-import { switchMode } from '@/components/shell/ModeSwitch'
 import { useTakes } from '@/components/stage/takes'
 import { useLiveDeck } from '@/state/liveDeck'
-import { useUi, type Mode } from '@/state/ui'
 import { t } from '@/i18n'
-import { closeAll, useFb } from './fbStore'
+import { useFb } from './fbStore'
+import { ModeCards } from './ModeCards'
+import { enterMode, MODE_NAME, toggleChooser, TOP_MODES, useTopMode, type TopMode } from './modes'
 import s from './island.module.css'
 
 /** Re-renders while `on`, at `ms`. */
@@ -23,8 +22,6 @@ function useTicker(on: boolean, ms: number): void {
     return () => window.clearInterval(id)
   }, [on, ms])
 }
-
-const NAME: Record<Mode, string> = { play: 'SAUCE', remix: 'REMIX' }
 
 /** Under a physical notch now (main says; the web mock: ?notch). What hangs under the island drops with it
  *  (--island-drop: the toasts, the badge, the library bar). */
@@ -39,16 +36,16 @@ function useNotch(): boolean {
   return notch
 }
 
-function Status({ mode }: { mode: Mode }) {
+/** The mode's status: SAUCE's style and last note, MELODY's melody and tempo, REMIX's beat and bar; a recording's time. */
+function Status({ top }: { top: TopMode }) {
   const note = usePlay((p) => p.note)
-  const loop = usePlay((p) =>
-    p.melodyMode === 'loop' ? `LOOP · ${p.preset?.name ?? ''} · ${p.loop.linked ? 'LINK ' : ''}${p.loop.bpm}` : null,
-  )
+  const style = usePlay((p) => p.style)
+  const melody = usePlay((p) => `${p.preset?.name ?? 'LOOP'} · ${p.loop.linked ? 'LINK ' : ''}${p.loop.bpm}`)
   const takeT0 = useTakes((x) => x.t0)
   const clipT0 = useProdRec((r) => r.t0)
   const deck = useLiveDeck((d) => d.deck)
   const recAt = takeT0 ?? clipT0
-  useTicker(recAt != null || mode === 'remix', 100)
+  useTicker(recAt != null || top === 'remix', 100)
   if (recAt != null)
     return (
       <span className={s.status}>
@@ -56,13 +53,16 @@ function Status({ mode }: { mode: Mode }) {
         <span>{clock((performance.now() - recAt) / 1000)}</span>
       </span>
     )
-  if (mode === 'play')
+  if (top === 'sauce')
     return (
       <span className={s.status}>
+        <span>{style.toUpperCase()}</span>
+        <span className={s.sep}>·</span>
         <span className={s.dot} />
-        <span>{loop ?? note ?? '—'}</span>
+        <span>{note ?? '—'}</span>
       </span>
     )
+  if (top === 'melody') return <span className={s.status}>{melody}</span>
   const c = deck?.clock() ?? null
   const beat = c ? Math.floor(c.beat) : -1
   const inBar = c && beat >= 0 ? beat % c.beatsPerBar : -1
@@ -73,125 +73,60 @@ function Status({ mode }: { mode: Mode }) {
           <span key={i} className={s.beat} data-on={(deck?.isPlaying && inBar === i) || undefined} />
         ))}
       </span>
-      <span>{t('dock.bar', 'Bar {n}', { n: c && beat >= 0 ? Math.floor(beat / c.beatsPerBar) + 1 : 1 })}</span>
+      <span>
+        {deck
+          ? t('dock.bar', 'Bar {n}', { n: c && beat >= 0 ? Math.floor(beat / c.beatsPerBar) + 1 : 1 })
+          : t('island.noSong', 'No song yet')}
+      </span>
     </span>
   )
 }
 
-const BARS = [
-  [8, 29, 10],
-  [17, 23, 22],
-  [26, 16, 36],
-  [35, 25, 18],
-  [44, 12, 44],
-  [53, 20, 28],
-  [62, 8, 52],
-  [71, 19, 30],
-  [80, 14, 40],
-  [89, 24, 20],
-  [98, 18, 32],
-  [107, 27, 14],
-]
-
-/** 2.1: SAUCE's play style, PLUCK · FLOW · LOOP (S cycles it), in the open Island as in the Hands popover. */
-function PlayStyle({ open }: { open: boolean }) {
-  const style = usePlay(playModeOf)
-  return (
-    <div className={s.styleSeg} role="radiogroup" aria-label={t('island.playStyle', 'Play style')} aria-hidden={!open}>
-      {PLAY_MODES.map((m) => (
-        <button
-          key={m}
-          type="button"
-          role="radio"
-          aria-checked={m === style}
-          tabIndex={open ? 0 : -1}
-          className={s.styleBtn}
-          onClick={(e) => {
-            e.stopPropagation()
-            playActions.setPlayMode(m)
-          }}
-        >
-          {m.toUpperCase()}
-        </button>
-      ))}
-    </div>
-  )
+/** While the chooser is open, 1 · 2 · 3 pick a mode (before the pages' own 1–7: they see it handled). */
+function useChooserKeys(open: boolean) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || !/^[123]$/.test(e.key)) return
+      e.preventDefault()
+      enterMode(TOP_MODES[Number(e.key) - 1]!)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open])
 }
 
 export function Island() {
-  const mode = useUi((u) => u.mode)
+  const top = useTopMode()
   const open = useFb((f) => f.island)
   const notch = useNotch()
+  useChooserKeys(open)
   return (
     <>
       <div className={s.glow} data-open={open || undefined} data-notch={notch || undefined} aria-hidden="true">
         <div className={s.glowBand} />
       </div>
-      <div
-        className={s.island}
-        data-open={open || undefined}
-        data-notch={notch || undefined}
-        onClick={() => {
-          const was = useFb.getState().island
-          closeAll()
-          useFb.setState({ island: !was })
-        }}
-      >
+      <div className={s.island} data-open={open || undefined} data-notch={notch || undefined} onClick={toggleChooser}>
         <div className={s.row}>
-          <Status mode={mode} />
+          <b className={s.mode}>{MODE_NAME[top]}</b>
+          <Status top={top} />
           <button
             type="button"
-            className={s.quick}
-            title={t('island.switch', 'Switch mode (M)')}
+            className={s.switch}
             aria-keyshortcuts="M"
+            aria-expanded={open}
             onClick={(e) => {
               e.stopPropagation()
-              switchMode(mode === 'play' ? 'remix' : 'play')
+              toggleChooser()
             }}
           >
-            {NAME[mode]} ⇄
+            {t('island.switch', 'Switch')}
+            <kbd className={s.switchKey}>M</kbd>
           </button>
         </div>
-        {mode === 'play' && <PlayStyle open={open} />}
-        <div className={s.pills} role="radiogroup" aria-label={t('island.mode', 'Mode')} aria-hidden={!open}>
-          {(['play', 'remix'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={m === mode}
-              tabIndex={open ? 0 : -1}
-              className={s.pill}
-              data-selected={m === mode || undefined}
-              onClick={(e) => {
-                e.stopPropagation()
-                switchMode(m)
-                useFb.setState({ island: false })
-              }}
-            >
-              {m === 'play' ? (
-                <svg width="120" height="68" viewBox="0 0 120 68" className={s.pillArt} style={{ right: -6, top: 0 }} aria-hidden="true">
-                  <g fill="currentColor">
-                    {BARS.map(([x, y, h]) => (
-                      <rect key={x} x={x} y={y} width="5" height={h} rx="2.5" />
-                    ))}
-                  </g>
-                </svg>
-              ) : (
-                <svg width="120" height="68" viewBox="0 0 120 68" className={s.pillArt} style={{ right: -14, top: -12 }} aria-hidden="true">
-                  <g fill="none" stroke="currentColor" strokeWidth="5">
-                    <circle cx="70" cy="46" r="40" />
-                    <circle cx="70" cy="46" r="24" />
-                  </g>
-                  <circle cx="70" cy="46" r="7" fill="currentColor" />
-                </svg>
-              )}
-              <span className={s.pillLabel}>{NAME[m]}</span>
-            </button>
-          ))}
-        </div>
-        <div className={s.foot} aria-hidden={!open}>
-          {t('island.foot', 'M switches · notes release, the song pauses on the bar')}
+        <div className={s.chooser} aria-hidden={!open} inert={!open} onClick={(e) => e.stopPropagation()}>
+          <ModeCards current={top} onPick={enterMode} compact />
+          <p className={s.pick}>{t('island.pick', '1, 2 or 3 to pick · Esc to close')}</p>
         </div>
       </div>
     </>

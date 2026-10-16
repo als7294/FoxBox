@@ -502,6 +502,11 @@ export class SongFx {
 
   dispose(): void {
     if (current === this) current = null
+    // 2.1.1: an open port with a handler is a pending activity: it kept this SongFx alive, and through its clock the
+    // SongDeck and its song and stems (~110 MB a track loaded: S3's probe, 61 of them after 13 loads); stems.ts and
+    // takes.ts already let theirs go.
+    this.limit.port.onmessage = null
+    this.limit.port.close()
     this.offStore()
     this.input.disconnect()
     this.output.disconnect()

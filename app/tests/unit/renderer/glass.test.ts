@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { handShapes, type HandShapes } from '@/components/camera/camMath'
 import {
-  BEAT_SNAP_MS, CALM_MS, CENTRE_CORNERS, clearGlassSignal, createGlass, FLIP_MS, FLIP_SIDE, EXIT_HOLD_MS, FRAME_TIMING, fitGlass, GLASS_TYPES, glassSignal, keyFrame, nextGlassName, nextGlassStyle, nextGlassType, resetGlassOrder, LOOP_MAX_MS, loopClock, loopTime, loopWindow,
-  ONE_L, oneLCorners, quadOf, rectCorners, RESTYLE_MS, type FrameCorners, type GlassQuad,
+  BEAT_SNAP_MS, CALM_MS, CENTRE_CORNERS, clearGlassSignal, createGlass, FLIP_MS, FLIP_SIDE, FRAME_TIMING, fitGlass, GLASS_TYPES, glassSignal, keyFrame, nextGlassName, nextGlassStyle, nextGlassType, resetGlassOrder, LOOP_MAX_MS, loopClock, loopTime, loopWindow,
+  quadOf, rectCorners, RESTYLE_MS, type FrameCorners, type GlassQuad,
 } from '@/components/strings/glass'
 import { invert3, squareToQuad } from '@/components/strings/glassPass'
 import { synthHands, synthL } from '@/components/strings/strings'
@@ -10,7 +10,7 @@ import { synthHands, synthL } from '@/components/strings/strings'
 const ASPECT = 16 / 9
 const PANE: GlassQuad = { x: 0.5, y: 0.5, hw: 0.2, hh: 0.15, tilt: 0.1 }
 const CORNERS = rectCorners(PANE, ASPECT)
-const { edgeMs: EDGE, bloomMs: BLOOM, bloomDelayMs: DELAY, shatterMs: SHATTER } = FRAME_TIMING
+const { edgeMs: EDGE, bloomMs: BLOOM, bloomDelayMs: DELAY } = FRAME_TIMING
 
 /** Steps the glass at 60 fps from `t0` for `ms`, the frame held or not; returns the last frame. */
 function run(g: ReturnType<typeof createGlass>, t0: number, ms: number, held: boolean) {
@@ -24,13 +24,13 @@ beforeEach(() => {
   clearGlassSignal()
 })
 
-describe('the FRAME: GLASS forms, holds and shatters', () => {
+describe('the FRAME: GLASS forms, holds and goes', () => {
   it('a lit edge draws itself round the frame (0.45 s), the world blooming in from 0.35 s (0.7 s), one soft flash as it closes', () => {
     expect([EDGE, BLOOM, DELAY]).toEqual([450, 700, 350]) // the design's §8
     const g = createGlass({ aspect: ASPECT })
     expect(g.update(0, false, null)).toMatchObject({ mix: 0, corners: null })
     const first = g.update(16, true, CORNERS)
-    expect(first).toMatchObject({ type: 'echo', changed: true, mix: 1, edge: 0, bloom: 0, flash: 0, crack: -1 })
+    expect(first).toMatchObject({ type: 'echo', changed: true, mix: 1, edge: 0, bloom: 0, flash: 0 })
     expect(g.update(16 + EDGE / 2, true, CORNERS).edge).toBeCloseTo(0.5, 5)
     expect(g.update(16 + DELAY, true, CORNERS).bloom).toBe(0)
     const closed = g.update(16 + EDGE, true, CORNERS)
@@ -43,55 +43,47 @@ describe('the FRAME: GLASS forms, holds and shatters', () => {
     expect(glassSignal()).toMatchObject({ on: true, type: 'echo', onAt: 16, crackAt: 0 })
   })
 
-  it('sits exactly in the frame (its corners), following them', () => {
+  it('is where the fingers are, every frame (S1 smooths them; no lag here), both modes', () => {
     const g = createGlass({ aspect: ASPECT })
     g.update(0, true, CORNERS)
     const moved = CORNERS.map((p) => ({ x: p.x + 0.1, y: p.y })) as FrameCorners
-    let f = g.update(16, true, moved)
-    for (let t = 32; t < 400; t += 16) f = g.update(t, true, moved)
-    f.corners!.forEach((p, i) => expect(p.x).toBeCloseTo(moved[i]!.x, 4))
+    const f = g.update(16, true, moved)
+    f.corners!.forEach((p, i) => expect(p).toEqual(moved[i]))
     expect(f.quad!.x).toBeCloseTo(0.6, 4)
   })
 
-  it('a frame lost for less than EXIT_HOLD_MS is the same glass: no flicker, no shatter, no new kind', () => {
+  it('is clipped to what the fingers bound (S1\'s outline, 3 or 6 points): passed through while held, null otherwise', () => {
     const g = createGlass({ aspect: ASPECT })
-    run(g, 0, 600, true)
-    const lost = run(g, 616, EXIT_HOLD_MS - 50, false)
-    expect(lost).toMatchObject({ mix: 1, crack: -1, type: 'echo' })
-    const back = run(g, 616 + EXIT_HOLD_MS - 34, 200, true)
-    expect(back).toMatchObject({ mix: 1, crack: -1, type: 'echo', changed: false })
+    const tri = [{ x: 0.3, y: 0.6 }, { x: 0.32, y: 0.3 }, { x: 0.55, y: 0.62 }]
+    expect(g.update(0, true, CORNERS, { outline: tri }).outline).toEqual(tri)
+    expect(g.update(16, true, CORNERS).outline).toBeNull() // none (the F key's pane): its corners bound it
+    expect(g.update(32, true, CORNERS, { outline: tri.slice(0, 2) }).outline).toBeNull() // not a shape
+    expect(g.update(48, false, CORNERS, { outline: tri }).outline).toBeNull()
   })
 
-  it('letting go shatters it: the shards are flung out within the shatter time, then it is gone at once', () => {
+  it('let go, it is gone that frame: nothing left in place, no shards; the release sound is now', () => {
     const g = createGlass({ aspect: ASPECT })
-    run(g, 0, 600, true) // last held at 592
-    let gone = 608
-    let start = g.update(gone, false, null)
-    while (start.crack < 0) start = g.update((gone += 16), false, null)
-    expect(gone - 592).toBeGreaterThanOrEqual(EXIT_HOLD_MS)
-    expect(start.crack).toBe(0)
-    expect(glassSignal()).toMatchObject({ on: false, crackAt: gone })
-    const mid = g.update(gone + SHATTER / 2, false, null)
-    expect(mid.crack).toBeCloseTo(0.5, 5)
-    expect(mid.mix).toBe(1)
-    const after = g.update(gone + SHATTER + 16, false, null)
-    expect(after).toMatchObject({ mix: 0, corners: null, crack: -1 })
+    run(g, 0, 600, true)
+    expect(g.update(616, false, null)).toMatchObject({ mix: 0, corners: null, outline: null, edge: 0, bloom: 0, flash: 0, loop: null })
+    expect(glassSignal()).toMatchObject({ on: false, crackAt: 616 })
+    expect(createGlass().update(0, true, null)).toMatchObject({ mix: 0, corners: null }) // held but no fingers: no pane
   })
 })
 
-describe('the FRAME: the shatter, a hard snap', () => {
-  it('REMIX lands it on the beat when one is due within BEAT_SNAP_MS, else at once; never later', () => {
-    const g = createGlass({ aspect: ASPECT })
+describe('the FRAME: letting go, the release sound', () => {
+  it('REMIX (snap) lands it on the beat when one is due within BEAT_SNAP_MS, else at once; the pane goes at once either way', () => {
+    const g = createGlass({ aspect: ASPECT, snap: true })
     run(g, 0, 600, true)
-    const release = 600 + EXIT_HOLD_MS + 16
-    const waiting = g.update(release, false, null, { beat: { bpm: 120, phase: 0.9 } }) // the next beat in 50 ms
-    expect(waiting).toMatchObject({ crack: -1, mix: 1 })
-    expect(glassSignal()).toMatchObject({ on: false, crackAt: release + 50 })
-    expect(g.update(release + 50, false, null).crack).toBe(0)
-    expect(g.update(release + 50 + SHATTER, false, null)).toMatchObject({ mix: 0, corners: null })
-    const h = createGlass({ aspect: ASPECT })
+    expect(g.update(616, false, null, { beat: { bpm: 120, phase: 0.9 } })).toMatchObject({ mix: 0, corners: null }) // the next beat in 50 ms
+    expect(glassSignal()).toMatchObject({ on: false, crackAt: 666 })
+    const h = createGlass({ aspect: ASPECT, snap: true })
     run(h, 0, 600, true)
-    expect(h.update(release, false, null, { beat: { bpm: 120, phase: 0.5 } }).crack).toBe(0) // 250 ms away: now
+    h.update(616, false, null, { beat: { bpm: 120, phase: 0.5 } }) // 250 ms away: now
+    expect(glassSignal().crackAt).toBe(616)
+    const play = createGlass({ aspect: ASPECT })
+    run(play, 0, 600, true)
+    play.update(616, false, null, { beat: { bpm: 120, phase: 0.9 } }) // PLAY: no snap
+    expect(glassSignal().crackAt).toBe(616)
     expect(BEAT_SNAP_MS).toBe(60)
   })
 })
@@ -111,13 +103,12 @@ describe('the FRAME: each new frame the next world', () => {
     expect(GLASS_TYPES).toEqual(['echo', 'prism', 'halftone', 'kaleido', 'datamosh', 'thermal']) // the design's six
   })
 
-  it('reduced motion: the plain pane, the edge at once, no flash, a short fade in, a 60 ms cut out, no shards', () => {
+  it('reduced motion: the plain pane, the edge at once, no flash, a short fade in; let go, gone at once', () => {
     const g = createGlass({ aspect: ASPECT, reduced: true })
     const first = g.update(0, true, CORNERS)
     expect(first).toMatchObject({ type: 'plain', edge: 1, bloom: 1, flash: 0, mix: 0 })
     expect(run(g, 16, CALM_MS, true).mix).toBe(1)
-    const out = run(g, 16 + CALM_MS + 16, EXIT_HOLD_MS + CALM_MS + 50, false)
-    expect(out).toMatchObject({ crack: -1, mix: 0 })
+    expect(g.update(16 + CALM_MS + 16, false, null)).toMatchObject({ mix: 0, corners: null })
   })
 })
 
@@ -153,15 +144,13 @@ describe('the FRAME: pinch to restyle, the last 4 beats on a loop', () => {
     expect(loopWindow(10_000, { bpm: 120, phase: 0.75 }, -Infinity, LOOP_MAX_MS, 250).end).toBe(9625)
   })
 
-  it('PLAY\'s FREEZE frame: on while frozen, locked where it formed, the loop windowed at the lock', () => {
-    const g = createGlass({ aspect: ASPECT, follow: false, exitHoldMs: 0 })
+  it('PLAY\'s frame: on while frozen, with the fingers (it follows them), the loop windowed at the lock', () => {
+    const g = createGlass({ aspect: ASPECT, settleMs: 0 })
     const lock = g.update(1000, true, CORNERS, { beat: { bpm: 100, phase: 0 }, oldest: -Infinity })
     expect(lock).toMatchObject({ mix: 1, loop: { end: 1000, length: 2400, start: -1400, beats: 4 } })
     const elsewhere = CORNERS.map((p) => ({ x: p.x + 0.2, y: p.y })) as FrameCorners
-    expect(g.update(1500, true, elsewhere).corners).toEqual(CORNERS) // it stays: the hands play on
-    expect(g.update(1516, false, null).crack).toBe(0) // unfrozen: it shatters at once (no hold)
-    const none = createGlass({ follow: false, exitHoldMs: 0 })
-    expect(none.update(0, true, null).corners).toEqual(CENTRE_CORNERS) // a hand unseen: the middle of the picture
+    expect(g.update(1500, true, elsewhere).corners).toEqual(elsewhere) // where the fingers went
+    expect(g.update(1516, false, null)).toMatchObject({ mix: 0, corners: null }) // unfrozen: gone
   })
 
   it('reduced motion: a still of the lock moment, no wipe', () => {
@@ -196,7 +185,7 @@ describe('the FRAME: turned over, the flip side', () => {
     const h = createGlass({ aspect: ASPECT })
     run(h, 0, 300, true)
     h.update(320, true, CORNERS, { turned: true })
-    run(h, 336, EXIT_HOLD_MS + SHATTER + 200, false)
+    run(h, 336, 200, false)
     // the frames' order is shared (one sequence across the stage's panes): g's took ECHO, h's PRISM, so HALFTONE
     expect(h.update(2000, true, CORNERS, { turned: false })).toMatchObject({ flipped: false, type: 'halftone' })
   })
@@ -247,29 +236,9 @@ describe('the FRAME: the fallback pane between the hands', () => {
   })
 })
 
-describe('ONE-HANDED: the one-L frame', () => {
-  it('has its corner at the L and opens toward the centre, the far corner mirrored through it', () => {
-    const c = oneLCorners({ x: 0.2, y: 0.25 })
-    expect(c[0]).toEqual({ x: 0.2, y: 0.25 })
-    expect(c[2].x).toBeCloseTo(0.8)
-    expect(c[2].y).toBeCloseTo(0.75)
-    const br = oneLCorners({ x: 0.85, y: 0.9 }) // an L low on the right: its corner's the bottom-right
-    expect(br[2].x).toBeCloseTo(0.85)
-    expect(br[2].y).toBeCloseTo(0.9)
-  })
-  it('is never smaller than ONE_L.min (an L near the centre opens away from it), nor past the margin', () => {
-    for (const at of [{ x: 0.5, y: 0.5 }, { x: 0.56, y: 0.44 }, { x: 0, y: 1 }, { x: 1.2, y: -0.1 }]) {
-      const [p0, , p2] = oneLCorners(at)
-      expect(p2.x - p0.x).toBeGreaterThanOrEqual(ONE_L.min - 1e-9)
-      expect(p2.y - p0.y).toBeGreaterThanOrEqual(ONE_L.min - 1e-9)
-      for (const v of [p0.x, p0.y, p2.x, p2.y]) expect(v >= ONE_L.margin - 1e-9 && v <= 1 - ONE_L.margin + 1e-9).toBe(true)
-    }
-  })
-})
-
 describe('the next frame (S4\'s toast) and P', () => {
   it('a new frame opens with nextGlassType(), and it moves on past what that frame shows', () => {
-    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    const g = createGlass()
     expect(nextGlassType()).toBe('echo')
     expect(nextGlassName()).toBe('ECHO TRAIL')
     expect(g.update(0, true, CENTRE_CORNERS).type).toBe('echo')
@@ -281,7 +250,7 @@ describe('the next frame (S4\'s toast) and P', () => {
     expect(g.update(1000, true, CENTRE_CORNERS).type).toBe('halftone')
   })
   it('P with no pane moves the next frame on; with one it restyles it (the cycles the glass reads)', () => {
-    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    const g = createGlass()
     nextGlassStyle()
     nextGlassStyle()
     expect(nextGlassType()).toBe('halftone')
@@ -295,7 +264,7 @@ describe('the next frame (S4\'s toast) and P', () => {
 
 describe('FRAMES_SIMPLE: the amount', () => {
   it('passes S1\'s amount (clamped) to the pane and the signal while it shows; null without one or once let go', () => {
-    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    const g = createGlass()
     expect(g.update(0, true, CENTRE_CORNERS, { amount: 0.5 }).amount).toBe(0.5)
     expect(g.update(100, true, CENTRE_CORNERS, { amount: 1.4 }).amount).toBe(1)
     expect(glassSignal().amount).toBe(1)
@@ -307,7 +276,7 @@ describe('FRAMES_SIMPLE: the amount', () => {
 
 describe('the effect\'s big name (big text or no text)', () => {
   it('styleAge counts from the pane forming, and starts again on a restyle and on a flip', () => {
-    const g = createGlass({ follow: false, exitHoldMs: 0 })
+    const g = createGlass()
     expect(g.update(0, true, CENTRE_CORNERS, { cycles: 0, turned: false }).styleAge).toBe(0)
     expect(g.update(2000, true, CENTRE_CORNERS, { cycles: 0, turned: false }).styleAge).toBe(2)
     expect(g.update(2500, true, CENTRE_CORNERS, { cycles: 1, turned: false }).styleAge).toBe(0) // a restyle (P, a pinch)

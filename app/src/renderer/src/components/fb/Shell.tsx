@@ -38,7 +38,8 @@ import { LoopStrip } from './LoopStrip'
 import { Popover } from './Popover'
 import { FxPop, RemixRecordPop, RemixWave, SongPop } from './remix'
 import { HandsPop, MelodyPop, RecordPop, SoundPop, VisualPop } from './sauce'
-import { Coach, RemixSoon, Stage } from './Stage'
+import { Coach, RemixSoon, Stage, useCovered } from './Stage'
+import type { TopMode } from './modes'
 import s from './shell.module.css'
 import { t } from '@/i18n'
 
@@ -57,92 +58,143 @@ function FrameLightHint({ active }: { active: boolean }) {
   return active && now < lightHintUntil ? <Coach small text={t('coach.light', 'Frames need a little more light')} /> : null
 }
 
-/** 2.1 frames (docs/FRAMES_SIMPLE.md), one rule: hold a frame and it loops, let go and it stops. Above the dock: the how
- *  until 3 frames were made; while one shows, how to hold it (F's: how to stop it), then "Pull wider for more" after a
- *  second; on letting go, the next one's effect. ponytail: the hint sits above the dock, not under the frame (its
- *  picture coordinates aren't the window's); move it once S3 exposes the pane's box on screen. */
-const MADE_KEY = 'foxbox-frames-made'
-const LOOP_HINT_MS = 4000
-const madeFrames = (): number => {
-  try {
-    return Number(localStorage.getItem(MADE_KEY)) || 0
-  } catch {
-    return 0
-  }
-}
-function FrameCue({ active, mode }: { active: boolean; mode: 'play' | 'remix' | 'loop' }) {
-  useTick(active, 100)
-  const oneHanded = usePlayPrefs((p) => p.controlStyle === 'one')
-  const guiding = useGuide((g) => g.open) != null
+/** 2.1 frames (docs/FRAMES_SIMPLE.md), one rule: hold a frame and it loops, let go and it stops. While one shows, the
+ *  pill says how to hold it (F's: how to stop it), then "Pull wider for more" after a second; on letting go, a toast
+ *  names the next one's effect. ponytail: the pill sits above the dock, not under the frame (its picture coordinates
+ *  aren't the window's); move it once S3 exposes the pane's box on screen. */
+function useFrameFeedback(active: boolean, sauce: boolean): string | null {
   const on = active && glassSignal().on
   const was = useRef(on)
   const since = useRef(0)
-  const loopSince = useRef(performance.now())
-  useEffect(() => {
-    if (mode === 'loop') loopSince.current = performance.now()
-  }, [mode])
-  const [made, setMade] = useState(madeFrames)
   useEffect(() => {
     if (on === was.current) return
     was.current = on
     if (!on) return void toast.info(t('frames.next', 'Next frame: {name}', { name: nextGlassName() }))
     since.current = performance.now()
-    setMade((n) => {
-      try {
-        localStorage.setItem(MADE_KEY, String(n + 1))
-      } catch {
-        // storage off: the how shows again next launch
-      }
-      return n + 1
-    })
   }, [on])
-  if (!active || guiding) return null
-  let text: string | null = null
-  if (on && keyFrame.on) text = t('frames.cue.key', 'F again to stop')
-  else if (on && performance.now() - since.current < 1000) text = t('frames.cue.hold', 'Hold to loop · let go to stop')
-  else if (on)
-    text =
-      mode !== 'play' || currentInstrument()?.beatClock()
-        ? t('frames.cue.wider', 'Pull wider for more · closer for less')
-        : t('frames.cue.tempo', '120 · pluck to set the tempo')
-  else if (mode === 'loop') {
-    // LOOP's own hints in turn, two rounds from turning it on, then quiet
-    const hints = [
-      t('loop.hint.bright', 'Raise your right hand to brighten'),
-      t('loop.hint.higher', 'Raise your left hand to go higher'),
-      t('loop.hint.drop', 'Close a fist to drop'),
-      t('loop.hint.frame', 'Make a frame to add an effect'),
-    ]
-    const k = Math.floor((performance.now() - loopSince.current) / LOOP_HINT_MS)
-    text = k < hints.length * 2 ? hints[k % hints.length]! : null
-  } else if (made < 3)
-    text = oneHanded
-      ? t('frames.cue.how1', 'Hold one L to loop the last 4 beats')
-      : t('frames.cue.how', 'Make a frame with both hands to loop the last 4 beats')
-  return text ? (
-    <div className={s.frameCue} data-mode={mode} role="status">
-      {text}
-    </div>
-  ) : null
+  if (!on) return null
+  if (keyFrame.on) return t('frames.cue.key', 'F again to stop')
+  if (performance.now() - since.current < 1000) return t('frames.cue.hold', 'Hold to loop · let go to stop')
+  return !sauce || currentInstrument()?.beatClock()
+    ? t('frames.cue.wider', 'Pull wider for more · closer for less')
+    : t('frames.cue.tempo', '120 · pluck to set the tempo')
 }
 
-/** SAUCE's coach: the camera's on, then the hands (the design's copy). */
-function SauceCoach() {
+/** SAUCE's coach asks for the second hand: one seen while plucking, but never in ONE HAND (one hand is the instrument). */
+export const asksOtherHand = (seen: number, style: string, oneHanded: boolean): boolean => seen === 1 && style === 'pluck' && !oneHanded
+
+type CoachLine = { text: string; small?: boolean }
+
+/** The big coach: what's in the way (the graphics, the light), then the hands; null once they're up. Only SAUCE asks
+ *  for the other hand. Quiet while the GUIDE (an intro) speaks, a popover is open, or the light hint has the floor. */
+function useCoachLine(top: TopMode): CoachLine | null {
   const cam = useStrings((x) => x.camera)
   const style = usePlay((p) => p.style)
+  const oneHanded = usePlayPrefs((p) => p.controlStyle === 'one')
   const pop = useFb((f) => f.pop)
-  const guiding = useGuide((g) => g.open) != null // the GUIDE says it
-  useTick(true)
+  const guiding = useGuide((g) => g.open) != null
   // No WebGL (no GPU, a blocklisted one): no hand will ever be found, so this says why, the GUIDE open or not.
   if (cam === 'live' && cameraTracker()?.graphics === false)
-    return <Coach text={t('coach.noGraphics', "This computer's graphics can't run hand tracking · Update its graphics driver")} />
+    return { text: t('coach.noGraphics', "This computer's graphics can't run hand tracking · Update its graphics driver") }
   if (cam !== 'live' || pop || guiding || performance.now() < lightHintUntil) return null // the stage asks for the camera first, or its alert says why not
-  if (cameraSignals().tooDark) return <Coach small text={t('coach.dark', 'Hard to see your hands · More light on your hands, or step closer')} />
+  if (cameraSignals().tooDark)
+    return { small: true, text: t('coach.dark', 'Hard to see your hands · More light on your hands, or step closer') }
   const sh = cameraSignals().play.shapes
   const seen = (sh.left ? 1 : 0) + (sh.right ? 1 : 0)
-  if (seen === 0) return <Coach text={t('coach.cpose', 'Curve your hands into a C, turned a little toward the camera')} />
-  if (seen === 1 && style === 'pluck') return <Coach small text={t('coach.otherHand', 'Raise your other hand')} />
+  if (seen === 0 && oneHanded) return { text: t('coach.cposeOne', 'Curve one hand into a C, turned a little toward the camera') }
+  if (seen === 0) return { text: t('coach.cpose', 'Curve your hands into a C, turned a little toward the camera') }
+  if (top === 'sauce' && asksOtherHand(seen, style, oneHanded)) return { small: true, text: t('coach.otherHand', 'Raise your other hand') }
   return null
+}
+
+// The modes' tips (docs/MODE_ENTRY_UX.md §4), in the pill once the stage has nothing more pressing to say
+const TIPS: Record<TopMode, string[]> = {
+  sauce: ['sauce.bend', 'sauce.vibrato', 'sauce.flow', 'sauce.sound', 'sauce.guide'],
+  melody: ['melody.space', 'melody.frame', 'melody.strip', 'melody.guide'],
+  remix: ['remix.jump', 'remix.frame', 'remix.shaka', 'remix.guide'],
+}
+const tipText = (id: string): string =>
+  ({
+    'sauce.bend': t('coach.tip.sauce.bend', 'Twist a wrist to bend'),
+    'sauce.vibrato': t('coach.tip.sauce.vibrato', 'Shake for vibrato'),
+    'sauce.flow': t('coach.tip.sauce.flow', 'Press S for FLOW: your hand’s height plays'),
+    'sauce.sound': t('coach.tip.sauce.sound', 'Pick a sound: Sound in the dock, or 1–7'),
+    'melody.space': t('coach.tip.melody.space', 'Spread your hands for space'),
+    'melody.frame': t('coach.tip.melody.frame', 'Make a frame to add an effect'),
+    'melody.strip': t('coach.tip.melody.strip', 'Drag the notes in the strip'),
+    'remix.jump': t('coach.tip.remix.jump', 'Jump to the drop: ← / →'),
+    'remix.frame': t('coach.tip.remix.frame', 'Hold a frame to loop the last 4 beats'),
+    'remix.shaka': t('coach.tip.remix.shaka', 'Hold the shaka 🤙 for your library'),
+  })[id] ?? t('coach.tip.guide', 'More moves in the GUIDE · G')
+export const TIP_AFTER_MS = 20_000
+const TIP_GAP_MS = 20_000
+const TIP_MS = 6_000
+const SEEN_KEY = 'foxbox-coach-seen'
+/** Where the tips are: the mode, since when it's been quiet (playing), the tip showing and until when, the last one's end. */
+export interface TipClock {
+  mode: TopMode | null
+  since: number
+  id: string | null
+  until: number
+  last: number
+}
+/** The tip to show now (and the clock moved on): one at a time, each once ever (`seen` grows), for 6 s, 20 s apart,
+ *  from 20 s of playing in a mode; anything else on the stage (`busy`) holds them back and restarts the 20 s. */
+export function tipNow(c: TipClock, top: TopMode, busy: boolean, now: number, seen: string[]): string | null {
+  if (c.mode !== top) Object.assign(c, { mode: top, since: now, id: null, until: 0 })
+  if (c.id && now < c.until) return busy ? null : c.id
+  if (c.id) Object.assign(c, { id: null, last: now })
+  if (busy) c.since = now
+  if (busy || now - c.since < TIP_AFTER_MS || now - c.last < TIP_GAP_MS) return null
+  const id = TIPS[top].find((x) => !seen.includes(x))
+  if (!id) return null
+  seen.push(id)
+  Object.assign(c, { id, until: now + TIP_MS })
+  return id
+}
+const tipClock: TipClock = { mode: null, since: 0, id: null, until: 0, last: -Infinity }
+let seenTips: string[] | null = null
+function seenNow(): string[] {
+  if (!seenTips)
+    try {
+      seenTips = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]
+    } catch {
+      seenTips = []
+    }
+  return seenTips
+}
+
+/** The stage's instructions, one at a time (2.1.1, docs/MODE_ENTRY_UX.md §4): the big coach (the blockers, the hands),
+ *  else the pill: a frame in hand, else the mode's next tip. An intro (the GUIDE's card) speaks alone. */
+export function ModeGuide({ active, top }: { active: boolean; top: TopMode }) {
+  useTick(active, 100)
+  const coach = useCoachLine(top)
+  const frame = useFrameFeedback(active, top === 'sauce')
+  const guiding = useGuide((g) => g.open) != null
+  const covered = useCovered()
+  const busyUi = useFb((f) => Boolean(f.pop || f.board || f.island))
+  const live = useStrings((x) => x.camera) === 'live'
+  if (!active) return null
+  const quiet = guiding || covered || performance.now() < lightHintUntil
+  const before = seenNow().length
+  const tip = tipNow(tipClock, top, quiet || busyUi || !live || coach != null || frame != null, performance.now(), seenNow())
+  if (seenNow().length !== before)
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify(seenNow()))
+    } catch {
+      // storage off: the tips come again next launch
+    }
+  const pill = coach || quiet ? null : (frame ?? (tip ? tipText(tip) : null))
+  return (
+    <>
+      {coach && <Coach small={coach.small} text={coach.text} />}
+      {pill && (
+        <div className={s.frameCue} data-mode={top === 'remix' ? 'remix' : top === 'melody' ? 'loop' : 'play'} role="status">
+          {pill}
+        </div>
+      )}
+    </>
+  )
 }
 
 /** The glass note just above the plucking fingertip (design §6), for 1.6 s; S3's faint label steps aside meanwhile. */
@@ -212,9 +264,8 @@ function Sauce({ active }: { active: boolean }) {
   return (
     <div className={s.mode} hidden={!active} data-latched={latched || undefined} {...frame}>
       <Stage mode="play" active={active}>
-        <SauceCoach />
         <FrameLightHint active={active} />
-        <FrameCue active={active} mode={looping ? 'loop' : 'play'} />
+        <ModeGuide active={active} top={looping ? 'melody' : 'sauce'} />
         <NotePop />
         {active && looping && !board && <LoopStrip />}
       </Stage>
@@ -276,7 +327,7 @@ function Remix({ active }: { active: boolean }) {
       <Stage mode="remix" active={active}>
         <RemixWave />
         <FrameLightHint active={active} />
-        <FrameCue active={active} mode="remix" />
+        <ModeGuide active={active} top="remix" />
         {visual !== 'off' && (
           <span className={s.camHidden}>
             <span className={s.camHiddenDot} />

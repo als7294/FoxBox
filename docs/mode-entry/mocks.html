@@ -1,0 +1,266 @@
+<!doctype html>
+<!-- Static mocks for docs/MODE_ENTRY_UX.md (S5). Open with ?v=hands|chooser|island|melody|sauce|remix (&notch=1 for the notch
+     Island, &still=1 for a fixed demo frame). The stage stills are S3's synthetic hands (strings-site2), never a face. The
+     hand demos are the app's own GuideHands drawing (guide-hands.js, bundled from GuideHands.tsx; see the doc). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mode entry mocks</title>
+<style>
+@font-face { font-family: Geist; src: url(media/geist-variable.woff2) format('woff2'); font-weight: 100 900; }
+@font-face { font-family: 'Geist Mono'; src: url(media/geist-mono-variable.woff2) format('woff2'); font-weight: 100 900; }
+:root {
+  --fb-ink: #F6EFE6; --fb-ink-2: #B5A798; --fb-ink-on-accent: #1C1611; --fb-accent: #F2701F; --fb-accent-soft: #FFB27A;
+  --fb-glass: rgba(28, 22, 18, .74); --fb-hairline: rgba(255, 255, 255, .12);
+  --fb-shadow-pop: 0 30px 70px -20px rgba(0, 0, 0, .6), inset 0 0 0 .5px var(--fb-hairline);
+  --fb-font: Geist, "Helvetica Neue", sans-serif; --fb-mono: "Geist Mono", ui-monospace, monospace;
+  /* full size; .compact (below 1440 wide or 900 tall) shrinks the dock, the strip and the Island, as the app does */
+  --dock-b: 28px; --dock-w: 840px; --dock-h: 68px; --dock-pad: 8px;
+  --strip-b: 104px; --strip-w: 840px; --strip-h: 84px;
+  --island-w: 420px; --open-w: 780px;
+}
+.compact { --dock-b: 20px; --dock-w: 720px; --dock-h: 56px; --dock-pad: 6px; --strip-b: 84px; --strip-w: 720px; --strip-h: 72px; --open-w: 720px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #15100D; color: var(--fb-ink); font-family: var(--fb-font); overflow: hidden; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+kbd { font: 600 16px var(--fb-mono); padding: 1px 7px; border-radius: 7px; background: rgba(255,255,255,.12); color: var(--fb-ink); }
+
+/* the stage: S3's capture full-bleed (cover), or a plain stage */
+.stage { position: fixed; inset: 0; overflow: hidden; background: radial-gradient(90% 80% at 50% 40%, #cfc8bd, #a39a8e 70%, #8d8478); }
+.stage img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; }
+.stage img.crop { height: 112%; } /* the loop still has a strip baked into its last 11%: off the bottom */
+.stage::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,0) 22%, rgba(0,0,0,0) 62%, rgba(0,0,0,.34)); }
+
+/* the dock (2.0 §4) */
+.dock { position: fixed; left: 50%; bottom: var(--dock-b); transform: translateX(-50%); width: var(--dock-w); display: flex; gap: 6px;
+  padding: var(--dock-pad); border-radius: 32px; z-index: 7;
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 40%), rgba(24,18,14,.82); backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 24px 60px -18px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.08); }
+.dock .b { flex: 1; min-width: 0; height: var(--dock-h); padding: 0 14px; border-radius: 22px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.dock .l { font-size: 16px; font-weight: 600; opacity: .72; white-space: nowrap; }
+.dock .v { font-size: 18px; font-weight: 700; white-space: nowrap; }
+.compact .dock .v { font-size: 16px; }
+.compact .dock .l { font-size: 16px; }
+
+/* the Island: a glass pill windowed, the notch's black when full screen on a notched display */
+.island { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: var(--island-w); z-index: 9;
+  border-radius: 18px; background: rgba(20,15,12,.78); backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,.5), inset 0 0 0 .5px rgba(255,255,255,.14); color: #fff; }
+.notch .island { top: 0; border-radius: 0 0 16px 16px; background: #000; box-shadow: none; }
+.island .row { height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; }
+.island .mode { font: 800 16px var(--fb-font); letter-spacing: .06em; color: var(--fb-accent-soft); }
+.island .st { flex: 1; display: flex; align-items: center; gap: 8px; font: 600 16px var(--fb-font); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.island .st .sep { color: rgba(255,255,255,.4); }
+.island .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fb-accent); }
+.island .beats { display: flex; gap: 4px; } .island .beats i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.28); }
+.island .sw { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; border-radius: 10px; font: 700 16px var(--fb-font); color: var(--fb-ink); background: rgba(255,255,255,.1); }
+.island .sw kbd { padding: 0 6px; font-size: 16px; background: rgba(255,255,255,.14); }
+.island.open { width: var(--open-w); border-radius: 30px; }
+.notch .island.open { border-radius: 0 0 34px 34px; }
+.island.open .sw { background: var(--fb-ink); color: var(--fb-ink-on-accent); }
+.island.open .sw kbd { background: rgba(0,0,0,.12); color: var(--fb-ink-on-accent); }
+.island .pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 14px 0; }
+.island .foot { margin: 0; padding: 14px 0 16px; text-align: center; font-size: 16px; color: rgba(255,255,255,.66); }
+
+/* a mode card: the same component on the Setup's last screen and in the open Island */
+.mc { position: relative; display: flex; flex-direction: column; border-radius: 20px; background: rgba(255,255,255,.07); overflow: hidden; text-align: left; }
+.mc[data-def] { box-shadow: inset 0 0 0 2px var(--fb-accent); }
+.mc .demo { position: relative; aspect-ratio: 16 / 9; background: #140c08; overflow: hidden; }
+.mc .demo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mc .demo .k { position: absolute; top: 8px; right: 8px; background: rgba(20,14,10,.66); backdrop-filter: blur(8px); }
+.mc .demo .now { position: absolute; top: 8px; left: 8px; padding: 2px 10px; border-radius: 9px; font: 700 16px var(--fb-font); background: var(--fb-ink); color: var(--fb-ink-on-accent); }
+.mc .txt { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 0; flex: 1; }
+.mc .name { font: 800 24px var(--fb-font); letter-spacing: .05em; }
+.mc .line { font: 500 16px/1.35 var(--fb-font); color: var(--fb-ink); opacity: .78; }
+.mc .go { margin: 12px 14px 14px; height: 44px; border-radius: 14px; font: 700 18px var(--fb-font); background: var(--fb-accent); color: var(--fb-ink-on-accent); }
+.mc .go[disabled] { background: rgba(255,255,255,.08); color: rgba(255,255,255,.62); cursor: default; }
+
+/* the Setup's last screen (first run): the setup's glass card, wide for three cards */
+.screen { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(8,5,3,.6); backdrop-filter: blur(26px) saturate(1.4); }
+.setup { width: min(1040px, calc(100vw - 48px)); padding: 30px 36px 28px; border-radius: 32px; background: var(--fb-glass); box-shadow: var(--fb-shadow-pop); }
+.setup .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.setup .dots { display: flex; gap: 8px; } .setup .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--fb-accent); }
+.setup h1 { margin: 0; font: 700 40px/1.1 var(--fb-font); letter-spacing: -.02em; }
+.setup .sub { margin: 10px 0 0; font-size: 18px; color: var(--fb-ink-2); }
+.setup .pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+.setup .mc .name { font-size: 28px; } .setup .mc .line { font-size: 18px; }
+.setup .mc .go { height: 48px; }
+.setup .foot { margin: 20px 0 0; font-size: 16px; color: var(--fb-ink-2); }
+.compact .setup { padding: 24px 30px 22px; } .compact .setup h1 { font-size: 34px; } .compact .setup .pick { margin-top: 18px; }
+
+
+/* the play-style card ("How do you play?"): the three ways to play as picks (no Start), the lead hand under them, then Next */
+.setup .mc.pick-me { cursor: pointer; }
+.setup .mc[aria-checked='true'] { box-shadow: inset 0 0 0 3px var(--fb-accent); background: rgba(242,112,31,.1); }
+.setup .mc .who { font: 600 18px var(--fb-font); color: var(--fb-ink-2); }
+.setup .mc .how { font: 800 26px/1.15 var(--fb-font); letter-spacing: -.01em; }
+.setup .mc .feel { margin-top: 2px; padding-bottom: 16px; font: 500 18px/1.35 var(--fb-font); color: var(--fb-ink); opacity: .78; }
+.setup .mc .tick { position: absolute; top: 8px; left: 8px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 18px var(--fb-font); background: var(--fb-accent); color: var(--fb-ink-on-accent); }
+.setup .lead { display: flex; align-items: center; gap: 16px; margin-top: 20px; }
+.setup .lead b { font: 700 20px var(--fb-font); }
+.setup .lead .seg { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: rgba(255,255,255,.08); }
+.setup .lead .seg button { min-width: 96px; height: 44px; border-radius: 12px; font: 700 18px var(--fb-font); color: var(--fb-ink-2); }
+.setup .lead .seg button[aria-checked='true'] { background: var(--fb-ink); color: var(--fb-ink-on-accent); }
+.setup .lead > span:last-child { flex: 1; font-size: 16px; line-height: 1.35; color: var(--fb-ink-2); }
+.setup .end { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; }
+.setup .end .foot { margin: 0; }
+.setup .end .nx { height: 48px; padding: 0 28px; border-radius: 15px; font: 700 18px var(--fb-font); background: var(--fb-accent); color: var(--fb-ink-on-accent); }
+.compact .setup .lead, .compact .setup .end { margin-top: 14px; }
+.compact .setup .mc .how { font-size: 24px; }
+
+/* the mode intro: the GUIDE's card (right, above the dock; above LOOP's strip in MELODY), 3 steps */
+.intro { position: fixed; right: 28px; bottom: 116px; width: 380px; z-index: 40; padding: 18px; border-radius: 28px; display: flex; flex-direction: column; gap: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0) 40%), rgba(28,22,18,.8); backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), inset 0 0 0 .5px rgba(255,255,255,.14), 0 24px 60px -20px rgba(0,0,0,.6); }
+.intro[data-over-strip] { bottom: calc(var(--strip-b) + var(--strip-h) + 16px); }
+.intro .head { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
+.intro .chap { font: 700 16px var(--fb-mono); letter-spacing: .12em; color: var(--fb-accent); }
+.intro .count { flex: 1; font: 500 16px var(--fb-mono); color: var(--fb-ink-2); }
+.intro .skip { height: 32px; padding: 0 12px; border-radius: 10px; font: 700 16px var(--fb-font); color: var(--fb-ink-2); background: rgba(255,255,255,.07); }
+.intro .demo { position: relative; height: 196px; border-radius: 20px; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(80% 90% at 50% 100%, rgba(242,112,31,.16), rgba(0,0,0,0) 70%), #140c08; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.intro .demo .icon { font-size: 72px; line-height: 1; color: var(--fb-accent); }
+.intro h2 { margin: 2px 2px 0; font: 700 24px/1.2 var(--fb-font); letter-spacing: -.02em; text-wrap: balance; }
+.intro p.t { margin: 0 2px; font-size: 16px; line-height: 1.45; color: var(--fb-ink-2); }
+.intro .r { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.intro .try { flex: 1; display: flex; align-items: center; gap: 8px; margin: 0 2px; font: 600 16px var(--fb-mono); letter-spacing: .06em; text-transform: uppercase; color: #ff9c5c; }
+.intro .try i { width: 8px; height: 8px; border-radius: 50%; background: #ff8a3d; box-shadow: 0 0 8px #ff8a3d; }
+.intro .act { height: 40px; padding: 0 14px; border-radius: 12px; font: 700 16px var(--fb-font); background: rgba(255,255,255,.1); }
+.intro .act.pri { background: var(--fb-accent); color: var(--fb-ink-on-accent); }
+.intro .dots { display: flex; justify-content: center; gap: 6px; margin: 0; }
+.intro .dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); } .intro .dots i.on { width: 22px; background: var(--fb-accent); }
+.intro .f { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+.intro .f button { height: 46px; border-radius: 15px; font: 700 16px var(--fb-font); background: rgba(255,255,255,.08); }
+.intro .f button[disabled] { opacity: .4; } .intro .f .next { background: var(--fb-accent); color: var(--fb-ink-on-accent); }
+
+/* LOOP's strip (MELODY) */
+.strip { position: fixed; left: 50%; bottom: var(--strip-b); transform: translateX(-50%); width: var(--strip-w); height: var(--strip-h); z-index: 6; border-radius: 22px; padding: 10px 14px;
+  background: radial-gradient(120% 90% at 50% -30%, rgba(255,150,80,.17), transparent 70%), rgba(24,18,14,.58); backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), inset 0 0 0 1px rgba(255,255,255,.07), 0 18px 40px -20px rgba(0,0,0,.6); }
+.strip .n { position: absolute; height: 7px; border-radius: 4px; background: rgba(255,236,214,.55); }
+.strip .n.lit { background: #fff1de; box-shadow: 0 0 12px #ff7a1f; }
+.strip .ph { position: absolute; top: 6px; bottom: 6px; width: 2px; background: #fff1de; box-shadow: 0 0 10px #ff9a3c; }
+
+/* the one coach line: the pill above the dock (the big centre coach is only for "you can't play yet") */
+.cue { position: fixed; left: 50%; bottom: 124px; transform: translateX(-50%); padding: 10px 20px; border-radius: 999px; z-index: 5; white-space: nowrap;
+  background: var(--fb-glass); backdrop-filter: blur(30px) saturate(1.8); font: 600 20px/1.2 var(--fb-font); }
+.compact .cue { bottom: 100px; }
+
+/* notes on the mock (not UI): a small caption, bottom-left */
+.cap { position: fixed; left: 16px; bottom: 12px; z-index: 50; max-width: 300px; padding: 8px 12px; border-radius: 10px; background: rgba(0,0,0,.55); font: 500 16px/1.35 var(--fb-font); color: #fff; }
+.compact .cap { max-width: 230px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="guide-hands.js"></script>
+<script>
+const q = new URLSearchParams(location.search)
+const V = q.get('v') || 'chooser'
+const still = q.has('still')
+const root = document.documentElement
+if (innerWidth < 1440 || innerHeight < 900) root.classList.add('compact')
+if (q.has('notch')) root.classList.add('notch')
+
+const POSTER = { sauce: 'media/strings-pluck-poster.jpg', melody: 'media/strings-loop-poster.jpg', remix: 'media/strings-remix-poster.jpg', curl: 'media/strings-pluck-poster.jpg', palm: 'media/strings-palm-poster.jpg', one: 'media/strings-one-poster.jpg' }
+const STYLES = [
+  { id: 'curl', who: 'Two hands ·', how: 'curl a finger', feel: 'Small, precise moves.' },
+  { id: 'palm', who: 'Two hands ·', how: 'tap with your palm', feel: 'Bigger and looser, like a drum pad.' },
+  { id: 'one', who: '', how: 'One hand', feel: 'Everything with either hand.' },
+]
+const MODES = [
+  { id: 'sauce', name: 'SAUCE', line: 'Pluck notes between your hands.', key: '1' },
+  { id: 'melody', name: 'MELODY', line: 'A loop plays. Your hands shape it.', key: '2' },
+  { id: 'remix', name: 'REMIX', line: 'Remix any song with your hands.', key: '3' },
+]
+
+const stage = (img, crop) => `<div class="stage">${img ? `<img src="${img}" class="${crop ? 'crop' : ''}" alt="">` : ''}</div>`
+const card = (m, { now, def } = {}) => `
+  <article class="mc" ${def ? 'data-def' : ''}>
+    <div class="demo"><img src="${POSTER[m.id]}" alt="">${now ? '<span class="now">Playing now</span>' : ''}<kbd class="k">${m.key}</kbd></div>
+    <div class="txt"><span class="name">${m.name}</span><span class="line">${m.line}</span></div>
+    <button class="go" ${now ? 'disabled' : ''}>${now ? 'You’re here' : 'Start'}</button>
+  </article>`
+const dock = (items) => `<nav class="dock">${items.map(([l, v]) => `<div class="b"><span class="l">${l}</span><span class="v">${v}</span></div>`).join('')}</nav>`
+const DOCK = {
+  sauce: [['Sound', '808'], ['Hands', 'PLUCK'], ['Visual', 'Off'], ['Board', 'Knobs'], ['Record', 'Takes'], ['Settings', '⋯']],
+  melody: [['Melody', 'Night Drive'], ['Sound', 'KEYS'], ['Visual', 'Off'], ['Board', 'Knobs'], ['Record', 'Takes'], ['Settings', '⋯']],
+  remix: [['Song', '▶ Bar 1'], ['Beat FX', 'Hold'], ['Library', 'Browse'], ['Visual', 'Camera'], ['Board', 'Knobs'], ['Record', 'Video'], ['Settings', '⋯']],
+}
+const island = (mode, status, open) => `
+  <div class="island ${open ? 'open' : ''}">
+    <div class="row"><span class="mode">${mode}</span><span class="st">${status}</span><button class="sw">Switch <kbd>M</kbd></button></div>
+    ${open ? `<div class="pick">${MODES.map((m) => card(m, { now: m.name === mode })).join('')}</div>
+      <p class="foot">1, 2 or 3 to pick · Esc to close</p>` : ''}
+  </div>`
+const intro = ({ chap, n, title, text, move, icon, acts = [], tryIt = true, overStrip }) => `
+  <section class="intro" ${overStrip ? 'data-over-strip' : ''}>
+    <div class="head"><span class="chap">${chap}</span><span class="count">${n} / 3</span><button class="skip">Skip</button></div>
+    <div class="demo">${move ? `<canvas data-move="${move}"></canvas>` : `<span class="icon">${icon}</span>`}</div>
+    <h2>${title}</h2><p class="t">${text}</p>
+    <div class="r">${tryIt ? '<p class="try"><i></i>Now you try</p>' : '<span style="flex:1"></span>'}${acts.map(([l, pri]) => `<button class="act ${pri ? 'pri' : ''}">${l}</button>`).join('')}</div>
+    <p class="dots">${[1, 2, 3].map((i) => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</p>
+    <div class="f"><button ${n === 1 ? 'disabled' : ''}>Back</button><button class="next">Next</button></div>
+  </section>`
+const strip = () => {
+  const notes = [[2, 30], [14, 55], [26, 40], [38, 20], [50, 45], [62, 62], [74, 35], [86, 50]]
+  return `<div class="strip">${notes.map(([x, y], i) => `<span class="n ${i === 5 ? 'lit' : ''}" style="left:calc(${x}% + 6px);top:${y}%;width:9%"></span>`).join('')}<span class="ph" style="left:68%"></span></div>`
+}
+const cap = (t) => `<div class="cap">${t}</div>`
+
+const views = {
+  // 0 · the play style, asked once: setup's third card on a new install, the first of two after WHAT'S NEW on an update
+  hands: () => stage(POSTER.sauce) + island('SAUCE', '<span class="dot"></span>—') + dock(DOCK.sauce) + `
+    <div class="screen"><div class="setup">
+      <div class="top"><span class="dots"><i></i><i style="background:rgba(255,255,255,.18)"></i></span></div>
+      <h1>How do you play?</h1>
+      <p class="sub">Like being a lefty or riding goofy: there’s no right way, just your way.</p>
+      <div class="pick" role="radiogroup">${STYLES.map((m, i) => `
+        <article class="mc pick-me" role="radio" aria-checked="${i === 0}">
+          <div class="demo"><img src="${POSTER[m.id]}" alt="">${i === 0 ? '<span class="tick">✓</span>' : ''}</div>
+          <div class="txt">${m.who ? `<span class="who">${m.who}</span>` : '<span class="who">&nbsp;</span>'}<span class="how">${m.how}</span><span class="feel">${m.feel}</span></div>
+        </article>`).join('')}</div>
+      <div class="lead"><b>Lead hand</b><span role="radiogroup" class="seg"><button aria-checked="false">Left</button><button aria-checked="true">Right</button></span>
+        <span>It plays the pitch in FLOW and spins the library.</span></div>
+      <div class="end"><p class="foot">Switch any time in Settings → Playing.</p><button class="nx">Next</button></div>
+    </div></div>` + cap('1a · Updating from 2.x: once, after WHAT’S NEW'),
+  // 1 · first run: the setup's last screen
+  chooser: () => stage(POSTER.sauce) + island('SAUCE', '<span class="dot"></span>—') + dock(DOCK.sauce) + `
+    <div class="screen"><div class="setup">
+      <div class="top"><span class="dots"><i></i><i></i></span></div>
+      <h1>What are we playing?</h1>
+      <p class="sub">Pick one. Switch any time from the top of the screen, or press M.</p>
+      <div class="pick">${MODES.map((m, i) => card(m, { def: i === 0 })).join('')}</div>
+      <p class="foot">Not sure? Start with SAUCE.</p>
+    </div></div>` + cap('1b · Then the mode (new installs: setup’s last card)'),
+  // 2 · the Island's Switch, open over SAUCE
+  island: () => stage(POSTER.sauce) + island('SAUCE', '<span>PLUCK</span><span class="sep">·</span><span class="dot"></span><span>C#4</span>', true) + dock(DOCK.sauce) +
+    cap('2 · Switch (or M) opens the chooser in the Island'),
+  // 3 · MELODY's first entry: step 1 of its intro; the stage says nothing else
+  melody: () => stage(POSTER.melody, true) + island('MELODY', '<span>Night Drive</span><span class="sep">·</span><span>124</span>') + strip() + dock(DOCK.melody) +
+    intro({ chap: 'MELODY', n: 1, title: 'It’s already playing', text: 'A melody loops on the beat. Your hands shape it. Want another? Press D.', move: 'melody', acts: [['🎲 Another one']], tryIt: false, overStrip: true }) +
+    cap('3 · MELODY’s intro, step 1 of 3'),
+  // 4 · SAUCE after its intro: one coach line, the Island says where you are
+  sauce: () => stage(POSTER.sauce) + island('SAUCE', '<span>PLUCK</span><span class="sep">·</span><span class="dot"></span><span>C#4</span>') + dock(DOCK.sauce) +
+    '<div class="cue">Twist a wrist to bend</div>' + cap('4 · After the intro: one line at a time'),
+  // 5 · REMIX's first entry with no song: load first
+  remix: () => stage(null) + island('REMIX', '<span class="beats"><i></i><i></i><i></i><i></i></span><span>No song yet</span>') + dock(DOCK.remix) +
+    intro({ chap: 'REMIX', n: 1, title: 'Load a song, or try the test beat', text: 'Or drop a file on the window. L opens your library.', move: 'test-beat', acts: [['Load a song…'], ['Try the test beat', true]], tryIt: false }) +
+    cap('5 · REMIX’s intro starts with the song'),
+}
+document.getElementById('app').innerHTML = views[V]()
+
+// the app's own GuideHands drawing (W 240 × H 160 units), as GuideHands.tsx sizes it
+for (const cv of document.querySelectorAll('canvas[data-move]')) {
+  const w = 300, dpr = devicePixelRatio || 1, c = cv.getContext('2d')
+  Object.assign(cv, { width: Math.round(w * dpr), height: Math.round((w * 160 * dpr) / 240) })
+  Object.assign(cv.style, { width: w + 'px', height: (w * 160) / 240 + 'px' })
+  c.setTransform((w * dpr) / 240, 0, 0, (w * dpr) / 240, 0, 0)
+  const move = cv.dataset.move
+  if (still) GH.drawGuideMove(c, move, 1.4)
+  else { const t0 = performance.now(); const tick = (now) => { requestAnimationFrame(tick); GH.drawGuideMove(c, move, (now - t0) / 1000) }; requestAnimationFrame(tick) }
+}
+</script>
+</body>
+</html>

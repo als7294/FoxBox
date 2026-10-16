@@ -215,10 +215,24 @@ function holdRing(g: G, [x, y]: V, fill: number, alpha = 1) {
   c.restore()
 }
 
-/** The frame's pane in quad q (clockwise from the top-left): its style, its edge drawn so far (0-1), bloomed (0-1). */
-function pane(g: G, q: V[], style: PaneStyle, edge = 1, bloom = 1) {
+/** What the fingers bound (2.1.1, the user: "frames should only ever be contained in my fingers"): each L's thumb tip,
+ *  crotch (between 2 and 5) and index tip, round their middle: a triangle for one hand, six points for two. */
+function fingerBound(hands: V[][]): V[] {
+  const pts = hands.flatMap((p) => [p[4]!, mixV(p[2]!, p[5]!, 0.5), p[8]!])
+  const m: V = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length]
+  return pts.sort((a, b) => Math.atan2(a[1] - m[1], a[0] - m[0]) - Math.atan2(b[1] - m[1], b[0] - m[0]))
+}
+
+/** The frame's pane in quad q (clockwise from the top-left): its style, its edge drawn so far (0-1), bloomed (0-1);
+ *  all of it inside what `hands`' fingers bound, its edge round that. */
+function pane(g: G, q: V[], style: PaneStyle, edge: number, bloom: number, hands: V[][]) {
   const c = g.c
   const ctr: V = [(q[0]![0] + q[2]![0]) / 2, (q[0]![1] + q[2]![1]) / 2]
+  const bound = fingerBound(hands)
+  c.save()
+  c.beginPath()
+  bound.forEach((p, i) => (i ? c.lineTo(...p) : c.moveTo(...p)))
+  c.clip()
   if (bloom > 0) {
     c.save()
     c.globalAlpha *= bloom
@@ -264,26 +278,31 @@ function pane(g: G, q: V[], style: PaneStyle, edge = 1, bloom = 1) {
     }
     c.restore()
   }
-  if (edge <= 0) return
-  // the edge: white with an orange glow, drawn round from the top-left
-  const len = q.map((p, i) => Math.hypot(q[(i + 1) % 4]![0] - p[0], q[(i + 1) % 4]![1] - p[1]))
-  let left = edge * len.reduce((a, b) => a + b, 0)
-  c.save()
-  c.shadowColor = `rgba(${ACC}, 0.9)`
-  c.shadowBlur = 10
-  c.strokeStyle = '#FFFFFF'
-  c.lineWidth = 1.8
-  c.lineJoin = 'round'
-  c.beginPath()
-  c.moveTo(...q[0]!)
-  for (let i = 0; i < 4 && left > 0; i++) {
-    const k = Math.min(1, left / len[i]!)
-    c.lineTo(...mixV(q[i]!, q[(i + 1) % 4]!, k))
-    left -= len[i]!
+  if (edge > 0) { // the edge: white with an orange glow (inside), drawn round the fingers' bound
+    const n = bound.length
+    const len = bound.map((p, i) => Math.hypot(bound[(i + 1) % n]![0] - p[0], bound[(i + 1) % n]![1] - p[1]))
+    let left = edge * len.reduce((a, b) => a + b, 0)
+    c.shadowColor = `rgba(${ACC}, 0.9)`
+    c.shadowBlur = 10
+    c.strokeStyle = '#FFFFFF'
+    c.lineWidth = 3.6 // half of it outside, clipped
+    c.lineJoin = 'round'
+    c.beginPath()
+    c.moveTo(...bound[0]!)
+    for (let i = 0; i < n && left > 0; i++) {
+      c.lineTo(...mixV(bound[i]!, bound[(i + 1) % n]!, Math.min(1, left / len[i]!)))
+      left -= len[i]!
+    }
+    c.stroke()
   }
-  c.stroke()
   c.restore()
 }
+
+/** The frame moves' hands and frame (2.1.1): the frame no bigger than the fingers reach (an index up, the other hand's
+ *  thumb across), so what they bound is the pane, not a strip between two small hands. */
+const FS = 30
+const FW = 84
+const FH = 60
 
 /** The two L hands making a frame w x h at (cx, cy), tilted `th` (the onboarding's framePose); `turn` turns both over. */
 function frameHands(cx: number, cy: number, w: number, h: number, th: number, s: number, turn = 0, curls: number[] = [0, 0, 1, 1, 1]) {
@@ -484,12 +503,12 @@ const MOVES: Record<GuideMove, Move> = {
     draw(g, t) {
       const k = g.one ? 1 : inOut(seg(t, 0, 0.9)) * (1 - inOut(seg(t, 3.1, 3.6)))
       const th = 0.06 * Math.sin(t * 1.3)
-      const F = frameHands(W / 2, H / 2 + 6, lerp(60, 110, k), lerp(40, 74, k), th, 22)
-      pane(g, F.q, 'echo', seg(t, 0.9, 1.35) * (1 - seg(t, 3.1, 3.2)), out3(seg(t, 1.15, 1.85)) * (1 - seg(t, 3.0, 3.3)))
+      const F = frameHands(W / 2, H / 2 + 6, lerp(56, FW, k), lerp(40, FH, k), th, FS)
+      pane(g, F.q, 'echo', seg(t, 0.9, 1.35) * (1 - seg(t, 3.1, 3.2)), out3(seg(t, 1.15, 1.85)) * (1 - seg(t, 3.0, 3.3)), g.one ? [F.L] : [F.L, F.R])
       g.c.save()
       if (g.one) g.c.globalAlpha *= seg(t, 0, 0.3) * (1 - seg(t, 3.1, 3.6))
-      hand(g, F.L, 22, [4, 8])
-      if (!g.one) hand(g, F.R, 22, [4, 8])
+      hand(g, F.L, FS, [4, 8])
+      if (!g.one) hand(g, F.R, FS, [4, 8])
       g.c.restore()
       if (g.one) holdRing(g, F.q[3]!, seg(t, 0.3, 0.9), 1 - seg(t, 0.9, 1.1)) // one L held: the ring, then the pane
       return F.q[3]!
@@ -522,18 +541,18 @@ const MOVES: Record<GuideMove, Move> = {
       const taps = [0.8, 2.2]
       const tap = Math.max(...taps.map((a) => pulse(t, a, 0.1, 0.2)))
       const n = taps.filter((a) => t > a).length
-      const F = frameHands(W / 2, H / 2 + 6, 110, 74, 0.05 * Math.sin(t * 1.3), 22, 0, [tap * 0.6, tap * 0.4, 1, 1, 1])
+      const F = frameHands(W / 2, H / 2 + 6, FW, FH, 0.05 * Math.sin(t * 1.3), FS, 0, [tap * 0.6, tap * 0.4, 1, 1, 1])
       const styles: PaneStyle[] = ['echo', 'prism', 'halftone']
-      pane(g, F.q, styles[n % 3]!)
+      pane(g, F.q, styles[n % 3]!, 1, 1, g.one ? [F.L] : [F.L, F.R])
       if (t - Math.max(...taps.filter((a) => t > a), -9) < 0.3) { // the new style wipes out from the middle
         const k = (t - Math.max(...taps.filter((a) => t > a))) / 0.3
         g.c.save()
         g.c.globalAlpha *= 1 - k
-        pane(g, F.q, styles[(n + 2) % 3]!, 0)
+        pane(g, F.q, styles[(n + 2) % 3]!, 0, 1, g.one ? [F.L] : [F.L, F.R])
         g.c.restore()
       }
-      hand(g, F.L, 22, tap > 0.3 ? [4, 8] : [8])
-      if (!g.one) hand(g, F.R, 22, [4, 8])
+      hand(g, F.L, FS, tap > 0.3 ? [4, 8] : [8])
+      if (!g.one) hand(g, F.R, FS, [4, 8])
       return F.L[8]!
     },
   },
@@ -541,11 +560,11 @@ const MOVES: Record<GuideMove, Move> = {
     period: 4.4, still: [0.4, 2.2],
     draw(g, t) {
       const turn = Math.PI * (inOut(seg(t, 1.0, 1.6)) - inOut(seg(t, 2.8, 3.4)))
-      const F = frameHands(W / 2, H / 2 + 6, 110, 74, 0.04 * Math.sin(t * 1.3), 22, turn)
-      pane(g, cardQuad(F.q, turn), Math.cos(turn) >= 0 ? 'echo' : 'slitscan')
+      const F = frameHands(W / 2, H / 2 + 6, FW, FH, 0.04 * Math.sin(t * 1.3), FS, turn)
+      pane(g, cardQuad(F.q, turn), Math.cos(turn) >= 0 ? 'echo' : 'slitscan', 1, 1, g.one ? [F.L] : [F.L, F.R])
       const backSide = Math.cos(turn) < 0
-      hand(g, F.L, 22, [4, 8], backSide)
-      if (!g.one) hand(g, F.R, 22, [4, 8], backSide)
+      hand(g, F.L, FS, [4, 8], backSide)
+      if (!g.one) hand(g, F.R, FS, [4, 8], backSide)
       if (t > 0.6 && t < 1.0) arc(g, W / 2, H / 2 + 6, 70, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5, (t - 0.6) / 0.4)
       return [W / 2 + 40 * Math.cos(turn), H / 2]
     },
@@ -663,42 +682,13 @@ const MOVES: Record<GuideMove, Move> = {
       const gone = seg(t, 4.0, 4.6)
       const th = 0.05 * Math.sin(t * 1.3)
       const apart = g.one ? 0 : inOut(seg(t, 3.9, 4.6)) // one hand lets go by holding the L again (the ring)
-      const F = frameHands(W / 2, H / 2 + 6, lerp(60, 110, form) + 50 * apart, lerp(40, 74, form) + 30 * apart, th, 22, turn, [tap * 0.6, tap * 0.4, 1, 1, 1])
-      if (gone <= 0) pane(g, cardQuad(F.q, turn), Math.cos(turn) < 0 ? 'slitscan' : t > 2.0 ? 'prism' : 'echo', seg(t, 0.8, 1.2), out3(seg(t, 1.0, 1.6)))
-      else { // letting go: it shatters
-        const ctr: V = [W / 2, H / 2 + 6]
-        const q = frameHands(W / 2, H / 2 + 6, 110, 74, th, 22).q // the pane as it was held
-        const mid = (a: V, b: V): V => mixV(a, b, 0.5)
-        const tris: V[][] = [[q[0]!, mid(q[0]!, q[1]!), ctr], [mid(q[0]!, q[1]!), q[1]!, ctr], [q[1]!, mid(q[1]!, q[2]!), ctr], [mid(q[1]!, q[2]!), q[2]!, ctr],
-          [q[2]!, mid(q[2]!, q[3]!), ctr], [mid(q[2]!, q[3]!), q[3]!, ctr], [q[3]!, mid(q[3]!, q[0]!), ctr], [mid(q[3]!, q[0]!), q[0]!, ctr]]
-        tris.forEach((tri, i) => {
-          const c0: V = [(tri[0]![0] + tri[1]![0] + tri[2]![0]) / 3, (tri[0]![1] + tri[1]![1] + tri[2]![1]) / 3]
-          const d: V = [(c0[0] - ctr[0]) * 1.6 * out3(gone), (c0[1] - ctr[1]) * 1.6 * out3(gone) + 40 * gone * gone]
-          const a = (i % 2 ? 1 : -1) * 1.2 * gone
-          g.c.save()
-          g.c.globalAlpha *= 1 - gone
-          g.c.beginPath()
-          tri.forEach((p, j) => {
-            const r = rot(a, [p[0] - c0[0], p[1] - c0[1]])
-            const x = c0[0] + r[0] + d[0]
-            const y = c0[1] + r[1] + d[1]
-            if (j) g.c.lineTo(x, y)
-            else g.c.moveTo(x, y)
-          })
-          g.c.closePath()
-          g.c.fillStyle = 'rgba(110, 190, 255, 0.45)'
-          g.c.fill()
-          g.c.strokeStyle = '#FFFFFF'
-          g.c.lineWidth = 1.2
-          g.c.stroke()
-          g.c.restore()
-        })
-      }
+      const F = frameHands(W / 2, H / 2 + 6, lerp(56, FW, form) + 50 * apart, lerp(40, FH, form) + 30 * apart, th, FS, turn, [tap * 0.6, tap * 0.4, 1, 1, 1])
+      if (gone <= 0) pane(g, cardQuad(F.q, turn), Math.cos(turn) < 0 ? 'slitscan' : t > 2.0 ? 'prism' : 'echo', seg(t, 0.8, 1.2), out3(seg(t, 1.0, 1.6)), g.one ? [F.L] : [F.L, F.R]) // let go: gone
       const backSide = Math.cos(turn) < 0
       g.c.save()
       g.c.globalAlpha *= 1 - seg(t, 4.6, 5.2)
-      hand(g, F.L, 22, tap > 0.3 ? [4, 8] : [8], backSide)
-      if (!g.one) hand(g, F.R, 22, [4, 8], backSide)
+      hand(g, F.L, FS, tap > 0.3 ? [4, 8] : [8], backSide)
+      if (!g.one) hand(g, F.R, FS, [4, 8], backSide)
       g.c.restore()
       if (g.one) holdRing(g, F.q[3]!, t < 2 ? seg(t, 0.2, 0.75) : seg(t, 3.45, 3.95), t < 2 ? 1 - seg(t, 0.75, 0.9) : 1 - seg(t, 3.95, 4.1))
       return [W / 2 + 40 * Math.cos(turn), H / 2]

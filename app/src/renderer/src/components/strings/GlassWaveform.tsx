@@ -270,7 +270,8 @@ export function GlassWaveform(props: GlassWaveformProps) {
         ctx.fillRect(x0, cy - 5, lw, 10)
         ctx.fillStyle = lg
         ctx.fillRect(x0, cy - 1, lw, 2)
-        if (pf > wa) walker(ctx, cy, R, smooth(pf), reduced ? 0 : t, mid)
+        // its "Space to play" only with a song to play, and not while an intro's card speaks (2.1.1: one instruction)
+        if (pf > wa) walker(ctx, cy, R, smooth(pf), reduced ? 0 : t, mid, Boolean(p.peaks?.length) && !document.querySelector('dialog[open][data-intro]'))
         else { // the wheel: the fox disc in the middle
           const fs = 0.05 * (0.6 + 0.4 * Math.min(1, fold * 1.4))
           ctx.fillStyle = '#0B0806'
@@ -317,7 +318,7 @@ const FOX_LINE = [[-96, 0], [-84, -1], [-74, -8], [-66, -22], [-56, -30], [-48, 
   [27, -48], [31, -58], [35, -46], [44, -40], [56, -33], [48, -28], [38, -26], [32, -16], [31, 0], [44, 0]] as const
 const TAIL = 5 // the first points: the tail, which wags
 
-function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: number }, k: number, sec: number, mid: number) {
+function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: number }, k: number, sec: number, mid: number, hint: boolean) {
   const still = sec === 0
   const u = (sec * 0.045) % 2
   const pp = u < 1 ? u : 2 - u
@@ -403,6 +404,7 @@ function walker(ctx: CanvasRenderingContext2D, cy: number, R: { x: number; w: nu
   ctx.arc(40, -39 * appear - bob, 1.8, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
+  if (!hint) return
   ctx.save()
   ctx.globalAlpha *= appear * 0.8
   ctx.fillStyle = 'rgba(246, 239, 230, 0.7)'

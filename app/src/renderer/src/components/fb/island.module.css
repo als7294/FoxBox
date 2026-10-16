@@ -13,8 +13,8 @@
     height 0.5s var(--fb-ease-spring);
 }
 .glow[data-open] {
-  width: 480px;
-  height: 168px;
+  width: 780px;
+  height: 390px;
 }
 .glowBand {
   position: absolute;
@@ -58,11 +58,13 @@
   color: #fff;
   z-index: 9;
   font-family: var(--fb-font);
+  interpolate-size: allow-keywords;
 }
 .island[data-open] {
-  width: 480px;
-  height: 168px;
+  width: 780px;
+  height: auto; /* the chooser's own height (interpolate-size: it still springs) */
   border-radius: 0 0 34px 34px;
+  cursor: default;
 }
 .row {
   position: absolute;
@@ -72,8 +74,8 @@
   height: 36px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 18px;
+  gap: 12px;
+  padding: 0 8px 0 18px;
 }
 .status {
   display: flex;
@@ -109,99 +111,6 @@
 .beat[data-on] {
   background: var(--fb-accent);
 }
-.quick {
-  height: 28px;
-  padding: 0 10px;
-  margin-right: -10px;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: var(--fb-accent-soft);
-}
-.quick:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.pills {
-  position: absolute;
-  top: 44px;
-  left: 16px;
-  right: 16px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s;
-}
-.island[data-open] .pills {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* the NON-selected mode is the orange one: the one to switch to */
-.pill {
-  position: relative;
-  overflow: hidden;
-  height: 68px;
-  border-radius: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background-color: var(--fb-accent);
-  color: var(--fb-ink-on-accent);
-  background-image: linear-gradient(110deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0) 62%);
-  background-size: 260% 100%;
-  background-position: 130% 0;
-  background-repeat: no-repeat;
-  transition:
-    background-color 0.3s,
-    background-position 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 0.25s cubic-bezier(0.3, 1.4, 0.4, 1),
-    box-shadow 0.25s;
-}
-.pill[data-selected] {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-.pill:hover {
-  background-position: -30% 0;
-  transform: translateY(-1px) scale(1.035);
-  box-shadow:
-    0 8px 22px -8px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-.pill:active {
-  transform: scale(0.98);
-}
-.pillArt {
-  position: absolute;
-  opacity: 0.18;
-  pointer-events: none;
-}
-.pillLabel {
-  position: relative;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-}
-.foot {
-  position: absolute;
-  bottom: 14px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.62);
-  opacity: 0;
-  transition: opacity 0.25s;
-}
-.island[data-open] .foot {
-  opacity: 1;
-}
-
 /* Not under a notch (windowed, an external display, a Mac without one): a floating glass pill, no notch silhouette */
 .island:not([data-notch]) {
   top: 10px;
@@ -219,32 +128,76 @@
   top: 10px;
 }
 
-/* 2.1: SAUCE's play style (PLUCK · FLOW · LOOP) under the mode pills, in the open Island */
-.styleSeg {
-  position: absolute;
-  top: 120px;
-  left: 16px;
-  right: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s;
+/* 2.1.1 (docs/MODE_ENTRY_UX.md §2): the mode, its status, Switch */
+.mode {
+  font: 800 16px var(--fb-font);
+  letter-spacing: 0.08em;
+  color: var(--fb-accent-soft);
 }
-.island[data-open] .styleSeg {
-  opacity: 1;
-  pointer-events: auto;
+.status {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.styleBtn {
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+.sep {
+  color: rgba(255, 255, 255, 0.45);
+}
+.switch {
+  height: 28px;
+  padding: 0 4px 0 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  font: 700 16px var(--fb-font);
   color: #fff;
-  font: 800 14px var(--fb-font);
-  letter-spacing: 0.06em;
 }
-.styleBtn[aria-checked='true'] {
+.switch:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.switch[aria-expanded='true'] {
   background: var(--fb-ink);
   color: var(--fb-ink-on-accent);
+}
+.switch[aria-expanded='true'] .switchKey {
+  background: rgba(0, 0, 0, 0.12);
+}
+.switchKey {
+  min-width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  font: 700 13px var(--fb-mono);
+}
+/* the chooser, under the row while open */
+.chooser {
+  padding: 46px 14px 6px;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.island[data-open] .chooser {
+  opacity: 1;
+}
+.pick {
+  margin: 12px 0 8px;
+  text-align: center;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.62);
+}
+@media (max-width: 1400px) {
+  .island[data-open],
+  .glow[data-open] {
+    width: 720px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .island,
+  .glow {
+    transition: none;
+  }
 }

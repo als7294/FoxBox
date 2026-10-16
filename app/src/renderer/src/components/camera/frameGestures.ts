@@ -10,9 +10,9 @@
  * - flipped / flips: turned like a card, the frame upright and both hands turned over in their corners (palms to backs
  *   to the camera), with hysteresis; turned back, the front again. Which way a palm faces comes from the hand's own
  *   landmarks (palmFacing), whichever hand it is: MediaPipe's handedness can name both hands the same. Untaught.
- * - Melody's LOOP (2.1, setInwardFrames): any inward frame counts, the lenient test (inwardPair) in place of two Ls.
+ * - Melody's LOOP (2.1, setInwardFrames): two Ls at any rotation count (inwardPair), not only the upright frame.
  */
-import { FRAME_HOLD_MS, isLPose, type HandShape, type HandShapes, type Pt } from './camMath'
+import { FRAME_HOLD_MS, type HandShape, type HandShapes, type Pt } from './camMath'
 import { playingHand, SLOT } from './playGestures'
 import { usePlayPrefs, WOBBLE_MS } from './playPrefs'
 
@@ -24,6 +24,12 @@ export interface FrameSignal {
   /** Its corners clockwise from the top-left, smoothed (cameraSignals: the stage's 0-1; here the camera's); held
    *  through the grace, null before the first frame. */
   corners: Pt[] | null
+  /** 2.1.1 (the user: "frames should only ever be contained in my fingers"): the region the fingers bound, clockwise
+   *  on screen (cameraSignals: the stage's 0-1). Each hand's index tip, its thumb/index base and its thumb tip
+   *  (lPoints), two hands' six, one hand's three: finger landmarks only, no padding; tracked every result, lightly
+   *  smoothed; null when not formed, and as soon as no L is read for OUTLINE_GONE_MS (let go: the release's grace
+   *  keeps `formed` and the loop, but nothing is drawn from fingers already back in their C). */
+  outline: Pt[] | null
   /** Its diagonal, 0-1 of the picture's width. */
   size: number
   /** Its size against its size as it formed: 0.5 then, wider more (1 at twice), closer less. */
@@ -37,8 +43,8 @@ export interface FrameSignal {
   lHeldMs: number
   /** One-handed: the single L held toward the frame, 0 … 1 at Hold time; 0 once it's formed. */
   holdProgress: number
-  /** One-handed: the L's corner (camera 0-1; cameraSignals maps it to the stage), where S3's pane opens from toward the
-   *  picture's middle (glass oneLCorners); followed while the L's held, kept after; null with two hands. */
+  /** One-handed: the L's corner (camera 0-1; cameraSignals maps it to the stage), followed while the L's held, kept
+   *  after; null with two hands. The pane itself is the outline's (2.1.1: inside the fingers). */
   corner: Pt | null
 }
 
@@ -50,11 +56,13 @@ export const FRAME = {
   LOST_MS: 2000,
   /** Turned over (or back) this long before it counts: a hand caught mid-turn isn't. */
   FLIP_MS: 150,
-  /** One-handed's frame: its sides, palm lengths. */
-  ONE_SIZE: 2.2,
   /** The corners' smoothing, each result. */
   SMOOTH: 0.45,
-  /** Melody's LOOP: an inward frame's four fingertips bound this much of the picture at least. */
+  /** The outline's (lighter: it follows the fingers). */
+  OUTLINE_SMOOTH: 0.6,
+  /** No L read this long, formed or not (the let go's grace), and there's no outline: the fingers are leaving it. */
+  OUTLINE_GONE_MS: 60,
+  /** Melody's LOOP: an inward frame's quad is this much of the picture at least. */
   INWARD_AREA: 0.02,
 }
 
@@ -62,11 +70,12 @@ export const FRAME = {
 let inwardOnly = false
 export const setInwardFrames = (on: boolean): void => void (inwardOnly = on)
 
-/** The lenient inward frame (Melody's LOOP, FRAMES_SIMPLE): each hand's thumb and index out and apart, its other
- *  fingers anyhow (isLPose); each L's opening (between its thumb and index, from its corner) toward the other's corner;
- *  their four fingertips bounding INWARD_AREA of the picture. Any rotation, either hand on top. */
+/** The inward frame (Melody's LOOP, FRAMES_SIMPLE): each hand a real L, as the frame's (HandShape.isL: thumb and
+ *  index out, the other three folded; 2.1.1: an open palm's thumb and index read as one, and LOOP's own moves are open
+ *  hands, S3); each L's opening (between its thumb and index, from its corner) toward the other's corner; the frame
+ *  between them (frameQuad) INWARD_AREA of the picture or more. Any rotation, either hand on top. */
 export function inwardPair(a: HandShape, b: HandShape, aspect: number): boolean {
-  if (!isLPose(a, aspect) || !isLPose(b, aspect)) return false
+  if (!a.isL || !b.isL) return false
   const sq = (p: Pt) => ({ x: p.x * aspect, y: p.y })
   const opening = (h: HandShape) => {
     const v = sq(lVertex(h, aspect))
@@ -80,12 +89,14 @@ export function inwardPair(a: HandShape, b: HandShape, aspect: number): boolean 
   const [oa, ob] = [opening(a), opening(b)]
   const faces = (o: typeof oa, at: Pt) => o.d.x * (at.x - o.v.x) + o.d.y * (at.y - o.v.y) > 0
   if (!faces(oa, ob.v) || !faces(ob, oa.v)) return false
-  const q = clockwise([a.points[4]!, a.points[8]!, b.points[4]!, b.points[8]!].map((p) => ({ ...p })), aspect)
+  // the frame's own quad (each L's corner, and where the tips meet): a real frame's tips meet, so the four of them
+  // alone bound next to nothing
+  const q = frameQuad(a, b, aspect)
   const area = Math.abs(q.reduce((s, p, i) => s + p.x * q[(i + 1) % 4]!.y - q[(i + 1) % 4]!.x * p.y, 0)) / 2
   return area >= FRAME.INWARD_AREA
 }
 
-export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, size: 0, amount: 0.5, flipped: false, flips: 0, lHeldMs: 0, holdProgress: 0, corner: null }
+export const NO_FRAME_SIGNAL: FrameSignal = { formed: false, formedAt: 0, corners: null, outline: null, size: 0, amount: 0.5, flipped: false, flips: 0, lHeldMs: 0, holdProgress: 0, corner: null }
 
 /** An L's corner (camera 0-1): where its thumb's line (2 to 4) meets its index's (5 to 8); the index's knuckle when the
  *  lines are near parallel. `aspect`: the frame's width over its height. */
@@ -109,27 +120,39 @@ export function frameQuad(a: HandShape, b: HandShape, aspect: number): Pt[] {
   return clockwise([lVertex(a, aspect), mid(a4, crossed ? b8 : b4), lVertex(b, aspect), mid(a8, crossed ? b4 : b8)], aspect)
 }
 
-/** One-handed's frame (2.0.1): its corner the L's, its sides along the index and the thumb, FRAME.ONE_SIZE palm lengths
- *  each (camera 0-1), clockwise from the top-left. */
+/** One-handed's frame (2.1.1: inside the fingers): the parallelogram on the L, from its thumb/index base to its index
+ *  tip and its thumb tip (lPoints), the fourth corner across from the base (camera 0-1), clockwise from the top-left. */
 export function oneQuad(h: HandShape, aspect: number): Pt[] {
-  const p = (i: number) => ({ x: h.points[i]!.x * aspect, y: h.points[i]!.y })
-  const unit = (a: Pt, b: Pt) => {
-    const n = Math.hypot(b.x - a.x, b.y - a.y) || 1
-    return { x: (b.x - a.x) / n, y: (b.y - a.y) / n }
-  }
-  const [ui, ut] = [unit(p(5), p(8)), unit(p(2), p(4))]
-  const len = FRAME.ONE_SIZE * Math.hypot(p(9).x - p(0).x, p(9).y - p(0).y)
-  const c = lVertex(h, aspect)
-  const at = (i: number, t: number) => ({ x: (c.x * aspect + (ui.x * i + ut.x * t) * len) / aspect, y: c.y + (ui.y * i + ut.y * t) * len })
-  return clockwise([at(0, 0), at(1, 0), at(1, 1), at(0, 1)], aspect)
+  const [i, c, t] = lPoints(h)
+  return clockwise([c!, i!, { x: i!.x + t!.x - c!.x, y: i!.y + t!.y - c!.y }, t!], aspect)
 }
 
 /** Two points' distance, of the picture's width. */
 const dist = (p: Pt, q: Pt, aspect: number) => Math.hypot(q.x - p.x, (q.y - p.y) / aspect)
 
+/** A hand's three outline points (camera 0-1): its index tip, its thumb/index base (between the thumb's and the index's
+ *  base knuckles, landmarks 2 and 5) and its thumb tip. */
+export function lPoints(h: HandShape): Pt[] {
+  const [t, i] = [h.points[2]!, h.points[5]!]
+  return [h.points[8]!, { x: (t.x + i.x) / 2, y: (t.y + i.y) / 2 }, h.points[4]!]
+}
+
+/** The region the fingers bound (camera 0-1), clockwise on screen, from each hand's lPoints: one hand's three, or two
+ *  hands' six with each thumb tip beside whichever of the other hand's tips it meets. */
+export function fingerOutline(hands: Pt[][], aspect: number): Pt[] {
+  const [a, b] = hands
+  const d = (p: Pt, q: Pt) => Math.hypot((p.x - q.x) * aspect, p.y - q.y)
+  const pts = !b ? a! : d(a![2]!, b[0]!) <= d(a![2]!, b[2]!) ? [...a!, ...b] : [...a!, ...[...b].reverse()]
+  const turn = pts.reduce((sum, p, k) => {
+    const q = pts[(k + 1) % pts.length]!
+    return sum + p.x * aspect * q.y - q.x * aspect * p.y
+  }, 0)
+  return turn >= 0 ? pts : [...pts].reverse() // y down: a positive turn is clockwise on screen
+}
+
 /** Four corners in order, clockwise from the top-left. */
 function clockwise(quad: Pt[], aspect: number): Pt[] {
-  const c = { x: quad.reduce((s, p) => s + p.x, 0) / 4, y: quad.reduce((s, p) => s + p.y, 0) / 4 }
+  const c = { x: quad.reduce((s, p) => s + p.x, 0) / quad.length, y: quad.reduce((s, p) => s + p.y, 0) / quad.length }
   // Clockwise on screen (y down) is increasing angle; start at the top-left (the least x + y).
   const sorted = quad.sort((p, q) => Math.atan2(p.y - c.y, (p.x - c.x) * aspect) - Math.atan2(q.y - c.y, (q.x - c.x) * aspect))
   const first = sorted.reduce((best, p, i) => (p.x * aspect + p.y < sorted[best]!.x * aspect + sorted[best]!.y ? i : best), 0)
@@ -163,6 +186,8 @@ export class FrameGestures {
   private facing0 = { left: 0, right: 0 }
   private flipSince = -1
   private lSince = -1 // a hand an L, no frame formed, since
+  /** Each slot's lPoints while formed, smoothed (by landmark, so the outline's order never mixes them up). */
+  private lp: Record<'left' | 'right', Pt[] | null> = { left: null, right: null }
   private inSince = -1 // Melody's LOOP: an inward pair since
   /** One-handed: the L's hold (since, last seen). */
   private hold = { since: -1, seen: -1e9 }
@@ -172,13 +197,12 @@ export class FrameGestures {
     const { controlStyle, holdMs, wobble } = usePlayPrefs.getState()
     if (controlStyle === 'one') return this.oneStep(shapes, now, aspect, holdMs, WOBBLE_MS[wobble])
     const { left, right } = shapes
-    // LOOP's lenient frame: an inward pair held FRAME_HOLD_MS, its hands out of it when out of their L pose.
+    // LOOP's frame: an inward pair held FRAME_HOLD_MS.
     const inward = inwardOnly && !!left && !!right && inwardPair(left, right, aspect)
     this.inSince = inward ? (this.inSince < 0 ? now : this.inSince) : -1
     const detected = inwardOnly ? inward && now - this.inSince >= FRAME_HOLD_MS : shapes.frame.held && shapes.frame.seen === now && !!left && !!right
     if (left || right) this.anyAt = now
-    const isL = (h: HandShape | null) => !!h && (inwardOnly ? isLPose(h, aspect) : h.isL)
-    const ls = { left: isL(left), right: isL(right) }
+    const ls = { left: !!left && left.isL, right: !!right && right.isL }
     // Out: both hands out of their L (a hand lost a moment as it was last seen), timed from the first result without an
     // L: hands leaving one fast are often lost a result or two on the way.
     if (left) this.wasL.left = ls.left
@@ -202,7 +226,7 @@ export class FrameGestures {
       this.turnOver(ls.left ? left : null, ls.right ? right : null, now)
     }
     this.lSince = !formed && (ls.left || ls.right) ? (this.lSince < 0 ? now : this.lSince) : -1
-    this.s = { ...this.s, formed, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince, holdProgress: 0, corner: null }
+    this.s = { ...this.s, formed, lHeldMs: this.lSince < 0 ? 0 : now - this.lSince, holdProgress: 0, corner: null, outline: this.trace(formed, !(this.noL >= 0 && now - this.noL >= FRAME.OUTLINE_GONE_MS), { left, right }, aspect) }
     return this.s
   }
 
@@ -237,8 +261,25 @@ export class FrameGestures {
       this.s = { ...this.s, corner: was ? { x: was.x + (v.x - was.x) * FRAME.SMOOTH, y: was.y + (v.y - was.y) * FRAME.SMOOTH } : v }
       this.turnOver(slot === 'left' ? h : null, slot === 'right' ? h : null, now)
     }
-    this.s = { ...this.s, formed, lHeldMs: 0, holdProgress }
+    this.s = { ...this.s, formed, lHeldMs: 0, holdProgress, outline: this.trace(formed, !!h?.isL || now - this.hold.seen < FRAME.OUTLINE_GONE_MS, slot ? { [slot]: h } : {}, aspect) }
     return this.s
+  }
+
+  /** The outline this result: each seen hand's lPoints followed (the first as they are), a hand lost a moment kept as
+   *  last seen; null when not formed (and forgotten) or not `shown` (kept for an L read again within the grace). */
+  private trace(formed: boolean, shown: boolean, hands: Partial<Record<'left' | 'right', HandShape | null>>, aspect: number): Pt[] | null {
+    if (!formed) this.lp = { left: null, right: null }
+    if (!formed || !shown) return null
+    const k = FRAME.OUTLINE_SMOOTH
+    for (const side of ['left', 'right'] as const) {
+      const h = hands[side]
+      if (!h) continue
+      const now = lPoints(h)
+      const was = this.lp[side]
+      this.lp[side] = was ? was.map((p, i) => ({ x: p.x + (now[i]!.x - p.x) * k, y: p.y + (now[i]!.y - p.y) * k })) : now
+    }
+    const seen = [this.lp.left, this.lp.right].filter((p): p is Pt[] => !!p)
+    return seen.length ? fingerOutline(seen, aspect) : this.s.outline
   }
 
   /** The frame's quad this result: its corners smoothed (the first as they are) and its size; its amount from `span`

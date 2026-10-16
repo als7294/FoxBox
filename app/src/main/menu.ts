@@ -58,6 +58,11 @@ export function buildMenu(
         { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', registerAccelerator: false, click: () => zoom(1) },
         { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', registerAccelerator: false, click: () => zoom(-1) },
         { type: 'separator' },
+        // 2.1.1: the three modes (the renderer handles ⌘1–3 too)
+        { label: 'SAUCE', accelerator: 'CmdOrCtrl+1', registerAccelerator: false, click: () => send('mode-sauce') },
+        { label: 'MELODY', accelerator: 'CmdOrCtrl+2', registerAccelerator: false, click: () => send('mode-melody') },
+        { label: 'REMIX', accelerator: 'CmdOrCtrl+3', registerAccelerator: false, click: () => send('mode-remix') },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
     },

@@ -7,7 +7,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SauceAction } from '@/audio/play/instrument'
 import { oneHanded, usePlayPrefs } from '@/components/camera/playPrefs'
 import { CalibrateReach } from '@/components/fb/CalibrateReach'
-import { useSetup } from '@/components/fb/Setup'
+import { useFb } from '@/components/fb/fbStore'
+import { MODE_NAME, useTopMode, type TopMode } from '@/components/fb/modes'
+import { setupOpen, useSetup } from '@/components/fb/Setup'
+import { useLoadTrack } from '@/components/prod/SongBlock'
 import { useTick } from '@/components/stage/StageControls'
 import { beatFxNow } from '@/audio/live/beatFx'
 import { cameraSignals } from '@/components/camera/smartCamera'
@@ -23,7 +26,7 @@ import { openWheel, useWheelUi } from '@/components/wheel/WheelOverlay'
 import { useUi } from '@/state/ui'
 import { guideDemo, type GuideDemoId } from '@/audio/guideDemo'
 import { GuideHands, type GuideMove } from './GuideHands'
-import { guide, useGuide, type Chapter } from './guideStore'
+import { guide, useGuide, type Chapter, type IntroChapter } from './guideStore'
 import s from './guide.module.css'
 import { t, useLang, type Lang } from '@/i18n'
 import { files } from '@/lib/platform'
@@ -57,6 +60,8 @@ export interface GuideStepSpec {
   watch?: Watch
   /** The step done from the card (the page's own control is there too). */
   action?: { label: string; run: () => void }
+  /** No "Now you try" (the step's own buttons are the action). */
+  noTry?: boolean
 }
 
 const bothUp = (): boolean => {
@@ -211,6 +216,126 @@ const remixSteps = (): GuideStepSpec[] => [
   },
 ]
 
+// 2.1.1's intros (docs/MODE_ENTRY_UX.md §3): three steps on a mode's first entry, on the GUIDE's card
+const anyUp = (): boolean => {
+  const sh = cameraSignals().play.shapes
+  return Boolean(sh.left || sh.right)
+}
+/** REMIX's first step: a song from a file (the step's own picker), or the test beat. */
+function IntroLoad() {
+  const load = useLoadTrack()
+  return (
+    <div className={s.introLoad}>
+      {load.input}
+      <button type="button" className={s.action} onClick={load.choose}>
+        {t('remix.loadSong', 'Load a song…')}
+      </button>
+      <button type="button" className={s.action} data-primary onClick={playTestBeat}>
+        {t('remix.tryTestBeat', 'Try the test beat')}
+      </button>
+    </div>
+  )
+}
+const introSteps = (): Record<IntroChapter, GuideStepSpec[]> => ({
+  'intro-sauce': [
+    {
+      title: t('intro.sauce.1.title', 'Curve your hands into a C'),
+      text: t('intro.sauce.1.text', 'Turned a little toward the camera. The strings appear between them.'),
+      move: 'c-pose',
+      watch: { start: () => progress().hands, done: (from) => progress().hands > from || bothUp() },
+    },
+    {
+      title: t('intro.sauce.2.title', 'Curl a finger to pluck'),
+      text: t('intro.sauce.2.text', 'Higher hand, higher note. Now you try: play three notes.'),
+      move: 'pluck',
+      demo: 'pluck',
+      watch: rises('pluck', 3),
+    },
+    {
+      title: t('intro.sauce.3.title', 'Hold a frame to loop it'),
+      text: t('intro.sauce.3.text', 'An L with each hand loops the last 4 beats. Let go to stop.'),
+      move: 'frame',
+      demo: 'frame',
+      watch: heldFrame,
+    },
+  ],
+  'intro-melody': [
+    {
+      title: t('intro.melody.1.title', 'It’s already playing'),
+      text: t('intro.melody.1.text', 'A melody loops on the beat. Your hands shape it. Want another? Press D.'),
+      move: 'melody',
+      action: { label: t('intro.melody.another', '🎲 Another one'), run: () => playActions.roll() },
+      watch: { start: now(), done: anyUp },
+    },
+    {
+      title: t('intro.melody.2.title', 'Right hand up for brighter, left hand up for higher'),
+      text: t('intro.melody.2.text', 'Now you try: raise your right hand.'),
+      move: 'melody',
+      watch: {
+        start: () => cameraSignals().play.height.right ?? 0,
+        done: (from) => (cameraSignals().play.height.right ?? 0) > from + 0.25,
+      },
+    },
+    {
+      title: t('intro.melody.3.title', 'Close a fist to drop it'),
+      text: t('intro.melody.3.text', 'It drops on the beat. Open up to bring it back.'),
+      move: 'fist',
+      watch: { start: now(), done: () => usePlay.getState().loop.dropped },
+    },
+  ],
+  'intro-remix': [
+    {
+      title: t('intro.remix.1.title', 'Load a song, or try the test beat'),
+      text: t('intro.remix.1.text', 'Or drop a file on the window. L opens your library.'),
+      move: 'test-beat',
+      body: () => <IntroLoad />,
+      noTry: true,
+      watch: { start: now(), done: () => Boolean(useLiveDeck.getState().deck?.isPlaying) },
+    },
+    {
+      title: t('intro.remix.2.title', 'Hold a fist for TEAROUT'),
+      text: t('intro.remix.2.text', 'Locked to the beat. Raise it for more.'),
+      move: 'fist',
+      demo: 'tearout',
+      watch: { start: now(), done: () => beatFxNow().fx === 'tearout' },
+    },
+    {
+      title: t('intro.remix.3.title', 'Fold a finger to cut a band'),
+      text: t('intro.remix.3.text', 'SUB · LOW · MID · HI-MID · HIGH.'),
+      move: 'fold',
+      demo: 'bands',
+      watch: { start: now(), done: () => (fingerCuts(cameraSignals()) ?? []).some((v) => v > 0.5) },
+    },
+  ],
+})
+/** The intros for PALM (its note step taps) and ONE HAND (one hand up; one L frames). */
+const introFor = (all: Record<IntroChapter, GuideStepSpec[]>, style: 'palm' | 'one'): Record<IntroChapter, GuideStepSpec[]> => ({
+  ...all,
+  'intro-sauce': all['intro-sauce'].map((x, i) =>
+    style === 'palm' && i === 1
+      ? {
+          ...x,
+          move: 'palm-tap',
+          title: t('intro.palm.2.title', 'Tap the air with an open palm'),
+          text: t('intro.palm.2.text', 'Like a drum pad. Higher hand, higher note. Play three.'),
+        }
+      : style === 'one' && i === 0
+        ? {
+            ...x,
+            title: t('intro.one.1.title', 'Curve one hand into a C'),
+            text: t('intro.one.1.text', 'Turned a little toward the camera.'),
+            watch: { start: now(), done: () => cameraSignals().play.one != null },
+          }
+        : style === 'one' && i === 2
+          ? {
+              ...x,
+              title: t('intro.one.3.title', 'Hold one L to loop it'),
+              text: t('intro.one.3.text', 'It loops the last 4 beats. Let go to stop.'),
+            }
+          : x,
+  ),
+})
+
 // ONE-HANDED (2.0.1, STRINGS_UX "The one-handed GUIDE"): one hand does it all
 const practice = (): [SauceAction, string, string][] => [
   ['drive', t('guide.one.practice.fist', 'Hold a fist to turn on {fx}', { fx: 'DRIVE' }), 'DRIVE'],
@@ -302,16 +427,19 @@ let reachAtStart = ''
 
 /** Each control style's steps in the language in use: built at call time once per language (the GUIDE's effects follow
  *  a step's identity, so a language keeps the same objects; a new pick remounts the app and builds them anew). */
-let built: { lang: Lang; curl: Record<Chapter, GuideStepSpec[]>; one: Record<Chapter, GuideStepSpec[]>; palm: Record<Chapter, GuideStepSpec[]> } | undefined
+type Lists = Record<'play' | 'remix', GuideStepSpec[]> & Record<IntroChapter, GuideStepSpec[]>
+let built: { lang: Lang; curl: Lists; one: Lists; palm: Lists } | undefined
 function lists() {
   const lang = useLang.getState().lang
   if (built?.lang !== lang) {
     const play = playSteps()
     const remix = remixSteps()
+    const intros = introSteps()
     built = {
       lang,
-      curl: { play, remix },
+      curl: { play, remix, ...intros },
       one: {
+        ...introFor(intros, 'one'),
         play: onePlaySteps(),
         remix: remix.map((x) =>
           x.move === 'shaka' ? { ...x, text: t('guide.one.shaka.text', 'Your index spins it, close your hand to preview, hold a fist to load.') } : x,
@@ -319,6 +447,7 @@ function lists() {
       },
       // PALM (2.1): the same steps, its note step says tap, not curl, and shows the open-palm tap
       palm: {
+        ...introFor(intros, 'palm'),
         play: play.map((x) =>
           x.move === 'pluck' ? { ...x, move: 'palm-tap', text: t('guide.palm.text', 'Then tap the air with an open palm. Now you try: play three notes.') } : x,
         ),
@@ -330,7 +459,7 @@ function lists() {
 }
 
 /** The two-handed (CURL) chapters' steps. */
-export const guideSteps = (): Record<Chapter, GuideStepSpec[]> => lists().curl
+export const guideSteps = (): Lists => lists().curl
 
 /** The chapter's steps for the control style (usePlayPrefs.controlStyle): ONE HAND's own, PALM's, or CURL's. */
 export const stepsFor = (c: Chapter): GuideStepSpec[] => {
@@ -358,10 +487,12 @@ export function GuideStep({ spec, n, of, done }: { spec: GuideStepSpec; n: numbe
       <p className={s.text}>{spec.text}</p>
       {spec.body?.()}
       <div className={s.row}>
-        <p className={s.try} data-done={done || undefined} role="status">
-          <span className={s.tryDot} />
-          {done ? t('guide.nice', 'Nice.') : t('guide.nowYouTry', 'Now you try')}
-        </p>
+        {!spec.noTry && (
+          <p className={s.try} data-done={done || undefined} role="status">
+            <span className={s.tryDot} />
+            {done ? t('guide.nice', 'Nice.') : t('guide.nowYouTry', 'Now you try')}
+          </p>
+        )}
         {spec.action && (
           <button type="button" className={s.action} onClick={spec.action.run}>
             {spec.action.label}
@@ -391,6 +522,8 @@ export function Guide() {
   const steps = chapter ? stepsFor(chapter) : []
   const spec = steps[step]
   const waiting = cam !== 'live'
+  const intro = chapter?.startsWith('intro-') ? (chapter.slice(6) as TopMode) : null
+  const head = intro ? MODE_NAME[intro] : chapter === 'remix' ? t('guide.head.remix', 'REMIX GUIDE') : t('guide.head.sauce', 'SAUCE GUIDE')
 
   // a non-modal card: the page stays live; focus into it on open and back where it was on close
   useEffect(() => {
@@ -454,7 +587,8 @@ export function Guide() {
       ref={ref}
       className={s.card}
       data-fb
-      aria-label={chapter === 'remix' ? t('settings.guide.remix', 'REMIX guide') : t('settings.guide.sauce', 'SAUCE guide')}
+      data-intro={intro ?? undefined}
+      aria-label={intro ? head : chapter === 'remix' ? t('settings.guide.remix', 'REMIX guide') : t('settings.guide.sauce', 'SAUCE guide')}
       onKeyDown={(e) => {
         // Tab loops inside the card while focus is in it
         if (e.key !== 'Tab') return
@@ -467,7 +601,7 @@ export function Guide() {
       }}
     >
       <div className={s.head}>
-        <span className={s.chapter}>{chapter === 'remix' ? t('guide.head.remix', 'REMIX GUIDE') : t('guide.head.sauce', 'SAUCE GUIDE')}</span>
+        <span className={s.chapter}>{head}</span>
         <span className={s.count}>{t('guide.count', '{n} / {total}', { n: step + 1, total: steps.length })}</span>
         <button type="button" className={s.skip} onClick={() => guide.close()}>
           {t('guide.skip', 'Skip')}
@@ -499,17 +633,20 @@ export function Guide() {
   )
 }
 
-/** Opens a chapter by itself once: PLAY's on first launch once the camera is on (after WHAT'S NEW), REMIX's on the first
- *  REMIX visit. */
+/** 2.1.1: a mode's intro opens by itself on its first entry (docs/MODE_ENTRY_UX.md §3), once the launch, WHAT'S NEW,
+ *  the setup (and its mode chooser) and the Island's chooser are out of the way and the camera is on. REMIX's starts
+ *  at its second step when a song already plays. The full GUIDE (G) never opens by itself any more. */
 export function useGuideFirstRun() {
-  const mode = useUi((u) => u.mode)
+  const top = useTopMode()
   const booting = useUi((u) => u.booting)
-  const whatsNew = useUi((u) => u.whatsNew) // WHAT'S NEW first: the GUIDE waits for it
+  const whatsNew = useUi((u) => u.whatsNew)
   const cam = useStrings((x) => x.camera)
-  const setupDone = useSetup((x) => x.done) // 2.1: the setup first, then the camera, then the GUIDE
+  const setup = useSetup(setupOpen)
+  const chooser = useFb((f) => f.island)
   useEffect(() => {
     const g = useGuide.getState()
-    if (booting || whatsNew || !setupDone || g.open || cam !== 'live' || g.shown[mode]) return
-    guide.open(mode, 0)
-  }, [mode, booting, whatsNew, setupDone, cam])
+    const c: IntroChapter = `intro-${top}`
+    if (booting || whatsNew || setup || chooser || g.open || cam !== 'live' || g.shown[c]) return
+    guide.open(c, top === 'remix' && useLiveDeck.getState().deck?.isPlaying ? 1 : 0)
+  }, [top, booting, whatsNew, setup, chooser, cam])
 }

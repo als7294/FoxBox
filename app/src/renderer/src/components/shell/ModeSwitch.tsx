@@ -1,6 +1,7 @@
 // ModeSwitch (2.0, unstyled): PLAY ⇄ REMIX (M), the same control in both modes; the shortcuts (?) and settings (⌘,)
 // buttons beside it. A running RECORD stops and saves before the switch ("Take 3 saved"); the pages let their sound go
 // (PLAY its held notes, REMIX pauses on the bar).
+import { MODE_NAME, useTopMode } from '@/components/fb/modes'
 import { guide, useGuide } from '@/components/guide/guideStore'
 import { stopRecording, useProdRec } from '@/components/prod/prodActions'
 import { finishTake, useTakes } from '@/components/stage/takes'
@@ -58,7 +59,8 @@ export function ModeSwitch() {
 
 /** Built at render time, in the language in use. */
 const keys = (): [string, string][] => [
-  ['M', 'SAUCE ⇄ REMIX'],
+  ['M', t('keys.mode', 'Switch mode')],
+  [platformKeys('⌘1–3'), t('keys.modes', 'SAUCE · MELODY · REMIX')],
   ['G', 'GUIDE'],
   ['R', t('keys.record', 'Record, or stop and save')],
   ['Space', t('keys.play', 'Play / pause (REMIX)')],
@@ -70,8 +72,8 @@ const keys = (): [string, string][] => [
   ['← / →', t('keys.sections', 'Previous / next section (REMIX); Back / Next in the GUIDE')],
   ['1–7', t('keys.sounds', 'Sounds (SAUCE): {list}', { list: '808, REESE, GROWL, WOBBLE, PLUCK, LEAD, KEYS' })],
   ['↑ / ↓', t('keys.octave', 'Octave (SAUCE)')],
-  ['S', t('keys.style', 'Play style: PLUCK → FLOW → LOOP')],
-  ['D', t('keys.roll', '🎲 A new melody (SAUCE)')],
+  ['S', t('keys.style', 'Play style: PLUCK ⇄ FLOW (SAUCE)')],
+  ['D', t('keys.roll', '🎲 A new melody (MELODY)')],
   [platformKeys('⌘,'), t('keys.settings', 'Settings')],
   ['?', t('keys.shortcuts', 'Shortcuts')],
   ['Esc', t('keys.esc', 'Close the GUIDE, the settings, the library wheel or this panel')],
@@ -82,6 +84,7 @@ export function ShortcutsPanel() {
   const open = useUi((u) => u.shortcutsOpen)
   const mode = useUi((u) => u.mode)
   const resume = useGuide((g) => g.resume[mode])
+  const top = useTopMode()
   if (!open) return null
   return (
     <aside
@@ -109,8 +112,8 @@ export function ShortcutsPanel() {
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={() => guide.open(mode, 0)}>
-        GUIDE: {mode === 'play' ? 'SAUCE' : 'REMIX'}
+      <button type="button" onClick={() => guide.open(`intro-${top}`, 0)}>
+        GUIDE: {MODE_NAME[top]}
       </button>
       {resume != null && resume > 0 && (
         <button type="button" onClick={() => guide.open(mode, resume)}>

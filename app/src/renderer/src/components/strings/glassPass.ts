@@ -4,7 +4,9 @@
  * of 480 x 270, ~66 MB) as the stage feeds it (`record`, each new camera frame: with FACE HIDING, the hidden picture),
  * and inside the frame it plays back the last 4 beats from them, looping on the beat, through the frame's style.
  *
- * The pane is the frame exactly: its four corners through a homography (a frame held at an angle reads as glass at an
+ * The pane is the frame exactly, and nothing is drawn past the fingers (2.1.1, the user: "frames should only ever be
+ * contained in my fingers"): every pixel is clipped to S1's outline (each hand's thumb tip, L crotch and index tip;
+ * the F key's pane: its corners), the lit edge and its glow inside it; none (S1's release grace), nothing drawn. Its picture maps through its four corners by a homography (a frame held at an angle reads as glass at an
  * angle), a bevel that bends the picture at its border while the middle stays true, depth shading on the bevel, a
  * Fresnel rim (the kick glints it), a specular streak that slides with the tilt; the bass runs ripples across it. The
  * design's §8: a white edge with a glow in the mode's colour draws itself round (the top edge, then down the sides),
@@ -17,9 +19,8 @@
  *   KALEIDO     mirror segments (more as it tilts)     ↔ MIRROR     a bilateral reflection, a seasick sway
  *   DATAMOSH    blocks melting down, more as it's held ↔ LIQUID     a slow, deep swirl
  *   THERMAL     heat colours from the light            ↔ ICE        frosted, crystals growing in, a slow shimmer
- * SHATTER on letting go (~140 ms): real glass: the pane cracks into fine Voronoi shards, each refracting the picture
- * its own way, lit at their edges, flying out from the middle and falling, motion-blurred; the live picture back at
- * once (geometry, no strobe). Reduced motion: the plain pane over a still. Outside the frame nothing changes; inside it can be bold:
+ * Letting go: it's gone that frame, the live picture back. Reduced motion: the plain pane over a still. Outside the
+ * fingers nothing changes; inside them it can be bold:
  * the `--frame-*` tokens set how bold (stringTokens.ts). Colour is premultiplied (the canvas's default).
  */
 import type { Pt } from '@/components/camera/camMath'
@@ -57,7 +58,6 @@ uniform float uMix;       // the pane's opacity
 uniform float uEdge;      // the lit edge drawn so far, 0-1
 uniform float uBloom;     // the world (frost) bloomed in, 0-1
 uniform float uFlash;     // the soft flash as the edge closes, 0-1
-uniform float uCrack;     // -1, or 0-1 through the shatter
 uniform float uBass;      // 0-1, smoothed
 uniform float uKick;      // 0-1, a decaying envelope
 uniform float uTime;      // seconds
@@ -74,10 +74,8 @@ uniform vec3 uIce;
 uniform float uFrost;
 uniform float uBlur;      // picture heights
 uniform float uShimmer;   // seconds a sweep
-uniform vec2 uGrid;       // the shatter: its shards, a jittered columns x rows grid
-uniform float uDist;      // how far they're flung, picture heights
-uniform float uEase;      // how hard they ease out (the power)
-uniform float uBlurStep;  // the shatter's motion blur: one frame's share of it
+uniform vec2 uPoly[8];    // what the fingers bound (aspect units: x * the picture's aspect, y), clockwise
+uniform int uPolyN;       // its points, 3-8
 uniform vec3 uGlowCol;    // the edge's glow (the mode's)
 uniform float uGlowBlur;  // how far it spreads, picture heights
 uniform float uRadius;    // the pane's corners, picture heights
@@ -230,50 +228,19 @@ vec3 pane(vec2 q, int ty) {
   return col;
 }
 
-// The shatter: the pane (its uv) cut into a jittered-grid Voronoi (uGrid's columns x rows shards)
-vec2 seedOf(vec2 cell) { return (cell + 0.15 + 0.7 * vec2(hash(cell + 11.3), hash(cell + 27.1))) / uGrid; }
-// the shard (its grid cell) a pane-uv point is in, and how far it is from that shard's edge (picture heights)
-vec3 shardAt(vec2 u) {
-  vec2 g = floor(u * uGrid);
-  float d1 = 1e9, d2 = 1e9;
-  vec2 best = g;
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-    vec2 c = g + vec2(float(x), float(y));
-    vec2 dv = (u - seedOf(c)) * uSize;
-    float d = dot(dv, dv);
-    if (d < d1) { d2 = d1; d1 = d; best = c; } else if (d < d2) d2 = d;
+// What the fingers bound (uPoly, aspect units): its signed distance, picture heights, < 0 inside (iq's sdPolygon).
+float sdPoly(vec2 p) {
+  float d = dot(p - uPoly[0], p - uPoly[0]), s = 1.0;
+  for (int i = 0; i < 8; i++) {
+    if (i >= uPolyN) break;
+    vec2 vi = uPoly[i], vj = uPoly[i == 0 ? uPolyN - 1 : i - 1];
+    vec2 e = vj - vi, w = p - vi;
+    vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+    d = min(d, dot(b, b));
+    bvec3 c = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
+    if (all(c) || all(not(c))) s = -s;
   }
-  return vec3(best, 0.5 * (sqrt(d2) - sqrt(d1)));
-}
-// one moment (k, 0-1) of the fracture at picture point P (aspect units): the colour and coverage of whichever shard
-// has flown there. Each shard flies out from the middle and falls, turning, refracting the picture its own way.
-vec4 fractureAt(vec2 P, vec2 C, float k) {
-  float go = 1.0 - pow(1.0 - clamp((k - 0.06) / 0.94, 0.0, 1.0), uEase);   // the cracks show first, then they fly
-  int cols = int(uGrid.x);
-  for (int j = 0; j < 64; j++) {
-    if (j >= cols * int(uGrid.y)) break;
-    vec2 cell = vec2(float(j - (j / cols) * cols), float(j / cols));
-    vec2 S0 = toUv((seedOf(cell) - 0.5) * uSize);
-    vec2 S = vec2(S0.x * aspect(), S0.y);
-    vec2 away = normalize(S - C + 1e-4);
-    float h = hash(cell + 3.1);
-    vec2 fly = away * uDist * (0.45 + 0.9 * h) * go + vec2(0.0, 0.9 * k * k) * uDist; // out, then down
-    float th = (hash(cell + 9.2) - 0.5) * 3.0 * go;
-    float sc = 1.0 - 0.35 * go * hash(cell + 5.5);                                   // turning away in depth
-    vec2 P0 = S + rot(-th) * (P - S - fly) / sc;
-    vec2 u = proj(uHi, vec2(P0.x / aspect(), P0.y));
-    vec2 q = (u - 0.5) * uSize;
-    if (sdPane(q) > 0.0) continue;
-    vec3 sh = shardAt(u);
-    if (sh.x != cell.x || sh.y != cell.y) continue;
-    vec2 refr = (vec2(hash(cell + 1.7), hash(cell + 4.4)) - 0.5) * 0.03 * go;       // each shard bends it its own way
-    vec3 col = pane(q + refr, uType);
-    float px = 1.0 / uRes.y;
-    col = mix(col, uEdgeCol, clamp(exp(-sh.z / (1.1 * px)) * 1.2, 0.0, 1.0));       // lit edges
-    col += uEdgeCol * 0.35 * pow(abs(sin(th * 2.0 + 6.0 * h)), 12.0);              // a glint as it turns
-    return vec4(col, 1.0 - smoothstep(0.75, 1.0, k));
-  }
-  return vec4(0.0);
+  return s * sqrt(d);
 }
 
 void main() {
@@ -281,7 +248,9 @@ void main() {
   float px = 1.0 / uRes.y;
   vec3 col = vec3(0.0);
   float a = 0.0;
-  if (uCrack < 0.0) {
+  float fingers = -sdPoly(vec2(puv.x * aspect(), puv.y)); // > 0 inside what the fingers bound
+  if (fingers < -px) discard;
+  {
     vec2 q = toPane(puv);
     // the card-flip as the frame turns over: the pane narrows to its edge and opens again, the style changing edge-on
     float card = uFlip < 1.0 ? cos(3.14159 * uFlip) : 1.0;
@@ -290,8 +259,8 @@ void main() {
       q.x /= max(abs(card), 0.02);
     }
     int face = uFlip < 0.5 ? uFlipFrom : uType;
-    float d = -sdPane(q);
-    if (d < -(2.5 * uGlowBlur + 2.0 * uEdgeW)) discard;
+    float d = min(-sdPane(q), fingers); // > 0 inside the pane as the fingers bound it
+    if (d < -px) discard;
     // the style blooms in, scaling up from 60%
     float sc = uReduced > 0.5 ? 1.0 : 0.6 + 0.4 * uBloom;
     vec2 qs = q / sc;
@@ -314,27 +283,13 @@ void main() {
     }
     // the one soft flash as the edge closes, brightest at the edge
     col += uEdgeCol * uFlash * uFlashA * (0.3 + 0.7 * exp(-max(d, 0.0) / (0.15 * min(uSize.x, uSize.y))));
-    // the edge: a crisp white band just outside the pane, a glow in the mode's colour beyond it, drawn so far
+    // the edge, drawn so far: a crisp white band just inside the fingers' bound, a glow in the mode's colour inward from it
     float drawn = uReduced > 0.5 ? 1.0 : smoothstep(uEdge + 0.004, uEdge - 0.004, around(q));
-    float band = clamp((d + uEdgeW) / px + 0.5, 0.0, 1.0) * clamp(-d / px + 0.5, 0.0, 1.0) * drawn;
-    float glow = d < 0.0 ? exp(-pow(max(0.0, -d - uEdgeW) / (0.5 * uGlowBlur), 2.0)) * 0.8 * drawn : 0.0;
-    vec3 rim = mix(uGlowCol, uEdgeCol, band);
-    a = max(inside, max(band, glow));
-    col = inside > 0.0 ? mix(col, uEdgeCol, band) : rim;
-  } else {
-    // SHATTER: the fine shards, motion-blurred over the frame's time
-    float c = uCrack;
-    vec2 centre = toUv(vec2(0.0));
-    vec2 P = vec2(puv.x * aspect(), puv.y);
-    vec2 C = vec2(centre.x * aspect(), centre.y);
-    vec4 acc = vec4(0.0);
-    for (int s = 0; s < 3; s++) {
-      vec4 f = fractureAt(P, C, max(0.0, c - float(s) * uBlurStep / 3.0));
-      acc += vec4(f.rgb * f.a, f.a);
-    }
-    a = acc.a / 3.0;
-    col = a > 0.0 ? acc.rgb / (3.0 * a) : vec3(0.0);
-    if (a <= 0.0) discard;
+    float band = clamp(d / px + 0.5, 0.0, 1.0) * clamp((uEdgeW - d) / px + 0.5, 0.0, 1.0) * drawn;
+    float glow = d > uEdgeW ? exp(-pow((d - uEdgeW) / (0.5 * uGlowBlur), 2.0)) * 0.6 * drawn : 0.0;
+    col = mix(col, uGlowCol, glow * (inside > 0.0 ? 0.5 : 1.0));
+    col = mix(col, uEdgeCol, band);
+    a = max(inside, max(band, glow)) * clamp(d / px + 0.5, 0.0, 1.0);
   }
   a = clamp(a, 0.0, 1.0) * uMix;
   o = vec4(col * a, a);
@@ -441,9 +396,9 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
     return best
   }
   const u = (name: string) => gl.getUniformLocation(prog, name)
-  const NAMES = ['uFlip', 'uFlipFrom', 'uBlurStep', 'uRes', 'uH', 'uHi', 'uSize', 'uTilt', 'uType', 'uPrev', 'uRestyle', 'uLayer', 'uLoop', 'uMix', 'uEdge', 'uBloom', 'uFlash', 'uCrack', 'uBass', 'uKick',
+  const NAMES = ['uFlip', 'uFlipFrom', 'uPolyN', 'uRes', 'uH', 'uHi', 'uSize', 'uTilt', 'uType', 'uPrev', 'uRestyle', 'uLayer', 'uLoop', 'uMix', 'uEdge', 'uBloom', 'uFlash', 'uBass', 'uKick',
     'uTime', 'uAge', 'uReduced', 'uWorld', 'uDisp', 'uGlint', 'uEdgeCol', 'uEdgeW', 'uFlashA', 'uDepth', 'uIce', 'uFrost', 'uBlur', 'uShimmer',
-    'uGrid', 'uDist', 'uEase', 'uGlowCol', 'uGlowBlur', 'uRadius', 'uSweep', 'uSweepW', 'uProgress', 'uPulse', 'uEcho', 'uScan', 'uFrameMs']
+    'uPoly', 'uGlowCol', 'uGlowBlur', 'uRadius', 'uSweep', 'uSweepW', 'uProgress', 'uPulse', 'uEcho', 'uScan', 'uFrameMs']
   const U = Object.fromEntries(NAMES.map((n) => [n, u(n)]))
   gl.uniform1i(u('uSrc'), 0)
   gl.uniform1i(u('uRing'), 1)
@@ -467,7 +422,7 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
     oldest,
     /** The pane over `source` (the camera picture, the canvas's size), or null when there's nothing to draw. */
     draw(source: CanvasImageSource, f: PaneFrame, audio: GlassAudio): HTMLCanvasElement | null {
-      if (!f.corners || f.mix <= 0) return null
+      if (!f.corners || !f.outline || f.mix <= 0) return null
       const tk = tokens(performance.now())
       const [p0, p1, p2, p3] = f.corners
       const len = (a: typeof p0, b: typeof p0) => Math.hypot((b.x - a.x) * aspect, b.y - a.y)
@@ -498,7 +453,6 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
       gl.uniform1f(U.uEdge!, f.edge)
       gl.uniform1f(U.uBloom!, f.bloom)
       gl.uniform1f(U.uFlash!, f.flash)
-      gl.uniform1f(U.uCrack!, f.crack)
       gl.uniform1f(U.uAge!, f.age)
       gl.uniform1f(U.uBass!, audio.bass)
       gl.uniform1f(U.uKick!, audio.kick)
@@ -536,11 +490,10 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
       gl.uniform1f(U.uFrost!, tk.frost)
       gl.uniform1f(U.uBlur!, tk.blur / PX)
       gl.uniform1f(U.uShimmer!, tk.shimmerS)
-      const cols = Math.max(2, Math.round(Math.sqrt(tk.fracture.shards * 1.2))) // a little wider than tall
-      gl.uniform2f(U.uGrid!, cols, Math.max(2, Math.round(tk.fracture.shards / cols)))
-      gl.uniform1f(U.uDist!, tk.fracture.distance)
-      gl.uniform1f(U.uEase!, tk.fracture.ease)
-      gl.uniform1f(U.uBlurStep!, 1000 / 30 / tk.fracture.ms)
+      // what the fingers bound, in aspect units
+      const bound = f.outline.slice(0, 8)
+      gl.uniform2fv(U.uPoly!, new Float32Array(Array.from({ length: 8 }, (_, i) => bound[i % bound.length]!).flatMap((p) => [p.x * aspect, p.y])))
+      gl.uniform1i(U.uPolyN!, bound.length)
       gl.activeTexture(gl.TEXTURE1)
       gl.bindTexture(gl.TEXTURE_2D_ARRAY, ringTex)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -554,27 +507,29 @@ export function createGlassPass(width: number, height: number, opts: { reduced?:
 
 const frameTokens = liveFrameTokens()
 
-/** The effect's name shows big in the pane this long (s) whenever an effect begins (the pane forms, P or a pinch
+/** The effect's name shows big above the pane this long (s) whenever an effect begins (the pane forms, P or a pinch
  *  restyles it, a flip turns it over), then fades over FADE_S. */
 const BIG_S = 1
 const FADE_S = 0.35
 
 /**
  * The frame's words over its pane (2D, on the composited canvas), "big text or no text" on an animation (the user's
- * rule): when an effect begins, its name big and centred in the pane (along its tilt) for about a second, then gone;
- * no small pill or digits. The amount is a thin bar along the pane's bottom (S1's frame size), never a number. The "how"
- * is S4's chip under the frame. Reduced motion: the name the same second, no fade-in, scale or fade-out ease.
+ * rule): when an effect begins, its name big, just above what the fingers bound (2.1.1: nothing over the pane past
+ * them), for about a second, then gone; no small pill or digits. The amount is a thin bar along the pane's bottom (S1's
+ * frame size), never a number, clipped to the fingers' bound. The "how" is S4's chip under the frame. Reduced motion:
+ * the name the same second, no fade-in, scale or fade-out ease.
  */
 export function frameLabel(ctx: CanvasRenderingContext2D, g: GlassFrame, w: number, h: number, _mode: StringsMode = 'remix'): void {
   const early = g.flip < 0.5 // the card hasn't turned edge-on yet: still the old face
   const face = early ? g.flipFrom : g.type
   const name = GLASS_LABEL[face]
-  if (!name || !g.corners || !g.quad || g.crack >= 0 || g.mix <= 0.01) return
+  if (!name || !g.corners || !g.quad || !g.outline || g.mix <= 0.01) return
   const tk = frameTokens(performance.now())
   const px = h / PX
   const still = g.clock === null // reduced motion
   const [, , p2, p3] = g.corners
   const lb = tk.label
+  const bound = g.outline // what the fingers bound
   const flipped = early ? !g.flipped : g.flipped
   const title = name + (flipped ? ' ⟲' : '')
 
@@ -584,16 +539,16 @@ export function frameLabel(ctx: CanvasRenderingContext2D, g: GlassFrame, w: numb
   const outK = still ? (t >= BIG_S ? 1 : 0) : Math.min(1, Math.max(0, (t - BIG_S) / FADE_S))
   if (inK > 0 && outK < 1) {
     const size = Math.max((28 * w) / 1280, Math.min(96 * px, 2 * g.quad.hw * h * 0.2))
+    const top = Math.min(...bound.map((p) => p.y)) * h
     ctx.save()
-    ctx.translate(g.quad.x * w, g.quad.y * h)
-    ctx.rotate(g.quad.tilt)
+    ctx.translate((bound.reduce((s, p) => s + p.x, 0) / bound.length) * w, Math.max(size, top - 10 * px))
     const k = still ? 1 : 0.92 + 0.08 * inK - 0.06 * outK
     ctx.scale(k, k)
     ctx.globalAlpha = g.mix * inK * (1 - outK)
     ctx.font = `${lb.weight} ${size.toFixed(1)}px ${lb.font}`
     ctx.letterSpacing = `${(0.04 * size).toFixed(2)}px`
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
+    ctx.textBaseline = 'bottom'
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'
     ctx.shadowBlur = 14 * px
     ctx.fillStyle = '#FFFFFF'
@@ -612,6 +567,9 @@ export function frameLabel(ctx: CanvasRenderingContext2D, g: GlassFrame, w: numb
   const a = inset(lerp(p3, p2, 0.15))
   const b = inset(lerp(p3, p2, 0.85))
   ctx.save()
+  ctx.beginPath()
+  bound.forEach((p, i) => (i ? ctx.lineTo(p.x * w, p.y * h) : ctx.moveTo(p.x * w, p.y * h)))
+  ctx.clip()
   ctx.globalAlpha = alpha
   ctx.lineCap = 'round'
   ctx.lineWidth = 4 * px

@@ -36,7 +36,7 @@ export interface EngineStatus {
 }
 
 /** Commands the native menu can send to the renderer. They mirror the keyboard shortcuts. */
-export type MenuCommand = 'open-settings'
+export type MenuCommand = 'open-settings' | 'mode-sauce' | 'mode-melody' | 'mode-remix'
 
 export interface StartDragOptions {
   /** PNG data URL used as the drag image (for example a mini waveform). Falls back to the app icon. */

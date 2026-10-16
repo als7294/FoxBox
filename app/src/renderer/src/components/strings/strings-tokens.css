@@ -23,8 +23,6 @@
  *   depth / glint                     the pane's 3D depth (0-1), the kick's glint on its edge (0-1, at most 3 a second)
  *   pulse                             the brightness each beat adds (0-1; the design's 1.6x)
  *   hint-bg                           the "● ● ● ● 4 beats · pinch to change" pill
- *   fracture-ms / -shards / -distance / -ease   letting go: chat's glass fracture (fine shards, refracting, a fast
- *                                     fall) instead of the design's 6-shard shatter
  *   ice / frost / blur / shimmer-s    the ICE flip side: its tint, how frosted (0-1), its blur (px), its shimmer (s)
  */
 :root {
@@ -81,10 +79,6 @@
   --frame-glint: 0.35;
   --frame-pulse: 0.6;
   --frame-hint-bg: rgba(28, 22, 18, 0.85);
-  --frame-fracture-ms: 140;
-  --frame-fracture-shards: 42;
-  --frame-fracture-distance: 0.5;
-  --frame-fracture-ease: 2.5;
   --frame-ice: #cfe8ff;
   --frame-frost: 0.55;
   --frame-blur: 14;

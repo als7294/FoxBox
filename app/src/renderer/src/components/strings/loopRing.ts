@@ -85,6 +85,17 @@ export function createLoopHints(storage: Pick<Storage, 'getItem' | 'setItem'> | 
 export type LoopHints = ReturnType<typeof createLoopHints>
 
 /** The ring, its notes, playhead and palm handles onto ctx (w × h px), its composite mode left at source-over. */
+/** The open intro's card (the GUIDE's, docs/MODE_ENTRY_UX.md §3) in the picture's px, with a margin; null when none.
+ *  The stage covers the window (object-fit: cover). ponytail: a DOM read per frame; a signal from the GUIDE if it ever
+ *  shows in a profile. */
+function introCard(w: number, h: number): { left: number; top: number; bottom: number } | null {
+  const r = typeof document === 'undefined' ? null : document.querySelector('dialog[open][data-intro]')?.getBoundingClientRect()
+  if (!r) return null
+  const sc = Math.max(innerWidth / w, innerHeight / h)
+  const [ox, oy] = [(innerWidth - w * sc) / 2, (innerHeight - h * sc) / 2]
+  return { left: (r.left - ox) / sc - 16 * (w / 1280), top: (r.top - oy) / sc, bottom: (r.bottom - oy) / sc }
+}
+
 export function drawLoopRing(
   ctx: CanvasRenderingContext2D,
   hands: { right: Pt[] | null; left: Pt[] | null },
@@ -149,6 +160,7 @@ export function drawLoopRing(
   // the palm handles, each with its label while it's learnt (big or nothing)
   ctx.globalCompositeOperation = 'source-over'
   const label = 28 * (w / 1280)
+  const card = introCard(w, h)
   const handle = (hand: PlayHand, text: string, c: Control) => {
     const palm = hands[hand]?.[PALM]
     if (!palm) return
@@ -169,7 +181,11 @@ export function drawLoopRing(
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)'
     ctx.shadowBlur = 12 * look.px
     ctx.fillStyle = '#FFFFFF'
-    ctx.fillText(text, x, y - 18 * look.px * depth)
+    const ly = y - 18 * look.px * depth
+    const half = card ? ctx.measureText(text).width / 2 : 0
+    // never under an intro's card (2.1.1, the PM): a label it would cover slides inward, just clear of its left edge
+    const lx = card && x + half > card.left && ly > card.top && ly - label < card.bottom ? card.left - half : x
+    ctx.fillText(text, lx, ly)
     ctx.restore()
   }
   handle('right', t('loop.handle.brighter', 'BRIGHTER'), 'brightness')

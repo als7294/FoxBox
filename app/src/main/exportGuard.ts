@@ -19,6 +19,21 @@ export function isInside(root: string, target: string): boolean {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
 
+/**
+ * A file name (no extension) for a take or clip that every OS accepts: word characters and ` .()+#-` only, no leading
+ * dot or space, no trailing dot or space (Windows drops them), never one of Windows' device names (CON, NUL, COM1…),
+ * at most 100 characters; 'FoxBox clip' when nothing is left.
+ */
+export function safeFileBase(raw: string): string {
+  const s = raw
+    .replace(/[^\w .()+#-]/g, '')
+    .replace(/^[.\s]+/, '')
+    .slice(0, 100)
+    .replace(/[.\s]+$/, '')
+  if (!s) return 'FoxBox clip'
+  return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s.split('.')[0]!.trim()) ? `FoxBox ${s}` : s
+}
+
 type Obj = Record<string, unknown>
 const isObject = (v: unknown): v is Obj => Boolean(v) && typeof v === 'object' && !Array.isArray(v)
 

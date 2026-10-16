@@ -15,10 +15,8 @@ import { toast } from '@/state/toasts'
 import { useUi } from '@/state/ui'
 import { useOutputOwner } from '@/visuals/live/output'
 import {
-  PLAY_MODES,
   playActions,
   playInstrument,
-  playModeOf,
   SCALE_LABEL,
   SOUNDS,
   startPlayHands,
@@ -303,8 +301,8 @@ export function usePlayKeys(active: boolean) {
       const p = usePlay.getState()
       if (/^[1-7]$/.test(k)) playActions.setSound(SOUNDS[Number(k) - 1]!.id)
       else if (k === 'ArrowUp' || k === 'ArrowDown') playActions.setOctave(p.octave + (k === 'ArrowUp' ? 1 : -1))
-      else if (k === 's' || k === 'S') playActions.setPlayMode(PLAY_MODES[(PLAY_MODES.indexOf(playModeOf(p)) + 1) % PLAY_MODES.length]!)
-      else if (k === 'd' || k === 'D') playActions.roll()
+      else if ((k === 's' || k === 'S') && p.melodyMode !== 'loop') playActions.setStyle(p.style === 'pluck' ? 'flow' : 'pluck') // SAUCE's
+      else if ((k === 'd' || k === 'D') && p.melodyMode === 'loop') playActions.roll() // MELODY's 🎲
       else if (k === 'r' || k === 'R') void togglePlayTake()
       else return
       e.preventDefault()

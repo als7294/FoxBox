@@ -5,7 +5,9 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
-export type Chapter = 'play' | 'remix'
+/** The full chapters, and 2.1.1's per-mode intros (3 steps each, on a mode's first entry: docs/MODE_ENTRY_UX.md §3). */
+export type IntroChapter = 'intro-sauce' | 'intro-melody' | 'intro-remix'
+export type Chapter = 'play' | 'remix' | IntroChapter
 
 interface GuideState {
   open: Chapter | null
@@ -17,11 +19,25 @@ interface GuideState {
 }
 
 export const useGuide = create<GuideState>()(
-  persist(() => ({ open: null, step: 0, resume: { play: null, remix: null }, shown: { play: false, remix: false } }) as GuideState, {
-    name: 'foxbox-guide',
-    storage: createJSONStorage(() => localStorage),
-    partialize: (s) => ({ resume: s.resume, shown: s.shown }),
-  }),
+  persist(
+    () =>
+      ({
+        open: null,
+        step: 0,
+        resume: { play: null, remix: null, 'intro-sauce': null, 'intro-melody': null, 'intro-remix': null },
+        shown: { play: false, remix: false, 'intro-sauce': false, 'intro-melody': false, 'intro-remix': false },
+      }) as GuideState,
+    {
+      name: 'foxbox-guide',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ resume: s.resume, shown: s.shown }),
+      // a 2.1 store has no intros yet: keep the new chapters' defaults
+      merge: (saved, cur) => {
+        const p = saved as Partial<GuideState> | undefined
+        return { ...cur, resume: { ...cur.resume, ...p?.resume }, shown: { ...cur.shown, ...p?.shown } }
+      },
+    },
+  ),
 )
 
 export const guide = {

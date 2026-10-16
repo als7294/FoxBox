@@ -168,11 +168,12 @@ export function WhatsNew({ current = __APP_VERSION__ }: { current?: string }) {
     void bridge()?.updates.dismissWhatsNew()
   }
   // WHAT'S NEW 2.0 and 2.1: the launch film behind, the headline features on glass cards with S3's hand demos, the
-  // notes folded under them, Let's play or the GUIDE
+  // notes folded under them, Let's play or the GUIDE (2.1's title even when a 2.1.x came along with it)
+  const v21 = shown.find((n) => n.version === '2.1.0')
   const head = v2
     ? { title: t('whatsnew.title', 'FoxBox is now an instrument for your hands'), cards: cards2(), all: t('whatsnew.all', 'Everything new in 2.0') }
-    : shown.some((n) => n.version === '2.1.0')
-      ? { title: shown[0]!.title ?? `FoxBox ${current}`, cards: cards21(), all: t('whatsnew.all21', 'Everything new in 2.1') }
+    : v21
+      ? { title: v21.title ?? `FoxBox ${current}`, cards: cards21(), all: t('whatsnew.all21', 'Everything new in 2.1') }
       : null
   if (head) {
     const lines = shown.flatMap((n) => n.lines.map((l) => toHighlight(n.version, l)))

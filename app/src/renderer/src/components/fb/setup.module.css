@@ -92,21 +92,121 @@
   line-height: 1.4;
   color: var(--fb-ink-2);
 }
-/* How you play: one choice per row, its name over a line that says how it feels */
-.choices[data-stack] {
-  grid-template-columns: 1fr;
+
+/* 2.1.1: the wide cards, How do you play? and What are we playing? (docs/MODE_ENTRY_UX.md §0–1) */
+.card[data-wide] {
+  width: min(1040px, calc(100vw - 48px));
 }
-.choices[data-stack] .choice {
+.body {
+  margin-top: 26px;
+}
+.bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.next {
+  margin-top: 22px;
+  min-height: 48px;
+  padding: 0 28px;
+  border-radius: 16px;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font: 700 18px var(--fb-font);
+}
+.picks {
   display: grid;
-  gap: 4px;
-  padding: 14px 22px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.pick {
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  overflow: hidden;
   text-align: left;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--fb-ink);
+  transition: box-shadow 0.2s;
 }
-.choiceName {
-  font: 700 20px var(--fb-font);
-  letter-spacing: 0.04em;
+.pick[aria-checked='true'] {
+  box-shadow: inset 0 0 0 2px var(--fb-accent);
+  background: rgba(242, 112, 31, 0.1);
 }
-.choiceSub {
+.pick:focus-visible {
+  outline: 2px solid var(--fb-ink);
+  outline-offset: 2px;
+}
+.pickDemo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #1a1410;
+}
+.pickDemo video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tick {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+  font: 800 16px var(--fb-font);
+}
+.pickText {
+  display: grid;
+  gap: 2px;
+  padding: 16px 16px 18px;
+}
+.pickTwo {
+  font: 600 16px var(--fb-font);
+  color: var(--fb-ink-2);
+}
+.pickName {
+  font: 700 22px/1.2 var(--fb-font);
+}
+.pickFeel {
+  margin-top: 4px;
   font: 500 16px/1.35 var(--fb-font);
+  color: var(--fb-ink-2);
+}
+.lead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  margin-top: 22px;
+}
+.leadName {
+  font: 700 18px var(--fb-font);
+}
+.toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.toggle button {
+  min-width: 96px;
+  min-height: 40px;
+  border-radius: 11px;
+  color: var(--fb-ink-2);
+  font: 700 17px var(--fb-font);
+}
+.toggle button[aria-checked='true'] {
+  background: var(--fb-ink);
+  color: var(--fb-ink-on-accent);
+}
+.leadLine {
+  font-size: 16px;
   color: var(--fb-ink-2);
 }

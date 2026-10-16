@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ExportGuard } from '../../../src/main/exportGuard'
+import { ExportGuard, safeFileBase } from '../../../src/main/exportGuard'
 
 let dir: string
 let root: string
@@ -112,5 +112,31 @@ describe('ExportGuard', () => {
       json({ path: join(root, 'drop.aiff'), filename: 'drop.aiff', tracks: 1, playlist: 'p' }),
     )
     expect(guard.resolveDraggable(join(root, 'drop.aiff'))).toBeTruthy()
+  })
+})
+
+describe('safeFileBase (takes and clips, every OS)', () => {
+  it('keeps a plain name and strips what Windows or macOS refuse', () => {
+    expect(safeFileBase('808 take 3 (C#m)')).toBe('808 take 3 (C#m)')
+    expect(safeFileBase('a/b:c*d?"e<f>g|h')).toBe('abcdefgh')
+    expect(safeFileBase('  .hidden take. . ')).toBe('hidden take') // no leading dot, no trailing dot or space
+  })
+  it("never a Windows device name, and never empty", () => {
+    expect(safeFileBase('CON')).toBe('FoxBox CON')
+    expect(safeFileBase('nul.mid')).toBe('FoxBox nul.mid')
+    expect(safeFileBase('com1')).toBe('FoxBox com1')
+    expect(safeFileBase('Console jam')).toBe('Console jam')
+    expect(safeFileBase('***')).toBe('FoxBox clip')
+  })
+  it('the export folder is a known root without the engine, so a saved take can be dragged', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fb-roots-'))
+    const g = new ExportGuard()
+    g.setRoot(dir) // main does this before deciding whether an engine runs (Windows: none yet)
+    mkdirSync(join(dir, 'Takes'))
+    const take = join(dir, 'Takes', 'take.mid')
+    writeFileSync(take, 'MThd')
+    g.noteReturnedPath(take)
+    expect(g.resolveDraggable(take)).not.toBeNull()
+    rmSync(dir, { recursive: true, force: true })
   })
 })

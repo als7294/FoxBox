@@ -7,10 +7,10 @@ The user: "frames are insanely confusing". Today a frame has five rules: it latc
 ![Storyboard](ux-audit/frames-simple/storyboard.jpg)
 
 ## How it works
-1. **Make a frame** with both hands, two L's (one L in one-handed mode). The last 4 beats loop inside it, picture and sound, for as long as you hold it.
-2. **The effect names itself, big,** for about a second (just "PRISM": big text or no text; the pill carries "Shimmer · 80%"). Then the name shrinks to the pill on the frame's edge.
+1. **Make a frame** with both hands, two L's (one L in one-handed mode). The last 4 beats loop inside it, picture and sound, for as long as you hold it. The pane is only ever inside your fingers (2.1.1, the user: "frames should only ever be contained in my fingers"): what each L's thumb tip, crotch and index tip bound, following them as they move; one L, the space between its thumb and index. Nothing is drawn past them.
+2. **The effect names itself, big,** for about a second, just above the frame (just "PRISM": big text or no text), then it's gone.
 3. **Pull wider for more,** closer for less. The frame's size is the effect's amount, measured from the size it was made at (which starts at 50 %). A thin bar on the frame shows it.
-4. **Let go:** the quick glass shatter, and you're back to live.
+4. **Let go:** the pane's gone that moment (2.1.1: nothing stays in place), and you're back to live.
 5. **Each new frame brings the next effect:** ECHO TRAIL → PRISM → HALFTONE → KALEIDO → DATAMOSH → THERMAL. As you let go, a toast says what's next: "Next frame: HALFTONE". To pick one directly, use the Board's FRAME control.
 
 **Always-visible "how":**
@@ -33,7 +33,7 @@ With MELODY on LOOP (docs/STRINGS_UX.md, "Melody mode"), **any inward frame coun
 ## The GUIDE in one step
 > **Make a frame with both hands.** It loops the last 4 beats. Pull wider for more. Let go to stop.
 
-The demo shows the frame forming, "PRISM" big, the frame widening, the hands letting go, the shatter, then "Next frame: HALFTONE". "Now you try" is to hold a frame for 1 s and get the tick.
+The demo shows the frame forming, "PRISM" big, the frame widening, the hands letting go (the pane gone), then "Next frame: HALFTONE". "Now you try" is to hold a frame for 1 s and get the tick.
 
 ## What we cut, and why
 | Cut | Why | What it costs |

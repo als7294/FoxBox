@@ -52,7 +52,7 @@ import { EngineSupervisor } from './engine/supervisor'
 import { bootSkipReason, BootUpdateGate } from './bootUpdate'
 import { openSplash, showWindow, type Splash } from './splash'
 import { errorResponse, parseEngineRequest, pickHeaders } from './engineProxy'
-import { ExportGuard, isInside } from './exportGuard'
+import { ExportGuard, isInside, safeFileBase } from './exportGuard'
 import { underNotch } from './notch'
 import { buildMenu } from './menu'
 import { createMidiRouter } from './midi'
@@ -282,6 +282,24 @@ function createWindow(): void {
   win.on('resize', pushNotch)
   screen.on('display-metrics-changed', pushNotch)
   win.on('closed', () => screen.off('display-metrics-changed', pushNotch))
+  // a renderer that dies after the boot (the splash watches it until then) says why, for the logs (2.1.1's smoke: twice)
+  // 2.1.1: a page that died after boot was left blank (no handler but the splash's, during boot). Say why, and load it
+  // again: at most 3 times a minute, and not a boot failure (the splash shows that, with its Retry).
+  let loadedAt = 0
+  const reloads: number[] = []
+  win.webContents.on('did-finish-load', () => (loadedAt = Date.now()))
+  win.webContents.on('render-process-gone', (_e, d) => {
+    log(`window: the page's renderer is gone (${d.reason}, exit ${d.exitCode})`)
+    if (quitting || win.isDestroyed() || d.reason === 'clean-exit' || !loadedAt || Date.now() - loadedAt < 10_000) return
+    const now = Date.now()
+    while (reloads.length && now - reloads[0]! > 60_000) reloads.shift()
+    if (reloads.length >= 3) return void log('window: gone 3 times in a minute; not loading it again')
+    reloads.push(now)
+    log('window: loading the page again')
+    win.webContents.reload()
+  })
+  win.webContents.on('unresponsive', () => log('window: the page is unresponsive'))
+  win.webContents.on('responsive', () => log('window: the page responds again'))
   // ⌘W or the red button mid-set: the output (a projector) goes with this window, so ask first.
   win.on('close', (event) => {
     if (!confirmStopOutput(win)) event.preventDefault()
@@ -289,6 +307,7 @@ function createWindow(): void {
   // A reload drops the LIVE page's end of the visuals channel: hand out a fresh pair.
   win.webContents.on('did-finish-load', () => outputWindow && linkOutput())
   win.on('closed', () => {
+    log('window: closed')
     if (mainWindow === win) mainWindow = null
     // The output window has no UI of its own: it goes with the app window (so quitting isn't blocked by it).
     if (outputWindow && !outputWindow.isDestroyed()) outputWindow.close()
@@ -912,13 +931,7 @@ function registerIpc(): void {
     const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : null
     if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 4 * 1024 ** 3) throw new Error('That clip is empty or too large.')
     const ext = typeof rawName === 'string' ? (/\.(wav|mid)$/i.exec(rawName)?.[0].toLowerCase() ?? '.mp4') : '.mp4'
-    const base = typeof rawName === 'string' ? basename(rawName).replace(/\.(mp4|wav|mid)$/i, '') : ''
-    const safe =
-      base
-        .replace(/[^\w .()+#-]/g, '')
-        .replace(/^[.\s]+/, '')
-        .slice(0, 100)
-        .trim() || 'FoxBox clip'
+    const safe = safeFileBase(typeof rawName === 'string' ? basename(rawName).replace(/\.(mp4|wav|mid)$/i, '') : '')
     const root = exportGuard.root ?? EXPORT_DIR
     const dir = join(root, ext === '.mp4' ? 'Clips' : 'Takes')
     await mkdir(dir, { recursive: true })
@@ -1059,6 +1072,9 @@ function registerIpc(): void {
 // Engine
 
 async function startEngine(): Promise<void> {
+  // RECORD's takes and clips are main's own files in the export folder, engine or not (Windows has none yet): without
+  // this root they could be saved but never dragged out or revealed.
+  exportGuard.setRoot(EXPORT_DIR)
   if (MOCK) {
     log('FVWKS_MOCK=1: not starting the engine; the renderer uses MSW mocks')
     return
@@ -1095,7 +1111,6 @@ async function startEngine(): Promise<void> {
     broadcast(IPC.engineStatus, engineStatus())
     return
   }
-  exportGuard.setRoot(EXPORT_DIR)
   supervisor = new EngineSupervisor({
     command: launch.command,
     args: launch.args,
@@ -1194,6 +1209,8 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('window-all-closed', () => app.quit())
+  // the GPU process, the audio and network services…: why any helper went (a GPU crash blanks WebGL, not the page)
+  app.on('child-process-gone', (_e, d) => log(`${d.type} process gone (${d.reason}, exit ${d.exitCode}${d.name ? `, ${d.name}` : ''})`))
 
   app.on('before-quit', (event) => {
     if (!confirmStopOutput(mainWindow)) return event.preventDefault()

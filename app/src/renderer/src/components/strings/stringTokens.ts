@@ -2,8 +2,7 @@
  * The strings' and the frame's look as design tokens (S3, FoxBox 2.0): the page's CSS variables, read into what the
  * canvas and the frame's shader take. The strings read `--strings-<mode>-*`, which strings-tokens.css maps onto the
  * Claude Design handoff's names (foxbox-tokens.css: `--string-play-*`, `--string-remix-*`, `--string-cut*` …). The frame
- * reads the handoff's own `--frame-*` names, plus ours where it has none (the glass fracture, which chat chose over the
- * design's slow shatter; the styles' looks). Colours are hex or rgb(a)(); a missing or malformed variable falls back
+ * reads the handoff's own `--frame-*` names, plus ours where it has none (the styles' looks). Colours are hex or rgb(a)(); a missing or malformed variable falls back
  * to its default, so the canvas always draws.
  *
  * Sizes: the strings' are the design stage's units (its 1000 x 620 picture, covering the window: px = height / 620);
@@ -192,9 +191,6 @@ export interface FrameTokens {
   /** The style's name pill on the edge (its colour per mode) with its effect's name; the hint pill under it. */
   label: { font: string; size: number; weight: string; tracking: number; ink: Rgb; bg: Record<StringsMode, Rgb> }
   hint: { bg: Rgba; ink: Rgb; dotOn: Rgb }
-  /** Letting go: the glass fracture (chat's): how long (ms), how many shards, how far they fly (picture heights), how
-   *  hard they ease out (the power). */
-  fracture: { ms: number; shards: number; distance: number; ease: number }
   /** The ICE style: its tint, how frosted (0-1), its blur (px), its shimmer's sweep (s). */
   ice: Rgb
   frost: number
@@ -208,7 +204,6 @@ const FRAME_DEFAULTS: FrameTokens = {
   sweep: [255, 255, 255, 0.85], pulse: 0.6, loopBeats: 4,
   label: { font: 'Geist, system-ui, sans-serif', size: 17, weight: '800', tracking: 0.08, ink: [28, 22, 17], bg: { play: [255, 178, 122], remix: [242, 112, 31] } },
   hint: { bg: [28, 22, 18, 0.85], ink: [246, 239, 230], dotOn: [242, 112, 31] },
-  fracture: { ms: 140, shards: 42, distance: 0.5, ease: 2.5 },
   ice: [207, 232, 255], frost: 0.55, blur: 14, shimmerS: 4,
 }
 
@@ -243,12 +238,6 @@ export function parseFrameTokens(get: (name: string) => string): FrameTokens {
       bg: { play: r.colour('--frame-label-bg', d.label.bg.play), remix: r.colour('--frame-glow-remix', d.label.bg.remix) },
     },
     hint: { bg: r.colourA('--frame-hint-bg', d.hint.bg), ink: r.colour('--fb-ink', d.hint.ink), dotOn: r.colour('--fb-accent', d.hint.dotOn) },
-    fracture: {
-      ms: r.num('--frame-fracture-ms', d.fracture.ms, 60, 1000),
-      shards: Math.round(r.num('--frame-fracture-shards', d.fracture.shards, 8, 64)),
-      distance: r.num('--frame-fracture-distance', d.fracture.distance, 0.05, 2),
-      ease: r.num('--frame-fracture-ease', d.fracture.ease, 1, 8),
-    },
     ice: r.colour('--frame-ice', d.ice),
     frost: r.num('--frame-frost', d.frost, 0, 1),
     blur: r.num('--frame-blur', d.blur, 0, 40),

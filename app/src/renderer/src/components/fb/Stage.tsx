@@ -13,11 +13,21 @@ import { retryStringsCamera, useStrings } from '@/components/strings/stringsStor
 import { switchMode } from '@/components/shell/ModeSwitch'
 import { bridge, isWindows } from '@/env'
 import { sendFrame, useOutputOwner } from '@/visuals/live/output'
+import { useUi } from '@/state/ui'
+import { setupOpen, useSetup } from './Setup'
 import s from './stage.module.css'
 import { t } from '@/i18n'
 
+/** A full-window screen over the stage (the launch, WHAT'S NEW, the first-run setup): the coach and the hints wait. */
+export function useCovered(): boolean {
+  const ui = useUi((u) => u.booting || u.whatsNew)
+  const setup = useSetup(setupOpen)
+  return ui || setup
+}
+
 /** The coach, a glass pill in the middle of the picture. */
 export function Coach({ text, small }: { text: string; small?: boolean }) {
+  if (useCovered()) return null
   return (
     <div className={s.coachWrap} data-small={small || undefined}>
       <div role="status" className={s.coach}>

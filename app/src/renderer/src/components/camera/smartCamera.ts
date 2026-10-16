@@ -850,6 +850,7 @@ export function createSmartCamera(): SmartCamera {
       frame: {
         ...frameNow,
         corners: frameNow.corners?.map(toStage) ?? null,
+        outline: frameNow.outline?.map(toStage) ?? null, // the fingers' own region (S3's pane is clipped to it)
         corner: frameNow.corner && toStage(frameNow.corner), // one-handed: the L's corner, the stage's (S3's pane)
         size: frameNow.size * (vw / crop.w), // of the picture's width: of the stage's
       },

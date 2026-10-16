@@ -26,7 +26,10 @@ defaults:
 jobs:
   tests:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # A healthy run takes ~2 min (vitest ~75 s; each test is capped at 20 s in vitest.config.ts, hooks at vitest's
+    # 10 s). 665d4ce6's ran on a degraded runner, every step 10-30× slower (npm ci 7 min, not 16 s), and was cut at
+    # 30 min mid-vitest; these limits fail such a run, or a real hang, fast. Re-run it on a fresh runner.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,6 +40,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npx vitest run --maxWorkers=2
+        timeout-minutes: 8
 
   installer:
     runs-on: windows-latest

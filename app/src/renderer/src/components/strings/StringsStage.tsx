@@ -32,7 +32,7 @@ import { feedStageFrames, stageSource } from '@/visuals/live/stage'
 import { beatFx as beatFxHands } from '@/audio/live/beatFx'
 import { createBeatFx, createFeelFilter, fingerCuts, readBeatFx, setBeatFxSource, stringFeel, synthBeatFx, synthCuts, synthFeel } from './beatFx'
 import { createBeatFxPass } from './beatFxPass'
-import { CENTRE_CORNERS, clearGlassSignal, createGlass, fitGlass, frameTiming, keyFrame, oneLCorners, rectCorners, type FrameCorners } from './glass'
+import { CENTRE_CORNERS, clearGlassSignal, createGlass, fitGlass, frameTiming, keyFrame, rectCorners, type FrameCorners } from './glass'
 import { createGlassPass, frameLabel } from './glassPass'
 import { createHoldRing } from './holdRing'
 import { playBeat, playFeed } from './playFeed'
@@ -45,16 +45,21 @@ const SYNTH = import.meta.env.DEV && typeof location !== 'undefined' && new URLS
 const PANEL_MS = 100 // the right panel's refresh
 const REMIX_FRAME_MS = 30 // REMIX draws every other display frame at 60 Hz
 
-/** The hands' frame now: ONE-HANDED's one-L frame opening from its L's corner toward the middle (S1's frame.corner, 2.0.1);
- *  else S1's quad (cameraSignals().frame, smoothed, in the stage's picture) once it's there, else the fallback rectangle
- *  from the two Ls; null without both hands. */
+/** The hands' frame now (2.1.1: only ever inside the fingers): S1's quad (cameraSignals().frame, smoothed, in the stage's
+ *  picture; one-handed, the parallelogram on its L), null without one. The F key's pane has no hands: the middle. The
+ *  scripted dev hands: the rectangle from their two Ls. */
 function frameCorners(hands: ReturnType<typeof cameraSignals>['stage'], aspect: number): FrameCorners | null {
-  if (keyFrame.on) return CENTRE_CORNERS // the F key's
-  const f: { corners: Pt[] | null; corner?: Pt | null } = cameraSignals().frame
-  if (!SYNTH && f.corner) return oneLCorners(f.corner)
-  const s1 = f.corners
-  if (!SYNTH && s1?.length === 4) return s1 as FrameCorners
-  return hands.left && hands.right ? rectCorners(fitGlass(hands.left, hands.right, aspect), aspect) : null
+  if (keyFrame.on) return CENTRE_CORNERS
+  if (SYNTH) return hands.left && hands.right ? rectCorners(fitGlass(hands.left, hands.right, aspect), aspect) : null
+  const s1 = cameraSignals().frame.corners
+  return s1?.length === 4 ? (s1 as FrameCorners) : null
+}
+/** What the fingers bound (S1's frame.outline: 3 or 6 points), which the pane is clipped to; null while no hand reads as
+ *  an L (S1's release grace): the pane isn't drawn then. The F key's pane and the scripted dev hands: their corners. */
+function frameOutline(hands: ReturnType<typeof cameraSignals>['stage'], aspect: number): Pt[] | null {
+  if (keyFrame.on || SYNTH) return frameCorners(hands, aspect)
+  const f: { formed: boolean; outline?: Pt[] | null } = cameraSignals().frame
+  return f.outline ?? null
 }
 
 /** S1's frame state: its pinch count while framed (a change restyles it), and turned over like a card (the flip side). */
@@ -104,8 +109,8 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
     Object.assign(layer, { width: w, height: h })
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
     const playStrings = play ? createPlayStrings(layer, { reduced }) : null
-    // the FRAME, both modes: REMIX's follows the held frame; PLAY's (FREEZE) locks where it formed while frozen
-    const glass = createGlass({ reduced, aspect: w / h, timing: frameTiming, follow: !play, ...(play ? { exitHoldMs: 0, settleMs: 250 } : {}) })
+    // the FRAME, both modes: the pane is where the fingers hold it, every frame (REMIX's release sound on the beat)
+    const glass = createGlass({ reduced, aspect: w / h, timing: frameTiming, snap: !play, ...(play ? { settleMs: 250 } : {}) })
     const pass = createGlassPass(w, h, { reduced, mode }) // and the camera's last seconds, on the GPU
     const holdRing = createHoldRing(play ? 'play' : 'remix', { reduced }) // ONE-HANDED's holds, at the hand
     const visual = createStageVisual({ reduced }) // VISUALS: SAUCE over the camera, REMIX instead of it
@@ -201,7 +206,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
         else base?.frame(silentFrame(now / 1000), dt)
         playStrings?.frame(hands, now)
         keep(now)
-        const g = glass.update(now, playFeed.strings.frozen || keyFrame.on, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount() })
+        const g = glass.update(now, playFeed.strings.frozen || keyFrame.on, frameCorners(hands, w / h), { beat: playBeat(), cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount(), outline: frameOutline(hands, w / h) })
         camera()
         visual.draw(octx, w, h, dt, now / 1000, box)
         const pane = g.mix > 0 ? pass.draw(base ? base.canvas : out, g, { bass: 0, kick: 0, time: now / 1000, now }) : null
@@ -249,7 +254,7 @@ export function StringsStage({ faceHiding, resolution: [w, h], onCanvas, onFrame
       // S1's frame: formed holds through corner taps and a card turn (the raw L drops mid-turn); the scripted hands, the L
       const formed = (SYNTH ? cameraSignals().shapes.frame.held : cameraSignals().frame.formed) || keyFrame.on
       const g = glass.update(now, formed, frameCorners(hands, w / h), {
-        beat: a.bpm > 0 ? { bpm: a.bpm, phase: a.beatPhase } : null, cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount() })
+        beat: a.bpm > 0 ? { bpm: a.bpm, phase: a.beatPhase } : null, cycles: frameCycles(), turned: frameTurned(), oldest: pass.oldest(), amount: frameAmount(), outline: frameOutline(hands, w / h) })
       if (g.changed) useStrings.setState({ glass: { type: g.type, at: now } })
       const hit = (a.stems?.drums?.onset ?? a.onset) >= 1 && now - kickAt >= 334 // the glass's glint: at most 3 a second
       if (hit) kickAt = now

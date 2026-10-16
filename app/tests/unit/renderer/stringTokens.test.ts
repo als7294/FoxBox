@@ -38,18 +38,16 @@ describe('string tokens (2.0)', () => {
     expect(fx).toEqual({ gate: 1, stringDisplace: 8 })
     const cut = parseTokens('remix', (n) => ({ '--strings-remix-cut': 'rgba(255,255,255,.4)', '--strings-remix-cut-dash': '4 12' })[n] ?? '')
     expect([cut.cut, cut.cutDash]).toEqual([[255, 255, 255, 0.4], [4, 12]])
-    // the frame reads the design's own names (foxbox-tokens.css), and ours for the fracture
+    // the frame reads the design's own names (foxbox-tokens.css)
     const frame = parseFrameTokens(
       (n) =>
         ({
           '--frame-world-opacity': '0.9', '--frame-label-size': '4', '--frame-ice': 'rgb(1, 2, 3)', '--frame-edge-draw': 'x', '--frame-bloom': '700ms',
-          '--frame-bloom-delay': '350ms', '--frame-glow-remix': '#F2701F', '--frame-sweep': 'rgba(255,255,255,.85)', '--frame-fracture-shards': '42',
-          '--frame-shatter-shards': '6',
+          '--frame-bloom-delay': '350ms', '--frame-glow-remix': '#F2701F', '--frame-sweep': 'rgba(255,255,255,.85)',
         })[n] ?? '',
     )
     expect(frame).toMatchObject({ worldOpacity: 0.9, ice: [1, 2, 3], edgeMs: defaultFrameTokens().edgeMs, bloomMs: 700, bloomDelayMs: 350, sweep: [255, 255, 255, 0.85] })
     expect(frame.glow.remix).toEqual([242, 112, 31])
-    expect(frame.fracture.shards).toBe(42) // chat's glass fracture, not the design's 6-shard shatter
     expect(frame.label.size).toBe(11) // never under 11 px
   })
 })

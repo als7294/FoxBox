@@ -416,9 +416,9 @@ The user: "frames should show the last 4 beat loop with different effects and pi
 - **Sound:** a "lock" on the beat when the frame is made.
 
 **Flow (2.1):**
-1. **Make a frame** with both hands (two L's: thumbs and index fingers). On the next beat, the last 4 beats of the picture inside the frame and the sound start looping, beat-locked, **for as long as you hold it**.
+1. **Make a frame** with both hands (two L's: thumbs and index fingers). On the next beat, the last 4 beats of the picture inside the frame and the sound start looping, beat-locked, **for as long as you hold it**. The pane is only ever inside the fingers *(the user, 2.1.1)*: what each L's thumb tip, crotch and index tip bound (S1's outline), tracked every frame in both modes; nothing is drawn past them (the big name sits just above).
 2. **Pull wider for more, closer for less.** The frame's size is the effect's amount, relative to its size when made (which starts at 50 %), shown as a thin bar along the frame's bottom edge.
-3. **Let go:** the **glass fracture** *(chat)*, ~140 ms, with a crack, ~40 refracting shards and a glass-break sound, and the live picture back at once. A frame counts as let go once both hands have been out of the L for 300 ms (S1).
+3. **Let go:** the pane's gone that moment *(the user, 2.1.1: nothing stays in place)*, with the glass-break sound, and the live picture back at once. A frame counts as let go once both hands have been out of the L for 300 ms (S1).
 4. **Each new frame brings the next effect:** ECHO TRAIL (Echo) → PRISM (Shimmer) → HALFTONE (Bitcrush) → KALEIDO (Chorus) → DATAMOSH (Glitch) → THERMAL (Warm drive) → round again. On letting go, a toast under the Island says what's next: "Next frame: HALFTONE". The Board's FRAME control picks one directly.
 5. **The flip side, an untaught bonus** *(the user; kept as is)*: turning both hands over like a card, palms ↔ backs with the L corners kept, card-flips the pane onto the style's partner with the loop reversed. "flip side ⟲" shows in the name pill. It has no cue and no GUIDE step; this line is its only mention.
 
@@ -454,7 +454,7 @@ The flip side stays as above.
 | sizing | the amount bar follows the frame's width ("PRISM · Shimmer · 80%") |
 | flipped (bonus) | the card-flip onto the partner, the loop reversed, and "flip side ⟲" in the name pill |
 | SAUCE, no tempo yet | "120 · pluck to set the tempo" in the chip |
-| let go | the glass fracture, live again, and "Next frame: HALFTONE" |
+| let go | the pane gone at once, live again, and "Next frame: HALFTONE" |
 
 ## REMIX: the library wheel
 The full spec is `docs/LIBRARY_WHEEL.md`. Its components are LibraryWheel, WheelCard, WheelPointer and LibrarySources.
@@ -588,9 +588,9 @@ For accessibility: FoxBox plays with one hand *(the user's decision; it ships ri
 - **A fist** mutes.
 
 **Frames *(the user's pick)*:**
-- **Opening:** hold **one L** (thumb and index out) for the hold time, and a frame opens with the L as its corner. It loops while you hold the L, and stops when you let go (2.1).
+- **Opening:** hold **one L** (thumb and index out) for the hold time, and a pane opens between its thumb and index (2.1.1: only there). It loops while you hold the L, and stops when you let go (2.1).
 - **Changing:** each new frame brings the next effect (2.1). Turning the hand over gives the flip side, untaught.
-- **Releasing:** hold the L again, and the glass fracture follows.
+- **Releasing:** hold the L again, and the pane's gone.
 
 **REMIX:**
 - **Beat FX shapes and finger cuts** work as now, with one hand.
@@ -627,7 +627,7 @@ The GUIDE keeps its rules: "Now you try" never blocks, and the demos use one han
   - ink `#F6EFE6`, secondary `#B5A798`;
   - accent `#F2701F`, accent soft `#FFB27A`, fox `#FF4D2E`;
   - background `#15100D`, glass `rgba(28,22,18,.74)`.
-- **The frame shatter tokens** (850 ms, 6 shards) are overridden by the glass fracture (~140 ms, ~40 shards) *(chat)*.
+- **The frame shatter tokens** (850 ms, 6 shards) aren't used: since 2.1.1 a let-go frame is simply gone *(the user)*.
 - **Under 1440 × 900:** `docs/FOXBOX2_COMPACT.md`.
 
 ## Settled
@@ -647,7 +647,7 @@ The GUIDE keeps its rules: "Now you try" never blocks, and the demos use one han
   - **2.1:** hold to loop, let go to stop; wider = more; each new frame is the next effect; the name big for a second; the how-chips; F and P;
   - the flip side (turn both hands over like a card, the loop reversed) stays as an untaught bonus;
   - no roll;
-  - the glass-fracture release;
+  - the release: gone at once, nothing past the fingers (2.1.1);
   - a pinch while framed never plucks;
   - REMIX's loop slips under the song; SAUCE no longer latches (2.1).
 - **The camera is hidden only** in REMIX with a Visual on.

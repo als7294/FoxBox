@@ -232,3 +232,41 @@
   background: rgba(123, 214, 154, 0.16);
   color: #7bd69a;
 }
+
+/* 2.1.1: a mode's intro (docs/MODE_ENTRY_UX.md §3): a shorter demo, so the card fits above MELODY's strip at 1280×800 */
+.card[data-intro] .demo {
+  height: 196px;
+}
+.card[data-intro='melody'] {
+  bottom: 196px;
+}
+.introLoad {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.action[data-primary] {
+  background: var(--fb-accent);
+  color: var(--fb-ink-on-accent);
+}
+/* REMIX's card sits above the wave (S5: layout.ts's wave line), as MELODY's does above the strip */
+.card[data-intro='remix'] {
+  bottom: 270px;
+}
+/* compact (1280×800): a narrower card with a shorter demo, so the hands you play with stay clear */
+@media (max-width: 1439px), (max-height: 899px) {
+  .card[data-intro] {
+    width: 320px;
+  }
+  .card[data-intro] .demo {
+    height: 150px;
+  }
+  .card[data-intro] .demo canvas {
+    max-width: 100%;
+    height: auto !important;
+  }
+  .card[data-intro='remix'] {
+    bottom: 214px;
+  }
+}

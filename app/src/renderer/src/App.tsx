@@ -7,11 +7,12 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { NotchStack } from '@/components/feedback/Toast'
 import { Launch } from '@/components/fb/Launch'
 import { Settings } from '@/components/fb/Settings'
+import { enterMode, toggleChooser, TOP_MODES } from '@/components/fb/modes'
 import { Setup } from '@/components/fb/Setup'
 import { Shell } from '@/components/fb/Shell'
 import { Guide, useGuideFirstRun } from '@/components/guide/Guide'
 import { guide, useGuide } from '@/components/guide/guideStore'
-import { ShortcutsPanel, switchMode } from '@/components/shell/ModeSwitch'
+import { ShortcutsPanel } from '@/components/shell/ModeSwitch'
 import { useWheelUi } from '@/components/wheel/WheelOverlay'
 import { WhatsNew } from '@/components/whatsnew/WhatsNew'
 import { bridge } from '@/env'
@@ -24,13 +25,15 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
-/** The app's keys and menu commands (2.0): M mode, G GUIDE, ? shortcuts, ⌘, settings, Esc closes them, and the page
- *  zoom. The modes' own keys (R, Space, 1–7, ↑/↓, S, ←/→) live on their pages. */
+/** The app's keys and menu commands (2.0): M the mode chooser, ⌘1–3 a mode (2.1.1), G GUIDE, ? shortcuts, ⌘, settings,
+ *  Esc closes them, and the page zoom. The modes' own keys (R, Space, 1–7, ↑/↓, S, ←/→) live on their pages. */
 function useCommands() {
   useEffect(() => {
     const run = (action: MenuCommand | 'escape') => {
       const ui = useUi.getState()
       if (action === 'open-settings') ui.setSettingsOpen(!ui.settingsOpen)
+      else if (action === 'mode-sauce' || action === 'mode-melody' || action === 'mode-remix')
+        enterMode(action.slice(5) as (typeof TOP_MODES)[number])
       else if (action === 'escape') {
         if (ui.settingsOpen) ui.setSettingsOpen(false)
         else if (ui.shortcutsOpen) ui.setShortcutsOpen(false)
@@ -46,12 +49,17 @@ function useCommands() {
       } else if (mod && e.key === ',') {
         e.preventDefault()
         run('open-settings')
+      } else if (mod && /^[123]$/.test(e.key)) {
+        e.preventDefault() // ⌘1–3: straight to a mode, from anywhere
+        enterMode(TOP_MODES[Number(e.key) - 1]!)
+      } else if ((e.key === 'm' || e.key === 'M') && !mod && !e.altKey && !isTextTarget(e.target) && !useWheelUi.getState().open) {
+        e.preventDefault() // M: the chooser (it closes the GUIDE, keeping its place)
+        toggleChooser()
       } else if (e.key === 'Escape' && !isTextTarget(e.target) && !document.querySelector('dialog[open]')) {
         run('escape')
       } else if (!mod && !e.altKey && !isTextTarget(e.target) && !useGuide.getState().open && !useWheelUi.getState().open) {
         const ui = useUi.getState()
-        if (e.key === 'm' || e.key === 'M') switchMode(ui.mode === 'play' ? 'remix' : 'play')
-        else if (e.key === 'g' || e.key === 'G') guide.open(ui.mode)
+        if (e.key === 'g' || e.key === 'G') guide.open(ui.mode)
         else if (e.key === '?') ui.setShortcutsOpen(!ui.shortcutsOpen)
         else return
         e.preventDefault()

@@ -11,7 +11,8 @@ import { CONTROL_STYLES, HOLD_MAX_MS, HOLD_MIN_MS, usePlayPrefs, type ControlSty
 import { clearReach } from '@/components/camera/smartCamera'
 import { LEGACY_URL } from '@/components/whatsnew/WhatsNew'
 import { creditHref, CREDIT_TEXT } from '@/components/common/CreditLink'
-import { guide, useGuide } from '@/components/guide/guideStore'
+import { guide, useGuide, type Chapter } from '@/components/guide/guideStore'
+import { MODE_NAME, TOP_MODES } from './modes'
 import { stepsFor } from '@/components/guide/Guide'
 import { AbletonDeviceRow } from './AbletonDeviceRow'
 import { CalibrateReach } from './CalibrateReach'
@@ -704,9 +705,9 @@ function GuideTab() {
       ? t('settings.guide.stepsResume', '{n} steps · Continue from step {step}', { n, step: at + 1 })
       : t('settings.guide.steps', '{n} steps', { n })
   }
-  const open = (chapter: 'play' | 'remix') => {
+  const open = (chapter: Chapter) => {
     useUi.getState().setSettingsOpen(false)
-    guide.open(chapter)
+    guide.open(chapter, chapter.startsWith('intro-') ? 0 : undefined) // an intro replays from the top
   }
   return (
     <>
@@ -720,6 +721,15 @@ function GuideTab() {
             <span className={s.guideTitle}>{t('settings.guide.remix', 'REMIX guide')}</span>
             <span className={s.guideSub}>{sub('remix')}</span>
           </button>
+        </div>
+        {/* 2.1.1: each mode's intro, again */}
+        <div className={s.guides}>
+          {TOP_MODES.map((m) => (
+            <button key={m} type="button" className={s.guide} onClick={() => open(`intro-${m}`)}>
+              <span className={s.guideTitle}>{MODE_NAME[m]}</span>
+              <span className={s.guideSub}>{t('settings.guide.steps', '{n} steps', { n: stepsFor(`intro-${m}`).length })}</span>
+            </button>
+          ))}
         </div>
       </Group>
       <Group label={t('settings.keyboard', 'KEYBOARD')}>
